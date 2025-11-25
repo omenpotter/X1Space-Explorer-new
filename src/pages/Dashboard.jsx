@@ -1,105 +1,64 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { 
   Search, 
   Zap,
-  TrendingUp,
   TrendingDown,
-  Clock,
   ExternalLink,
-  ChevronDown
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { LineChart, Line, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
+import X1Rpc from '../components/x1/X1RpcService';
 
-// Generate mock mempool data
-const generateMempoolBlocks = () => {
-  return Array.from({ length: 7 }, (_, i) => ({
+// Block visualization component
+const BlockViz = ({ block, isPending = false }) => {
+  const squares = Array.from({ length: 80 }, (_, i) => ({
     id: i,
-    feeRange: i === 0 ? '1 - 111' : i < 3 ? '0.18 - 1.00' : '0.18 - 0.18',
-    medianFee: i === 0 ? '~1' : '~0',
-    totalFees: i === 0 ? 0.016 : 0.002,
-    txCount: i === 0 ? 2999 : 4000 + Math.floor(Math.random() * 1000),
-    eta: `In ~${(i + 1) * 10} minutes`,
-    color: i === 0 ? 'from-yellow-500/30 to-yellow-600/20' : 'from-cyan-500/20 to-cyan-600/10'
-  }));
-};
-
-const generateConfirmedBlocks = () => {
-  const baseSlot = 11265950;
-  const leaders = ['X1 Labs', 'StakeSquid', 'Chorus One', 'Everstake', 'Unknown'];
-  
-  return Array.from({ length: 8 }, (_, i) => ({
-    slot: baseSlot - i,
-    feeRange: `${(1 + Math.random() * 2).toFixed(2)} - ${(100 + Math.random() * 400).toFixed(0)}`,
-    medianFee: `~${Math.floor(1 + Math.random() * 3)}`,
-    totalFees: (0.02 + Math.random() * 0.03).toFixed(3),
-    txCount: 2500 + Math.floor(Math.random() * 2000),
-    timeAgo: i === 0 ? '3 minutes ago' : `${3 + i * 15} minutes ago`,
-    leader: leaders[Math.floor(Math.random() * leaders.length)],
-    color: i < 2 ? 'from-purple-500/30 to-purple-600/20' : 'from-blue-500/20 to-blue-600/10'
-  }));
-};
-
-const generateTxData = () => {
-  return Array.from({ length: 60 }, (_, i) => ({
-    time: i,
-    value: 1500 + Math.random() * 1000
-  }));
-};
-
-// Mempool Block Visualization Component
-const MempoolBlockViz = ({ block, isPending = true }) => {
-  // Generate random "transaction" squares
-  const squares = Array.from({ length: 100 }, (_, i) => ({
-    id: i,
-    size: Math.random() > 0.7 ? 'large' : Math.random() > 0.4 ? 'medium' : 'small',
     opacity: 0.3 + Math.random() * 0.7
   }));
 
+  const color = isPending ? 'from-cyan-500/20 to-cyan-600/10' : 'from-purple-500/30 to-purple-600/20';
+  const txCount = block?.txCount || 0;
+  const fees = block?.fees || (Math.random() * 0.05).toFixed(3);
+
   return (
     <div className="relative group cursor-pointer">
-      {/* Block container */}
       <div className={`
         relative w-[120px] h-[180px] md:w-[140px] md:h-[200px]
-        bg-gradient-to-b ${block.color}
+        bg-gradient-to-b ${color}
         border border-white/10 rounded-sm
-        overflow-hidden
-        transition-all duration-300
+        overflow-hidden transition-all duration-300
         hover:border-cyan-500/50 hover:scale-[1.02]
       `}>
-        {/* Transaction visualization grid */}
         <div className="absolute inset-1 grid grid-cols-10 gap-[1px]">
           {squares.map((sq) => (
             <div
               key={sq.id}
-              className={`
-                ${sq.size === 'large' ? 'col-span-2 row-span-2' : sq.size === 'medium' ? 'col-span-1 row-span-2' : ''}
-                bg-[#9ACD32] rounded-[1px]
-              `}
+              className="bg-[#9ACD32] rounded-[1px]"
               style={{ opacity: sq.opacity * 0.8 }}
             />
           ))}
         </div>
         
-        {/* Fee info overlay */}
         <div className="absolute top-2 left-2 right-2">
-          <p className="text-[10px] text-gray-300">{block.medianFee} sat/vB</p>
-          <p className="text-[9px] text-cyan-400">{block.feeRange} sat/vB</p>
+          <p className="text-[10px] text-gray-300">~1 sat/vB</p>
+          <p className="text-[9px] text-cyan-400">0.1 - 100 sat/vB</p>
         </div>
         
-        {/* Bottom stats */}
         <div className="absolute bottom-2 left-2 right-2">
-          <p className="text-white font-bold text-sm">‎{block.totalFees} XNT</p>
-          <p className="text-[10px] text-gray-400">{block.txCount.toLocaleString()} transactions</p>
-          <p className="text-[10px] text-cyan-400">{isPending ? block.eta : block.timeAgo}</p>
+          <p className="text-white font-bold text-sm">‎{fees} XNT</p>
+          <p className="text-[10px] text-gray-400">{txCount.toLocaleString()} txns</p>
+          <p className="text-[10px] text-cyan-400">
+            {isPending ? 'Pending...' : block?.timeAgo || 'just now'}
+          </p>
         </div>
       </div>
       
-      {/* Slot number for confirmed blocks */}
-      {!isPending && (
+      {!isPending && block?.slot && (
         <div className="text-center mt-2">
           <Link 
             to={createPageUrl('BlockDetail') + `?slot=${block.slot}`}
@@ -115,18 +74,39 @@ const MempoolBlockViz = ({ block, isPending = true }) => {
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [mempoolBlocks] = useState(generateMempoolBlocks());
-  const [confirmedBlocks, setConfirmedBlocks] = useState(generateConfirmedBlocks());
-  const [txData] = useState(generateTxData());
-  const [currentTPS, setCurrentTPS] = useState(2622);
-  const [unconfirmedTx, setUnconfirmedTx] = useState(66513);
-  
-  // Simulate live updates
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [recentBlocks, setRecentBlocks] = useState([]);
+  const [lastUpdate, setLastUpdate] = useState(null);
+
+  // Fetch dashboard data
+  const fetchData = async () => {
+    try {
+      const [data, blocks] = await Promise.all([
+        X1Rpc.getDashboardData(),
+        X1Rpc.getRecentBlocks(8)
+      ]);
+      
+      setDashboardData(data);
+      setRecentBlocks(blocks.map((b, i) => ({
+        ...b,
+        timeAgo: i === 0 ? 'just now' : `${i * 0.4}s ago`,
+        fees: (Math.random() * 0.05).toFixed(3)
+      })));
+      setLastUpdate(new Date());
+      setError(null);
+    } catch (err) {
+      console.error('Failed to fetch data:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTPS(prev => Math.floor(prev + (Math.random() - 0.5) * 100));
-      setUnconfirmedTx(prev => Math.floor(prev + (Math.random() - 0.5) * 500));
-    }, 2000);
+    fetchData();
+    const interval = setInterval(fetchData, 5000); // Refresh every 5 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -136,13 +116,44 @@ export default function Dashboard() {
     }
   };
 
+  const formatNumber = (num) => {
+    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+    if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+    return num?.toLocaleString() || '0';
+  };
+
+  const formatTime = (seconds) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return h > 0 ? `~${h}h ${m}m` : `~${m}m`;
+  };
+
+  // Generate pending blocks for mempool visualization
+  const pendingBlocks = Array.from({ length: 6 }, (_, i) => ({
+    id: i,
+    txCount: 2000 + Math.floor(Math.random() * 2000),
+    fees: (0.002 + Math.random() * 0.01).toFixed(3),
+    eta: `In ~${(i + 1) * 10} minutes`
+  }));
+
+  if (loading && !dashboardData) {
+    return (
+      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-cyan-400 mx-auto mb-4" />
+          <p className="text-gray-400">Connecting to X1 Network...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#1d2d3a] text-white">
       {/* Header */}
       <header className="bg-[#1d2d3a] border-b border-white/5">
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
-            {/* Logo */}
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
                 <span className="text-black font-black text-sm">X1</span>
@@ -151,12 +162,12 @@ export default function Dashboard() {
                 <span className="text-white font-bold">X1</span>
                 <span className="text-cyan-400 font-bold">.space</span>
               </div>
-              <div className="ml-2 px-2 py-0.5 bg-cyan-500/20 rounded text-cyan-400 text-xs font-medium">
+              <div className="ml-2 px-2 py-0.5 bg-cyan-500/20 rounded text-cyan-400 text-xs font-medium flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
                 Mainnet
               </div>
             </div>
             
-            {/* Nav Icons */}
             <nav className="hidden md:flex items-center gap-1">
               <Link to={createPageUrl('Dashboard')}>
                 <Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg">
@@ -188,14 +199,11 @@ export default function Dashboard() {
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                     <polyline points="14 2 14 8 20 8" />
-                    <line x1="16" y1="13" x2="8" y2="13" />
-                    <line x1="16" y1="17" x2="8" y2="17" />
                   </svg>
                 </Button>
               </Link>
             </nav>
             
-            {/* Search */}
             <div className="flex-1 max-w-md">
               <div className="relative">
                 <Input
@@ -218,36 +226,44 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Error Banner */}
+      {error && (
+        <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2">
+          <div className="max-w-[1800px] mx-auto flex items-center gap-2 text-red-400 text-sm">
+            <AlertCircle className="w-4 h-4" />
+            <span>Error connecting to X1 RPC: {error}</span>
+            <Button variant="ghost" size="sm" onClick={fetchData} className="ml-auto text-red-400">
+              Retry
+            </Button>
+          </div>
+        </div>
+      )}
+
       <main className="max-w-[1800px] mx-auto px-4 py-6">
-        {/* Mempool & Blocks Visualization */}
+        {/* Block Visualization */}
         <div className="flex flex-col lg:flex-row gap-4 mb-8">
-          {/* Mempool (Pending) Section */}
           <div className="flex-1">
             <div className="flex items-center gap-4 overflow-x-auto pb-4">
               {/* Pending blocks */}
               <div className="flex gap-2">
-                {mempoolBlocks.map((block) => (
-                  <MempoolBlockViz key={block.id} block={block} isPending={true} />
+                {pendingBlocks.map((block) => (
+                  <BlockViz key={block.id} block={block} isPending={true} />
                 ))}
               </div>
               
-              {/* Divider with arrows */}
+              {/* Divider */}
               <div className="flex flex-col items-center px-4 shrink-0">
                 <div className="flex items-center gap-1 text-gray-500">
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M19 12H5M12 19l-7-7 7-7" />
                   </svg>
                 </div>
               </div>
               
               {/* Confirmed blocks */}
               <div className="flex gap-2">
-                {confirmedBlocks.slice(0, 6).map((block) => (
-                  <MempoolBlockViz key={block.slot} block={block} isPending={false} />
+                {recentBlocks.map((block) => (
+                  <BlockViz key={block.slot} block={block} isPending={false} />
                 ))}
               </div>
             </div>
@@ -256,196 +272,221 @@ export default function Dashboard() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column - Transaction Fees */}
+          {/* Left Column */}
           <div className="space-y-4">
-            <div className="bg-[#24384a] rounded-xl p-4">
-              <h3 className="text-gray-400 text-sm mb-4">TRANSACTION FEES</h3>
-              <div className="grid grid-cols-4 gap-2">
-                {['No Priority', 'Low Priority', 'Medium Priority', 'High Priority'].map((label, i) => (
-                  <div key={label} className={`p-3 rounded-lg text-center ${i === 0 ? 'bg-gray-600/30' : i === 1 ? 'bg-green-500/20 border border-green-500/30' : i === 2 ? 'bg-yellow-500/20 border border-yellow-500/30' : 'bg-red-500/20 border border-red-500/30'}`}>
-                    <p className="text-xs text-gray-400 mb-1">{label}</p>
-                    <p className="text-white font-bold">{i + 1} <span className="text-xs text-gray-400">sat/vB</span></p>
-                    <p className="text-cyan-400 text-xs">${(0.12 + i * 0.05).toFixed(2)}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            {/* Mempool Goggles */}
+            {/* Live Network Stats */}
             <div className="bg-[#24384a] rounded-xl p-4">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-gray-400 text-sm flex items-center gap-2">
-                  Mempool Goggles™ : All
-                  <ExternalLink className="w-3 h-3" />
-                </h3>
+                <h3 className="text-gray-400 text-sm">LIVE NETWORK STATS</h3>
+                {lastUpdate && (
+                  <span className="text-xs text-gray-500">
+                    Updated {lastUpdate.toLocaleTimeString()}
+                  </span>
+                )}
               </div>
-              <div className="flex gap-2 mb-4">
-                {['All', 'Consolidation', 'Coinjoin', 'Data'].map((tab, i) => (
-                  <button 
-                    key={tab}
-                    className={`px-3 py-1 rounded text-xs ${i === 0 ? 'bg-cyan-500 text-black' : 'bg-white/5 text-gray-400 hover:text-white'}`}
-                  >
-                    {tab}
-                  </button>
-                ))}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-[#1d2d3a] rounded-lg p-3">
+                  <p className="text-gray-400 text-xs mb-1">Current Slot</p>
+                  <p className="text-white font-bold text-lg font-mono">
+                    {dashboardData?.slot?.toLocaleString() || '-'}
+                  </p>
+                </div>
+                <div className="bg-[#1d2d3a] rounded-lg p-3">
+                  <p className="text-gray-400 text-xs mb-1">Block Height</p>
+                  <p className="text-white font-bold text-lg font-mono">
+                    {dashboardData?.blockHeight?.toLocaleString() || '-'}
+                  </p>
+                </div>
+                <div className="bg-[#1d2d3a] rounded-lg p-3">
+                  <p className="text-gray-400 text-xs mb-1">TPS</p>
+                  <p className="text-cyan-400 font-bold text-lg">
+                    {dashboardData?.tps?.toLocaleString() || '-'}
+                  </p>
+                </div>
+                <div className="bg-[#1d2d3a] rounded-lg p-3">
+                  <p className="text-gray-400 text-xs mb-1">Total TXs</p>
+                  <p className="text-white font-bold text-lg">
+                    {formatNumber(dashboardData?.transactionCount)}
+                  </p>
+                </div>
               </div>
-              {/* Visual mempool grid */}
-              <div className="bg-[#1d2d3a] rounded-lg p-2 h-[200px] grid grid-cols-20 gap-[2px]">
-                {Array.from({ length: 300 }, (_, i) => (
-                  <div 
-                    key={i} 
-                    className="bg-[#9ACD32] rounded-[1px]"
-                    style={{ 
-                      opacity: 0.3 + Math.random() * 0.7,
-                      gridColumn: Math.random() > 0.9 ? 'span 2' : 'span 1',
-                      gridRow: Math.random() > 0.9 ? 'span 2' : 'span 1'
-                    }}
-                  />
-                ))}
+            </div>
+
+            {/* Supply Info */}
+            <div className="bg-[#24384a] rounded-xl p-4">
+              <h3 className="text-gray-400 text-sm mb-4">SUPPLY</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-gray-400 text-xs mb-1">Circulating</p>
+                  <p className="text-cyan-400 font-bold text-xl">
+                    {formatNumber(dashboardData?.supply?.circulating)} XNT
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-xs mb-1">Total Supply</p>
+                  <p className="text-white font-bold text-xl">
+                    {formatNumber(dashboardData?.supply?.total)} XNT
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Validators */}
+            <div className="bg-[#24384a] rounded-xl p-4">
+              <h3 className="text-gray-400 text-sm mb-4">VALIDATORS</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-gray-400 text-xs mb-1">Active</p>
+                  <p className="text-emerald-400 font-bold text-xl">
+                    {dashboardData?.validators?.current || '-'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-xs mb-1">Delinquent</p>
+                  <p className="text-red-400 font-bold text-xl">
+                    {dashboardData?.validators?.delinquent || '-'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-xs mb-1">Total Stake</p>
+                  <p className="text-white font-bold text-xl">
+                    {formatNumber(dashboardData?.validators?.totalStake)}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Right Column - Network Stats */}
+          {/* Right Column */}
           <div className="space-y-4">
             {/* Epoch Progress */}
             <div className="bg-[#24384a] rounded-xl p-4">
-              <h3 className="text-gray-400 text-sm mb-3">EPOCH PROGRESS</h3>
+              <h3 className="text-gray-400 text-sm mb-3">EPOCH {dashboardData?.epoch || '-'} PROGRESS</h3>
               <div className="flex items-center gap-4">
                 <div className="flex-1">
                   <div className="h-3 bg-[#1d2d3a] rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-cyan-500 to-green-500 rounded-full" style={{ width: '94.4%' }} />
+                    <div 
+                      className="h-full bg-gradient-to-r from-cyan-500 to-green-500 rounded-full transition-all duration-500" 
+                      style={{ width: `${dashboardData?.epochProgress || 0}%` }} 
+                    />
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-white font-bold">~10.3 minutes</p>
-                  <p className="text-xs text-gray-400">Average slot time</p>
-                </div>
-                <div className="text-right">
-                  <p className="flex items-center gap-1">
-                    <TrendingDown className="w-4 h-4 text-red-400" />
-                    <span className="text-red-400 font-bold">2.54%</span>
-                  </p>
-                  <p className="text-xs text-gray-400">Previous: <span className="text-red-400">-2.37%</span></p>
-                </div>
-                <div className="text-right">
-                  <p className="text-white font-bold">In ~39 hours</p>
-                  <p className="text-xs text-gray-400">November 26 at 10:27 PM</p>
-                </div>
+                <span className="text-white font-bold">{dashboardData?.epochProgress || 0}%</span>
+              </div>
+              <div className="flex items-center justify-between mt-3 text-sm">
+                <span className="text-gray-400">
+                  {dashboardData?.slotsRemaining?.toLocaleString() || '-'} slots remaining
+                </span>
+                <span className="text-white">
+                  {formatTime(dashboardData?.timeRemaining || 0)}
+                </span>
               </div>
             </div>
 
-            {/* Live Stats */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-[#24384a] rounded-xl p-4">
-                <h3 className="text-gray-400 text-sm mb-2">Minimum fee</h3>
-                <p className="text-2xl font-bold text-white">0.10 <span className="text-sm text-gray-400">sat/vB</span></p>
-              </div>
-              <div className="bg-[#24384a] rounded-xl p-4">
-                <h3 className="text-gray-400 text-sm mb-2">Memory Usage</h3>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-2 bg-[#1d2d3a] rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-green-500 to-yellow-500 rounded-full" style={{ width: '65%' }} />
-                  </div>
-                  <span className="text-xs text-white">194 / 300 MB</span>
-                </div>
-              </div>
-              <div className="bg-[#24384a] rounded-xl p-4">
-                <h3 className="text-gray-400 text-sm mb-2">Unconfirmed</h3>
-                <p className="text-2xl font-bold text-white">{unconfirmedTx.toLocaleString()} <span className="text-sm text-gray-400">TXs</span></p>
-              </div>
-            </div>
-
-            {/* Incoming Transactions Chart */}
+            {/* TPS Chart */}
             <div className="bg-[#24384a] rounded-xl p-4">
-              <h3 className="text-cyan-400 text-sm mb-4">Incoming Transactions</h3>
-              <div className="h-[150px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={txData}>
-                    <YAxis 
-                      domain={['auto', 'auto']}
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fill: '#6b7280', fontSize: 10 }}
-                      width={40}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#1d2d3a', 
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: '8px'
-                      }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke="#eab308" 
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                    {/* Dashed average line */}
-                    <Line 
-                      type="monotone" 
-                      dataKey={() => 1800}
-                      stroke="#6b7280"
-                      strokeWidth={1}
-                      strokeDasharray="5 5"
-                      dot={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+              <h3 className="text-cyan-400 text-sm mb-4">TPS HISTORY</h3>
+              <div className="h-[200px]">
+                {dashboardData?.tpsHistory?.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={dashboardData.tpsHistory}>
+                      <YAxis 
+                        domain={['auto', 'auto']}
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#6b7280', fontSize: 10 }}
+                        width={50}
+                      />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#1d2d3a', 
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: '8px'
+                        }}
+                        labelStyle={{ color: '#9ca3af' }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="tps" 
+                        stroke="#eab308" 
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-gray-500">
+                    Loading TPS data...
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Version Info */}
+            <div className="bg-[#24384a] rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-400 text-xs">Network Version</p>
+                  <p className="text-white font-mono">{dashboardData?.version || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-xs">RPC Endpoint</p>
+                  <p className="text-cyan-400 font-mono text-sm">rpc.mainnet.x1.xyz</p>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Recent Transactions */}
-        <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-gray-400 text-sm flex items-center gap-2">
-                Recent Replacements
-                <ExternalLink className="w-3 h-3" />
-              </h3>
-            </div>
-            <div className="space-y-2">
-              {Array.from({ length: 5 }, (_, i) => (
-                <div key={i} className="flex items-center justify-between p-2 bg-[#1d2d3a] rounded-lg">
-                  <span className="text-cyan-400 text-sm font-mono">
-                    {Math.random().toString(36).substring(2, 10)}...
-                  </span>
-                  <span className="text-gray-400 text-xs">
-                    {Math.floor(Math.random() * 5) + 1}s ago
-                  </span>
-                </div>
-              ))}
-            </div>
+        {/* Recent Blocks Table */}
+        <div className="mt-8 bg-[#24384a] rounded-xl p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-gray-400 text-sm flex items-center gap-2">
+              Recent Blocks
+              <ExternalLink className="w-3 h-3" />
+            </h3>
+            <Link to={createPageUrl('Blocks')}>
+              <Button variant="ghost" size="sm" className="text-cyan-400 hover:text-cyan-300">
+                View All
+              </Button>
+            </Link>
           </div>
-          
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-gray-400 text-sm flex items-center gap-2">
-                Recent Transactions
-                <ExternalLink className="w-3 h-3" />
-              </h3>
-            </div>
-            <div className="space-y-2">
-              {Array.from({ length: 5 }, (_, i) => (
-                <div key={i} className="flex items-center justify-between p-2 bg-[#1d2d3a] rounded-lg">
-                  <span className="text-cyan-400 text-sm font-mono">
-                    {Math.random().toString(36).substring(2, 10)}...
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-white text-sm">
-                      {(Math.random() * 10).toFixed(2)} XNT
-                    </span>
-                    <span className="text-gray-400 text-xs">
-                      {Math.floor(Math.random() * 10) + 1}s ago
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-white/5">
+                  <th className="text-left text-gray-400 text-xs font-medium px-4 py-2">Slot</th>
+                  <th className="text-left text-gray-400 text-xs font-medium px-4 py-2">Block Hash</th>
+                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-2">Transactions</th>
+                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-2">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentBlocks.slice(0, 5).map((block, i) => (
+                  <tr key={block.slot} className="border-b border-white/5 hover:bg-white/[0.02]">
+                    <td className="px-4 py-3">
+                      <Link 
+                        to={createPageUrl('BlockDetail') + `?slot=${block.slot}`}
+                        className="text-cyan-400 hover:underline font-mono"
+                      >
+                        {block.slot.toLocaleString()}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-gray-400 font-mono text-sm">
+                        {block.blockhash?.substring(0, 20)}...
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-white font-mono">
+                      {block.txCount.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-400 text-sm">
+                      {block.blockTime ? new Date(block.blockTime * 1000).toLocaleTimeString() : block.timeAgo}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </main>
