@@ -1,422 +1,454 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState, useEffect, useRef } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Search, 
-  Activity, 
-  Layers, 
-  Clock, 
-  TrendingUp, 
   Zap,
-  Database,
-  Users,
-  ArrowUpRight,
-  Circle,
-  ChevronRight,
-  Cpu
+  TrendingUp,
+  TrendingDown,
+  Clock,
+  ExternalLink,
+  ChevronDown
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { LineChart, Line, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
 
-// Mock data - in production this would come from X1 RPC
-const generateTPSData = () => {
-  return Array.from({ length: 30 }, (_, i) => ({
-    time: `${30 - i}m`,
-    tps: Math.floor(2000 + Math.random() * 1000)
-  })).reverse();
+// Generate mock mempool data
+const generateMempoolBlocks = () => {
+  return Array.from({ length: 7 }, (_, i) => ({
+    id: i,
+    feeRange: i === 0 ? '1 - 111' : i < 3 ? '0.18 - 1.00' : '0.18 - 0.18',
+    medianFee: i === 0 ? '~1' : '~0',
+    totalFees: i === 0 ? 0.016 : 0.002,
+    txCount: i === 0 ? 2999 : 4000 + Math.floor(Math.random() * 1000),
+    eta: `In ~${(i + 1) * 10} minutes`,
+    color: i === 0 ? 'from-yellow-500/30 to-yellow-600/20' : 'from-cyan-500/20 to-cyan-600/10'
+  }));
 };
 
-const mockBlocks = [
-  { slot: 11265950, parent: 11265949, leader: 'X1 Labs (node4)', time: 358, txCount: 2847 },
-  { slot: 11265949, parent: 11265948, leader: 'X1 Labs (node4)', time: 378, txCount: 3102 },
-  { slot: 11265948, parent: 11265947, leader: 'X1 Labs (node11)', time: 585, txCount: 2654 },
-  { slot: 11265947, parent: 11265946, leader: 'X1 Labs (node11)', time: 356, txCount: 2901 },
-  { slot: 11265946, parent: 11265945, leader: 'X1 Labs (node11)', time: 355, txCount: 3245 },
-  { slot: 11265945, parent: 11265944, leader: 'Unknown', time: 318, txCount: 2567 },
-  { slot: 11265944, parent: 11265943, leader: 'Unknown', time: 357, txCount: 2789 },
-  { slot: 11265943, parent: 11265942, leader: 'Unknown', time: 359, txCount: 3012 },
-];
+const generateConfirmedBlocks = () => {
+  const baseSlot = 11265950;
+  const leaders = ['X1 Labs', 'StakeSquid', 'Chorus One', 'Everstake', 'Unknown'];
+  
+  return Array.from({ length: 8 }, (_, i) => ({
+    slot: baseSlot - i,
+    feeRange: `${(1 + Math.random() * 2).toFixed(2)} - ${(100 + Math.random() * 400).toFixed(0)}`,
+    medianFee: `~${Math.floor(1 + Math.random() * 3)}`,
+    totalFees: (0.02 + Math.random() * 0.03).toFixed(3),
+    txCount: 2500 + Math.floor(Math.random() * 2000),
+    timeAgo: i === 0 ? '3 minutes ago' : `${3 + i * 15} minutes ago`,
+    leader: leaders[Math.floor(Math.random() * leaders.length)],
+    color: i < 2 ? 'from-purple-500/30 to-purple-600/20' : 'from-blue-500/20 to-blue-600/10'
+  }));
+};
+
+const generateTxData = () => {
+  return Array.from({ length: 60 }, (_, i) => ({
+    time: i,
+    value: 1500 + Math.random() * 1000
+  }));
+};
+
+// Mempool Block Visualization Component
+const MempoolBlockViz = ({ block, isPending = true }) => {
+  // Generate random "transaction" squares
+  const squares = Array.from({ length: 100 }, (_, i) => ({
+    id: i,
+    size: Math.random() > 0.7 ? 'large' : Math.random() > 0.4 ? 'medium' : 'small',
+    opacity: 0.3 + Math.random() * 0.7
+  }));
+
+  return (
+    <div className="relative group cursor-pointer">
+      {/* Block container */}
+      <div className={`
+        relative w-[120px] h-[180px] md:w-[140px] md:h-[200px]
+        bg-gradient-to-b ${block.color}
+        border border-white/10 rounded-sm
+        overflow-hidden
+        transition-all duration-300
+        hover:border-cyan-500/50 hover:scale-[1.02]
+      `}>
+        {/* Transaction visualization grid */}
+        <div className="absolute inset-1 grid grid-cols-10 gap-[1px]">
+          {squares.map((sq) => (
+            <div
+              key={sq.id}
+              className={`
+                ${sq.size === 'large' ? 'col-span-2 row-span-2' : sq.size === 'medium' ? 'col-span-1 row-span-2' : ''}
+                bg-[#9ACD32] rounded-[1px]
+              `}
+              style={{ opacity: sq.opacity * 0.8 }}
+            />
+          ))}
+        </div>
+        
+        {/* Fee info overlay */}
+        <div className="absolute top-2 left-2 right-2">
+          <p className="text-[10px] text-gray-300">{block.medianFee} sat/vB</p>
+          <p className="text-[9px] text-cyan-400">{block.feeRange} sat/vB</p>
+        </div>
+        
+        {/* Bottom stats */}
+        <div className="absolute bottom-2 left-2 right-2">
+          <p className="text-white font-bold text-sm">‎{block.totalFees} XNT</p>
+          <p className="text-[10px] text-gray-400">{block.txCount.toLocaleString()} transactions</p>
+          <p className="text-[10px] text-cyan-400">{isPending ? block.eta : block.timeAgo}</p>
+        </div>
+      </div>
+      
+      {/* Slot number for confirmed blocks */}
+      {!isPending && (
+        <div className="text-center mt-2">
+          <Link 
+            to={createPageUrl('BlockDetail') + `?slot=${block.slot}`}
+            className="text-cyan-400 hover:underline text-sm font-mono"
+          >
+            {block.slot.toLocaleString()}
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [tpsData, setTpsData] = useState(generateTPSData());
+  const [mempoolBlocks] = useState(generateMempoolBlocks());
+  const [confirmedBlocks, setConfirmedBlocks] = useState(generateConfirmedBlocks());
+  const [txData] = useState(generateTxData());
   const [currentTPS, setCurrentTPS] = useState(2622);
-  const [slot, setSlot] = useState(11265950);
-  const [blockHeight, setBlockHeight] = useState(11206465);
-  const [epochProgress, setEpochProgress] = useState(94.4);
+  const [unconfirmedTx, setUnconfirmedTx] = useState(66513);
   
   // Simulate live updates
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTPS(prev => Math.floor(prev + (Math.random() - 0.5) * 100));
-      setSlot(prev => prev + 1);
-      setTpsData(prev => {
-        const newData = [...prev.slice(1), { time: 'now', tps: Math.floor(2000 + Math.random() * 1000) }];
-        return newData;
-      });
-    }, 3000);
+      setUnconfirmedTx(prev => Math.floor(prev + (Math.random() - 0.5) * 500));
+    }, 2000);
     return () => clearInterval(interval);
   }, []);
 
   const handleSearch = () => {
     if (searchQuery) {
-      // Navigate to search results
       window.location.href = createPageUrl('Search') + `?q=${searchQuery}`;
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0e17] text-white">
+    <div className="min-h-screen bg-[#1d2d3a] text-white">
       {/* Header */}
-      <header className="border-b border-white/5 bg-[#0d1320]/80 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+      <header className="bg-[#1d2d3a] border-b border-white/5">
+        <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="text-3xl font-black tracking-tight">
-                <span className="text-white">X</span>
-                <span className="text-cyan-400">1</span>
+            {/* Logo */}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
+                <span className="text-black font-black text-sm">X1</span>
               </div>
-              <Badge variant="outline" className="border-cyan-500/30 text-cyan-400 text-xs">
+              <div className="hidden sm:block">
+                <span className="text-white font-bold">X1</span>
+                <span className="text-cyan-400 font-bold">.space</span>
+              </div>
+              <div className="ml-2 px-2 py-0.5 bg-cyan-500/20 rounded text-cyan-400 text-xs font-medium">
                 Mainnet
-              </Badge>
+              </div>
             </div>
             
-            <nav className="hidden md:flex items-center gap-6">
-              <Link to={createPageUrl('Dashboard')} className="text-white font-medium">
-                Cluster Stats
+            {/* Nav Icons */}
+            <nav className="hidden md:flex items-center gap-1">
+              <Link to={createPageUrl('Dashboard')}>
+                <Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg">
+                  <Zap className="w-5 h-5" />
+                </Button>
               </Link>
-              <Link to={createPageUrl('Validators')} className="text-gray-400 hover:text-white transition-colors">
-                Validators
+              <Link to={createPageUrl('Blocks')}>
+                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="3" width="7" height="7" />
+                    <rect x="14" y="3" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" />
+                    <rect x="14" y="14" width="7" height="7" />
+                  </svg>
+                </Button>
               </Link>
-              <Link to={createPageUrl('Blocks')} className="text-gray-400 hover:text-white transition-colors">
-                Blocks
+              <Link to={createPageUrl('Validators')}>
+                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 3v18h18" />
+                    <path d="M18 17V9" />
+                    <path d="M13 17V5" />
+                    <path d="M8 17v-3" />
+                  </svg>
+                </Button>
               </Link>
-              <Link to={createPageUrl('Transactions')} className="text-gray-400 hover:text-white transition-colors">
-                Transactions
+              <Link to={createPageUrl('Transactions')}>
+                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                </Button>
               </Link>
             </nav>
             
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-full">
-                <Circle className="w-2 h-2 fill-emerald-400 text-emerald-400" />
-                <span className="text-emerald-400 text-sm font-medium">Online</span>
+            {/* Search */}
+            <div className="flex-1 max-w-md">
+              <div className="relative">
+                <Input
+                  placeholder="Explore the X1 ecosystem"
+                  className="w-full bg-[#24384a] border-0 text-white placeholder:text-gray-500 pr-10 rounded-lg"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                />
+                <Button 
+                  size="icon" 
+                  className="absolute right-1 top-1/2 -translate-y-1/2 bg-cyan-500 hover:bg-cyan-600 h-7 w-7 rounded"
+                  onClick={handleSearch}
+                >
+                  <Search className="w-4 h-4 text-black" />
+                </Button>
               </div>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-        {/* Search Bar */}
-        <div className="relative max-w-2xl mx-auto">
-          <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 rounded-2xl blur-xl" />
-          <div className="relative bg-[#111827]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-1">
-            <div className="flex items-center gap-2">
-              <Search className="w-5 h-5 text-gray-400 ml-4" />
-              <Input
-                placeholder="Search for blocks, accounts, transactions, programs..."
-                className="flex-1 bg-transparent border-0 focus-visible:ring-0 text-white placeholder:text-gray-500"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              />
-              <Button 
-                onClick={handleSearch}
-                className="bg-cyan-500 hover:bg-cyan-600 text-black font-semibold rounded-xl"
-              >
-                Search
-              </Button>
+      {/* Main Content */}
+      <main className="max-w-[1800px] mx-auto px-4 py-6">
+        {/* Mempool & Blocks Visualization */}
+        <div className="flex flex-col lg:flex-row gap-4 mb-8">
+          {/* Mempool (Pending) Section */}
+          <div className="flex-1">
+            <div className="flex items-center gap-4 overflow-x-auto pb-4">
+              {/* Pending blocks */}
+              <div className="flex gap-2">
+                {mempoolBlocks.map((block) => (
+                  <MempoolBlockViz key={block.id} block={block} isPending={true} />
+                ))}
+              </div>
+              
+              {/* Divider with arrows */}
+              <div className="flex flex-col items-center px-4 shrink-0">
+                <div className="flex items-center gap-1 text-gray-500">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                  </svg>
+                </div>
+              </div>
+              
+              {/* Confirmed blocks */}
+              <div className="flex gap-2">
+                {confirmedBlocks.slice(0, 6).map((block) => (
+                  <MempoolBlockViz key={block.slot} block={block} isPending={false} />
+                ))}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Supply Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="bg-gradient-to-br from-[#111827] to-[#0d1320] border-white/5 overflow-hidden">
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-gray-400 text-sm font-medium">Circulating Supply</p>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="text-4xl font-bold text-cyan-400">1B</span>
-                    <span className="text-gray-500">/ 1B</span>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left Column - Transaction Fees */}
+          <div className="space-y-4">
+            <div className="bg-[#24384a] rounded-xl p-4">
+              <h3 className="text-gray-400 text-sm mb-4">TRANSACTION FEES</h3>
+              <div className="grid grid-cols-4 gap-2">
+                {['No Priority', 'Low Priority', 'Medium Priority', 'High Priority'].map((label, i) => (
+                  <div key={label} className={`p-3 rounded-lg text-center ${i === 0 ? 'bg-gray-600/30' : i === 1 ? 'bg-green-500/20 border border-green-500/30' : i === 2 ? 'bg-yellow-500/20 border border-yellow-500/30' : 'bg-red-500/20 border border-red-500/30'}`}>
+                    <p className="text-xs text-gray-400 mb-1">{label}</p>
+                    <p className="text-white font-bold">{i + 1} <span className="text-xs text-gray-400">sat/vB</span></p>
+                    <p className="text-cyan-400 text-xs">${(0.12 + i * 0.05).toFixed(2)}</p>
                   </div>
-                  <p className="text-emerald-400 text-sm mt-2">100.0% is circulating</p>
-                </div>
-                <div className="p-3 bg-cyan-500/10 rounded-xl">
-                  <Database className="w-6 h-6 text-cyan-400" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-[#111827] to-[#0d1320] border-white/5 overflow-hidden">
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-gray-400 text-sm font-medium">Active Stake</p>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="text-4xl font-bold text-cyan-400">961.9M</span>
-                    <span className="text-gray-500">/ 1B</span>
-                  </div>
-                  <p className="text-sm mt-2">
-                    <span className="text-gray-400">Delinquent stake: </span>
-                    <span className="text-red-400">0.1%</span>
-                  </p>
-                </div>
-                <div className="p-3 bg-cyan-500/10 rounded-xl">
-                  <Users className="w-6 h-6 text-cyan-400" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Live Cluster Stats */}
-        <Card className="bg-gradient-to-br from-[#111827] to-[#0d1320] border-white/5">
-          <CardHeader className="border-b border-white/5 pb-4">
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <Activity className="w-5 h-5 text-cyan-400" />
-              Live Cluster Stats
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-white/5">
-              <div className="flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
-                <span className="text-gray-400">Slot</span>
-                <Link to={createPageUrl('Blocks') + `?slot=${slot}`} className="text-cyan-400 hover:underline font-mono">
-                  {slot.toLocaleString()}
-                </Link>
-              </div>
-              <div className="flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
-                <span className="text-gray-400">Block height</span>
-                <span className="text-white font-mono">{blockHeight.toLocaleString()}</span>
-              </div>
-              <div className="flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
-                <span className="text-gray-400">Cluster time</span>
-                <span className="text-white font-mono text-sm">
-                  {new Date().toUTCString()}
-                </span>
-              </div>
-              <div className="flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
-                <span className="text-gray-400">Slot time (1min average)</span>
-                <span className="text-white font-mono">375ms</span>
-              </div>
-              <div className="flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
-                <span className="text-gray-400">Slot time (1hr average)</span>
-                <span className="text-white font-mono">373ms</span>
-              </div>
-              <div className="flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
-                <span className="text-gray-400">Epoch</span>
-                <Link to={createPageUrl('Blocks') + `?epoch=63`} className="text-cyan-400 hover:underline font-mono">
-                  63
-                </Link>
-              </div>
-              <div className="flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
-                <span className="text-gray-400">Epoch progress</span>
-                <div className="flex items-center gap-3">
-                  <Progress value={epochProgress} className="w-32 h-2 bg-white/10" />
-                  <span className="text-white font-mono">{epochProgress}%</span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
-                <span className="text-gray-400">Epoch time remaining (approx.)</span>
-                <span className="text-white font-mono">~1h 15m 42s</span>
+                ))}
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Transaction Stats */}
-        <Card className="bg-gradient-to-br from-[#111827] to-[#0d1320] border-white/5">
-          <CardHeader className="border-b border-white/5 pb-4">
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <Zap className="w-5 h-5 text-yellow-400" />
-              Live Transaction Stats
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-white/5">
-              <div className="flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
-                <span className="text-gray-400">Transaction count</span>
-                <span className="text-white font-mono">8,687,199,980</span>
+            
+            {/* Mempool Goggles */}
+            <div className="bg-[#24384a] rounded-xl p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-gray-400 text-sm flex items-center gap-2">
+                  Mempool Goggles™ : All
+                  <ExternalLink className="w-3 h-3" />
+                </h3>
               </div>
-              <div className="flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
-                <span className="text-gray-400">Transactions per second (TPS)</span>
-                <span className="text-emerald-400 font-mono font-bold text-xl">{currentTPS.toLocaleString()}</span>
+              <div className="flex gap-2 mb-4">
+                {['All', 'Consolidation', 'Coinjoin', 'Data'].map((tab, i) => (
+                  <button 
+                    key={tab}
+                    className={`px-3 py-1 rounded text-xs ${i === 0 ? 'bg-cyan-500 text-black' : 'bg-white/5 text-gray-400 hover:text-white'}`}
+                  >
+                    {tab}
+                  </button>
+                ))}
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* TPS Chart */}
-        <Card className="bg-gradient-to-br from-[#111827] to-[#0d1320] border-white/5">
-          <CardHeader className="border-b border-white/5 pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-cyan-400" />
-                TPS History
-              </CardTitle>
-              <Tabs defaultValue="30m" className="w-auto">
-                <TabsList className="bg-white/5 border border-white/10">
-                  <TabsTrigger value="30m" className="text-xs data-[state=active]:bg-cyan-500 data-[state=active]:text-black">30m</TabsTrigger>
-                  <TabsTrigger value="2h" className="text-xs data-[state=active]:bg-cyan-500 data-[state=active]:text-black">2h</TabsTrigger>
-                  <TabsTrigger value="6h" className="text-xs data-[state=active]:bg-cyan-500 data-[state=active]:text-black">6h</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={tpsData}>
-                  <defs>
-                    <linearGradient id="tpsGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <XAxis 
-                    dataKey="time" 
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#6b7280', fontSize: 12 }}
-                  />
-                  <YAxis 
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#6b7280', fontSize: 12 }}
-                    domain={['auto', 'auto']}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#1f2937', 
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '12px',
-                      color: '#fff'
+              {/* Visual mempool grid */}
+              <div className="bg-[#1d2d3a] rounded-lg p-2 h-[200px] grid grid-cols-20 gap-[2px]">
+                {Array.from({ length: 300 }, (_, i) => (
+                  <div 
+                    key={i} 
+                    className="bg-[#9ACD32] rounded-[1px]"
+                    style={{ 
+                      opacity: 0.3 + Math.random() * 0.7,
+                      gridColumn: Math.random() > 0.9 ? 'span 2' : 'span 1',
+                      gridRow: Math.random() > 0.9 ? 'span 2' : 'span 1'
                     }}
-                    labelStyle={{ color: '#9ca3af' }}
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="tps" 
-                    stroke="#06b6d4" 
-                    strokeWidth={2}
-                    fill="url(#tpsGradient)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+                ))}
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Recent Blocks */}
-        <Card className="bg-gradient-to-br from-[#111827] to-[#0d1320] border-white/5">
-          <CardHeader className="border-b border-white/5 pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <Layers className="w-5 h-5 text-purple-400" />
-                Recent Blocks
-              </CardTitle>
-              <Link to={createPageUrl('Blocks')}>
-                <Button variant="ghost" className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10">
-                  View All <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
-              </Link>
+          {/* Right Column - Network Stats */}
+          <div className="space-y-4">
+            {/* Epoch Progress */}
+            <div className="bg-[#24384a] rounded-xl p-4">
+              <h3 className="text-gray-400 text-sm mb-3">EPOCH PROGRESS</h3>
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <div className="h-3 bg-[#1d2d3a] rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-cyan-500 to-green-500 rounded-full" style={{ width: '94.4%' }} />
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-white font-bold">~10.3 minutes</p>
+                  <p className="text-xs text-gray-400">Average slot time</p>
+                </div>
+                <div className="text-right">
+                  <p className="flex items-center gap-1">
+                    <TrendingDown className="w-4 h-4 text-red-400" />
+                    <span className="text-red-400 font-bold">2.54%</span>
+                  </p>
+                  <p className="text-xs text-gray-400">Previous: <span className="text-red-400">-2.37%</span></p>
+                </div>
+                <div className="text-right">
+                  <p className="text-white font-bold">In ~39 hours</p>
+                  <p className="text-xs text-gray-400">November 26 at 10:27 PM</p>
+                </div>
+              </div>
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-white/5">
-                    <th className="text-left text-gray-400 text-sm font-medium px-6 py-3">Slot</th>
-                    <th className="text-left text-gray-400 text-sm font-medium px-6 py-3">Parent</th>
-                    <th className="text-left text-gray-400 text-sm font-medium px-6 py-3">Leader</th>
-                    <th className="text-right text-gray-400 text-sm font-medium px-6 py-3">Time (ms)</th>
-                    <th className="text-right text-gray-400 text-sm font-medium px-6 py-3">Transactions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {mockBlocks.map((block, index) => (
-                    <tr 
-                      key={block.slot} 
-                      className="border-b border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer"
-                    >
-                      <td className="px-6 py-4">
-                        <Link to={createPageUrl('BlockDetail') + `?slot=${block.slot}`} className="text-cyan-400 hover:underline font-mono">
-                          {block.slot.toLocaleString()}
-                        </Link>
-                      </td>
-                      <td className="px-6 py-4 text-gray-400 font-mono">
-                        {block.parent.toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-xs font-bold text-black">
-                            X1
-                          </div>
-                          <span className="text-white">{block.leader}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right text-gray-300 font-mono">
-                        {block.time}
-                      </td>
-                      <td className="px-6 py-4 text-right text-gray-300 font-mono">
-                        {block.txCount.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Network Stats Footer */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-[#111827]/50 rounded-xl p-4 border border-white/5">
-            <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
-              <Cpu className="w-4 h-4" />
-              Network Ping
+            {/* Live Stats */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-[#24384a] rounded-xl p-4">
+                <h3 className="text-gray-400 text-sm mb-2">Minimum fee</h3>
+                <p className="text-2xl font-bold text-white">0.10 <span className="text-sm text-gray-400">sat/vB</span></p>
+              </div>
+              <div className="bg-[#24384a] rounded-xl p-4">
+                <h3 className="text-gray-400 text-sm mb-2">Memory Usage</h3>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-2 bg-[#1d2d3a] rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-green-500 to-yellow-500 rounded-full" style={{ width: '65%' }} />
+                  </div>
+                  <span className="text-xs text-white">194 / 300 MB</span>
+                </div>
+              </div>
+              <div className="bg-[#24384a] rounded-xl p-4">
+                <h3 className="text-gray-400 text-sm mb-2">Unconfirmed</h3>
+                <p className="text-2xl font-bold text-white">{unconfirmedTx.toLocaleString()} <span className="text-sm text-gray-400">TXs</span></p>
+              </div>
             </div>
-            <p className="text-xl font-bold text-white">559 ms</p>
+
+            {/* Incoming Transactions Chart */}
+            <div className="bg-[#24384a] rounded-xl p-4">
+              <h3 className="text-cyan-400 text-sm mb-4">Incoming Transactions</h3>
+              <div className="h-[150px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={txData}>
+                    <YAxis 
+                      domain={['auto', 'auto']}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#6b7280', fontSize: 10 }}
+                      width={40}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#1d2d3a', 
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#eab308" 
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    {/* Dashed average line */}
+                    <Line 
+                      type="monotone" 
+                      dataKey={() => 1800}
+                      stroke="#6b7280"
+                      strokeWidth={1}
+                      strokeDasharray="5 5"
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
-          <div className="bg-[#111827]/50 rounded-xl p-4 border border-white/5">
-            <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
-              <Users className="w-4 h-4" />
-              Total Nodes
+        </div>
+
+        {/* Recent Transactions */}
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-[#24384a] rounded-xl p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-gray-400 text-sm flex items-center gap-2">
+                Recent Replacements
+                <ExternalLink className="w-3 h-3" />
+              </h3>
             </div>
-            <p className="text-xl font-bold text-white">961</p>
+            <div className="space-y-2">
+              {Array.from({ length: 5 }, (_, i) => (
+                <div key={i} className="flex items-center justify-between p-2 bg-[#1d2d3a] rounded-lg">
+                  <span className="text-cyan-400 text-sm font-mono">
+                    {Math.random().toString(36).substring(2, 10)}...
+                  </span>
+                  <span className="text-gray-400 text-xs">
+                    {Math.floor(Math.random() * 5) + 1}s ago
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="bg-[#111827]/50 rounded-xl p-4 border border-white/5">
-            <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
-              <Layers className="w-4 h-4" />
-              Block Producers
+          
+          <div className="bg-[#24384a] rounded-xl p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-gray-400 text-sm flex items-center gap-2">
+                Recent Transactions
+                <ExternalLink className="w-3 h-3" />
+              </h3>
             </div>
-            <p className="text-xl font-bold text-white">935</p>
-          </div>
-          <div className="bg-[#111827]/50 rounded-xl p-4 border border-white/5">
-            <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
-              <Activity className="w-4 h-4" />
-              Blocks Produced
+            <div className="space-y-2">
+              {Array.from({ length: 5 }, (_, i) => (
+                <div key={i} className="flex items-center justify-between p-2 bg-[#1d2d3a] rounded-lg">
+                  <span className="text-cyan-400 text-sm font-mono">
+                    {Math.random().toString(36).substring(2, 10)}...
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-white text-sm">
+                      {(Math.random() * 10).toFixed(2)} XNT
+                    </span>
+                    <span className="text-gray-400 text-xs">
+                      {Math.floor(Math.random() * 10) + 1}s ago
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
-            <p className="text-xl font-bold text-emerald-400">99.55%</p>
           </div>
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="border-t border-white/5 mt-12 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center text-gray-500 text-sm">
-          <p>X1 Blockchain Explorer • Built for the X1 Community</p>
-        </div>
-      </footer>
     </div>
   );
 }
