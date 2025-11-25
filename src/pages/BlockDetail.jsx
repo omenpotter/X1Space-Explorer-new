@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,33 +12,60 @@ import {
   CheckCircle,
   Clock,
   Layers,
-  User
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import X1Rpc from '../components/x1/X1RpcService';
 
 export default function BlockDetail() {
   const urlParams = new URLSearchParams(window.location.search);
-  const slot = urlParams.get('slot') || '11265950';
-  const [copied, setCopied] = useState(null);
+  const slot = parseInt(urlParams.get('slot')) || 0;
   
-  const block = {
-    slot: parseInt(slot),
-    blockhash: '5X8vBJ2aK9Lm4nH7wQ3rT6yU8iO0pA1sD2fG5hJ6kL7mN8oP9qR0sT1uV2wX3yZ4a5b6c7d8e9f',
-    previousBlockhash: '4W7uAH1bJ8Kl3mG6vP2qS5xT7yU9iN0oM1nB4cV5dE6fG7hI8jK9lL0mN1oP2qR3sT4uV5wX6yZ7a',
-    parent: parseInt(slot) - 1,
-    leader: 'X1 Labs (node4)',
-    leaderPubkey: '7J5wJaH55ZYjCCmCMt7Gb3QL6FGFmjz5U8b6NcbzfoTy',
-    time: 358,
-    txCount: 2847,
-    successTx: 2831,
-    failedTx: 16,
-    timestamp: new Date().toISOString(),
-    rewards: 0.0025,
-    fees: 0.847,
-    feeRange: '1.14 - 301',
-    medianFee: 2
-  };
+  const [block, setBlock] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [copied, setCopied] = useState(null);
+
+  useEffect(() => {
+    const fetchBlock = async () => {
+      try {
+        setLoading(true);
+        const data = await X1Rpc.getBlock(slot);
+        
+        if (data) {
+          const successTx = data.transactions?.filter(tx => !tx.meta?.err).length || 0;
+          const failedTx = data.transactions?.filter(tx => tx.meta?.err).length || 0;
+          const totalFees = data.transactions?.reduce((sum, tx) => sum + (tx.meta?.fee || 0), 0) / 1e9 || 0;
+          
+          setBlock({
+            slot,
+            blockhash: data.blockhash,
+            previousBlockhash: data.previousBlockhash,
+            parentSlot: data.parentSlot,
+            blockHeight: data.blockHeight,
+            blockTime: data.blockTime,
+            txCount: data.transactions?.length || 0,
+            successTx,
+            failedTx,
+            totalFees,
+            rewards: data.rewards || []
+          });
+        }
+        setError(null);
+      } catch (err) {
+        console.error('Failed to fetch block:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (slot) {
+      fetchBlock();
+    }
+  }, [slot]);
 
   const handleCopy = (text, field) => {
     navigator.clipboard.writeText(text);
@@ -51,6 +78,33 @@ export default function BlockDetail() {
     id: i,
     opacity: 0.3 + Math.random() * 0.7
   }));
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-cyan-400 mx-auto mb-4" />
+          <p className="text-gray-400">Loading block #{slot.toLocaleString()}...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !block) {
+    return (
+      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+          <p className="text-red-400 mb-4">{error || 'Block not found'}</p>
+          <Link to={createPageUrl('Blocks')}>
+            <Button className="bg-cyan-500 hover:bg-cyan-600 text-black">
+              <ArrowLeft className="w-4 h-4 mr-2" /> Back to Blocks
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#1d2d3a] text-white">
@@ -135,13 +189,13 @@ export default function BlockDetail() {
           </Link>
           
           <div className="flex items-center gap-2">
-            <Link to={createPageUrl('BlockDetail') + `?slot=${block.parent}`}>
+            <Link to={createPageUrl('BlockDetail') + `?slot=${block.parentSlot}`}>
               <Button variant="outline" size="icon" className="border-white/10 text-gray-400 hover:text-white h-8 w-8">
                 <ChevronLeft className="w-4 h-4" />
               </Button>
             </Link>
-            <span className="text-gray-400 text-sm px-2">Block #{slot}</span>
-            <Link to={createPageUrl('BlockDetail') + `?slot=${block.slot + 1}`}>
+            <span className="text-gray-400 text-sm px-2">Block #{slot.toLocaleString()}</span>
+            <Link to={createPageUrl('BlockDetail') + `?slot=${slot + 1}`}>
               <Button variant="outline" size="icon" className="border-white/10 text-gray-400 hover:text-white h-8 w-8">
                 <ChevronRight className="w-4 h-4" />
               </Button>
@@ -154,7 +208,6 @@ export default function BlockDetail() {
           <div className="lg:col-span-1">
             <div className="bg-[#24384a] rounded-xl p-4">
               <div className="relative w-full h-[300px] bg-gradient-to-b from-purple-500/30 to-purple-600/10 rounded-lg overflow-hidden">
-                {/* Transaction grid */}
                 <div className="absolute inset-2 grid grid-cols-14 gap-[2px]">
                   {squares.map((sq) => (
                     <div
@@ -165,25 +218,17 @@ export default function BlockDetail() {
                   ))}
                 </div>
                 
-                {/* Slot overlay */}
                 <div className="absolute top-3 left-3 right-3">
                   <p className="text-cyan-400 font-mono font-bold text-2xl">
-                    #{block.slot.toLocaleString()}
+                    #{slot.toLocaleString()}
                   </p>
-                  <p className="text-xs text-gray-300 mt-1">~{block.medianFee} sat/vB</p>
-                  <p className="text-xs text-cyan-400/80">{block.feeRange} sat/vB</p>
                 </div>
                 
-                {/* Bottom stats */}
                 <div className="absolute bottom-0 left-0 right-0 bg-black/40 p-4">
-                  <p className="text-white font-bold">‎{block.fees} XNT</p>
-                  <p className="text-sm text-gray-400">{block.txCount.toLocaleString()} transactions</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="w-5 h-5 rounded bg-cyan-500/30 flex items-center justify-center">
-                      <span className="text-[10px] text-cyan-400 font-bold">X1</span>
-                    </div>
-                    <span className="text-sm text-gray-400">{block.leader}</span>
-                  </div>
+                  <p className="text-white font-bold">{block.txCount.toLocaleString()} transactions</p>
+                  <p className="text-sm text-gray-400">
+                    {block.blockTime ? new Date(block.blockTime * 1000).toLocaleString() : 'Processing...'}
+                  </p>
                 </div>
               </div>
               
@@ -198,12 +243,12 @@ export default function BlockDetail() {
                   <p className="text-red-400 font-bold">{block.failedTx}</p>
                 </div>
                 <div className="bg-[#1d2d3a] rounded-lg p-3">
-                  <p className="text-gray-400 text-xs">Block Time</p>
-                  <p className="text-white font-bold">{block.time}ms</p>
+                  <p className="text-gray-400 text-xs">Block Height</p>
+                  <p className="text-white font-bold">{block.blockHeight?.toLocaleString() || '-'}</p>
                 </div>
                 <div className="bg-[#1d2d3a] rounded-lg p-3">
-                  <p className="text-gray-400 text-xs">Rewards</p>
-                  <p className="text-cyan-400 font-bold">{block.rewards} XNT</p>
+                  <p className="text-gray-400 text-xs">Total Fees</p>
+                  <p className="text-cyan-400 font-bold">{block.totalFees.toFixed(4)} XNT</p>
                 </div>
               </div>
             </div>
@@ -222,7 +267,7 @@ export default function BlockDetail() {
               <div className="divide-y divide-white/5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 gap-2">
                   <span className="text-gray-400 text-sm">Slot</span>
-                  <span className="text-white font-mono">{block.slot.toLocaleString()}</span>
+                  <span className="text-white font-mono">{slot.toLocaleString()}</span>
                 </div>
                 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 gap-2">
@@ -256,49 +301,25 @@ export default function BlockDetail() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 gap-2">
                   <span className="text-gray-400 text-sm">Parent Slot</span>
                   <Link 
-                    to={createPageUrl('BlockDetail') + `?slot=${block.parent}`}
+                    to={createPageUrl('BlockDetail') + `?slot=${block.parentSlot}`}
                     className="text-cyan-400 hover:underline font-mono"
                   >
-                    {block.parent.toLocaleString()}
+                    {block.parentSlot?.toLocaleString()}
                   </Link>
                 </div>
                 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 gap-2">
-                  <span className="text-gray-400 text-sm">Block Leader</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-500/30 flex items-center justify-center">
-                      <span className="text-[10px] text-cyan-400 font-bold">X1</span>
-                    </div>
-                    <span className="text-white">{block.leader}</span>
-                  </div>
-                </div>
-                
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 gap-2">
-                  <span className="text-gray-400 text-sm">Leader Pubkey</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-300 font-mono text-xs truncate max-w-[200px] sm:max-w-[300px]">
-                      {block.leaderPubkey}
-                    </span>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-6 w-6 shrink-0"
-                      onClick={() => handleCopy(block.leaderPubkey, 'leader')}
-                    >
-                      {copied === 'leader' ? (
-                        <CheckCircle className="w-3 h-3 text-emerald-400" />
-                      ) : (
-                        <Copy className="w-3 h-3 text-gray-400" />
-                      )}
-                    </Button>
-                  </div>
+                  <span className="text-gray-400 text-sm">Block Height</span>
+                  <span className="text-white font-mono">{block.blockHeight?.toLocaleString() || '-'}</span>
                 </div>
                 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 gap-2">
                   <span className="text-gray-400 text-sm">Timestamp</span>
                   <div className="flex items-center gap-2 text-gray-300">
                     <Clock className="w-4 h-4" />
-                    <span className="text-sm">{new Date(block.timestamp).toLocaleString()}</span>
+                    <span className="text-sm">
+                      {block.blockTime ? new Date(block.blockTime * 1000).toLocaleString() : '-'}
+                    </span>
                   </div>
                 </div>
                 
@@ -317,8 +338,15 @@ export default function BlockDetail() {
                 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 gap-2">
                   <span className="text-gray-400 text-sm">Total Fees</span>
-                  <span className="text-cyan-400 font-bold">{block.fees} XNT</span>
+                  <span className="text-cyan-400 font-bold">{block.totalFees.toFixed(6)} XNT</span>
                 </div>
+
+                {block.rewards.length > 0 && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 gap-2">
+                    <span className="text-gray-400 text-sm">Rewards</span>
+                    <span className="text-white">{block.rewards.length} reward entries</span>
+                  </div>
+                )}
               </div>
             </div>
             
