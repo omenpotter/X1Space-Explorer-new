@@ -5,72 +5,35 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Search, 
   Zap,
-  Clock,
   ChevronLeft,
   ChevronRight,
   Pause,
-  Play
+  Play,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import X1Rpc from '../components/x1/X1RpcService';
 
-const generateMockBlocks = (start, count) => {
-  const leaders = [
-    { name: 'X1 Labs', icon: 'X1', color: 'cyan' },
-    { name: 'StakeSquid', icon: 'SS', color: 'purple' },
-    { name: 'Chorus One', icon: 'C1', color: 'blue' },
-    { name: 'Everstake', icon: 'ES', color: 'green' },
-    { name: 'Figment', icon: 'FG', color: 'orange' },
-    { name: 'Unknown', icon: '??', color: 'gray' }
-  ];
-  
-  return Array.from({ length: count }, (_, i) => {
-    const slot = start - i;
-    const leader = leaders[Math.floor(Math.random() * leaders.length)];
-    return {
-      slot,
-      parent: slot - 1,
-      leader,
-      time: 300 + Math.floor(Math.random() * 300),
-      txCount: 2000 + Math.floor(Math.random() * 2000),
-      timestamp: new Date(Date.now() - i * 400).toISOString(),
-      hash: `${slot}...${Math.random().toString(36).substring(2, 8)}`,
-      feeRange: `${(1 + Math.random()).toFixed(2)} - ${(100 + Math.random() * 300).toFixed(0)}`,
-      medianFee: Math.floor(1 + Math.random() * 3),
-      totalFees: (0.02 + Math.random() * 0.03).toFixed(3),
-      reward: (0.001 + Math.random() * 0.002).toFixed(4)
-    };
-  });
-};
-
-// Block visualization similar to mempool.space
+// Block visualization
 const BlockViz = ({ block, isNew }) => {
   const squares = Array.from({ length: 80 }, (_, i) => ({
     id: i,
     opacity: 0.4 + Math.random() * 0.6
   }));
 
-  const colorClass = {
-    cyan: 'from-cyan-500/40 to-cyan-600/20',
-    purple: 'from-purple-500/40 to-purple-600/20',
-    blue: 'from-blue-500/40 to-blue-600/20',
-    green: 'from-green-500/40 to-green-600/20',
-    orange: 'from-orange-500/40 to-orange-600/20',
-    gray: 'from-gray-500/40 to-gray-600/20'
-  }[block.leader.color];
-
   return (
     <Link to={createPageUrl('BlockDetail') + `?slot=${block.slot}`}>
       <div className={`
         relative w-full h-[200px]
-        bg-gradient-to-b ${colorClass}
+        bg-gradient-to-b from-purple-500/30 to-purple-600/20
         border border-white/10 rounded-lg
         overflow-hidden cursor-pointer
         transition-all duration-300
         hover:border-cyan-500/50 hover:scale-[1.01]
         ${isNew ? 'ring-2 ring-cyan-500/50' : ''}
       `}>
-        {/* Transaction grid */}
         <div className="absolute inset-2 grid grid-cols-10 gap-[2px]">
           {squares.map((sq) => (
             <div
@@ -81,83 +44,73 @@ const BlockViz = ({ block, isNew }) => {
           ))}
         </div>
         
-        {/* Slot number */}
         <div className="absolute top-0 left-0 right-0 text-center py-2">
           <span className="text-cyan-400 font-mono font-bold text-lg">
-            {block.slot.toLocaleString()}
+            {block.slot?.toLocaleString()}
           </span>
         </div>
         
-        {/* Fee info */}
-        <div className="absolute top-10 left-3 right-3">
-          <p className="text-xs text-gray-300">~{block.medianFee} sat/vB</p>
-          <p className="text-[10px] text-cyan-400/80">{block.feeRange} sat/vB</p>
-        </div>
-        
-        {/* Bottom stats */}
         <div className="absolute bottom-0 left-0 right-0 bg-black/30 p-3">
-          <p className="text-white font-bold text-sm">‎{block.totalFees} XNT</p>
-          <p className="text-[10px] text-gray-400">{block.txCount.toLocaleString()} transactions</p>
-          <div className="flex items-center justify-between mt-1">
-            <div className="flex items-center gap-1">
-              <div className={`w-4 h-4 rounded bg-${block.leader.color}-500/30 flex items-center justify-center`}>
-                <span className="text-[8px] text-white font-bold">{block.leader.icon}</span>
-              </div>
-              <span className="text-[10px] text-gray-400">{block.leader.name}</span>
-            </div>
-            <span className="text-[10px] text-gray-400">{formatTimeAgo(block.timestamp)}</span>
-          </div>
+          <p className="text-white font-bold text-sm">{block.txCount?.toLocaleString() || 0} txns</p>
+          <p className="text-[10px] text-gray-400">
+            {block.blockTime ? new Date(block.blockTime * 1000).toLocaleTimeString() : 'Processing...'}
+          </p>
         </div>
       </div>
     </Link>
   );
 };
 
-const formatTimeAgo = (timestamp) => {
-  const diff = (Date.now() - new Date(timestamp).getTime()) / 1000;
-  if (diff < 60) return `${Math.floor(diff)}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  return `${Math.floor(diff / 3600)}h ago`;
-};
-
 export default function Blocks() {
-  const [blocks, setBlocks] = useState(generateMockBlocks(11265950, 24));
+  const [blocks, setBlocks] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLive, setIsLive] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [newBlockSlot, setNewBlockSlot] = useState(null);
+  const [currentSlot, setCurrentSlot] = useState(null);
+
+  const fetchBlocks = async () => {
+    try {
+      const slot = await X1Rpc.getSlot();
+      setCurrentSlot(slot);
+      
+      // Check if we have a new block
+      if (blocks.length > 0 && slot > blocks[0]?.slot) {
+        setNewBlockSlot(slot);
+        setTimeout(() => setNewBlockSlot(null), 1000);
+      }
+      
+      const recentBlocks = await X1Rpc.getRecentBlocks(24);
+      setBlocks(recentBlocks);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to fetch blocks:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!isLive) return;
+    fetchBlocks();
     
-    const interval = setInterval(() => {
-      setBlocks(prev => {
-        const newSlot = prev[0].slot + 1;
-        const leaders = [
-          { name: 'X1 Labs', icon: 'X1', color: 'cyan' },
-          { name: 'StakeSquid', icon: 'SS', color: 'purple' },
-          { name: 'Chorus One', icon: 'C1', color: 'blue' }
-        ];
-        const newBlock = {
-          slot: newSlot,
-          parent: newSlot - 1,
-          leader: leaders[Math.floor(Math.random() * leaders.length)],
-          time: 300 + Math.floor(Math.random() * 300),
-          txCount: 2000 + Math.floor(Math.random() * 2000),
-          timestamp: new Date().toISOString(),
-          hash: `${newSlot}...${Math.random().toString(36).substring(2, 8)}`,
-          feeRange: `${(1 + Math.random()).toFixed(2)} - ${(100 + Math.random() * 300).toFixed(0)}`,
-          medianFee: Math.floor(1 + Math.random() * 3),
-          totalFees: (0.02 + Math.random() * 0.03).toFixed(3),
-          reward: (0.001 + Math.random() * 0.002).toFixed(4)
-        };
-        setNewBlockSlot(newSlot);
-        setTimeout(() => setNewBlockSlot(null), 1000);
-        return [newBlock, ...prev.slice(0, 23)];
-      });
-    }, 400);
-    
-    return () => clearInterval(interval);
+    if (isLive) {
+      const interval = setInterval(fetchBlocks, 2000);
+      return () => clearInterval(interval);
+    }
   }, [isLive]);
+
+  if (loading && blocks.length === 0) {
+    return (
+      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-cyan-400 mx-auto mb-4" />
+          <p className="text-gray-400">Loading blocks from X1 Network...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#1d2d3a] text-white">
@@ -217,7 +170,7 @@ export default function Blocks() {
             <div className="flex-1 max-w-md">
               <div className="relative">
                 <Input
-                  placeholder="Search by slot or hash..."
+                  placeholder="Search by slot..."
                   className="w-full bg-[#24384a] border-0 text-white placeholder:text-gray-500 pr-10 rounded-lg"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -234,12 +187,24 @@ export default function Blocks() {
         </div>
       </header>
 
+      {/* Error Banner */}
+      {error && (
+        <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2">
+          <div className="max-w-[1800px] mx-auto flex items-center gap-2 text-red-400 text-sm">
+            <AlertCircle className="w-4 h-4" />
+            <span>Error: {error}</span>
+          </div>
+        </div>
+      )}
+
       <main className="max-w-[1800px] mx-auto px-4 py-6">
         {/* Title & Controls */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-white">Recent Blocks</h1>
-            <p className="text-gray-400 text-sm">Live block feed from the X1 network</p>
+            <p className="text-gray-400 text-sm">
+              Current slot: <span className="text-cyan-400 font-mono">{currentSlot?.toLocaleString()}</span>
+            </p>
           </div>
           
           <Button 
@@ -269,6 +234,54 @@ export default function Blocks() {
               isNew={block.slot === newBlockSlot}
             />
           ))}
+        </div>
+
+        {/* Block Table */}
+        <div className="mt-8 bg-[#24384a] rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-white/5">
+            <h2 className="text-lg font-semibold">Block Details</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-white/5">
+                  <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Slot</th>
+                  <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Block Hash</th>
+                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Transactions</th>
+                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Block Height</th>
+                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {blocks.slice(0, 10).map((block) => (
+                  <tr key={block.slot} className="border-b border-white/5 hover:bg-white/[0.02]">
+                    <td className="px-4 py-3">
+                      <Link 
+                        to={createPageUrl('BlockDetail') + `?slot=${block.slot}`}
+                        className="text-cyan-400 hover:underline font-mono"
+                      >
+                        {block.slot?.toLocaleString()}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-gray-400 font-mono text-sm">
+                        {block.blockhash?.substring(0, 20)}...
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-white font-mono">
+                      {block.txCount?.toLocaleString() || 0}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-400 font-mono">
+                      {block.blockHeight?.toLocaleString() || '-'}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-400 text-sm">
+                      {block.blockTime ? new Date(block.blockTime * 1000).toLocaleTimeString() : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Pagination */}

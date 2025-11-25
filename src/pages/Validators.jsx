@@ -1,43 +1,106 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { 
   Search, 
   Zap,
   ArrowUpDown,
   ChevronLeft,
   ChevronRight,
-  Globe,
-  Server,
-  TrendingUp
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-
-const mockValidators = [
-  { id: 'Gv5k..cS5U', name: 'X1 Labs (node9)', stake: 61543564, commission: 0, version: '2.2.17', country: 'FR', skip: 0, produced: 13040 },
-  { id: '7J5w..foTy', name: 'X1 Labs (node4)', stake: 58234891, commission: 0, version: '2.2.17', country: 'DE', skip: 0.02, produced: 12890 },
-  { id: '8xN8..Nhtn', name: 'X1 Labs (node11)', stake: 55123456, commission: 0, version: '2.2.17', country: 'US', skip: 0.04, produced: 12756 },
-  { id: '73RK..7YUr', name: 'StakeSquid', stake: 42567890, commission: 5, version: '2.2.16', country: 'NL', skip: 0.10, produced: 11890 },
-  { id: '9FgH..kL2m', name: 'Chorus One', stake: 38901234, commission: 8, version: '2.2.17', country: 'CH', skip: 0.07, produced: 11234 },
-  { id: 'Bv4x..pQ9n', name: 'Everstake', stake: 35678901, commission: 7, version: '2.2.17', country: 'UA', skip: 0.14, produced: 10987 },
-  { id: 'Cx5y..rS0o', name: 'Staking Facilities', stake: 32456789, commission: 10, version: '2.2.16', country: 'DE', skip: 0.19, produced: 10654 },
-  { id: 'Dw6z..sT1p', name: 'Figment', stake: 29234567, commission: 8, version: '2.2.17', country: 'CA', skip: 0.24, produced: 10321 },
-  { id: 'Ex7a..tU2q', name: 'P2P Validator', stake: 26012345, commission: 7, version: '2.2.17', country: 'FI', skip: 0.18, produced: 9987 },
-  { id: 'Fy8b..uV3r', name: 'Blockdaemon', stake: 22890123, commission: 10, version: '2.2.16', country: 'US', skip: 0.31, produced: 9654 },
-];
-
-const getFlagEmoji = (code) => {
-  return String.fromCodePoint(...code.toUpperCase().split('').map(c => 127397 + c.charCodeAt()));
-};
+import X1Rpc from '../components/x1/X1RpcService';
 
 export default function Validators() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('stake');
+  const [sortBy, setSortBy] = useState('activatedStake');
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [validators, setValidators] = useState([]);
+  const [stats, setStats] = useState({ total: 0, delinquent: 0, totalStake: 0 });
+  const [page, setPage] = useState(1);
+  const perPage = 20;
 
-  const totalStake = mockValidators.reduce((sum, v) => sum + v.stake, 0);
+  const fetchValidators = async () => {
+    try {
+      setLoading(true);
+      const data = await X1Rpc.getValidatorDetails();
+      
+      const active = data.filter(v => !v.delinquent);
+      const delinquent = data.filter(v => v.delinquent);
+      const totalStake = data.reduce((sum, v) => sum + v.activatedStake, 0);
+      
+      setValidators(data);
+      setStats({
+        total: data.length,
+        active: active.length,
+        delinquent: delinquent.length,
+        totalStake
+      });
+      setError(null);
+    } catch (err) {
+      console.error('Failed to fetch validators:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchValidators();
+    const interval = setInterval(fetchValidators, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  const toggleSort = (field) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+    } else {
+      setSortBy(field);
+      setSortOrder('desc');
+    }
+  };
+
+  const filteredValidators = validators
+    .filter(v => 
+      v.votePubkey.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      v.nodePubkey.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      const order = sortOrder === 'desc' ? -1 : 1;
+      return (a[sortBy] - b[sortBy]) * order;
+    });
+
+  const totalPages = Math.ceil(filteredValidators.length / perPage);
+  const paginatedValidators = filteredValidators.slice((page - 1) * perPage, page * perPage);
+
+  const formatStake = (stake) => {
+    if (stake >= 1e9) return (stake / 1e9).toFixed(2) + 'B';
+    if (stake >= 1e6) return (stake / 1e6).toFixed(2) + 'M';
+    if (stake >= 1e3) return (stake / 1e3).toFixed(2) + 'K';
+    return stake.toFixed(2);
+  };
+
+  const shortenPubkey = (pubkey) => {
+    if (!pubkey) return '-';
+    return `${pubkey.substring(0, 4)}...${pubkey.substring(pubkey.length - 4)}`;
+  };
+
+  if (loading && validators.length === 0) {
+    return (
+      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-cyan-400 mx-auto mb-4" />
+          <p className="text-gray-400">Loading validators from X1 Network...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#1d2d3a] text-white">
@@ -97,7 +160,7 @@ export default function Validators() {
             <div className="flex-1 max-w-md">
               <div className="relative">
                 <Input
-                  placeholder="Search validators..."
+                  placeholder="Search validators by pubkey..."
                   className="w-full bg-[#24384a] border-0 text-white placeholder:text-gray-500 pr-10 rounded-lg"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -114,24 +177,37 @@ export default function Validators() {
         </div>
       </header>
 
+      {/* Error Banner */}
+      {error && (
+        <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2">
+          <div className="max-w-[1800px] mx-auto flex items-center gap-2 text-red-400 text-sm">
+            <AlertCircle className="w-4 h-4" />
+            <span>Error: {error}</span>
+            <Button variant="ghost" size="sm" onClick={fetchValidators} className="ml-auto text-red-400">
+              Retry
+            </Button>
+          </div>
+        </div>
+      )}
+
       <main className="max-w-[1800px] mx-auto px-4 py-6">
         {/* Stats Overview */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-[#24384a] rounded-xl p-4">
             <p className="text-gray-400 text-xs mb-1">Total Validators</p>
-            <p className="text-2xl font-bold text-white">961</p>
+            <p className="text-2xl font-bold text-white">{stats.total.toLocaleString()}</p>
           </div>
           <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Active Stake</p>
-            <p className="text-2xl font-bold text-cyan-400">961.9M XNT</p>
+            <p className="text-gray-400 text-xs mb-1">Active</p>
+            <p className="text-2xl font-bold text-emerald-400">{stats.active?.toLocaleString() || '-'}</p>
           </div>
           <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Block Producers</p>
-            <p className="text-2xl font-bold text-white">935</p>
+            <p className="text-gray-400 text-xs mb-1">Delinquent</p>
+            <p className="text-2xl font-bold text-red-400">{stats.delinquent}</p>
           </div>
           <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Skip Rate</p>
-            <p className="text-2xl font-bold text-emerald-400">0.45%</p>
+            <p className="text-gray-400 text-xs mb-1">Total Stake</p>
+            <p className="text-2xl font-bold text-cyan-400">{formatStake(stats.totalStake)} XNT</p>
           </div>
         </div>
 
@@ -142,53 +218,60 @@ export default function Validators() {
               <thead>
                 <tr className="border-b border-white/5">
                   <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">#</th>
-                  <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Validator</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => setSortBy('stake')}>
+                  <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Vote Account</th>
+                  <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Node</th>
+                  <th 
+                    className="text-right text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-white"
+                    onClick={() => toggleSort('activatedStake')}
+                  >
                     <div className="flex items-center justify-end gap-1">
                       Stake <ArrowUpDown className="w-3 h-3" />
                     </div>
                   </th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Share</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Commission</th>
+                  <th 
+                    className="text-right text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-white"
+                    onClick={() => toggleSort('commission')}
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      Commission <ArrowUpDown className="w-3 h-3" />
+                    </div>
+                  </th>
                   <th className="text-center text-gray-400 text-xs font-medium px-4 py-3">Version</th>
-                  <th className="text-center text-gray-400 text-xs font-medium px-4 py-3">Country</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Skip Rate</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Produced</th>
+                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Last Vote</th>
+                  <th className="text-center text-gray-400 text-xs font-medium px-4 py-3">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {mockValidators.map((validator, index) => {
-                  const stakePercent = ((validator.stake / totalStake) * 100).toFixed(1);
+                {paginatedValidators.map((validator, index) => {
+                  const rank = (page - 1) * perPage + index + 1;
+                  const stakePercent = ((validator.activatedStake / stats.totalStake) * 100).toFixed(2);
+                  
                   return (
                     <tr 
-                      key={validator.id}
+                      key={validator.votePubkey}
                       className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
                     >
-                      <td className="px-4 py-4 text-gray-500 text-sm">{index + 1}</td>
+                      <td className="px-4 py-4 text-gray-500 text-sm">{rank}</td>
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-500/30 flex items-center justify-center text-xs font-bold text-cyan-400">
-                            {validator.name.substring(0, 2).toUpperCase()}
+                            V{rank}
                           </div>
                           <div>
-                            <p className="font-medium text-white text-sm">{validator.name}</p>
-                            <p className="text-gray-500 text-xs font-mono">{validator.id}</p>
+                            <p className="font-mono text-cyan-400 text-sm hover:underline cursor-pointer">
+                              {shortenPubkey(validator.votePubkey)}
+                            </p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-4 text-right">
-                        <p className="text-white font-mono text-sm">{(validator.stake / 1000000).toFixed(1)}M</p>
+                      <td className="px-4 py-4">
+                        <p className="font-mono text-gray-400 text-xs">
+                          {shortenPubkey(validator.nodePubkey)}
+                        </p>
                       </td>
                       <td className="px-4 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-cyan-500 rounded-full"
-                              style={{ width: `${parseFloat(stakePercent) * 10}%` }}
-                            />
-                          </div>
-                          <span className="text-gray-400 text-xs w-12 text-right">{stakePercent}%</span>
-                        </div>
+                        <p className="text-white font-mono text-sm">{formatStake(validator.activatedStake)}</p>
+                        <p className="text-gray-500 text-xs">{stakePercent}%</p>
                       </td>
                       <td className="px-4 py-4 text-right">
                         <Badge className={`${validator.commission === 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-gray-400'} border-0`}>
@@ -197,22 +280,20 @@ export default function Validators() {
                       </td>
                       <td className="px-4 py-4 text-center">
                         <Badge className="bg-blue-500/20 text-blue-400 border-0 font-mono text-xs">
-                          {validator.version}
+                          {validator.version || 'unknown'}
                         </Badge>
                       </td>
-                      <td className="px-4 py-4 text-center">
-                        <span className="text-lg">{getFlagEmoji(validator.country)}</span>
-                      </td>
                       <td className="px-4 py-4 text-right">
-                        <span className={`font-mono text-sm ${
-                          validator.skip < 0.1 ? 'text-emerald-400' : 
-                          validator.skip < 0.2 ? 'text-yellow-400' : 'text-red-400'
-                        }`}>
-                          {validator.skip.toFixed(2)}%
+                        <span className="text-gray-400 font-mono text-xs">
+                          {validator.lastVote?.toLocaleString() || '-'}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-right">
-                        <span className="text-white font-mono text-sm">{validator.produced.toLocaleString()}</span>
+                      <td className="px-4 py-4 text-center">
+                        {validator.delinquent ? (
+                          <Badge className="bg-red-500/20 text-red-400 border-0">Delinquent</Badge>
+                        ) : (
+                          <Badge className="bg-emerald-500/20 text-emerald-400 border-0">Active</Badge>
+                        )}
                       </td>
                     </tr>
                   );
@@ -225,18 +306,28 @@ export default function Validators() {
         {/* Pagination */}
         <div className="flex items-center justify-between mt-6">
           <p className="text-gray-400 text-sm">
-            Showing <span className="text-white">1-10</span> of <span className="text-white">961</span>
+            Showing <span className="text-white">{(page - 1) * perPage + 1}-{Math.min(page * perPage, filteredValidators.length)}</span> of <span className="text-white">{filteredValidators.length}</span>
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="border-white/10 text-gray-400">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="border-white/10 text-gray-400"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <Button variant="outline" size="sm" className="border-white/10 bg-cyan-500/10 text-cyan-400">1</Button>
-            <Button variant="outline" size="sm" className="border-white/10 text-gray-400">2</Button>
-            <Button variant="outline" size="sm" className="border-white/10 text-gray-400">3</Button>
-            <span className="text-gray-500">...</span>
-            <Button variant="outline" size="sm" className="border-white/10 text-gray-400">97</Button>
-            <Button variant="outline" size="sm" className="border-white/10 text-gray-400">
+            <span className="text-gray-400 text-sm px-2">
+              Page {page} of {totalPages}
+            </span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="border-white/10 text-gray-400"
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+            >
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>

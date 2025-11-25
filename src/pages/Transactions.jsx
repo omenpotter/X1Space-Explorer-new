@@ -6,60 +6,77 @@ import {
   Search, 
   Zap,
   ArrowRight,
-  Clock,
   ChevronLeft,
   ChevronRight,
   CheckCircle,
   XCircle,
   Pause,
-  Play
+  Play,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-
-const generateMockTransactions = (count) => {
-  const types = ['Transfer', 'Stake', 'Vote', 'Create', 'Close', 'Swap'];
-  
-  return Array.from({ length: count }, (_, i) => ({
-    signature: `${Math.random().toString(36).substring(2, 10)}...${Math.random().toString(36).substring(2, 6)}`,
-    slot: 11265950 - Math.floor(Math.random() * 100),
-    timestamp: new Date(Date.now() - i * 300 - Math.random() * 5000).toISOString(),
-    type: types[Math.floor(Math.random() * types.length)],
-    status: Math.random() > 0.05 ? 'Success' : 'Failed',
-    fee: (Math.random() * 0.001).toFixed(6),
-    from: `${Math.random().toString(36).substring(2, 6)}...${Math.random().toString(36).substring(2, 6)}`,
-    to: `${Math.random().toString(36).substring(2, 6)}...${Math.random().toString(36).substring(2, 6)}`,
-    amount: (Math.random() * 100).toFixed(2)
-  }));
-};
+import X1Rpc from '../components/x1/X1RpcService';
 
 export default function Transactions() {
-  const [transactions, setTransactions] = useState(generateMockTransactions(20));
+  const [transactions, setTransactions] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLive, setIsLive] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [stats, setStats] = useState({ totalCount: 0, tps: 0 });
+
+  const fetchTransactions = async () => {
+    try {
+      // Get recent blocks and extract transactions
+      const slot = await X1Rpc.getSlot();
+      const block = await X1Rpc.getBlock(slot);
+      
+      if (block?.transactions) {
+        const txs = block.transactions.slice(0, 30).map((tx, i) => ({
+          signature: tx.transaction?.signatures?.[0] || `tx-${slot}-${i}`,
+          slot,
+          status: tx.meta?.err ? 'Failed' : 'Success',
+          fee: (tx.meta?.fee || 0) / 1e9,
+          timestamp: block.blockTime ? new Date(block.blockTime * 1000).toISOString() : new Date().toISOString()
+        }));
+        
+        setTransactions(prev => {
+          // Merge new transactions, avoiding duplicates
+          const existing = new Set(prev.map(t => t.signature));
+          const newTxs = txs.filter(t => !existing.has(t.signature));
+          return [...newTxs, ...prev].slice(0, 50);
+        });
+      }
+
+      // Get stats
+      const [txCount, epochInfo] = await Promise.all([
+        X1Rpc.getTransactionCount(),
+        X1Rpc.getEpochInfo()
+      ]);
+      
+      setStats({
+        totalCount: txCount,
+        tps: epochInfo.transactionCount ? Math.round(epochInfo.transactionCount / (epochInfo.slotIndex * 0.4)) : 0
+      });
+      
+      setError(null);
+    } catch (err) {
+      console.error('Failed to fetch transactions:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!isLive) return;
+    fetchTransactions();
     
-    const interval = setInterval(() => {
-      const types = ['Transfer', 'Stake', 'Vote', 'Create', 'Swap'];
-      setTransactions(prev => {
-        const newTx = {
-          signature: `${Math.random().toString(36).substring(2, 10)}...${Math.random().toString(36).substring(2, 6)}`,
-          slot: 11265950 + Math.floor(Math.random() * 10),
-          timestamp: new Date().toISOString(),
-          type: types[Math.floor(Math.random() * types.length)],
-          status: 'Success',
-          fee: (Math.random() * 0.001).toFixed(6),
-          from: `${Math.random().toString(36).substring(2, 6)}...${Math.random().toString(36).substring(2, 6)}`,
-          to: `${Math.random().toString(36).substring(2, 6)}...${Math.random().toString(36).substring(2, 6)}`,
-          amount: (Math.random() * 100).toFixed(2)
-        };
-        return [newTx, ...prev.slice(0, 19)];
-      });
-    }, 200);
-    
-    return () => clearInterval(interval);
+    if (isLive) {
+      const interval = setInterval(fetchTransactions, 2000);
+      return () => clearInterval(interval);
+    }
   }, [isLive]);
 
   const formatTime = (timestamp) => {
@@ -69,14 +86,28 @@ export default function Transactions() {
     return `${Math.floor(diff / 3600)}h`;
   };
 
-  const typeColors = {
-    Transfer: 'bg-blue-500/20 text-blue-400',
-    Stake: 'bg-purple-500/20 text-purple-400',
-    Vote: 'bg-green-500/20 text-green-400',
-    Create: 'bg-yellow-500/20 text-yellow-400',
-    Close: 'bg-red-500/20 text-red-400',
-    Swap: 'bg-cyan-500/20 text-cyan-400'
+  const shortenSig = (sig) => {
+    if (!sig || sig.length < 20) return sig || '-';
+    return `${sig.substring(0, 8)}...${sig.substring(sig.length - 6)}`;
   };
+
+  const formatNumber = (num) => {
+    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+    if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+    return num?.toLocaleString() || '0';
+  };
+
+  if (loading && transactions.length === 0) {
+    return (
+      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-cyan-400 mx-auto mb-4" />
+          <p className="text-gray-400">Loading transactions from X1 Network...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#1d2d3a] text-white">
@@ -153,16 +184,26 @@ export default function Transactions() {
         </div>
       </header>
 
+      {/* Error Banner */}
+      {error && (
+        <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2">
+          <div className="max-w-[1800px] mx-auto flex items-center gap-2 text-red-400 text-sm">
+            <AlertCircle className="w-4 h-4" />
+            <span>Error: {error}</span>
+          </div>
+        </div>
+      )}
+
       <main className="max-w-[1800px] mx-auto px-4 py-6">
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-[#24384a] rounded-xl p-4">
             <p className="text-gray-400 text-xs mb-1">Total Transactions</p>
-            <p className="text-2xl font-bold text-white">8.68B</p>
+            <p className="text-2xl font-bold text-white">{formatNumber(stats.totalCount)}</p>
           </div>
           <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">TPS</p>
-            <p className="text-2xl font-bold text-cyan-400">2,622</p>
+            <p className="text-gray-400 text-xs mb-1">Avg TPS</p>
+            <p className="text-2xl font-bold text-cyan-400">{stats.tps?.toLocaleString() || '-'}</p>
           </div>
           <div className="bg-[#24384a] rounded-xl p-4">
             <p className="text-gray-400 text-xs mb-1">Success Rate</p>
@@ -203,9 +244,7 @@ export default function Transactions() {
               <thead>
                 <tr className="border-b border-white/5">
                   <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Signature</th>
-                  <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Type</th>
-                  <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">From / To</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Amount</th>
+                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Slot</th>
                   <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Fee</th>
                   <th className="text-center text-gray-400 text-xs font-medium px-4 py-3">Status</th>
                   <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Age</th>
@@ -218,32 +257,20 @@ export default function Transactions() {
                     className={`border-b border-white/5 hover:bg-white/[0.02] transition-all ${index === 0 && isLive ? 'bg-cyan-500/5' : ''}`}
                   >
                     <td className="px-4 py-3">
+                      <span className="text-cyan-400 hover:underline font-mono text-sm cursor-pointer">
+                        {shortenSig(tx.signature)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
                       <Link 
-                        to={createPageUrl('TransactionDetail') + `?sig=${tx.signature}`}
-                        className="text-cyan-400 hover:underline font-mono text-sm"
+                        to={createPageUrl('BlockDetail') + `?slot=${tx.slot}`}
+                        className="text-gray-400 hover:text-cyan-400 font-mono text-sm"
                       >
-                        {tx.signature}
+                        {tx.slot?.toLocaleString()}
                       </Link>
                     </td>
-                    <td className="px-4 py-3">
-                      <Badge className={`${typeColors[tx.type]} border-0 text-xs`}>
-                        {tx.type}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="text-gray-400 font-mono bg-white/5 px-2 py-0.5 rounded">{tx.from}</span>
-                        <ArrowRight className="w-3 h-3 text-gray-600" />
-                        <span className="text-gray-400 font-mono bg-white/5 px-2 py-0.5 rounded">{tx.to}</span>
-                      </div>
-                    </td>
                     <td className="px-4 py-3 text-right">
-                      {tx.type === 'Transfer' && (
-                        <span className="text-white font-mono text-sm">{tx.amount} XNT</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <span className="text-gray-400 font-mono text-xs">{tx.fee}</span>
+                      <span className="text-gray-400 font-mono text-xs">{tx.fee?.toFixed(6) || '0'}</span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       {tx.status === 'Success' ? (
