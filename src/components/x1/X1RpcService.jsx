@@ -206,12 +206,17 @@ export async function getRecentBlocks(count = 10) {
   const currentSlot = await getSlot();
   const blocks = [];
   
-  // Fetch blocks in parallel for better performance
+  // Fetch blocks in parallel - use 'signatures' mode for faster response
   const blockPromises = [];
   for (let i = 0; i < count; i++) {
     const slot = currentSlot - i;
     blockPromises.push(
-      getBlock(slot, { transactionDetails: 'full' })
+      rpcCall('getBlock', [slot, { 
+        encoding: 'json',
+        transactionDetails: 'signatures',
+        rewards: false,
+        maxSupportedTransactionVersion: 0
+      }])
         .then(block => block ? { slot, block } : null)
         .catch(() => null)
     );
@@ -222,8 +227,8 @@ export async function getRecentBlocks(count = 10) {
   for (const result of results) {
     if (result && result.block) {
       const { slot, block } = result;
-      // Transaction count: use signatures array length or transactions array length
-      const txCount = block.signatures?.length || block.transactions?.length || 0;
+      // When using 'signatures' mode, block.signatures contains the transaction signatures
+      const txCount = block.signatures?.length || 0;
       blocks.push({
         slot,
         parentSlot: block.parentSlot,
@@ -232,7 +237,7 @@ export async function getRecentBlocks(count = 10) {
         blockTime: block.blockTime,
         blockHeight: block.blockHeight,
         txCount,
-        rewards: block.rewards || []
+        rewards: []
       });
     }
   }
