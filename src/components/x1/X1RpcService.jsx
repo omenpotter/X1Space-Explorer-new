@@ -302,12 +302,45 @@ export async function getValidatorDetails() {
   // Calculate total stake for percentage calculations
   const totalActiveStake = voteAccounts.current.reduce((sum, v) => sum + v.activatedStake, 0);
 
+  // Helper function to match validator by partial pubkey
+  const findKnownValidator = (votePubkey, nodePubkey) => {
+    // Direct match first
+    if (KNOWN_VALIDATORS[votePubkey]) return KNOWN_VALIDATORS[votePubkey];
+    if (KNOWN_VALIDATORS[nodePubkey]) return KNOWN_VALIDATORS[nodePubkey];
+    
+    // Try matching by start of pubkey (first 6 chars)
+    const voteStart = votePubkey.substring(0, 6);
+    const nodeStart = nodePubkey?.substring(0, 6);
+    
+    for (const [key, value] of Object.entries(KNOWN_VALIDATORS)) {
+      if (key.startsWith(voteStart) || (nodeStart && key.startsWith(nodeStart))) {
+        return value;
+      }
+    }
+    
+    // Check if this is an X1 Labs node based on stake (>60M XNT)
+    return null;
+  };
+
   // Combine vote accounts with node info
   const validators = voteAccounts.current.map((v) => {
     const node = nodeMap[v.nodePubkey] || {};
     
     // Try to find validator info from known list
-    const knownInfo = KNOWN_VALIDATORS[v.nodePubkey] || KNOWN_VALIDATORS[v.votePubkey];
+    const knownInfo = findKnownValidator(v.votePubkey, v.nodePubkey);
+    
+    // If no known info but has very high stake (>60M), it's likely X1 Labs
+    let name = knownInfo?.name || null;
+    let website = knownInfo?.website || null;
+    let icon = knownInfo?.icon || null;
+    
+    if (!name && v.activatedStake > 60000000000000000) { // >60M XNT in lamports
+      // This is likely an X1 Labs node
+      const shortKey = v.votePubkey.substring(0, 6);
+      name = `X1 Labs (${shortKey}...)`;
+      website = 'https://x1.xyz';
+      icon = '🔷';
+    }
     
     // Calculate epoch credits for performance metrics
     const epochCredits = v.epochCredits || [];
@@ -342,9 +375,9 @@ export async function getValidatorDetails() {
       tpu: node.tpu,
       rpc: node.rpc,
       delinquent: false,
-      name: knownInfo?.name || null,
-      website: knownInfo?.website || null,
-      icon: knownInfo?.icon || null,
+      name,
+      website,
+      icon,
       uptime,
       skipRate: parseFloat(skipRate),
       featureSet: node.featureSet
