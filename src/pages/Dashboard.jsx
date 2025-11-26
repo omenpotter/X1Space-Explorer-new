@@ -16,14 +16,23 @@ import X1Rpc from '../components/x1/X1RpcService';
 
 // Block visualization component
 const BlockViz = ({ block, isPending = false }) => {
-  const squares = Array.from({ length: 80 }, (_, i) => ({
+  const txCount = block?.txCount || 0;
+  // Generate squares based on tx count for visual density
+  const squareCount = Math.min(80, Math.max(20, txCount));
+  const squares = Array.from({ length: squareCount }, (_, i) => ({
     id: i,
     opacity: 0.3 + Math.random() * 0.7
   }));
 
   const color = isPending ? 'from-cyan-500/20 to-cyan-600/10' : 'from-purple-500/30 to-purple-600/20';
-  const txCount = block?.txCount || 0;
-  const fees = block?.fees || (Math.random() * 0.05).toFixed(3);
+
+  const formatTimeAgo = (blockTime) => {
+    if (!blockTime) return 'just now';
+    const diff = (Date.now() / 1000) - blockTime;
+    if (diff < 60) return `${Math.floor(diff)}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    return `${Math.floor(diff / 3600)}h ago`;
+  };
 
   return (
     <div className="relative group cursor-pointer">
@@ -45,15 +54,15 @@ const BlockViz = ({ block, isPending = false }) => {
         </div>
         
         <div className="absolute top-2 left-2 right-2">
-          <p className="text-[10px] text-gray-300">~1 sat/vB</p>
-          <p className="text-[9px] text-cyan-400">0.1 - 100 sat/vB</p>
+          <p className="text-[10px] text-cyan-400 font-mono">
+            {isPending ? 'Pending' : `#${block?.slot?.toLocaleString() || ''}`}
+          </p>
         </div>
         
         <div className="absolute bottom-2 left-2 right-2">
-          <p className="text-white font-bold text-sm">‎{fees} XNT</p>
-          <p className="text-[10px] text-gray-400">{txCount.toLocaleString()} txns</p>
+          <p className="text-white font-bold text-sm">{txCount.toLocaleString()} txns</p>
           <p className="text-[10px] text-cyan-400">
-            {isPending ? 'Pending...' : block?.timeAgo || 'just now'}
+            {isPending ? 'In queue...' : formatTimeAgo(block?.blockTime)}
           </p>
         </div>
       </div>
@@ -89,11 +98,7 @@ export default function Dashboard() {
       ]);
       
       setDashboardData(data);
-      setRecentBlocks(blocks.map((b, i) => ({
-        ...b,
-        timeAgo: i === 0 ? 'just now' : `${i * 0.4}s ago`,
-        fees: (Math.random() * 0.05).toFixed(3)
-      })));
+      setRecentBlocks(blocks);
       setLastUpdate(new Date());
       setError(null);
     } catch (err) {
@@ -129,12 +134,11 @@ export default function Dashboard() {
     return h > 0 ? `~${h}h ${m}m` : `~${m}m`;
   };
 
-  // Generate pending blocks for mempool visualization
-  const pendingBlocks = Array.from({ length: 6 }, (_, i) => ({
+  // Generate pending block indicators (X1 processes blocks fast, so just show a few)
+  const pendingBlocks = Array.from({ length: 3 }, (_, i) => ({
     id: i,
-    txCount: 2000 + Math.floor(Math.random() * 2000),
-    fees: (0.002 + Math.random() * 0.01).toFixed(3),
-    eta: `In ~${(i + 1) * 10} minutes`
+    txCount: Math.floor(Math.random() * 50),
+    slot: (dashboardData?.slot || 0) + i + 1
   }));
 
   if (loading && !dashboardData) {
