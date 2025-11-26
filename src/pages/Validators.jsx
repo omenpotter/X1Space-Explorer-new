@@ -14,6 +14,7 @@ import {
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import X1Rpc from '../components/x1/X1RpcService';
+import { getDisplayName } from '../components/x1/ValidatorNames';
 
 export default function Validators() {
   const [validators, setValidators] = useState([]);
@@ -167,8 +168,8 @@ export default function Validators() {
                     <td className="px-4 py-4 text-gray-500 text-sm">{i + 1}</td>
                     <td className="px-4 py-4">
                       <div>
-                        <p className="text-cyan-400 font-mono text-sm">{v.votePubkey.substring(0, 8)}...{v.votePubkey.slice(-4)}</p>
-                        <p className="text-gray-500 text-xs font-mono">{v.nodePubkey.substring(0, 8)}...</p>
+                        <p className="text-white font-medium">{getDisplayName(v.votePubkey, v.nodePubkey)}</p>
+                        <p className="text-cyan-400 font-mono text-xs">{v.votePubkey.substring(0, 8)}...{v.votePubkey.slice(-4)}</p>
                       </div>
                     </td>
                     <td className="px-4 py-4 text-right">

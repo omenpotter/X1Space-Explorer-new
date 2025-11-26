@@ -206,27 +206,37 @@ export async function getRecentBlocks(count = 10) {
   const currentSlot = await getSlot();
   const blocks = [];
   
+  // Fetch blocks in parallel for better performance
+  const blockPromises = [];
   for (let i = 0; i < count; i++) {
-    try {
-      const slot = currentSlot - i;
-      const block = await getBlock(slot);
-      if (block) {
-        blocks.push({
-          slot,
-          parentSlot: block.parentSlot,
-          blockhash: block.blockhash,
-          previousBlockhash: block.previousBlockhash,
-          blockTime: block.blockTime,
-          blockHeight: block.blockHeight,
-          txCount: block.transactions?.length || 0,
-          rewards: block.rewards || []
-        });
-      }
-    } catch (e) {
-      // Skip failed blocks
-      console.warn(`Failed to fetch block ${currentSlot - i}:`, e.message);
+    const slot = currentSlot - i;
+    blockPromises.push(
+      getBlock(slot, { transactionDetails: 'full' })
+        .then(block => block ? { slot, block } : null)
+        .catch(() => null)
+    );
+  }
+  
+  const results = await Promise.all(blockPromises);
+  
+  for (const result of results) {
+    if (result && result.block) {
+      const { slot, block } = result;
+      blocks.push({
+        slot,
+        parentSlot: block.parentSlot,
+        blockhash: block.blockhash,
+        previousBlockhash: block.previousBlockhash,
+        blockTime: block.blockTime,
+        blockHeight: block.blockHeight,
+        txCount: block.transactions?.length || 0,
+        rewards: block.rewards || []
+      });
     }
   }
+  
+  // Sort by slot descending
+  blocks.sort((a, b) => b.slot - a.slot);
   
   return blocks;
 }
