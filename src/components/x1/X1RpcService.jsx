@@ -46,16 +46,16 @@ export async function getRecentPerformanceSamples(limit = 60) {
 
 // Get block details
 export async function getBlock(slot, options = {}) {
-  return await rpcCall('getBlock', [
+  const result = await rpcCall('getBlock', [
     slot,
     {
       encoding: 'json',
       transactionDetails: options.transactionDetails || 'signatures',
       rewards: true,
-      maxSupportedTransactionVersion: 0,
-      ...options
+      maxSupportedTransactionVersion: 0
     }
   ]);
+  return result;
 }
 
 // Get confirmed blocks in range
@@ -222,6 +222,8 @@ export async function getRecentBlocks(count = 10) {
   for (const result of results) {
     if (result && result.block) {
       const { slot, block } = result;
+      // Transaction count: use signatures array length or transactions array length
+      const txCount = block.signatures?.length || block.transactions?.length || 0;
       blocks.push({
         slot,
         parentSlot: block.parentSlot,
@@ -229,7 +231,7 @@ export async function getRecentBlocks(count = 10) {
         previousBlockhash: block.previousBlockhash,
         blockTime: block.blockTime,
         blockHeight: block.blockHeight,
-        txCount: block.transactions?.length || 0,
+        txCount,
         rewards: block.rewards || []
       });
     }
