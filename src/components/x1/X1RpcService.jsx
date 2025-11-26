@@ -248,14 +248,33 @@ export async function getRecentBlocks(count = 10) {
   return blocks;
 }
 
-// Fetch validator identity info to get names
-async function getValidatorIdentity(pubkey) {
+// Fetch and decode validator identity name from on-chain data
+async function fetchValidatorName(identityPubkey) {
   try {
-    const accountInfo = await rpcCall('getAccountInfo', [
-      pubkey,
-      { encoding: 'jsonParsed' }
+    // Try to get the validator info config account
+    const configAccounts = await rpcCall('getProgramAccounts', [
+      'Config1111111111111111111111111111111111111', // Config program
+      {
+        encoding: 'base64',
+        filters: [
+          { memcmp: { offset: 0, bytes: identityPubkey } }
+        ]
+      }
     ]);
-    return accountInfo;
+    
+    if (configAccounts && configAccounts.length > 0) {
+      // Parse the config data to extract name
+      const data = configAccounts[0].account.data[0];
+      if (data) {
+        const decoded = atob(data);
+        // Try to find readable name in the data
+        const match = decoded.match(/[\x20-\x7E]{3,30}/g);
+        if (match && match.length > 0) {
+          return match[0];
+        }
+      }
+    }
+    return null;
   } catch (e) {
     return null;
   }
@@ -274,23 +293,23 @@ export async function getValidatorDetails() {
     nodeMap[node.pubkey] = node;
   });
 
-  // Known validator names (expanded list based on x1val.online)
+  // Known validator names from x1val.online (identity pubkey -> name)
   const knownNames = {
-    // Add known validator identity pubkeys -> names here
-    // This can be expanded as we discover more
+    // X1 Labs nodes
+    'Gv5kyHCneaRKNJPgyPreoiYnBVBm2XYqt981zYykcSSU': 'X1 Labs (node9)',
+    'CkMwg4TM6jaSC5rJALQjvLc51XFY5pJ1H9f1Tmu5Qdxs': 'X1 Labs (node1)',
+    '4Y9fnKcTJ3Kxj6744HZX8ubd89DPKibyKckGnPWGkfU3': 'X1 Labs (node2)',
+    '5Rzytnub9yGTFHqSmauFLsAbdXFbehMwPBLiuEgKajUN': 'X1 Labs (node3)',
+    'EXDQt1T1eQ4NjttSdxn1eNS3EkHDrmZ3ZrgZmMSbfYiy': 'X1 Labs (node4)',
+    // Add more known validators as discovered
   };
 
   // Combine vote accounts with node info
   const validators = voteAccounts.current.map((v, index) => {
     const node = nodeMap[v.nodePubkey] || {};
     
-    // Try to determine name from various sources
-    let name = knownNames[v.votePubkey] || knownNames[v.nodePubkey];
-    
-    // If no known name, check if it looks like an X1 Labs node based on stake
-    if (!name && v.activatedStake > 50000000000000) { // High stake = likely X1 Labs
-      name = `X1 Labs (node${index + 1})`;
-    }
+    // Try to find name from known list using node pubkey
+    let name = knownNames[v.nodePubkey] || knownNames[v.votePubkey];
     
     return {
       votePubkey: v.votePubkey,
@@ -322,12 +341,20 @@ export async function getValidatorDetails() {
       credits: 0,
       version: node.version || 'unknown',
       delinquent: true,
-      name: null
+      name: knownNames[v.nodePubkey] || null
     });
   });
 
   // Sort by stake
   validators.sort((a, b) => b.activatedStake - a.activatedStake);
+
+  // Try to fetch names for top validators without names (limited to avoid too many requests)
+  const topUnnamed = validators.filter(v => !v.name).slice(0, 20);
+  const namePromises = topUnnamed.map(async (v) => {
+    const name = await fetchValidatorName(v.nodePubkey);
+    if (name) v.name = name;
+  });
+  await Promise.all(namePromises);
 
   return validators;
 }
