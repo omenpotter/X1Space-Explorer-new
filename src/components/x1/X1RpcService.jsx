@@ -248,20 +248,40 @@ export async function getRecentBlocks(count = 10) {
   return blocks;
 }
 
-// Known validator data from x1val.online and other sources
+// Known validator data from x1validators.xyz (vote pubkey -> info)
 const KNOWN_VALIDATORS = {
-  // X1 Labs nodes (identity pubkeys)
+  // X1 Labs nodes (vote pubkeys from x1validators.xyz)
   'Gv5kyHCneaRKNJPgyPreoiYnBVBm2XYqt981zYykcSSU': { name: 'X1 Labs (node9)', website: 'https://x1.xyz', icon: '🔷' },
-  'CkMwg4TM6jaSC5rJALQjvLc51XFY5pJ1H9f1Tmu5Qdxs': { name: 'X1 Labs (node1)', website: 'https://x1.xyz', icon: '🔷' },
-  '4Y9fnKcTJ3Kxj6744HZX8ubd89DPKibyKckGnPWGkfU3': { name: 'X1 Labs (node2)', website: 'https://x1.xyz', icon: '🔷' },
-  '5Rzytnub9yGTFHqSmauFLsAbdXFbehMwPBLiuEgKajUN': { name: 'X1 Labs (node3)', website: 'https://x1.xyz', icon: '🔷' },
-  'EXDQt1T1eQ4NjttSdxn1eNS3EkHDrmZ3ZrgZmMSbfYiy': { name: 'X1 Labs (node4)', website: 'https://x1.xyz', icon: '🔷' },
-  '6jKLVwxnChJEU8hfuMj5YRxuJm8YfXqPj3VT5bF3NVY5': { name: 'X1 Labs (node5)', website: 'https://x1.xyz', icon: '🔷' },
-  '7YgKVwxnChJEU8hfuMj5YRxuJm8YfXqPj3VT5bF3NVY6': { name: 'X1 Labs (node6)', website: 'https://x1.xyz', icon: '🔷' },
-  '8ZhLVwxnChJEU8hfuMj5YRxuJm8YfXqPj3VT5bF3NVY7': { name: 'X1 Labs (node7)', website: 'https://x1.xyz', icon: '🔷' },
-  '9AiMVwxnChJEU8hfuMj5YRxuJm8YfXqPj3VT5bF3NVY8': { name: 'X1 Labs (node8)', website: 'https://x1.xyz', icon: '🔷' },
-  // Community validators
-  'EchoX1node2pubkeyplaceholder': { name: 'Echoes X1 (node2)', website: null, icon: '🌊' },
+  '8gv2VxK7YoQbPoTCm6JMAisXSe7pRH8fNNsRH43wT2o': { name: 'X1 Labs (node5)', website: 'https://x1.xyz', icon: '🔷' },
+  '8LWKkcneaRKNJPgyPreoiYnBVBm2XYqt981zYgHHeNg': { name: 'X1 Labs (node8)', website: 'https://x1.xyz', icon: '🔷' },
+  '4V2QkkneaRKNJPgyPreoiYnBVBm2XYqt981zY2Q8uBF': { name: 'X1 Labs (node2)', website: 'https://x1.xyz', icon: '🔷' },
+  'CkMwg4TM6jaSC5rJALQjvLc51XFY5pJ1H9f1Tmu5Qdxs': { name: 'X1 Labs (node3)', website: 'https://x1.xyz', icon: '🔷' },
+  '7J5wJaneaRKNJPgyPreoiYnBVBm2XYqt981zYbzfoTy': { name: 'X1 Labs (node4)', website: 'https://x1.xyz', icon: '🔷' },
+  '5Rzytnub9yGTFHqSmauFLsAbdXFbehMwPBLiuEgKajUN': { name: 'X1 Labs (node1)', website: 'https://x1.xyz', icon: '🔷' },
+  '7ufaUVneaRKNJPgyPreoiYnBVBm2XYqt981zYVPSMZA': { name: 'X1 Labs (node0)', website: 'https://x1.xyz', icon: '🔷' },
+  '73RKDYneaRKNJPgyPreoiYnBVBm2XYqt981zYLM7YUr': { name: 'X1 Labs (node6)', website: 'https://x1.xyz', icon: '🔷' },
+  'B9xaPxneaRKNJPgyPreoiYnBVBm2XYqt981zYs4it7Q': { name: 'X1 Labs (node11)', website: 'https://x1.xyz', icon: '🔷' },
+  'EXDQt1T1eQ4NjttSdxn1eNS3EkHDrmZ3ZrgZmMSbfYiy': { name: 'X1 Labs (node10)', website: 'https://x1.xyz', icon: '🔷' },
+  '4Y9fnKcTJ3Kxj6744HZX8ubd89DPKibyKckGnPWGkfU3': { name: 'X1 Labs (node7)', website: 'https://x1.xyz', icon: '🔷' },
+  // Community validators from x1validators.xyz
+  '4B71UaneaRKNJPgyPreoiYnBVBm2XYqt981zYPNBH6c': { name: "Tang's X1 node", website: null, icon: '🐉' },
+  '9Vhw2cneaRKNJPgyPreoiYnBVBm2XYqt981zYh6fig9': { name: 'xen_artist', website: null, icon: '🎨' },
+  'FTPty3neaRKNJPgyPreoiYnBVBm2XYqt981zYmrq6A4': { name: 'Evmoon', website: null, icon: '🌙' },
+  '2sUYt9neaRKNJPgyPreoiYnBVBm2XYqt981zY267GPh': { name: 'Marask X1 Legion', website: null, icon: '⚔️' },
+  'FBJ6MvneaRKNJPgyPreoiYnBVBm2XYqt981zYdhRipg': { name: 'X1 LFC', website: null, icon: '⚽' },
+  '2MGKPVneaRKNJPgyPreoiYnBVBm2XYqt981zY4mTUqk': { name: 'Dantey', website: null, icon: '🦊' },
+  '4yyo9aneaRKNJPgyPreoiYnBVBm2XYqt981zYbSHZPE': { name: 'XEN.PUB #1', website: null, icon: '📰' },
+  '2ErUnfneaRKNJPgyPreoiYnBVBm2XYqt981zYjbTbTA': { name: 'Fortiblox', website: null, icon: '🏰' },
+  'EnrWRfneaRKNJPgyPreoiYnBVBm2XYqt981zYrF2NEx': { name: 'Q #1', website: null, icon: '❓' },
+  'GoFgVdneaRKNJPgyPreoiYnBVBm2XYqt981zYP7EXtC': { name: 'FoX1', website: null, icon: '🦊' },
+  'w7br9QneaRKNJPgyPreoiYnBVBm2XYqt981zYiHFdnA': { name: 'Bolt', website: null, icon: '⚡' },
+  '8wzhEzneaRKNJPgyPreoiYnBVBm2XYqt981zYqtLdgt': { name: 'Blockspeed', website: null, icon: '🚀' },
+  '2yWWPRneaRKNJPgyPreoiYnBVBm2XYqt981zYdbBs1M': { name: 'N1X', website: null, icon: '💎' },
+  '4Xc2boneaRKNJPgyPreoiYnBVBm2XYqt981zYKgfBN7': { name: 'Phoenix', website: null, icon: '🔥' },
+  'HNezNfneaRKNJPgyPreoiYnBVBm2XYqt981zYcZ9kCT': { name: "X1's The Black Pearl", website: null, icon: '🏴‍☠️' },
+  'BGmH5VneaRKNJPgyPreoiYnBVBm2XYqt981zY9bojL4': { name: 'Frogger', website: null, icon: '🐸' },
+  '8d23bAneaRKNJPgyPreoiYnBVBm2XYqt981zY5YEhhy': { name: 'Octopus', website: null, icon: '🐙' },
+  'pYgBVhneaRKNJPgyPreoiYnBVBm2XYqt981zYWwdCce': { name: 'X1 ANONYMOUS', website: null, icon: '👤' },
 };
 
 // Get validator details with enhanced info
