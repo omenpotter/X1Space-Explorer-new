@@ -9,34 +9,43 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import X1Rpc from '../components/x1/X1RpcService';
-import ValidatorNames from '../components/x1/ValidatorNames';
+import ValidatorCard from '../components/validators/ValidatorCard';
+import StakeDistribution from '../components/validators/StakeDistribution';
 
 export default function Validators() {
   const [validators, setValidators] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('activatedStake');
   const [sortOrder, setSortOrder] = useState('desc');
-  const [stats, setStats] = useState({ total: 0, active: 0, delinquent: 0, totalStake: 0 });
+  const [stats, setStats] = useState({ total: 0, active: 0, delinquent: 0, totalStake: 0, avgUptime: 0 });
+  const [page, setPage] = useState(1);
+  const perPage = 25;
 
-  const fetchValidators = async () => {
+  const fetchValidators = async (isRefresh = false) => {
     try {
+      if (isRefresh) setRefreshing(true);
       const data = await X1Rpc.getValidatorDetails();
       setValidators(data);
       
       const active = data.filter(v => !v.delinquent).length;
       const totalStake = data.reduce((sum, v) => sum + v.activatedStake, 0);
+      const avgUptime = data.reduce((sum, v) => sum + (v.uptime || 0), 0) / data.length;
+      
       setStats({
         total: data.length,
         active,
         delinquent: data.length - active,
-        totalStake
+        totalStake,
+        avgUptime: avgUptime.toFixed(1)
       });
       setError(null);
     } catch (err) {
@@ -44,6 +53,7 @@ export default function Validators() {
       setError(err.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -63,11 +73,22 @@ export default function Validators() {
   };
 
   const filteredValidators = validators
-    .filter(v => v.votePubkey.toLowerCase().includes(searchQuery.toLowerCase()) || v.nodePubkey.toLowerCase().includes(searchQuery.toLowerCase()))
+    .filter(v => {
+      const query = searchQuery.toLowerCase();
+      return v.votePubkey.toLowerCase().includes(query) || 
+             v.nodePubkey.toLowerCase().includes(query) ||
+             (v.name && v.name.toLowerCase().includes(query));
+    })
     .sort((a, b) => {
       const order = sortOrder === 'desc' ? -1 : 1;
+      if (sortBy === 'name') {
+        return ((a.name || 'zzz').localeCompare(b.name || 'zzz')) * order;
+      }
       return (a[sortBy] - b[sortBy]) * order;
     });
+
+  const paginatedValidators = filteredValidators.slice((page - 1) * perPage, page * perPage);
+  const totalPages = Math.ceil(filteredValidators.length / perPage);
 
   const formatStake = (stake) => {
     if (stake >= 1e6) return (stake / 1e6).toFixed(2) + 'M';
@@ -125,7 +146,8 @@ export default function Validators() {
       )}
 
       <main className="max-w-[1800px] mx-auto px-4 py-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           <div className="bg-[#24384a] rounded-xl p-4">
             <p className="text-gray-400 text-xs mb-1">Total Validators</p>
             <p className="text-2xl font-bold text-white">{stats.total}</p>
@@ -142,6 +164,30 @@ export default function Validators() {
             <p className="text-gray-400 text-xs mb-1">Total Stake</p>
             <p className="text-2xl font-bold text-cyan-400">{formatStake(stats.totalStake)} XNT</p>
           </div>
+          <div className="bg-[#24384a] rounded-xl p-4">
+            <p className="text-gray-400 text-xs mb-1">Avg Uptime</p>
+            <p className="text-2xl font-bold text-emerald-400">{stats.avgUptime}%</p>
+          </div>
+        </div>
+
+        {/* Stake Distribution Chart */}
+        {validators.length > 0 && (
+          <StakeDistribution validators={validators} totalStake={stats.totalStake} />
+        )}
+
+        {/* Refresh Button */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-white">All Validators</h2>
+          <Button 
+            onClick={() => fetchValidators(true)} 
+            variant="outline" 
+            size="sm" 
+            className="border-white/10 text-gray-400 hover:text-white"
+            disabled={refreshing}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
 
         <div className="bg-[#24384a] rounded-xl overflow-hidden">
@@ -150,54 +196,33 @@ export default function Validators() {
               <thead>
                 <tr className="border-b border-white/5">
                   <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">#</th>
-                  <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Vote Account</th>
+                  <th className="text-left text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('name')}>
+                    <div className="flex items-center gap-1">Validator <ArrowUpDown className="w-3 h-3" /></div>
+                  </th>
                   <th className="text-right text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('activatedStake')}>
                     <div className="flex items-center justify-end gap-1">Stake <ArrowUpDown className="w-3 h-3" /></div>
                   </th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('commission')}>
-                    <div className="flex items-center justify-end gap-1">Commission <ArrowUpDown className="w-3 h-3" /></div>
+                  <th className="text-center text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('commission')}>
+                    <div className="flex items-center justify-center gap-1">Commission <ArrowUpDown className="w-3 h-3" /></div>
+                  </th>
+                  <th className="text-center text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('uptime')}>
+                    <div className="flex items-center justify-center gap-1">Performance <ArrowUpDown className="w-3 h-3" /></div>
                   </th>
                   <th className="text-center text-gray-400 text-xs font-medium px-4 py-3">Version</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Last Vote</th>
+                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('lastVote')}>
+                    <div className="flex items-center justify-end gap-1">Last Vote <ArrowUpDown className="w-3 h-3" /></div>
+                  </th>
                   <th className="text-center text-gray-400 text-xs font-medium px-4 py-3">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredValidators.slice(0, 50).map((v, i) => (
-                  <tr key={v.votePubkey} className="border-b border-white/5 hover:bg-white/[0.02]">
-                    <td className="px-4 py-4 text-gray-500 text-sm">{i + 1}</td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-500/30 flex items-center justify-center text-xs font-bold text-cyan-400 shrink-0">
-                          {i + 1}
-                        </div>
-                        <div>
-                          <p className="text-white font-medium">{v.name || `Validator ${v.votePubkey.substring(0, 4)}...${v.votePubkey.slice(-4)}`}</p>
-                          <p className="text-cyan-400 font-mono text-xs">{v.votePubkey.substring(0, 8)}...{v.votePubkey.slice(-4)}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      <p className="text-white font-mono text-sm">{formatStake(v.activatedStake)}</p>
-                      <p className="text-gray-500 text-xs">{((v.activatedStake / stats.totalStake) * 100).toFixed(2)}%</p>
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      <Badge className={`${v.commission === 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-gray-400'} border-0`}>
-                        {v.commission}%
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <Badge className="bg-blue-500/20 text-blue-400 border-0 font-mono text-xs">{v.version}</Badge>
-                    </td>
-                    <td className="px-4 py-4 text-right text-gray-400 font-mono text-sm">{v.lastVote?.toLocaleString()}</td>
-                    <td className="px-4 py-4 text-center">
-                      {v.delinquent ? (
-                        <Badge className="bg-red-500/20 text-red-400 border-0">Delinquent</Badge>
-                      ) : (
-                        <Badge className="bg-emerald-500/20 text-emerald-400 border-0">Active</Badge>
-                      )}
-                    </td>
-                  </tr>
+                {paginatedValidators.map((v, i) => (
+                  <ValidatorCard 
+                    key={v.votePubkey} 
+                    validator={v} 
+                    rank={(page - 1) * perPage + i + 1}
+                    totalStake={stats.totalStake}
+                  />
                 ))}
               </tbody>
             </table>
@@ -205,12 +230,51 @@ export default function Validators() {
         </div>
 
         <div className="flex items-center justify-between mt-6">
-          <p className="text-gray-400 text-sm">Showing <span className="text-white">1-50</span> of <span className="text-white">{filteredValidators.length}</span></p>
+          <p className="text-gray-400 text-sm">
+            Showing <span className="text-white">{(page - 1) * perPage + 1}-{Math.min(page * perPage, filteredValidators.length)}</span> of <span className="text-white">{filteredValidators.length}</span>
+          </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="border-white/10 text-gray-400"><ChevronLeft className="w-4 h-4" /></Button>
-            <Button variant="outline" size="sm" className="border-white/10 bg-cyan-500/10 text-cyan-400">1</Button>
-            <Button variant="outline" size="sm" className="border-white/10 text-gray-400">2</Button>
-            <Button variant="outline" size="sm" className="border-white/10 text-gray-400"><ChevronRight className="w-4 h-4" /></Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="border-white/10 text-gray-400 disabled:opacity-30"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (page <= 3) {
+                pageNum = i + 1;
+              } else if (page >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = page - 2 + i;
+              }
+              return (
+                <Button 
+                  key={pageNum}
+                  variant="outline" 
+                  size="sm" 
+                  className={`border-white/10 ${page === pageNum ? 'bg-cyan-500/10 text-cyan-400' : 'text-gray-400'}`}
+                  onClick={() => setPage(pageNum)}
+                >
+                  {pageNum}
+                </Button>
+              );
+            })}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="border-white/10 text-gray-400 disabled:opacity-30"
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </main>
