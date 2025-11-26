@@ -14,7 +14,7 @@ import {
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import X1Rpc from '../components/x1/X1RpcService';
-import { getDisplayName } from '../components/x1/ValidatorNames';
+import ValidatorNames from '../components/x1/ValidatorNames';
 
 export default function Validators() {
   const [validators, setValidators] = useState([]);
@@ -167,9 +167,14 @@ export default function Validators() {
                   <tr key={v.votePubkey} className="border-b border-white/5 hover:bg-white/[0.02]">
                     <td className="px-4 py-4 text-gray-500 text-sm">{i + 1}</td>
                     <td className="px-4 py-4">
-                      <div>
-                        <p className="text-white font-medium">{getDisplayName(v.votePubkey, v.nodePubkey)}</p>
-                        <p className="text-cyan-400 font-mono text-xs">{v.votePubkey.substring(0, 8)}...{v.votePubkey.slice(-4)}</p>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-500/30 flex items-center justify-center text-xs font-bold text-cyan-400 shrink-0">
+                          {i + 1}
+                        </div>
+                        <div>
+                          <p className="text-white font-medium">{v.name || `Validator ${v.votePubkey.substring(0, 4)}...${v.votePubkey.slice(-4)}`}</p>
+                          <p className="text-cyan-400 font-mono text-xs">{v.votePubkey.substring(0, 8)}...{v.votePubkey.slice(-4)}</p>
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-4 text-right">
