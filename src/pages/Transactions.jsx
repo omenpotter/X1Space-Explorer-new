@@ -179,9 +179,9 @@ export default function Transactions() {
                 {transactions.map((tx, index) => (
                   <tr key={tx.signature + index} className={`border-b border-white/5 hover:bg-white/[0.02] ${index === 0 && isLive ? 'bg-cyan-500/5' : ''}`}>
                     <td className="px-4 py-3">
-                      <span className="text-cyan-400 font-mono text-sm">
+                      <Link to={createPageUrl('TransactionDetail') + `?sig=${tx.signature}`} className="text-cyan-400 hover:underline font-mono text-sm">
                         {tx.signature.substring(0, 16)}...{tx.signature.slice(-8)}
-                      </span>
+                      </Link>
                     </td>
                     <td className="px-4 py-3">
                       <Link to={createPageUrl('BlockDetail') + `?slot=${tx.slot}`} className="text-gray-400 hover:text-cyan-400 font-mono text-sm">

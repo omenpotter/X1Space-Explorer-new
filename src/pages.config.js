@@ -11,6 +11,7 @@ import StakingCalculator from './pages/StakingCalculator';
 import AddressLookup from './pages/AddressLookup';
 import Watchlist from './pages/Watchlist';
 import Leaderboard from './pages/Leaderboard';
+import TransactionDetail from './pages/TransactionDetail';
 
 
 export const PAGES = {
@@ -27,6 +28,7 @@ export const PAGES = {
     "AddressLookup": AddressLookup,
     "Watchlist": Watchlist,
     "Leaderboard": Leaderboard,
+    "TransactionDetail": TransactionDetail,
 }
 
 export const pagesConfig = {
