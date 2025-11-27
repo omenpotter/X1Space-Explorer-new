@@ -10,7 +10,8 @@ import {
   ChevronRight,
   Loader2,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Scale
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -178,16 +179,28 @@ export default function Validators() {
         {/* Refresh Button */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-white">All Validators</h2>
-          <Button 
-            onClick={() => fetchValidators(true)} 
-            variant="outline" 
-            size="sm" 
-            className="border-white/10 text-gray-400 hover:text-white"
-            disabled={refreshing}
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link to={createPageUrl('ValidatorCompare')}>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+              >
+                <Scale className="w-4 h-4 mr-2" />
+                Compare
+              </Button>
+            </Link>
+            <Button 
+              onClick={() => fetchValidators(true)} 
+              variant="outline" 
+              size="sm" 
+              className="border-white/10 text-gray-400 hover:text-white"
+              disabled={refreshing}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         <div className="bg-[#24384a] rounded-xl overflow-hidden">
