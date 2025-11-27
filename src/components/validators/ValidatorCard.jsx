@@ -1,6 +1,8 @@
 import React from 'react';
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, TrendingUp, TrendingDown, Activity } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 
 export default function ValidatorCard({ validator, rank, totalStake }) {
   const stakePercent = parseFloat(validator.stakePercent) || 0;
@@ -27,7 +29,7 @@ export default function ValidatorCard({ validator, rank, totalStake }) {
     <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
       <td className="px-4 py-4 text-gray-500 text-sm font-mono">{rank}</td>
       <td className="px-4 py-4">
-        <div className="flex items-center gap-3">
+        <Link to={createPageUrl('ValidatorDetail') + `?id=${validator.votePubkey}`} className="flex items-center gap-3 group">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-500/30 flex items-center justify-center text-sm shrink-0">
             {validator.icon || (
               <span className="font-bold text-cyan-400">{rank}</span>
@@ -35,7 +37,7 @@ export default function ValidatorCard({ validator, rank, totalStake }) {
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <p className="text-white font-medium truncate">
+              <p className="text-white font-medium truncate group-hover:text-cyan-400 transition-colors">
                 {validator.name || `Validator ${validator.votePubkey.substring(0, 4)}...${validator.votePubkey.slice(-4)}`}
               </p>
               {validator.website && (
@@ -44,6 +46,7 @@ export default function ValidatorCard({ validator, rank, totalStake }) {
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-gray-500 hover:text-cyan-400 transition-colors"
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <ExternalLink className="w-3 h-3" />
                 </a>
@@ -53,7 +56,7 @@ export default function ValidatorCard({ validator, rank, totalStake }) {
               {validator.votePubkey.substring(0, 12)}...{validator.votePubkey.slice(-4)}
             </p>
           </div>
-        </div>
+        </Link>
       </td>
       <td className="px-4 py-4">
         <div className="text-right">

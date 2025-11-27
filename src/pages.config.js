@@ -5,6 +5,7 @@ import Transactions from './pages/Transactions';
 import BlockDetail from './pages/BlockDetail';
 import Search from './pages/Search';
 import ValidatorCompare from './pages/ValidatorCompare';
+import ValidatorDetail from './pages/ValidatorDetail';
 
 
 export const PAGES = {
@@ -15,6 +16,7 @@ export const PAGES = {
     "BlockDetail": BlockDetail,
     "Search": Search,
     "ValidatorCompare": ValidatorCompare,
+    "ValidatorDetail": ValidatorDetail,
 }
 
 export const pagesConfig = {
