@@ -7,12 +7,18 @@ import {
   TrendingDown,
   ExternalLink,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Globe,
+  Calculator,
+  Wallet,
+  Star,
+  Trophy
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { LineChart, Line, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
 import X1Rpc from '../components/x1/X1RpcService';
+import ThemeToggle from '../components/layout/ThemeToggle';
 
 // Block visualization component
 const BlockViz = ({ block, isPending = false }) => {
@@ -206,6 +212,22 @@ export default function Dashboard() {
                   </svg>
                 </Button>
               </Link>
+              <Link to={createPageUrl('NetworkHealth')}>
+                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg">
+                  <Globe className="w-5 h-5" />
+                </Button>
+              </Link>
+              <Link to={createPageUrl('StakingCalculator')}>
+                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg">
+                  <Calculator className="w-5 h-5" />
+                </Button>
+              </Link>
+              <Link to={createPageUrl('AddressLookup')}>
+                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg">
+                  <Wallet className="w-5 h-5" />
+                </Button>
+              </Link>
+              <ThemeToggle />
             </nav>
             
             <div className="flex-1 max-w-md">
@@ -440,6 +462,45 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Quick Links */}
+        <div className="mt-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <Link to={createPageUrl('NetworkHealth')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
+            <Globe className="w-6 h-6 text-cyan-400 mb-2" />
+            <p className="text-white font-medium">Network Health</p>
+            <p className="text-gray-500 text-xs">Monitor network status</p>
+          </Link>
+          <Link to={createPageUrl('StakingCalculator')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
+            <Calculator className="w-6 h-6 text-emerald-400 mb-2" />
+            <p className="text-white font-medium">Staking Calculator</p>
+            <p className="text-gray-500 text-xs">Estimate rewards</p>
+          </Link>
+          <Link to={createPageUrl('AddressLookup')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
+            <Wallet className="w-6 h-6 text-purple-400 mb-2" />
+            <p className="text-white font-medium">Address Lookup</p>
+            <p className="text-gray-500 text-xs">Search accounts</p>
+          </Link>
+          <Link to={createPageUrl('Watchlist')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
+            <Star className="w-6 h-6 text-yellow-400 mb-2" />
+            <p className="text-white font-medium">Watchlist</p>
+            <p className="text-gray-500 text-xs">Track validators</p>
+          </Link>
+          <Link to={createPageUrl('Leaderboard')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
+            <Trophy className="w-6 h-6 text-orange-400 mb-2" />
+            <p className="text-white font-medium">Leaderboard</p>
+            <p className="text-gray-500 text-xs">Top validators</p>
+          </Link>
+          <Link to={createPageUrl('ValidatorCompare')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
+            <svg className="w-6 h-6 text-blue-400 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 3v18h18" />
+              <path d="M18 17V9" />
+              <path d="M13 17V5" />
+              <path d="M8 17v-3" />
+            </svg>
+            <p className="text-white font-medium">Compare</p>
+            <p className="text-gray-500 text-xs">Side-by-side analysis</p>
+          </Link>
         </div>
 
         {/* Recent Blocks Table */}

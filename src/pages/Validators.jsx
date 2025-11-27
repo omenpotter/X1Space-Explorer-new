@@ -11,13 +11,17 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
-  Scale
+  Scale,
+  Star,
+  Trophy,
+  Globe
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import X1Rpc from '../components/x1/X1RpcService';
 import ValidatorCard from '../components/validators/ValidatorCard';
 import StakeDistribution from '../components/validators/StakeDistribution';
+import ExportButton from '../components/common/ExportButton';
 
 export default function Validators() {
   const [validators, setValidators] = useState([]);
@@ -179,17 +183,38 @@ export default function Validators() {
         {/* Refresh Button */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-white">All Validators</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link to={createPageUrl('Leaderboard')}>
+              <Button variant="outline" size="sm" className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10">
+                <Trophy className="w-4 h-4 mr-2" />
+                Leaderboard
+              </Button>
+            </Link>
+            <Link to={createPageUrl('Watchlist')}>
+              <Button variant="outline" size="sm" className="border-white/10 text-gray-400 hover:text-white">
+                <Star className="w-4 h-4 mr-2" />
+                Watchlist
+              </Button>
+            </Link>
             <Link to={createPageUrl('ValidatorCompare')}>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
-              >
+              <Button variant="outline" size="sm" className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10">
                 <Scale className="w-4 h-4 mr-2" />
                 Compare
               </Button>
             </Link>
+            <ExportButton 
+              data={validators.map(v => ({
+                name: v.name || '',
+                votePubkey: v.votePubkey,
+                stake: v.activatedStake,
+                commission: v.commission,
+                uptime: v.uptime,
+                skipRate: v.skipRate,
+                version: v.version,
+                status: v.delinquent ? 'delinquent' : 'active'
+              }))}
+              filename="x1_validators"
+            />
             <Button 
               onClick={() => fetchValidators(true)} 
               variant="outline" 
