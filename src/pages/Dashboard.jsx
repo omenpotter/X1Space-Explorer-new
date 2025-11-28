@@ -538,6 +538,14 @@ export default function Dashboard() {
             <p className="text-white font-medium">Compare</p>
             <p className="text-gray-500 text-xs">Side-by-side analysis</p>
           </Link>
+          <Link to={createPageUrl('ApiDocs')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
+            <svg className="w-6 h-6 text-pink-400 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="16 18 22 12 16 6" />
+              <polyline points="8 6 2 12 8 18" />
+            </svg>
+            <p className="text-white font-medium">API</p>
+            <p className="text-gray-500 text-xs">Developer docs</p>
+          </Link>
         </div>
 
         {/* Recent Blocks Table */}

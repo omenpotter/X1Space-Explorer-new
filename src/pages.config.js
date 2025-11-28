@@ -12,6 +12,7 @@ import AddressLookup from './pages/AddressLookup';
 import Watchlist from './pages/Watchlist';
 import Leaderboard from './pages/Leaderboard';
 import TransactionDetail from './pages/TransactionDetail';
+import ApiDocs from './pages/ApiDocs';
 
 
 export const PAGES = {
@@ -29,6 +30,7 @@ export const PAGES = {
     "Watchlist": Watchlist,
     "Leaderboard": Leaderboard,
     "TransactionDetail": TransactionDetail,
+    "ApiDocs": ApiDocs,
 }
 
 export const pagesConfig = {
