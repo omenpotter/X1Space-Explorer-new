@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { 
   Search, 
   Zap,
@@ -12,13 +13,59 @@ import {
   Calculator,
   Wallet,
   Star,
-  Trophy
+  Trophy,
+  Coins,
+  Map,
+  Clock,
+  Bell
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { LineChart, Line, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
 import X1Rpc from '../components/x1/X1RpcService';
 import ThemeToggle from '../components/layout/ThemeToggle';
+import MobileNav from '../components/layout/MobileNav';
+
+// Block visualization component for aggregated view
+const AggregatedBlockViz = ({ blocks, interval, label }) => {
+  const totalTxns = blocks.reduce((sum, b) => sum + (b?.txCount || 0), 0);
+  const squareCount = Math.min(80, Math.max(20, Math.floor(totalTxns / 100)));
+  const squares = Array.from({ length: squareCount }, (_, i) => ({
+    id: i,
+    opacity: 0.3 + Math.random() * 0.7
+  }));
+
+  return (
+    <div className="relative group cursor-pointer">
+      <div className={`
+        relative w-[120px] h-[180px] md:w-[140px] md:h-[200px]
+        bg-gradient-to-b from-purple-500/30 to-purple-600/20
+        border border-white/10 rounded-sm
+        overflow-hidden transition-all duration-300
+        hover:border-cyan-500/50 hover:scale-[1.02]
+      `}>
+        <div className="absolute inset-1 grid grid-cols-10 gap-[1px]">
+          {squares.map((sq) => (
+            <div
+              key={sq.id}
+              className="bg-[#9ACD32] rounded-[1px]"
+              style={{ opacity: sq.opacity * 0.8 }}
+            />
+          ))}
+        </div>
+        
+        <div className="absolute top-2 left-2 right-2">
+          <p className="text-[10px] text-cyan-400 font-mono">{label}</p>
+        </div>
+        
+        <div className="absolute bottom-2 left-2 right-2">
+          <p className="text-white font-bold text-sm">{totalTxns.toLocaleString()}</p>
+          <p className="text-[10px] text-cyan-400">txns / {interval}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Block visualization component
 const BlockViz = ({ block, isPending = false }) => {
@@ -95,6 +142,8 @@ export default function Dashboard() {
   const [recentBlocks, setRecentBlocks] = useState([]);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [tpsInterval, setTpsInterval] = useState('1m');
+  const [mempoolInterval, setMempoolInterval] = useState('blocks');
+  const [historicalBlocks, setHistoricalBlocks] = useState([]);
 
   // Aggregate TPS data based on selected interval
   const getAggregatedTpsData = () => {
@@ -123,11 +172,12 @@ export default function Dashboard() {
     try {
       const [data, blocks] = await Promise.all([
         X1Rpc.getDashboardData(),
-        X1Rpc.getRecentBlocks(8)
+        X1Rpc.getRecentBlocks(20) // Fetch more blocks for aggregation
       ]);
       
       setDashboardData(data);
-      setRecentBlocks(blocks);
+      setRecentBlocks(blocks.slice(0, 8));
+      setHistoricalBlocks(blocks);
       setLastUpdate(new Date());
       setError(null);
     } catch (err) {
@@ -136,6 +186,26 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Get aggregated blocks based on interval
+  const getAggregatedBlocks = () => {
+    if (mempoolInterval === 'blocks') return null;
+    
+    // For 1m, assume ~150 blocks per minute at 400ms block time
+    // For 10m, aggregate 10 chunks
+    const chunksCount = mempoolInterval === '1m' ? 6 : 6;
+    const blocksPerChunk = mempoolInterval === '1m' ? Math.ceil(historicalBlocks.length / chunksCount) : Math.ceil(historicalBlocks.length / chunksCount);
+    
+    const aggregated = [];
+    for (let i = 0; i < chunksCount && i * blocksPerChunk < historicalBlocks.length; i++) {
+      const chunk = historicalBlocks.slice(i * blocksPerChunk, (i + 1) * blocksPerChunk);
+      aggregated.push({
+        blocks: chunk,
+        label: mempoolInterval === '1m' ? `${i * 10}s-${(i + 1) * 10}s` : `${i}m-${i + 1}m`
+      });
+    }
+    return aggregated.reverse();
   };
 
   useEffect(() => {
@@ -188,6 +258,7 @@ export default function Dashboard() {
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
+              <MobileNav />
               <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
                 <span className="text-black font-black text-sm">X1</span>
               </div>
@@ -290,7 +361,29 @@ export default function Dashboard() {
 
       <main className="max-w-[1800px] mx-auto px-4 py-6">
         {/* Block Visualization */}
-        <div className="flex flex-col lg:flex-row gap-4 mb-8">
+        <div className="flex flex-col gap-4 mb-8">
+          {/* Interval Toggle */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400 text-sm">Mempool View:</span>
+              <div className="flex gap-1 bg-[#24384a] rounded-lg p-1">
+                {['blocks', '1m', '10m'].map((interval) => (
+                  <button
+                    key={interval}
+                    onClick={() => setMempoolInterval(interval)}
+                    className={`px-3 py-1 text-xs rounded ${mempoolInterval === interval ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
+                  >
+                    {interval === 'blocks' ? 'Blocks' : interval}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-emerald-400 text-sm font-medium">XNT $1.00</span>
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">OTC</Badge>
+            </div>
+          </div>
+
           <div className="flex-1">
             <div className="flex items-center gap-4 overflow-x-auto pb-4">
               {/* Pending blocks */}
@@ -309,11 +402,22 @@ export default function Dashboard() {
                 </div>
               </div>
               
-              {/* Confirmed blocks */}
+              {/* Confirmed blocks - show based on interval */}
               <div className="flex gap-2">
-                {recentBlocks.map((block) => (
-                  <BlockViz key={block.slot} block={block} isPending={false} />
-                ))}
+                {mempoolInterval === 'blocks' ? (
+                  recentBlocks.map((block) => (
+                    <BlockViz key={block.slot} block={block} isPending={false} />
+                  ))
+                ) : (
+                  getAggregatedBlocks()?.map((agg, i) => (
+                    <AggregatedBlockViz 
+                      key={i} 
+                      blocks={agg.blocks} 
+                      interval={mempoolInterval} 
+                      label={agg.label}
+                    />
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -508,28 +612,48 @@ export default function Dashboard() {
             <p className="text-white font-medium">Network Health</p>
             <p className="text-gray-500 text-xs">Monitor network status</p>
           </Link>
+          <Link to={createPageUrl('TokenExplorer')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
+            <Coins className="w-6 h-6 text-yellow-400 mb-2" />
+            <p className="text-white font-medium">Tokens</p>
+            <p className="text-gray-500 text-xs">SPL token explorer</p>
+          </Link>
+          <Link to={createPageUrl('NetworkMap')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
+            <Map className="w-6 h-6 text-emerald-400 mb-2" />
+            <p className="text-white font-medium">Network Map</p>
+            <p className="text-gray-500 text-xs">Global node distribution</p>
+          </Link>
+          <Link to={createPageUrl('EpochHistory')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
+            <Clock className="w-6 h-6 text-purple-400 mb-2" />
+            <p className="text-white font-medium">Epoch History</p>
+            <p className="text-gray-500 text-xs">Historical data</p>
+          </Link>
           <Link to={createPageUrl('StakingCalculator')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
-            <Calculator className="w-6 h-6 text-emerald-400 mb-2" />
+            <Calculator className="w-6 h-6 text-cyan-400 mb-2" />
             <p className="text-white font-medium">Staking Calculator</p>
             <p className="text-gray-500 text-xs">Estimate rewards</p>
           </Link>
-          <Link to={createPageUrl('AddressLookup')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
-            <Wallet className="w-6 h-6 text-purple-400 mb-2" />
-            <p className="text-white font-medium">Address Lookup</p>
-            <p className="text-gray-500 text-xs">Search accounts</p>
+          <Link to={createPageUrl('ValidatorAlerts')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
+            <Bell className="w-6 h-6 text-yellow-400 mb-2" />
+            <p className="text-white font-medium">Alerts</p>
+            <p className="text-gray-500 text-xs">Validator notifications</p>
           </Link>
           <Link to={createPageUrl('Watchlist')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
-            <Star className="w-6 h-6 text-yellow-400 mb-2" />
+            <Star className="w-6 h-6 text-orange-400 mb-2" />
             <p className="text-white font-medium">Watchlist</p>
             <p className="text-gray-500 text-xs">Track validators</p>
           </Link>
           <Link to={createPageUrl('Leaderboard')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
-            <Trophy className="w-6 h-6 text-orange-400 mb-2" />
+            <Trophy className="w-6 h-6 text-amber-400 mb-2" />
             <p className="text-white font-medium">Leaderboard</p>
             <p className="text-gray-500 text-xs">Top validators</p>
           </Link>
+          <Link to={createPageUrl('AddressLookup')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
+            <Wallet className="w-6 h-6 text-blue-400 mb-2" />
+            <p className="text-white font-medium">Address Lookup</p>
+            <p className="text-gray-500 text-xs">Search accounts</p>
+          </Link>
           <Link to={createPageUrl('ValidatorCompare')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
-            <svg className="w-6 h-6 text-blue-400 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-6 h-6 text-indigo-400 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 3v18h18" />
               <path d="M18 17V9" />
               <path d="M13 17V5" />
