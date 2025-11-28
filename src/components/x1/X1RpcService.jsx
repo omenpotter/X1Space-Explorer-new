@@ -195,7 +195,7 @@ export async function getDashboardData() {
     validators: {
       current: voteAccounts.current.length,
       delinquent: voteAccounts.delinquent.length,
-      totalStake: voteAccounts.current.reduce((sum, v) => sum + v.activatedStake, 0) / 1e9
+      totalStake: (voteAccounts.current.reduce((sum, v) => sum + v.activatedStake, 0) + voteAccounts.delinquent.reduce((sum, v) => sum + v.activatedStake, 0)) / 1e9
     },
     version: version['solana-core'] || version.version
   };
