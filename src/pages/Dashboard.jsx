@@ -94,6 +94,29 @@ export default function Dashboard() {
   const [dashboardData, setDashboardData] = useState(null);
   const [recentBlocks, setRecentBlocks] = useState([]);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [tpsInterval, setTpsInterval] = useState('1m');
+
+  // Aggregate TPS data based on selected interval
+  const getAggregatedTpsData = () => {
+    if (!dashboardData?.tpsHistory?.length) return [];
+    
+    const history = dashboardData.tpsHistory;
+    if (tpsInterval === '1m') {
+      return history; // Already 1-minute samples
+    }
+    
+    // Aggregate to 10-minute bars
+    const aggregated = [];
+    for (let i = 0; i < history.length; i += 10) {
+      const chunk = history.slice(i, i + 10);
+      const avgTps = Math.round(chunk.reduce((sum, d) => sum + d.tps, 0) / chunk.length);
+      aggregated.push({
+        time: `${Math.floor(i / 10) * 10}m`,
+        tps: avgTps
+      });
+    }
+    return aggregated;
+  };
 
   // Fetch dashboard data
   const fetchData = async () => {
@@ -411,11 +434,24 @@ export default function Dashboard() {
 
             {/* TPS Chart */}
             <div className="bg-[#24384a] rounded-xl p-4">
-              <h3 className="text-cyan-400 text-sm mb-4">TPS HISTORY</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-cyan-400 text-sm">TPS HISTORY</h3>
+                <div className="flex gap-1">
+                  {['1m', '10m'].map((interval) => (
+                    <button
+                      key={interval}
+                      onClick={() => setTpsInterval(interval)}
+                      className={`px-2 py-1 text-xs rounded ${tpsInterval === interval ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
+                      {interval}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="h-[200px]">
                 {dashboardData?.tpsHistory?.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={dashboardData.tpsHistory}>
+                    <LineChart data={getAggregatedTpsData()}>
                       <YAxis 
                         domain={['auto', 'auto']}
                         axisLine={false}
@@ -430,6 +466,7 @@ export default function Dashboard() {
                           borderRadius: '8px'
                         }}
                         labelStyle={{ color: '#9ca3af' }}
+                        formatter={(value) => [`${value.toLocaleString()} TPS`, 'Avg TPS']}
                       />
                       <Line 
                         type="monotone" 
