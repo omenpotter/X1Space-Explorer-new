@@ -27,9 +27,9 @@ import ThemeToggle from '../components/layout/ThemeToggle';
 import MobileNav from '../components/layout/MobileNav';
 
 // Block visualization component for aggregated view
-const AggregatedBlockViz = ({ blocks, interval, label }) => {
-  const totalTxns = blocks.reduce((sum, b) => sum + (b?.txCount || 0), 0);
-  const squareCount = Math.min(80, Math.max(20, Math.floor(totalTxns / 100)));
+const AggregatedBlockViz = ({ data }) => {
+  const { totalTxns, blockCount, label, interval, isEstimate } = data;
+  const squareCount = Math.min(80, Math.max(20, Math.floor(totalTxns / 500)));
   const squares = Array.from({ length: squareCount }, (_, i) => ({
     id: i,
     opacity: 0.3 + Math.random() * 0.7
@@ -39,7 +39,7 @@ const AggregatedBlockViz = ({ blocks, interval, label }) => {
     <div className="relative group cursor-pointer">
       <div className={`
         relative w-[120px] h-[180px] md:w-[140px] md:h-[200px]
-        bg-gradient-to-b from-purple-500/30 to-purple-600/20
+        bg-gradient-to-b ${isEstimate ? 'from-gray-500/30 to-gray-600/20' : 'from-purple-500/30 to-purple-600/20'}
         border border-white/10 rounded-sm
         overflow-hidden transition-all duration-300
         hover:border-cyan-500/50 hover:scale-[1.02]
@@ -55,12 +55,13 @@ const AggregatedBlockViz = ({ blocks, interval, label }) => {
         </div>
         
         <div className="absolute top-2 left-2 right-2">
-          <p className="text-[10px] text-cyan-400 font-mono">{label}</p>
+          <p className="text-[10px] text-cyan-400 font-mono">{label} ago</p>
+          {isEstimate && <p className="text-[8px] text-gray-500">estimated</p>}
         </div>
         
         <div className="absolute bottom-2 left-2 right-2">
-          <p className="text-white font-bold text-sm">{totalTxns.toLocaleString()}</p>
-          <p className="text-[10px] text-cyan-400">txns / {interval}</p>
+          <p className="text-white font-bold text-sm">{totalTxns.toLocaleString()} txns</p>
+          <p className="text-[10px] text-gray-400">{blockCount} blocks / {interval}</p>
         </div>
       </div>
     </div>
@@ -192,20 +193,60 @@ export default function Dashboard() {
   const getAggregatedBlocks = () => {
     if (mempoolInterval === 'blocks') return null;
     
-    // For 1m, assume ~150 blocks per minute at 400ms block time
-    // For 10m, aggregate 10 chunks
-    const chunksCount = mempoolInterval === '1m' ? 6 : 6;
-    const blocksPerChunk = mempoolInterval === '1m' ? Math.ceil(historicalBlocks.length / chunksCount) : Math.ceil(historicalBlocks.length / chunksCount);
+    const now = Date.now() / 1000;
     
-    const aggregated = [];
-    for (let i = 0; i < chunksCount && i * blocksPerChunk < historicalBlocks.length; i++) {
-      const chunk = historicalBlocks.slice(i * blocksPerChunk, (i + 1) * blocksPerChunk);
-      aggregated.push({
-        blocks: chunk,
-        label: mempoolInterval === '1m' ? `${i * 10}s-${(i + 1) * 10}s` : `${i}m-${i + 1}m`
-      });
+    if (mempoolInterval === '1m') {
+      // 1 minute view - 6 chunks of 10 seconds each
+      const chunksCount = 6;
+      const aggregated = [];
+      
+      for (let i = 0; i < chunksCount; i++) {
+        const startTime = now - (i + 1) * 10;
+        const endTime = now - i * 10;
+        const chunk = historicalBlocks.filter(b => 
+          b.blockTime && b.blockTime >= startTime && b.blockTime < endTime
+        );
+        const totalTxns = chunk.reduce((sum, b) => sum + (b.txCount || 0), 0);
+        const blockCount = chunk.length;
+        
+        aggregated.push({
+          blocks: chunk,
+          totalTxns,
+          blockCount,
+          label: `${(i) * 10}s`,
+          interval: '10s'
+        });
+      }
+      return aggregated.reverse();
+    } else {
+      // 10 minute view - 10 chunks of 1 minute each
+      const chunksCount = 10;
+      const aggregated = [];
+      
+      for (let i = 0; i < chunksCount; i++) {
+        const startTime = now - (i + 1) * 60;
+        const endTime = now - i * 60;
+        const chunk = historicalBlocks.filter(b => 
+          b.blockTime && b.blockTime >= startTime && b.blockTime < endTime
+        );
+        const totalTxns = chunk.reduce((sum, b) => sum + (b.txCount || 0), 0);
+        const blockCount = chunk.length;
+        
+        // Estimate if we don't have enough data
+        const estimatedTxns = blockCount > 0 ? totalTxns : (dashboardData?.tps || 3000) * 60;
+        const estimatedBlocks = blockCount > 0 ? blockCount : 150;
+        
+        aggregated.push({
+          blocks: chunk,
+          totalTxns: blockCount > 0 ? totalTxns : estimatedTxns,
+          blockCount: blockCount > 0 ? blockCount : estimatedBlocks,
+          label: `${i}m`,
+          interval: '1m',
+          isEstimate: blockCount === 0
+        });
+      }
+      return aggregated.reverse();
     }
-    return aggregated.reverse();
   };
 
   useEffect(() => {
@@ -365,7 +406,7 @@ export default function Dashboard() {
           {/* Interval Toggle */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-gray-400 text-sm">Mempool View:</span>
+              <span className="text-gray-400 text-sm">X1 View:</span>
               <div className="flex gap-1 bg-[#24384a] rounded-lg p-1">
                 {['blocks', '1m', '10m'].map((interval) => (
                   <button
@@ -377,6 +418,11 @@ export default function Dashboard() {
                   </button>
                 ))}
               </div>
+              {mempoolInterval !== 'blocks' && historicalBlocks.length > 0 && (
+                <span className="text-gray-500 text-xs ml-2">
+                  {mempoolInterval === '1m' ? `Last 1 min: ${historicalBlocks.length} blocks` : `Last 10 min: ${historicalBlocks.length * 10} blocks (est.)`}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <span className="text-emerald-400 text-sm font-medium">XNT $1.00</span>
@@ -410,12 +456,7 @@ export default function Dashboard() {
                   ))
                 ) : (
                   getAggregatedBlocks()?.map((agg, i) => (
-                    <AggregatedBlockViz 
-                      key={i} 
-                      blocks={agg.blocks} 
-                      interval={mempoolInterval} 
-                      label={agg.label}
-                    />
+                    <AggregatedBlockViz key={i} data={agg} />
                   ))
                 )}
               </div>

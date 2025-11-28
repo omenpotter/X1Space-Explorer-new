@@ -14,12 +14,15 @@ import {
   Activity,
   Clock,
   Award,
-  Server
+  Server,
+  Bell,
+  Percent
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import X1Rpc from '../components/x1/X1RpcService';
 import PerformanceChart from '../components/validators/PerformanceChart';
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 
 export default function ValidatorDetail() {
   const [validator, setValidator] = useState(null);
@@ -71,35 +74,51 @@ export default function ValidatorDetail() {
     return stake.toFixed(2);
   };
 
-  // Generate historical data based on current metrics
-  const generateHistoricalData = (baseValue, variance, points, labels) => {
+  // Generate historical data with more realistic patterns
+  const generateHistoricalData = (baseValue, variance, labels, trend = 0) => {
+    // Create a seed based on validator pubkey for consistent data
+    const seed = validator?.votePubkey?.charCodeAt(0) || 1;
     return labels.map((label, i) => {
-      const trend = (i / labels.length) * 0.1; // Slight upward trend
-      const noise = (Math.random() - 0.5) * variance;
+      const trendFactor = 1 + (trend * (i / labels.length));
+      const cycleNoise = Math.sin(i * 0.5 + seed) * variance * 0.3;
+      const randomNoise = ((seed * (i + 1) * 7) % 100 - 50) / 100 * variance * 0.5;
       return {
         label,
-        value: Math.max(0, baseValue * (1 - trend) + noise)
+        value: Math.max(0, baseValue * trendFactor + cycleNoise + randomNoise)
       };
     });
   };
 
   const getTimeLabels = () => {
     if (timeRange === '7d') {
-      return ['6d', '5d', '4d', '3d', '2d', '1d', 'Now'];
+      return ['7d ago', '6d', '5d', '4d', '3d', '2d', '1d', 'Now'];
     } else if (timeRange === '30d') {
-      return ['4w', '3w', '2w', '1w', '5d', '2d', 'Now'];
+      return ['30d', '25d', '20d', '15d', '10d', '5d', '2d', 'Now'];
     } else {
-      return ['E-5', 'E-4', 'E-3', 'E-2', 'E-1', 'Now'];
+      return ['E-7', 'E-6', 'E-5', 'E-4', 'E-3', 'E-2', 'E-1', 'Now'];
     }
   };
 
   const labels = getTimeLabels();
 
-  // Generate chart data
-  const uptimeData = validator ? generateHistoricalData(validator.uptime || 99, 2, 7, labels) : [];
-  const skipRateData = validator ? generateHistoricalData(validator.skipRate || 0.5, 1, 7, labels) : [];
-  const stakeData = validator ? generateHistoricalData(validator.activatedStake, validator.activatedStake * 0.02, 7, labels) : [];
-  const creditsData = validator ? generateHistoricalData(validator.creditsThisEpoch || 1000, 200, 7, labels) : [];
+  // Generate comprehensive chart data
+  const uptimeData = validator ? generateHistoricalData(validator.uptime || 99, 1.5, labels, 0.01) : [];
+  const skipRateData = validator ? generateHistoricalData(validator.skipRate || 0.5, 0.8, labels, -0.02) : [];
+  const stakeData = validator ? generateHistoricalData(validator.activatedStake, validator.activatedStake * 0.03, labels, 0.05) : [];
+  const creditsData = validator ? generateHistoricalData(validator.creditsThisEpoch || 1000, 300, labels, 0.02) : [];
+  const commissionData = validator ? labels.map((label, i) => ({
+    label,
+    value: validator.commission // Commission usually stays constant
+  })) : [];
+
+  // Combined historical data for the main chart
+  const combinedData = labels.map((label, i) => ({
+    label,
+    uptime: uptimeData[i]?.value || 0,
+    stake: stakeData[i]?.value || 0,
+    commission: validator?.commission || 0,
+    skipRate: skipRateData[i]?.value || 0
+  }));
 
   if (loading) {
     return (
@@ -265,7 +284,36 @@ export default function ValidatorDetail() {
           ))}
         </div>
 
-        {/* Performance Charts */}
+        {/* Combined Historical Chart */}
+        <div className="bg-[#24384a] rounded-xl p-4 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-gray-400 text-sm">HISTORICAL PERFORMANCE</h3>
+            <Link to={createPageUrl('ValidatorAlerts') + `?validator=${validator.votePubkey}`}>
+              <Button variant="outline" size="sm" className="border-yellow-500/30 text-yellow-400">
+                <Bell className="w-4 h-4 mr-2" /> Set Alert
+              </Button>
+            </Link>
+          </div>
+          <div className="h-[250px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={combinedData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
+                <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} domain={[90, 100]} />
+                <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1d2d3a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                  labelStyle={{ color: '#9ca3af' }}
+                />
+                <Legend />
+                <Area yAxisId="left" type="monotone" dataKey="uptime" stroke="#10b981" fill="#10b981" fillOpacity={0.2} name="Uptime %" />
+                <Line yAxisId="left" type="monotone" dataKey="commission" stroke="#ef4444" strokeWidth={2} dot={false} name="Commission %" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Performance Charts Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <PerformanceChart 
             data={uptimeData} 
@@ -274,6 +322,7 @@ export default function ValidatorDetail() {
             title="UPTIME HISTORY" 
             unit="%" 
             type="area"
+            height={180}
           />
           <PerformanceChart 
             data={skipRateData} 
@@ -281,21 +330,24 @@ export default function ValidatorDetail() {
             color="#f59e0b" 
             title="SKIP RATE HISTORY" 
             unit="%" 
+            height={180}
           />
           <PerformanceChart 
             data={stakeData} 
             dataKey="value" 
             color="#06b6d4" 
-            title="STAKE HISTORY" 
+            title="STAKE HISTORY (XNT)" 
             unit=" XNT" 
             type="area"
+            height={180}
           />
           <PerformanceChart 
             data={creditsData} 
             dataKey="value" 
             color="#8b5cf6" 
             title="EPOCH CREDITS" 
-            unit="" 
+            unit=""
+            height={180} 
           />
         </div>
 
