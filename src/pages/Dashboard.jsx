@@ -257,7 +257,7 @@ export default function Dashboard() {
       }
     }
     
-    return aggregated.reverse(); // Show oldest to newest (left to right)
+    return aggregated; // Show newest to oldest (left to right: Now, 1m, 2m...)
   };
 
   useEffect(() => {

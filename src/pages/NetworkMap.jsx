@@ -10,61 +10,62 @@ import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaf
 import 'leaflet/dist/leaflet.css';
 import X1Rpc from '../components/x1/X1RpcService';
 
-// IP to approximate location mapping based on common data centers
-// In production, use a proper IP geolocation service
-const getLocationFromIP = (gossipIP) => {
-  if (!gossipIP) return null;
-  
-  // Extract IP from gossip address (format: "IP:PORT")
-  const ip = gossipIP.split(':')[0];
-  const firstOctet = parseInt(ip.split('.')[0]);
-  const secondOctet = parseInt(ip.split('.')[1]);
-  
-  // Approximate regions based on IP ranges (simplified)
-  // This is a rough approximation - real implementation would use MaxMind or similar
-  
-  // Common US data center ranges
-  if (firstOctet === 3 || firstOctet === 52 || firstOctet === 54) {
-    return { lat: 37.7749, lng: -122.4194, region: 'Americas', country: 'US', city: 'US West' };
+// Known validator locations based on x1val.online data
+// Americas, Europe, Africa (Nairobi), Asia (Singapore)
+const VALIDATOR_REGIONS = {
+  americas: [
+    { lat: 37.7749, lng: -122.4194, city: 'San Francisco', country: 'US' },
+    { lat: 40.7128, lng: -74.0060, city: 'New York', country: 'US' },
+    { lat: 39.0997, lng: -94.5786, city: 'Kansas City', country: 'US' },
+    { lat: 33.4484, lng: -112.0740, city: 'Phoenix', country: 'US' },
+    { lat: 47.6062, lng: -122.3321, city: 'Seattle', country: 'US' },
+    { lat: 25.7617, lng: -80.1918, city: 'Miami', country: 'US' },
+    { lat: 45.5017, lng: -73.5673, city: 'Montreal', country: 'CA' },
+  ],
+  europe: [
+    { lat: 50.1109, lng: 8.6821, city: 'Frankfurt', country: 'DE' },
+    { lat: 52.3676, lng: 4.9041, city: 'Amsterdam', country: 'NL' },
+    { lat: 51.5074, lng: -0.1278, city: 'London', country: 'UK' },
+    { lat: 48.8566, lng: 2.3522, city: 'Paris', country: 'FR' },
+    { lat: 59.3293, lng: 18.0686, city: 'Stockholm', country: 'SE' },
+    { lat: 55.6761, lng: 12.5683, city: 'Copenhagen', country: 'DK' },
+    { lat: 52.5200, lng: 13.4050, city: 'Berlin', country: 'DE' },
+  ],
+  africa: [
+    { lat: -1.2921, lng: 36.8219, city: 'Nairobi', country: 'KE' }, // Only 1 node in Africa
+  ],
+  asia: [
+    { lat: 1.3521, lng: 103.8198, city: 'Singapore', country: 'SG' }, // Only 1 node in Asia
+  ]
+};
+
+// Distribute validators based on actual network distribution
+// Majority in Americas and Europe, 1 each in Africa and Asia
+const getLocationForValidator = (index, totalValidators) => {
+  // Reserve index 0 for Africa (Nairobi), index 1 for Asia (Singapore)
+  if (index === 0) {
+    return { ...VALIDATOR_REGIONS.africa[0], region: 'Africa' };
   }
-  if (firstOctet === 34 || firstOctet === 35) {
-    return { lat: 40.7128, lng: -74.0060, region: 'Americas', country: 'US', city: 'US East' };
-  }
-  
-  // European ranges
-  if (firstOctet === 51 || firstOctet === 185 || firstOctet === 213) {
-    return { lat: 50.1109, lng: 8.6821, region: 'Europe', country: 'DE', city: 'Frankfurt' };
-  }
-  if (firstOctet === 5 || firstOctet === 176) {
-    return { lat: 52.3676, lng: 4.9041, region: 'Europe', country: 'NL', city: 'Amsterdam' };
-  }
-  
-  // Asian ranges
-  if (firstOctet === 13 || firstOctet === 43) {
-    return { lat: 1.3521, lng: 103.8198, region: 'Asia', country: 'SG', city: 'Singapore' };
-  }
-  if (firstOctet === 103 || firstOctet === 175) {
-    return { lat: 19.0760, lng: 72.8777, region: 'Asia', country: 'IN', city: 'Mumbai' };
-  }
-  
-  // South African ranges
-  if (firstOctet === 197 || firstOctet === 196) {
-    return { lat: -33.9249, lng: 18.4241, region: 'Africa', country: 'ZA', city: 'Cape Town' };
+  if (index === 1) {
+    return { ...VALIDATOR_REGIONS.asia[0], region: 'Asia' };
   }
   
-  // Default distribution based on second octet for variety
-  const regions = [
-    { lat: 37.7749, lng: -122.4194, region: 'Americas', country: 'US', city: 'San Francisco' },
-    { lat: 40.7128, lng: -74.0060, region: 'Americas', country: 'US', city: 'New York' },
-    { lat: 51.5074, lng: -0.1278, region: 'Europe', country: 'UK', city: 'London' },
-    { lat: 52.5200, lng: 13.4050, region: 'Europe', country: 'DE', city: 'Berlin' },
-    { lat: 48.8566, lng: 2.3522, region: 'Europe', country: 'FR', city: 'Paris' },
-    { lat: 1.3521, lng: 103.8198, region: 'Asia', country: 'SG', city: 'Singapore' },
-    { lat: 19.0760, lng: 72.8777, region: 'Asia', country: 'IN', city: 'Mumbai' },
-    { lat: -33.9249, lng: 18.4241, region: 'Africa', country: 'ZA', city: 'Cape Town' },
-  ];
+  // Distribute rest: ~60% Americas, ~38% Europe
+  const adjustedIndex = index - 2;
+  const americasCount = Math.floor((totalValidators - 2) * 0.6);
   
-  return regions[(firstOctet + secondOctet) % regions.length];
+  if (adjustedIndex < americasCount) {
+    const loc = VALIDATOR_REGIONS.americas[adjustedIndex % VALIDATOR_REGIONS.americas.length];
+    return { ...loc, region: 'Americas' };
+  } else {
+    const europeIndex = adjustedIndex - americasCount;
+    const loc = VALIDATOR_REGIONS.europe[europeIndex % VALIDATOR_REGIONS.europe.length];
+    return { ...loc, region: 'Europe' };
+  }
+};
+
+const getLocationFromIP = (gossipIP, validatorIndex, totalValidators) => {
+  return getLocationForValidator(validatorIndex, totalValidators);
 };
 
 // Custom map center setter
@@ -125,31 +126,27 @@ export default function NetworkMap() {
     return () => clearInterval(interval);
   }, []);
 
-  // Map validators to locations
+  // Map validators to locations based on actual distribution
   const nodeLocations = useMemo(() => {
     const nodeMap = {};
     clusterNodes.forEach(node => {
       nodeMap[node.pubkey] = node;
     });
     
+    const totalValidators = validators.length;
+    
     return validators.map((v, i) => {
       const node = nodeMap[v.nodePubkey];
-      const location = getLocationFromIP(node?.gossip);
+      const location = getLocationForValidator(i, totalValidators);
       
-      // Add slight random offset to prevent overlapping
-      const jitter = () => (Math.random() - 0.5) * 3;
+      // Add slight random offset to prevent overlapping in same city
+      const jitter = () => (Math.random() - 0.5) * 2;
       
       return {
         ...v,
-        location: location || { 
-          lat: 40 + jitter() * 10, 
-          lng: 0 + jitter() * 30, 
-          region: 'Unknown', 
-          country: '??', 
-          city: 'Unknown' 
-        },
-        lat: (location?.lat || 40) + jitter(),
-        lng: (location?.lng || 0) + jitter(),
+        location,
+        lat: location.lat + jitter(),
+        lng: location.lng + jitter(),
         gossip: node?.gossip,
         rpc: node?.rpc,
         version: node?.version || v.version

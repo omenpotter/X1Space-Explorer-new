@@ -198,7 +198,7 @@ export default function Blocks() {
       }
     }
     
-    return aggregated.reverse();
+    return aggregated; // Show newest to oldest (left to right: Now, 1m, 2m...)
   };
 
   useEffect(() => {
@@ -262,7 +262,7 @@ export default function Blocks() {
       <main className="max-w-[1800px] mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">Recent Blocks</h1>
+            <h1 className="text-2xl font-bold text-white">Recent Slots</h1>
             <p className="text-gray-400 text-sm">Live from X1 mainnet • TPS: {tps.toLocaleString()}</p>
           </div>
           
@@ -314,7 +314,7 @@ export default function Blocks() {
         {viewMode === 'blocks' && blocks.length > 10 && (
           <div className="mt-8 bg-[#24384a] rounded-xl overflow-hidden">
             <div className="p-4 border-b border-white/5">
-              <h3 className="text-white font-medium">More Recent Blocks</h3>
+              <h3 className="text-white font-medium">More Recent Slots</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -353,10 +353,10 @@ export default function Blocks() {
 
         <div className="flex items-center justify-center gap-4 mt-8">
           <Button variant="outline" className="border-white/10 text-gray-400 hover:text-white">
-            <ChevronLeft className="w-4 h-4 mr-1" /> Older Blocks
+            <ChevronLeft className="w-4 h-4 mr-1" /> Older Slots
           </Button>
           <Button variant="outline" className="border-white/10 text-gray-400 hover:text-white">
-            Newer Blocks <ChevronRight className="w-4 h-4 ml-1" />
+            Newer Slots <ChevronRight className="w-4 h-4 ml-1" />
           </Button>
         </div>
       </main>
