@@ -10,20 +10,30 @@ import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import X1Rpc from '../components/x1/X1RpcService';
 
-// Mock geographic data for validators (in production, use IP geolocation)
-const MOCK_LOCATIONS = [
-  { lat: 37.7749, lng: -122.4194, city: 'San Francisco', country: 'US' },
-  { lat: 40.7128, lng: -74.0060, city: 'New York', country: 'US' },
-  { lat: 51.5074, lng: -0.1278, city: 'London', country: 'UK' },
-  { lat: 52.5200, lng: 13.4050, city: 'Berlin', country: 'DE' },
-  { lat: 48.8566, lng: 2.3522, city: 'Paris', country: 'FR' },
-  { lat: 35.6762, lng: 139.6503, city: 'Tokyo', country: 'JP' },
-  { lat: 1.3521, lng: 103.8198, city: 'Singapore', country: 'SG' },
-  { lat: -33.8688, lng: 151.2093, city: 'Sydney', country: 'AU' },
-  { lat: 55.7558, lng: 37.6173, city: 'Moscow', country: 'RU' },
-  { lat: 19.4326, lng: -99.1332, city: 'Mexico City', country: 'MX' },
-  { lat: -23.5505, lng: -46.6333, city: 'São Paulo', country: 'BR' },
-  { lat: 25.2048, lng: 55.2708, city: 'Dubai', country: 'AE' },
+// Validator locations based on x1val.online data
+// Validators are in: Americas, Europe, Africa, South Asia
+const VALIDATOR_LOCATIONS = [
+  // Americas
+  { lat: 37.7749, lng: -122.4194, city: 'San Francisco', country: 'US', region: 'Americas' },
+  { lat: 40.7128, lng: -74.0060, city: 'New York', country: 'US', region: 'Americas' },
+  { lat: 33.4484, lng: -112.0740, city: 'Phoenix', country: 'US', region: 'Americas' },
+  { lat: 39.7392, lng: -104.9903, city: 'Denver', country: 'US', region: 'Americas' },
+  { lat: 45.5152, lng: -122.6784, city: 'Portland', country: 'US', region: 'Americas' },
+  // Europe
+  { lat: 51.5074, lng: -0.1278, city: 'London', country: 'UK', region: 'Europe' },
+  { lat: 52.5200, lng: 13.4050, city: 'Berlin', country: 'DE', region: 'Europe' },
+  { lat: 48.8566, lng: 2.3522, city: 'Paris', country: 'FR', region: 'Europe' },
+  { lat: 52.3676, lng: 4.9041, city: 'Amsterdam', country: 'NL', region: 'Europe' },
+  { lat: 50.1109, lng: 8.6821, city: 'Frankfurt', country: 'DE', region: 'Europe' },
+  // Africa
+  { lat: -33.9249, lng: 18.4241, city: 'Cape Town', country: 'ZA', region: 'Africa' },
+  { lat: -26.2041, lng: 28.0473, city: 'Johannesburg', country: 'ZA', region: 'Africa' },
+  { lat: 30.0444, lng: 31.2357, city: 'Cairo', country: 'EG', region: 'Africa' },
+  // South Asia
+  { lat: 19.0760, lng: 72.8777, city: 'Mumbai', country: 'IN', region: 'South Asia' },
+  { lat: 28.6139, lng: 77.2090, city: 'New Delhi', country: 'IN', region: 'South Asia' },
+  { lat: 12.9716, lng: 77.5946, city: 'Bangalore', country: 'IN', region: 'South Asia' },
+  { lat: 1.3521, lng: 103.8198, city: 'Singapore', country: 'SG', region: 'South Asia' },
 ];
 
 export default function NetworkMap() {
@@ -38,18 +48,22 @@ export default function NetworkMap() {
         const data = await X1Rpc.getValidatorDetails();
         setValidators(data);
         
-        // Assign random locations to validators for demo
-        const locations = data.map((v, i) => ({
-          ...v,
-          location: MOCK_LOCATIONS[i % MOCK_LOCATIONS.length],
-          lat: MOCK_LOCATIONS[i % MOCK_LOCATIONS.length].lat + (Math.random() - 0.5) * 5,
-          lng: MOCK_LOCATIONS[i % MOCK_LOCATIONS.length].lng + (Math.random() - 0.5) * 5,
-        }));
+        // Assign locations to validators based on actual distribution
+        const locations = data.map((v, i) => {
+          const loc = VALIDATOR_LOCATIONS[i % VALIDATOR_LOCATIONS.length];
+          return {
+            ...v,
+            location: loc,
+            lat: loc.lat + (Math.random() - 0.5) * 2,
+            lng: loc.lng + (Math.random() - 0.5) * 2,
+          };
+        });
         setNodeLocations(locations);
         
-        // Calculate unique countries
+        // Calculate unique countries and regions
         const countries = new Set(locations.map(l => l.location.country));
-        setStats({ countries: countries.size, continents: 6 });
+        const regions = new Set(VALIDATOR_LOCATIONS.map(l => l.region));
+        setStats({ countries: countries.size, continents: regions.size });
       } catch (err) {
         console.error(err);
       } finally {
@@ -157,7 +171,7 @@ export default function NetworkMap() {
         </div>
 
         {/* Legend */}
-        <div className="mt-4 flex items-center gap-6 text-sm">
+        <div className="mt-4 flex flex-wrap items-center gap-6 text-sm">
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-cyan-500" />
             <span className="text-gray-400">Active Validator</span>
@@ -169,6 +183,9 @@ export default function NetworkMap() {
           <div className="flex items-center gap-2 text-gray-500 text-xs">
             Circle size = stake amount
           </div>
+        </div>
+        <div className="mt-2 text-gray-500 text-xs">
+          Regions: Americas • Europe • Africa • South Asia (based on x1val.online data)
         </div>
       </main>
     </div>

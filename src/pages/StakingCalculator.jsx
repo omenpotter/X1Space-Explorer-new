@@ -32,11 +32,18 @@ export default function StakingCalculator() {
     fetchValidators();
   }, []);
 
-  // Estimated APY (simplified calculation)
-  const baseAPY = 6.5; // Base network APY estimate
+  // X1 Network Staking APY
+  // Based on network inflation and stake distribution
+  // Current estimated APY is ~5-7% depending on validator performance
+  // Formula: Base inflation rate * (1 - commission) * uptime factor
+  const networkInflationRate = 0.08; // 8% annual inflation
+  const totalStaked = 800000000; // ~800M XNT staked (estimate)
+  const baseAPY = (networkInflationRate * 1000000000 / totalStaked) * 100; // ~10% base
+  const adjustedBaseAPY = Math.min(8, Math.max(5, baseAPY)); // Capped between 5-8%
+  
   const validatorAPY = selectedValidator 
-    ? baseAPY * (1 - selectedValidator.commission / 100) * (selectedValidator.uptime / 100)
-    : baseAPY;
+    ? adjustedBaseAPY * (1 - selectedValidator.commission / 100) * (selectedValidator.uptime / 100)
+    : adjustedBaseAPY;
 
   const calculateRewards = () => {
     const multiplier = timeframe === 'day' ? 1/365 : timeframe === 'month' ? 1/12 : timeframe === 'year' ? 1 : 5;
@@ -195,8 +202,14 @@ export default function StakingCalculator() {
 
             <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
               <p className="text-yellow-400 text-sm">
-                ⚠️ These are estimated returns. Actual rewards depend on network conditions, validator performance, and other factors.
+                ⚠️ <strong>Estimates only.</strong> Actual APY varies based on:
               </p>
+              <ul className="text-yellow-400/80 text-xs mt-2 list-disc list-inside space-y-1">
+                <li>Network inflation rate (~8% annual)</li>
+                <li>Total stake in network (~800M XNT)</li>
+                <li>Validator commission and uptime</li>
+                <li>Your stake duration and timing</li>
+              </ul>
             </div>
           </div>
         </div>

@@ -153,6 +153,13 @@ export default function EpochHistory() {
           </div>
         </div>
 
+        {/* Info Box */}
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 mb-6">
+          <p className="text-blue-400 text-sm">
+            ℹ️ <strong>Active Validators</strong> shows the number of validators that participated in consensus during each epoch. This number can vary as validators join/leave or experience downtime.
+          </p>
+        </div>
+
         {/* Epoch Table */}
         <div className="bg-[#24384a] rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
@@ -160,7 +167,7 @@ export default function EpochHistory() {
               <thead>
                 <tr className="border-b border-white/5">
                   <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Epoch</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Validators</th>
+                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Active Validators</th>
                   <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Total Stake</th>
                   <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Avg TPS</th>
                   <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Transactions</th>

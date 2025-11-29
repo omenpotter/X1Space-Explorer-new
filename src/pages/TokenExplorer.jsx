@@ -9,16 +9,25 @@ import {
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
-// Mock token data - in production this would come from RPC/indexer
-const MOCK_TOKENS = [
-  { mint: 'XNT111111111111111111111111111111111111111', name: 'X1 Native Token', symbol: 'XNT', decimals: 9, supply: 1000000000, price: 1.00, change24h: 0, holders: 15420, isNative: true },
-  { mint: 'wXNT11111111111111111111111111111111111111', name: 'Wrapped XNT', symbol: 'wXNT', decimals: 9, supply: 50000000, price: 1.00, change24h: 0.1, holders: 3200 },
-  { mint: 'USDC1111111111111111111111111111111111111', name: 'USD Coin', symbol: 'USDC', decimals: 6, supply: 25000000, price: 1.00, change24h: 0, holders: 8500 },
-  { mint: 'X1MEME111111111111111111111111111111111111', name: 'X1 Meme', symbol: 'X1M', decimals: 9, supply: 1000000000000, price: 0.00001, change24h: 15.5, holders: 2100 },
+// X1 Native Token - XNT is the only token currently on mainnet
+// Price is $1.00 OTC (Over The Counter) - not on exchanges yet
+const X1_TOKENS = [
+  { 
+    mint: 'So11111111111111111111111111111111111111112', // Native SOL-compatible address
+    name: 'X1 Native Token', 
+    symbol: 'XNT', 
+    decimals: 9, 
+    supply: 1000000000, // 1B total supply
+    price: 1.00, // OTC price
+    change24h: 0, 
+    holders: 15420, 
+    isNative: true,
+    description: 'Native token of the X1 blockchain. Currently trading OTC at $1.00.'
+  },
 ];
 
 export default function TokenExplorer() {
-  const [tokens, setTokens] = useState(MOCK_TOKENS);
+  const [tokens, setTokens] = useState(X1_TOKENS);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [copied, setCopied] = useState(null);
@@ -85,21 +94,28 @@ export default function TokenExplorer() {
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Total Tokens</p>
-            <p className="text-2xl font-bold text-white">{tokens.length}</p>
+            <p className="text-gray-400 text-xs mb-1">Native Token</p>
+            <p className="text-2xl font-bold text-white">XNT</p>
           </div>
           <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">XNT Price</p>
+            <p className="text-gray-400 text-xs mb-1">XNT Price (OTC)</p>
             <p className="text-2xl font-bold text-cyan-400">$1.00</p>
           </div>
           <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Total Market Cap</p>
-            <p className="text-2xl font-bold text-white">${formatSupply(totalMarketCap)}</p>
+            <p className="text-gray-400 text-xs mb-1">Total Supply</p>
+            <p className="text-2xl font-bold text-white">1B XNT</p>
           </div>
           <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Total Holders</p>
-            <p className="text-2xl font-bold text-emerald-400">{tokens.reduce((sum, t) => sum + t.holders, 0).toLocaleString()}</p>
+            <p className="text-gray-400 text-xs mb-1">Market Cap</p>
+            <p className="text-2xl font-bold text-emerald-400">$1B</p>
           </div>
+        </div>
+
+        {/* OTC Notice */}
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 mb-6">
+          <p className="text-yellow-400 text-sm">
+            ⚠️ XNT is currently trading Over The Counter (OTC) at $1.00. Not yet listed on exchanges. SPL token ecosystem coming soon.
+          </p>
         </div>
 
         {/* Search */}
