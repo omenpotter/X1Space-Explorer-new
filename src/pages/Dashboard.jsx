@@ -402,15 +402,15 @@ export default function Dashboard() {
 
           <div className="flex-1">
             <div className="flex items-center gap-2 overflow-x-auto pb-4">
-              {/* Show 10 continuous blocks or aggregated time views */}
-              <div className="flex gap-2">
+              {/* Show 10 continuous blocks or aggregated time views - auto-updating */}
+              <div className="flex gap-2" key={mempoolInterval + '-' + (recentBlocks[0]?.slot || 0)}>
                 {mempoolInterval === 'blocks' ? (
                   recentBlocks.slice(0, 10).map((block) => (
                     <BlockViz key={block.slot} block={block} />
                   ))
                 ) : (
                   getAggregatedBlocks()?.slice(0, 10).map((agg, i) => (
-                    <AggregatedBlockViz key={i} data={agg} />
+                    <AggregatedBlockViz key={`${mempoolInterval}-${i}-${dashboardData?.slot}`} data={agg} />
                   ))
                 )}
               </div>

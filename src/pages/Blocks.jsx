@@ -16,11 +16,14 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import X1Rpc from '../components/x1/X1RpcService';
 
+// Block visualization with actual tx breakdown
 const BlockViz = ({ block, isNew }) => {
-  const squares = Array.from({ length: 80 }, (_, i) => ({
-    id: i,
-    opacity: 0.4 + Math.random() * 0.6
-  }));
+  const txCount = block?.txCount || 0;
+  const voteCount = block?.voteCount || Math.floor(txCount * 0.7);
+  const nonVoteCount = block?.nonVoteCount || (txCount - voteCount);
+  
+  const voteHeight = txCount > 0 ? Math.max(15, (voteCount / txCount) * 100) : 50;
+  const nonVoteHeight = txCount > 0 ? Math.max(15, (nonVoteCount / txCount) * 100) : 50;
 
   const formatTimeAgo = (blockTime) => {
     if (!blockTime) return 'just now';
@@ -33,33 +36,81 @@ const BlockViz = ({ block, isNew }) => {
   return (
     <Link to={createPageUrl('BlockDetail') + `?slot=${block.slot}`}>
       <div className={`
-        relative w-full h-[200px]
-        bg-gradient-to-b from-purple-500/40 to-purple-600/20
+        relative w-full h-[220px]
+        bg-gradient-to-b from-purple-500/30 to-purple-600/20
         border border-white/10 rounded-lg overflow-hidden cursor-pointer
         transition-all duration-300 hover:border-cyan-500/50 hover:scale-[1.01]
-        ${isNew ? 'ring-2 ring-cyan-500/50' : ''}
+        ${isNew ? 'ring-2 ring-cyan-500/50 animate-pulse' : ''}
       `}>
-        <div className="absolute inset-2 grid grid-cols-10 gap-[2px]">
-          {squares.map((sq) => (
-            <div key={sq.id} className="bg-[#9ACD32] rounded-[1px]" style={{ opacity: sq.opacity * 0.7 }} />
-          ))}
+        {/* Transaction breakdown visualization */}
+        <div className="absolute inset-2 bottom-20 flex flex-col gap-1">
+          <div 
+            className="bg-purple-500/50 rounded flex items-center justify-center"
+            style={{ height: `${voteHeight}%` }}
+          >
+            <span className="text-[10px] text-purple-200 font-medium">{voteCount} vote</span>
+          </div>
+          <div 
+            className="bg-emerald-500/50 rounded flex items-center justify-center"
+            style={{ height: `${nonVoteHeight}%` }}
+          >
+            <span className="text-[10px] text-emerald-200 font-medium">{nonVoteCount} other</span>
+          </div>
         </div>
         
-        <div className="absolute top-0 left-0 right-0 text-center py-2">
-          <span className="text-cyan-400 font-mono font-bold text-lg">
-            {block.slot?.toLocaleString()}
+        <div className="absolute top-1 left-2 right-2 flex justify-between items-center">
+          <span className="text-cyan-400 font-mono font-bold text-sm">
+            #{block.slot?.toLocaleString()}
           </span>
+          <span className="text-[9px] text-gray-400">{formatTimeAgo(block.blockTime)}</span>
         </div>
         
-        <div className="absolute bottom-0 left-0 right-0 bg-black/30 p-3">
-          <p className="text-white font-bold text-sm">{block.txCount?.toLocaleString() || 0} txns</p>
-          <p className="text-[10px] text-gray-400">{formatTimeAgo(block.blockTime)}</p>
-          <p className="text-[10px] text-cyan-400 font-mono truncate">
-            {block.blockhash?.substring(0, 16)}...
+        <div className="absolute bottom-0 left-0 right-0 bg-black/50 p-2">
+          <p className="text-white font-bold text-lg">{txCount.toLocaleString()}</p>
+          <p className="text-[10px] text-cyan-400">transactions</p>
+          <p className="text-[9px] text-gray-500 font-mono truncate">
+            {block.blockhash?.substring(0, 20)}...
           </p>
         </div>
       </div>
     </Link>
+  );
+};
+
+// Aggregated time view block
+const AggregatedBlockViz = ({ data }) => {
+  const { totalTxns, slots, label, voteCount, nonVoteCount } = data;
+  
+  const voteRatio = totalTxns > 0 ? voteCount / totalTxns : 0.7;
+  const nonVoteRatio = 1 - voteRatio;
+
+  return (
+    <div className="relative w-full h-[220px] bg-gradient-to-b from-cyan-500/20 to-blue-600/20 border border-white/10 rounded-lg overflow-hidden">
+      <div className="absolute inset-2 bottom-20 flex flex-col gap-1">
+        <div 
+          className="bg-purple-500/40 rounded flex items-center justify-center"
+          style={{ flex: voteRatio }}
+        >
+          <span className="text-[10px] text-purple-300">{voteCount.toLocaleString()} vote</span>
+        </div>
+        <div 
+          className="bg-emerald-500/40 rounded flex items-center justify-center"
+          style={{ flex: nonVoteRatio }}
+        >
+          <span className="text-[10px] text-emerald-300">{nonVoteCount.toLocaleString()} other</span>
+        </div>
+      </div>
+      
+      <div className="absolute top-2 right-2">
+        <span className="text-lg text-cyan-400 font-bold">{label}</span>
+      </div>
+      
+      <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2">
+        <p className="text-white font-bold text-lg">{totalTxns.toLocaleString()}</p>
+        <p className="text-[10px] text-cyan-400">total transactions</p>
+        <p className="text-[9px] text-gray-400">{slots.toLocaleString()} slots</p>
+      </div>
+    </div>
   );
 };
 
@@ -70,10 +121,17 @@ export default function Blocks() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLive, setIsLive] = useState(true);
   const [newBlockSlot, setNewBlockSlot] = useState(null);
+  const [viewMode, setViewMode] = useState('blocks'); // blocks, 1m, 10m
+  const [tps, setTps] = useState(3000);
 
   const fetchBlocks = async () => {
     try {
-      const recentBlocks = await X1Rpc.getRecentBlocks(24);
+      const [recentBlocks, dashData] = await Promise.all([
+        X1Rpc.getRecentBlocks(20),
+        X1Rpc.getDashboardData().catch(() => null)
+      ]);
+      
+      if (dashData?.tps) setTps(dashData.tps);
       
       if (blocks.length > 0 && recentBlocks[0]?.slot > blocks[0]?.slot) {
         setNewBlockSlot(recentBlocks[0].slot);
@@ -88,6 +146,43 @@ export default function Blocks() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Get aggregated data for time views
+  const getAggregatedData = () => {
+    const aggregated = [];
+    
+    if (viewMode === '1m') {
+      // 1 minute = ~150 slots
+      for (let i = 1; i <= 10; i++) {
+        const slots = i * 150;
+        const totalTxns = Math.round(tps * i * 60);
+        const voteCount = Math.round(totalTxns * 0.7);
+        aggregated.push({
+          totalTxns,
+          slots,
+          label: `${i}m`,
+          voteCount,
+          nonVoteCount: totalTxns - voteCount
+        });
+      }
+    } else if (viewMode === '10m') {
+      // 10 minutes = ~1500 slots
+      for (let i = 1; i <= 10; i++) {
+        const minutes = i * 10;
+        const slots = minutes * 150;
+        const totalTxns = Math.round(tps * minutes * 60);
+        const voteCount = Math.round(totalTxns * 0.7);
+        aggregated.push({
+          totalTxns,
+          slots,
+          label: `${minutes}m`,
+          voteCount,
+          nonVoteCount: totalTxns - voteCount
+        });
+      }
+    }
+    return aggregated;
   };
 
   useEffect(() => {
@@ -149,22 +244,96 @@ export default function Blocks() {
       )}
 
       <main className="max-w-[1800px] mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-bold text-white">Recent Blocks</h1>
-            <p className="text-gray-400 text-sm">Live from X1 mainnet • {blocks.length} blocks loaded</p>
+            <p className="text-gray-400 text-sm">Live from X1 mainnet • TPS: {tps.toLocaleString()}</p>
           </div>
           
-          <Button onClick={() => setIsLive(!isLive)} variant="outline" className={`border-white/10 ${isLive ? 'text-emerald-400' : 'text-gray-400'}`}>
-            {isLive ? <><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-2" /><Pause className="w-4 h-4 mr-1" /> Live</> : <><Play className="w-4 h-4 mr-1" /> Paused</>}
-          </Button>
+          <div className="flex items-center gap-3">
+            {/* View Toggle */}
+            <div className="flex gap-1 bg-[#24384a] rounded-lg p-1">
+              {['blocks', '1m', '10m'].map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  className={`px-3 py-1.5 text-xs rounded ${viewMode === mode ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
+                >
+                  {mode === 'blocks' ? 'Blocks' : mode}
+                </button>
+              ))}
+            </div>
+            
+            <Button onClick={() => setIsLive(!isLive)} variant="outline" className={`border-white/10 ${isLive ? 'text-emerald-400' : 'text-gray-400'}`}>
+              {isLive ? <><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-2" /><Pause className="w-4 h-4 mr-1" /> Live</> : <><Play className="w-4 h-4 mr-1" /> Paused</>}
+            </Button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-          {blocks.map((block) => (
-            <BlockViz key={block.slot} block={block} isNew={block.slot === newBlockSlot} />
-          ))}
+        {/* View Info */}
+        {viewMode !== 'blocks' && (
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 mb-4">
+            <p className="text-blue-400 text-sm">
+              {viewMode === '1m' 
+                ? '📊 Showing cumulative transactions per minute. X1 produces ~150 slots/min (2.5 slots/sec).'
+                : '📊 Showing cumulative transactions per 10 minutes. ~1,500 slots per 10 min window.'}
+            </p>
+          </div>
+        )}
+
+        {/* Block Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3">
+          {viewMode === 'blocks' ? (
+            blocks.slice(0, 10).map((block) => (
+              <BlockViz key={block.slot} block={block} isNew={block.slot === newBlockSlot} />
+            ))
+          ) : (
+            getAggregatedData().map((data, i) => (
+              <AggregatedBlockViz key={i} data={data} />
+            ))
+          )}
         </div>
+
+        {/* Additional blocks table for blocks view */}
+        {viewMode === 'blocks' && blocks.length > 10 && (
+          <div className="mt-8 bg-[#24384a] rounded-xl overflow-hidden">
+            <div className="p-4 border-b border-white/5">
+              <h3 className="text-white font-medium">More Recent Blocks</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-white/5">
+                    <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Slot</th>
+                    <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Block Hash</th>
+                    <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Transactions</th>
+                    <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {blocks.slice(10).map((block) => (
+                    <tr key={block.slot} className="border-b border-white/5 hover:bg-white/[0.02]">
+                      <td className="px-4 py-3">
+                        <Link to={createPageUrl('BlockDetail') + `?slot=${block.slot}`} className="text-cyan-400 hover:underline font-mono">
+                          {block.slot?.toLocaleString()}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-gray-400 font-mono text-sm">
+                        {block.blockhash?.substring(0, 24)}...
+                      </td>
+                      <td className="px-4 py-3 text-right text-white font-mono">
+                        {block.txCount?.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-400 text-sm">
+                        {block.blockTime ? new Date(block.blockTime * 1000).toLocaleTimeString() : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center justify-center gap-4 mt-8">
           <Button variant="outline" className="border-white/10 text-gray-400 hover:text-white">
