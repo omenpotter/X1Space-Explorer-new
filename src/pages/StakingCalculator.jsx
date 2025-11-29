@@ -32,18 +32,20 @@ export default function StakingCalculator() {
     fetchValidators();
   }, []);
 
-  // X1 Network Staking APY
-  // Based on network inflation and stake distribution
-  // Current estimated APY is ~5-7% depending on validator performance
-  // Formula: Base inflation rate * (1 - commission) * uptime factor
-  const networkInflationRate = 0.08; // 8% annual inflation
-  const totalStaked = 800000000; // ~800M XNT staked (estimate)
-  const baseAPY = (networkInflationRate * 1000000000 / totalStaked) * 100; // ~10% base
-  const adjustedBaseAPY = Math.min(8, Math.max(5, baseAPY)); // Capped between 5-8%
+  // X1 Network Staking APY Calculation
+  // APY = Base Network Rate * (1 - Validator Commission) * Uptime Factor
+  // Base rate is ~8% inflation distributed to stakers
+  const BASE_NETWORK_APY = 8.0; // 8% base APY before commission
   
-  const validatorAPY = selectedValidator 
-    ? adjustedBaseAPY * (1 - selectedValidator.commission / 100) * (selectedValidator.uptime / 100)
-    : adjustedBaseAPY;
+  // Each validator has different effective APY based on their commission
+  const calculateValidatorAPY = (validator) => {
+    if (!validator) return BASE_NETWORK_APY;
+    const commissionFactor = 1 - (validator.commission / 100);
+    const uptimeFactor = (validator.uptime || 99) / 100;
+    return BASE_NETWORK_APY * commissionFactor * uptimeFactor;
+  };
+  
+  const validatorAPY = calculateValidatorAPY(selectedValidator);
 
   const calculateRewards = () => {
     const multiplier = timeframe === 'day' ? 1/365 : timeframe === 'month' ? 1/12 : timeframe === 'year' ? 1 : 5;
@@ -135,22 +137,25 @@ export default function StakingCalculator() {
 
             <h3 className="text-gray-400 text-sm mb-4">SELECT VALIDATOR</h3>
             <div className="max-h-[200px] overflow-y-auto space-y-2">
-              {validators.slice(0, 20).map((v) => (
-                <button
-                  key={v.votePubkey}
-                  onClick={() => setSelectedValidator(v)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${selectedValidator?.votePubkey === v.votePubkey ? 'bg-cyan-500/20 border border-cyan-500/50' : 'bg-[#1d2d3a] hover:bg-[#263d50]'}`}
-                >
-                  <span>{v.icon || '🔷'}</span>
-                  <div className="flex-1 text-left">
-                    <p className="text-white text-sm truncate">{v.name || v.votePubkey.substring(0, 12) + '...'}</p>
-                    <p className="text-gray-500 text-xs">{v.commission}% commission</p>
-                  </div>
-                  <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">
-                    {(baseAPY * (1 - v.commission / 100)).toFixed(1)}% APY
-                  </Badge>
-                </button>
-              ))}
+              {validators.slice(0, 20).map((v) => {
+                const vAPY = calculateValidatorAPY(v);
+                return (
+                  <button
+                    key={v.votePubkey}
+                    onClick={() => setSelectedValidator(v)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${selectedValidator?.votePubkey === v.votePubkey ? 'bg-cyan-500/20 border border-cyan-500/50' : 'bg-[#1d2d3a] hover:bg-[#263d50]'}`}
+                  >
+                    <span>{v.icon || '🔷'}</span>
+                    <div className="flex-1 text-left">
+                      <p className="text-white text-sm truncate">{v.name || v.votePubkey.substring(0, 12) + '...'}</p>
+                      <p className="text-gray-500 text-xs">{v.commission}% commission • {v.uptime?.toFixed(1)}% uptime</p>
+                    </div>
+                    <Badge className={`border-0 text-xs ${vAPY >= 7 ? 'bg-emerald-500/20 text-emerald-400' : vAPY >= 5 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
+                      {vAPY.toFixed(2)}% APY
+                    </Badge>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

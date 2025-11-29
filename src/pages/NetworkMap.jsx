@@ -2,39 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Zap, Map, Loader2, Globe
+  Zap, Map, Loader2, Globe, ExternalLink
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
 import X1Rpc from '../components/x1/X1RpcService';
 
-// Validator locations based on x1val.online data
-// Validators are in: Americas, Europe, Africa, South Asia
-const VALIDATOR_LOCATIONS = [
-  // Americas
-  { lat: 37.7749, lng: -122.4194, city: 'San Francisco', country: 'US', region: 'Americas' },
-  { lat: 40.7128, lng: -74.0060, city: 'New York', country: 'US', region: 'Americas' },
-  { lat: 33.4484, lng: -112.0740, city: 'Phoenix', country: 'US', region: 'Americas' },
-  { lat: 39.7392, lng: -104.9903, city: 'Denver', country: 'US', region: 'Americas' },
-  { lat: 45.5152, lng: -122.6784, city: 'Portland', country: 'US', region: 'Americas' },
-  // Europe
-  { lat: 51.5074, lng: -0.1278, city: 'London', country: 'UK', region: 'Europe' },
-  { lat: 52.5200, lng: 13.4050, city: 'Berlin', country: 'DE', region: 'Europe' },
-  { lat: 48.8566, lng: 2.3522, city: 'Paris', country: 'FR', region: 'Europe' },
-  { lat: 52.3676, lng: 4.9041, city: 'Amsterdam', country: 'NL', region: 'Europe' },
-  { lat: 50.1109, lng: 8.6821, city: 'Frankfurt', country: 'DE', region: 'Europe' },
-  // Africa
-  { lat: -33.9249, lng: 18.4241, city: 'Cape Town', country: 'ZA', region: 'Africa' },
-  { lat: -26.2041, lng: 28.0473, city: 'Johannesburg', country: 'ZA', region: 'Africa' },
-  { lat: 30.0444, lng: 31.2357, city: 'Cairo', country: 'EG', region: 'Africa' },
-  // South Asia
-  { lat: 19.0760, lng: 72.8777, city: 'Mumbai', country: 'IN', region: 'South Asia' },
-  { lat: 28.6139, lng: 77.2090, city: 'New Delhi', country: 'IN', region: 'South Asia' },
-  { lat: 12.9716, lng: 77.5946, city: 'Bangalore', country: 'IN', region: 'South Asia' },
-  { lat: 1.3521, lng: 103.8198, city: 'Singapore', country: 'SG', region: 'South Asia' },
-];
+// Note: For accurate validator locations, we would need IP geolocation data
+// This is a placeholder - in production, integrate with x1val.online API or similar
+// Currently showing approximate regions based on known validator distribution
 
 export default function NetworkMap() {
   const [validators, setValidators] = useState([]);
@@ -47,23 +23,10 @@ export default function NetworkMap() {
       try {
         const data = await X1Rpc.getValidatorDetails();
         setValidators(data);
-        
-        // Assign locations to validators based on actual distribution
-        const locations = data.map((v, i) => {
-          const loc = VALIDATOR_LOCATIONS[i % VALIDATOR_LOCATIONS.length];
-          return {
-            ...v,
-            location: loc,
-            lat: loc.lat + (Math.random() - 0.5) * 2,
-            lng: loc.lng + (Math.random() - 0.5) * 2,
-          };
+        setStats({ 
+          countries: 'N/A', 
+          continents: 4 // Americas, Europe, Africa, South Asia per x1val.online
         });
-        setNodeLocations(locations);
-        
-        // Calculate unique countries and regions
-        const countries = new Set(locations.map(l => l.location.country));
-        const regions = new Set(VALIDATOR_LOCATIONS.map(l => l.region));
-        setStats({ countries: countries.size, continents: regions.size });
       } catch (err) {
         console.error(err);
       } finally {
@@ -132,60 +95,36 @@ export default function NetworkMap() {
           </div>
         </div>
 
-        {/* Map */}
+        {/* Map Notice */}
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 mb-6">
+          <p className="text-blue-400 text-sm">
+            ℹ️ For accurate real-time validator map, visit <a href="https://mainnet.x1val.online/" target="_blank" rel="noopener noreferrer" className="underline font-medium">mainnet.x1val.online</a>
+          </p>
+        </div>
+
+        {/* Embedded Map or Placeholder */}
         <div className="bg-[#24384a] rounded-xl overflow-hidden" style={{ height: '500px' }}>
-          <MapContainer 
-            center={[20, 0]} 
-            zoom={2} 
-            style={{ height: '100%', width: '100%', background: '#1d2d3a' }}
-            scrollWheelZoom={true}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-            />
-            {nodeLocations.map((node, i) => (
-              <CircleMarker
-                key={node.votePubkey}
-                center={[node.lat, node.lng]}
-                radius={Math.max(5, Math.min(15, node.activatedStake / 10000000))}
-                fillColor={node.delinquent ? '#ef4444' : '#06b6d4'}
-                color={node.delinquent ? '#ef4444' : '#06b6d4'}
-                weight={1}
-                opacity={0.8}
-                fillOpacity={0.5}
-              >
-                <Popup className="dark-popup">
-                  <div className="bg-[#1d2d3a] text-white p-2 rounded -m-3">
-                    <p className="font-medium">{node.name || node.votePubkey.substring(0, 12) + '...'}</p>
-                    <p className="text-cyan-400 text-sm">{formatStake(node.activatedStake)} XNT</p>
-                    <p className="text-gray-400 text-xs">{node.location.city}, {node.location.country}</p>
-                    <p className={`text-xs ${node.delinquent ? 'text-red-400' : 'text-emerald-400'}`}>
-                      {node.delinquent ? 'Delinquent' : 'Active'}
-                    </p>
-                  </div>
-                </Popup>
-              </CircleMarker>
-            ))}
-          </MapContainer>
+          <iframe 
+            src="https://mainnet.x1val.online/" 
+            className="w-full h-full border-0"
+            title="X1 Validator Map"
+            style={{ filter: 'hue-rotate(0deg)' }}
+          />
         </div>
 
         {/* Legend */}
         <div className="mt-4 flex flex-wrap items-center gap-6 text-sm">
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-cyan-500" />
-            <span className="text-gray-400">Active Validator</span>
+          <div className="text-gray-400">
+            Regions: Americas • Europe • Africa • South Asia
           </div>
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-red-500" />
-            <span className="text-gray-400">Delinquent</span>
-          </div>
-          <div className="flex items-center gap-2 text-gray-500 text-xs">
-            Circle size = stake amount
-          </div>
-        </div>
-        <div className="mt-2 text-gray-500 text-xs">
-          Regions: Americas • Europe • Africa • South Asia (based on x1val.online data)
+          <a 
+            href="https://mainnet.x1val.online/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-cyan-400 hover:underline flex items-center gap-1"
+          >
+            <ExternalLink className="w-4 h-4" /> Open Full Map
+          </a>
         </div>
       </main>
     </div>

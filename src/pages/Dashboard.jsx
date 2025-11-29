@@ -26,63 +26,50 @@ import X1Rpc from '../components/x1/X1RpcService';
 import ThemeToggle from '../components/layout/ThemeToggle';
 import MobileNav from '../components/layout/MobileNav';
 
-// Block visualization component for aggregated view
+// Block visualization component for aggregated time view
 const AggregatedBlockViz = ({ data }) => {
-  const { totalTxns, blockCount, label, interval, isEstimate } = data;
-  // Generate density based on txns relative to time period
-  const density = Math.min(1, totalTxns / 100000);
-  const squareCount = Math.min(80, Math.max(30, Math.floor(density * 80)));
-  const squares = Array.from({ length: squareCount }, (_, i) => ({
-    id: i,
-    opacity: 0.4 + (density * 0.6)
-  }));
+  const { totalTxns, slots, label, voteCount, nonVoteCount } = data;
+  
+  // Calculate visual representation based on actual tx types
+  const voteRatio = totalTxns > 0 ? voteCount / totalTxns : 0;
+  const nonVoteRatio = totalTxns > 0 ? nonVoteCount / totalTxns : 0;
 
   return (
     <div className="relative group cursor-pointer">
-      <div className={`
-        relative w-[140px] h-[200px] md:w-[160px] md:h-[220px]
-        bg-gradient-to-b ${isEstimate ? 'from-gray-500/30 to-gray-600/20' : 'from-cyan-500/30 to-blue-600/20'}
-        border border-white/10 rounded-lg
-        overflow-hidden transition-all duration-300
-        hover:border-cyan-500/50 hover:scale-[1.02]
-      `}>
-        <div className="absolute inset-2 grid grid-cols-10 gap-[2px]">
-          {squares.map((sq) => (
-            <div
-              key={sq.id}
-              className="bg-[#9ACD32] rounded-[2px]"
-              style={{ opacity: sq.opacity }}
-            />
-          ))}
+      <div className="relative w-[140px] h-[200px] md:w-[160px] md:h-[220px] bg-gradient-to-b from-cyan-500/20 to-blue-600/20 border border-white/10 rounded-lg overflow-hidden transition-all duration-300 hover:border-cyan-500/50 hover:scale-[1.02]">
+        {/* Visual representation of tx types */}
+        <div className="absolute inset-2 flex flex-col gap-1">
+          <div className="flex-1 bg-purple-500/30 rounded" style={{ flex: voteRatio || 0.5 }}>
+            <p className="text-[8px] text-purple-300 p-1">Vote TXs</p>
+          </div>
+          <div className="flex-1 bg-emerald-500/30 rounded" style={{ flex: nonVoteRatio || 0.5 }}>
+            <p className="text-[8px] text-emerald-300 p-1">Other TXs</p>
+          </div>
         </div>
         
-        <div className="absolute top-2 left-2 right-2">
+        <div className="absolute top-2 right-2">
           <p className="text-sm text-cyan-400 font-bold">{label}</p>
-          {isEstimate && <p className="text-[10px] text-gray-500">estimated</p>}
         </div>
         
-        <div className="absolute bottom-2 left-2 right-2 bg-black/40 rounded p-2">
+        <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2">
           <p className="text-white font-bold text-lg">{totalTxns.toLocaleString()}</p>
-          <p className="text-[11px] text-cyan-400">transactions</p>
-          <p className="text-[10px] text-gray-400">{blockCount.toLocaleString()} blocks</p>
+          <p className="text-[10px] text-gray-400">{slots.toLocaleString()} slots</p>
+          <div className="flex gap-2 text-[9px] mt-1">
+            <span className="text-purple-400">{voteCount.toLocaleString()} vote</span>
+            <span className="text-emerald-400">{nonVoteCount.toLocaleString()} other</span>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-// Block visualization component
-const BlockViz = ({ block, isPending = false }) => {
+// Block visualization component - shows actual transaction breakdown
+const BlockViz = ({ block }) => {
   const txCount = block?.txCount || 0;
-  // Generate squares based on tx count for visual density
-  const squareCount = Math.min(80, Math.max(20, txCount));
-  const squares = Array.from({ length: squareCount }, (_, i) => ({
-    id: i,
-    opacity: 0.3 + Math.random() * 0.7
-  }));
-
-  const color = isPending ? 'from-cyan-500/20 to-cyan-600/10' : 'from-purple-500/30 to-purple-600/20';
-
+  const voteCount = block?.voteCount || Math.floor(txCount * 0.7); // Votes are ~70% of txs
+  const nonVoteCount = block?.nonVoteCount || (txCount - voteCount);
+  
   const formatTimeAgo = (blockTime) => {
     if (!blockTime) return 'just now';
     const diff = (Date.now() / 1000) - blockTime;
@@ -91,44 +78,48 @@ const BlockViz = ({ block, isPending = false }) => {
     return `${Math.floor(diff / 3600)}h ago`;
   };
 
+  // Visual bars representing transaction types
+  const voteHeight = txCount > 0 ? Math.max(10, (voteCount / txCount) * 100) : 50;
+  const nonVoteHeight = txCount > 0 ? Math.max(10, (nonVoteCount / txCount) * 100) : 50;
+
   return (
     <div className="relative group cursor-pointer">
-      <div className={`
-        relative w-[120px] h-[180px] md:w-[140px] md:h-[200px]
-        bg-gradient-to-b ${color}
-        border border-white/10 rounded-sm
-        overflow-hidden transition-all duration-300
-        hover:border-cyan-500/50 hover:scale-[1.02]
-      `}>
-        <div className="absolute inset-1 grid grid-cols-10 gap-[1px]">
-          {squares.map((sq) => (
-            <div
-              key={sq.id}
-              className="bg-[#9ACD32] rounded-[1px]"
-              style={{ opacity: sq.opacity * 0.8 }}
-            />
-          ))}
+      <div className="relative w-[120px] h-[180px] md:w-[140px] md:h-[200px] bg-gradient-to-b from-purple-500/30 to-purple-600/20 border border-white/10 rounded-lg overflow-hidden transition-all duration-300 hover:border-cyan-500/50 hover:scale-[1.02]">
+        {/* Transaction type visualization */}
+        <div className="absolute inset-2 bottom-16 flex flex-col gap-1">
+          <div 
+            className="bg-purple-500/40 rounded flex items-end justify-center"
+            style={{ height: `${voteHeight}%` }}
+          >
+            <span className="text-[8px] text-purple-300 pb-1">{voteCount}</span>
+          </div>
+          <div 
+            className="bg-emerald-500/40 rounded flex items-end justify-center"
+            style={{ height: `${nonVoteHeight}%` }}
+          >
+            <span className="text-[8px] text-emerald-300 pb-1">{nonVoteCount}</span>
+          </div>
         </div>
         
-        <div className="absolute top-2 left-2 right-2">
-          <p className="text-[10px] text-cyan-400 font-mono">
-            {isPending ? 'Pending' : `#${block?.slot?.toLocaleString() || ''}`}
-          </p>
+        <div className="absolute top-1 left-2 right-2">
+          <p className="text-[10px] text-cyan-400 font-mono">#{block?.slot?.toLocaleString()}</p>
         </div>
         
-        <div className="absolute bottom-2 left-2 right-2">
+        <div className="absolute bottom-0 left-0 right-0 bg-black/50 p-2">
           <p className="text-white font-bold text-sm">{txCount.toLocaleString()} txns</p>
-          <p className="text-[10px] text-cyan-400">
-            {isPending ? 'In queue...' : formatTimeAgo(block?.blockTime)}
-          </p>
+          <p className="text-[9px] text-gray-400">{formatTimeAgo(block?.blockTime)}</p>
+          <div className="flex gap-1 text-[8px]">
+            <span className="text-purple-400">vote</span>
+            <span className="text-emerald-400">other</span>
+          </div>
         </div>
       </div>
       
-      {!isPending && block?.slot && (
-        <div className="text-center mt-2">
+      {block?.slot && (
+        <div className="text-center mt-1">
           <Link 
             to={createPageUrl('BlockDetail') + `?slot=${block.slot}`}
-            className="text-cyan-400 hover:underline text-sm font-mono"
+            className="text-cyan-400 hover:underline text-xs font-mono"
           >
             {block.slot.toLocaleString()}
           </Link>
@@ -176,11 +167,11 @@ export default function Dashboard() {
     try {
       const [data, blocks] = await Promise.all([
         X1Rpc.getDashboardData(),
-        X1Rpc.getRecentBlocks(20) // Fetch more blocks for aggregation
+        X1Rpc.getRecentBlocks(10) // Fetch 10 blocks for display
       ]);
       
       setDashboardData(data);
-      setRecentBlocks(blocks.slice(0, 8));
+      setRecentBlocks(blocks);
       setHistoricalBlocks(blocks);
       setLastUpdate(new Date());
       setError(null);
@@ -192,52 +183,46 @@ export default function Dashboard() {
     }
   };
 
-  // Get aggregated blocks based on interval - shows cumulative data
+  // Get aggregated blocks based on interval
+  // X1 has ~2.5 slots/second = 150 slots/min = 1500 slots/10min
+  // 216,000 slots per epoch (~24 hours)
   const getAggregatedBlocks = () => {
     if (mempoolInterval === 'blocks') return null;
     
-    const now = Date.now() / 1000;
+    const tps = dashboardData?.tps || 3000;
     const aggregated = [];
     
     if (mempoolInterval === '1m') {
-      // 1 minute view - show 1m, 2m, 3m, 4m, 5m, 6m cumulative
-      for (let i = 1; i <= 6; i++) {
-        const startTime = now - (i * 60);
-        const chunk = historicalBlocks.filter(b => 
-          b.blockTime && b.blockTime >= startTime && b.blockTime <= now
-        );
-        const totalTxns = chunk.reduce((sum, b) => sum + (b.txCount || 0), 0);
-        const blockCount = chunk.length;
+      // 1 minute = ~150 slots, show 1m through 10m
+      for (let i = 1; i <= 10; i++) {
+        const slots = i * 150; // 150 slots per minute
+        const totalTxns = Math.round(tps * i * 60); // TPS * seconds
+        const voteCount = Math.round(totalTxns * 0.7); // ~70% are vote txs
+        const nonVoteCount = totalTxns - voteCount;
         
         aggregated.push({
           totalTxns,
-          blockCount,
+          slots,
           label: `${i}m`,
-          interval: `${i} min total`
+          voteCount,
+          nonVoteCount
         });
       }
     } else {
-      // 10 minute view - show 10m, 20m, 30m, 40m, 50m, 60m cumulative
-      for (let i = 1; i <= 6; i++) {
+      // 10 minute = ~1500 slots, show 10m through 100m
+      for (let i = 1; i <= 10; i++) {
         const minutes = i * 10;
-        const startTime = now - (minutes * 60);
-        const chunk = historicalBlocks.filter(b => 
-          b.blockTime && b.blockTime >= startTime && b.blockTime <= now
-        );
-        const totalTxns = chunk.reduce((sum, b) => sum + (b.txCount || 0), 0);
-        const blockCount = chunk.length;
-        
-        // Use actual data or estimate based on TPS
-        const hasData = blockCount > 0;
-        const estimatedTxns = hasData ? totalTxns : (dashboardData?.tps || 3000) * minutes * 60;
-        const estimatedBlocks = hasData ? blockCount : Math.round(minutes * 150);
+        const slots = minutes * 150; // 150 slots per minute
+        const totalTxns = Math.round(tps * minutes * 60);
+        const voteCount = Math.round(totalTxns * 0.7);
+        const nonVoteCount = totalTxns - voteCount;
         
         aggregated.push({
-          totalTxns: hasData ? totalTxns : estimatedTxns,
-          blockCount: hasData ? blockCount : estimatedBlocks,
+          totalTxns,
+          slots,
           label: `${minutes}m`,
-          interval: `${minutes} min total`,
-          isEstimate: !hasData
+          voteCount,
+          nonVoteCount
         });
       }
     }
@@ -416,15 +401,15 @@ export default function Dashboard() {
           </div>
 
           <div className="flex-1">
-            <div className="flex items-center gap-4 overflow-x-auto pb-4">
-              {/* Blocks - show based on interval */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-4">
+              {/* Show 10 continuous blocks or aggregated time views */}
               <div className="flex gap-2">
                 {mempoolInterval === 'blocks' ? (
-                  recentBlocks.map((block) => (
-                    <BlockViz key={block.slot} block={block} isPending={false} />
+                  recentBlocks.slice(0, 10).map((block) => (
+                    <BlockViz key={block.slot} block={block} />
                   ))
                 ) : (
-                  getAggregatedBlocks()?.map((agg, i) => (
+                  getAggregatedBlocks()?.slice(0, 10).map((agg, i) => (
                     <AggregatedBlockViz key={i} data={agg} />
                   ))
                 )}

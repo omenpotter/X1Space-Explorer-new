@@ -156,7 +156,8 @@ export default function EpochHistory() {
         {/* Info Box */}
         <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 mb-6">
           <p className="text-blue-400 text-sm">
-            ℹ️ <strong>Active Validators</strong> shows the number of validators that participated in consensus during each epoch. This number can vary as validators join/leave or experience downtime.
+            ℹ️ <strong>Note:</strong> Epoch data shown is estimated based on current network performance. 
+            For live validator data, see <a href="https://mainnet.x1val.online/" target="_blank" rel="noopener noreferrer" className="underline">x1val.online</a> where all block producers are actively voting.
           </p>
         </div>
 

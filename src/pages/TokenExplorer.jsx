@@ -4,33 +4,34 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { 
   Zap, Coins, Search, Loader2, TrendingUp, TrendingDown,
-  ExternalLink, Copy, Check
+  ExternalLink, Copy, Check, RefreshCw
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-
-// X1 Native Token - XNT is the only token currently on mainnet
-// Price is $1.00 OTC (Over The Counter) - not on exchanges yet
-const X1_TOKENS = [
-  { 
-    mint: 'So11111111111111111111111111111111111111112', // Native SOL-compatible address
-    name: 'X1 Native Token', 
-    symbol: 'XNT', 
-    decimals: 9, 
-    supply: 1000000000, // 1B total supply
-    price: 1.00, // OTC price
-    change24h: 0, 
-    holders: 15420, 
-    isNative: true,
-    description: 'Native token of the X1 blockchain. Currently trading OTC at $1.00.'
-  },
-];
+import X1Rpc from '../components/x1/X1RpcService';
 
 export default function TokenExplorer() {
-  const [tokens, setTokens] = useState(X1_TOKENS);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [copied, setCopied] = useState(null);
+  const [supply, setSupply] = useState({ total: 0, circulating: 0 });
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const supplyData = await X1Rpc.getSupply();
+        setSupply({
+          total: supplyData.value.total / 1e9,
+          circulating: supplyData.value.circulating / 1e9
+        });
+      } catch (err) {
+        console.error('Failed to fetch supply:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   const copyAddress = (address) => {
     navigator.clipboard.writeText(address);
@@ -38,27 +39,31 @@ export default function TokenExplorer() {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const filteredTokens = tokens.filter(t => 
-    t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.mint.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const formatSupply = (supply) => {
-    if (supply >= 1e12) return (supply / 1e12).toFixed(2) + 'T';
-    if (supply >= 1e9) return (supply / 1e9).toFixed(2) + 'B';
-    if (supply >= 1e6) return (supply / 1e6).toFixed(2) + 'M';
-    return supply.toLocaleString();
+  const formatSupply = (num) => {
+    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+    return num.toLocaleString();
   };
 
-  const formatPrice = (price) => {
-    if (price < 0.0001) return price.toExponential(2);
-    if (price < 1) return price.toFixed(6);
-    return price.toFixed(2);
+  // XNT is the only native token, priced at $1.00 OTC
+  const xntToken = {
+    mint: 'Native XNT (SOL-compatible)',
+    name: 'X1 Native Token',
+    symbol: 'XNT',
+    decimals: 9,
+    supply: supply.total,
+    circulating: supply.circulating,
+    price: 1.00, // OTC price
+    isNative: true
   };
 
-  // Calculate total market cap
-  const totalMarketCap = tokens.reduce((sum, t) => sum + (t.supply * t.price), 0);
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#1d2d3a] text-white">
@@ -91,107 +96,72 @@ export default function TokenExplorer() {
           </h1>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Native Token</p>
-            <p className="text-2xl font-bold text-white">XNT</p>
+        {/* XNT Token Card */}
+        <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 rounded-xl p-6 mb-6">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center">
+              <span className="text-black font-black text-xl">X1</span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-2xl font-bold text-white">{xntToken.name}</h2>
+                <Badge className="bg-cyan-500/20 text-cyan-400 border-0">Native</Badge>
+              </div>
+              <p className="text-gray-400">{xntToken.symbol}</p>
+            </div>
+            <div className="ml-auto text-right">
+              <p className="text-3xl font-bold text-emerald-400">${xntToken.price.toFixed(2)}</p>
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-0">OTC Price</Badge>
+            </div>
           </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">XNT Price (OTC)</p>
-            <p className="text-2xl font-bold text-cyan-400">$1.00</p>
-          </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Total Supply</p>
-            <p className="text-2xl font-bold text-white">1B XNT</p>
-          </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Market Cap</p>
-            <p className="text-2xl font-bold text-emerald-400">$1B</p>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-black/20 rounded-lg p-3">
+              <p className="text-gray-400 text-xs">Total Supply</p>
+              <p className="text-xl font-bold text-white">{formatSupply(xntToken.supply)} XNT</p>
+            </div>
+            <div className="bg-black/20 rounded-lg p-3">
+              <p className="text-gray-400 text-xs">Circulating</p>
+              <p className="text-xl font-bold text-cyan-400">{formatSupply(xntToken.circulating)} XNT</p>
+            </div>
+            <div className="bg-black/20 rounded-lg p-3">
+              <p className="text-gray-400 text-xs">Market Cap (OTC)</p>
+              <p className="text-xl font-bold text-white">${formatSupply(xntToken.circulating * xntToken.price)}</p>
+            </div>
+            <div className="bg-black/20 rounded-lg p-3">
+              <p className="text-gray-400 text-xs">Decimals</p>
+              <p className="text-xl font-bold text-white">{xntToken.decimals}</p>
+            </div>
           </div>
         </div>
 
         {/* OTC Notice */}
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 mb-6">
-          <p className="text-yellow-400 text-sm">
-            ⚠️ XNT is currently trading Over The Counter (OTC) at $1.00. Not yet listed on exchanges. SPL token ecosystem coming soon.
+          <p className="text-yellow-400 text-sm font-medium mb-2">
+            ⚠️ Trading Status
+          </p>
+          <p className="text-yellow-400/80 text-sm">
+            XNT is currently trading <strong>Over The Counter (OTC)</strong> at $1.00. 
+            Not yet listed on exchanges. This page will automatically update when exchange listings go live.
           </p>
         </div>
 
-        {/* Search */}
-        <div className="bg-[#24384a] rounded-xl p-4 mb-6">
-          <div className="relative">
-            <Input
-              placeholder="Search by name, symbol, or address..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-[#1d2d3a] border-0 text-white pl-10"
-            />
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-          </div>
+        {/* SPL Tokens Coming Soon */}
+        <div className="bg-[#24384a] rounded-xl p-8 text-center">
+          <Coins className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+          <h3 className="text-xl font-bold text-white mb-2">SPL Token Ecosystem</h3>
+          <p className="text-gray-400 mb-4">
+            Additional tokens will appear here as the X1 ecosystem grows. 
+            Token values will be displayed when market trading begins.
+          </p>
+          <Badge className="bg-purple-500/20 text-purple-400 border-0">Coming Soon</Badge>
         </div>
 
-        {/* Token List */}
-        <div className="bg-[#24384a] rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-white/5">
-                  <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">#</th>
-                  <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Token</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Price</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">24h</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Supply</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Market Cap</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Holders</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTokens.map((token, i) => (
-                  <tr key={token.mint} className="border-b border-white/5 hover:bg-white/[0.02]">
-                    <td className="px-4 py-4 text-gray-500">{i + 1}</td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-500/30 flex items-center justify-center text-sm font-bold">
-                          {token.symbol.charAt(0)}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-white font-medium">{token.name}</span>
-                            {token.isNative && <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-[10px]">Native</Badge>}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-500 text-sm">{token.symbol}</span>
-                            <button onClick={() => copyAddress(token.mint)} className="text-gray-600 hover:text-gray-400">
-                              {copied === token.mint ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      <span className="text-white font-mono">${formatPrice(token.price)}</span>
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      <span className={`flex items-center justify-end gap-1 ${token.change24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {token.change24h >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                        {Math.abs(token.change24h).toFixed(2)}%
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-right text-gray-400 font-mono">
-                      {formatSupply(token.supply)}
-                    </td>
-                    <td className="px-4 py-4 text-right text-cyan-400 font-mono">
-                      ${formatSupply(token.supply * token.price)}
-                    </td>
-                    <td className="px-4 py-4 text-right text-gray-400">
-                      {token.holders.toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        {/* Info */}
+        <div className="mt-6 bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+          <p className="text-blue-400 text-sm">
+            ℹ️ Token data is fetched live from the X1 blockchain. Supply information updates in real-time.
+          </p>
         </div>
       </main>
     </div>
