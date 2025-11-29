@@ -16,14 +16,15 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import X1Rpc from '../components/x1/X1RpcService';
 
-// Block visualization with actual tx breakdown
+// Block visualization with actual tx breakdown by type
 const BlockViz = ({ block, isNew }) => {
   const txCount = block?.txCount || 0;
-  const voteCount = block?.voteCount || Math.floor(txCount * 0.7);
-  const nonVoteCount = block?.nonVoteCount || (txCount - voteCount);
+  const voteCount = block?.voteCount || 0;
+  const transferCount = block?.transferCount || 0;
+  const programCount = block?.programCount || 0;
+  const otherCount = block?.otherCount || 0;
   
-  const voteHeight = txCount > 0 ? Math.max(15, (voteCount / txCount) * 100) : 50;
-  const nonVoteHeight = txCount > 0 ? Math.max(15, (nonVoteCount / txCount) * 100) : 50;
+  const total = txCount || 1;
 
   const formatTimeAgo = (blockTime) => {
     if (!blockTime) return 'just now';
@@ -43,19 +44,22 @@ const BlockViz = ({ block, isNew }) => {
         ${isNew ? 'ring-2 ring-cyan-500/50 animate-pulse' : ''}
       `}>
         {/* Transaction breakdown visualization */}
-        <div className="absolute inset-2 bottom-20 flex flex-col gap-1">
-          <div 
-            className="bg-purple-500/50 rounded flex items-center justify-center"
-            style={{ height: `${voteHeight}%` }}
-          >
-            <span className="text-[10px] text-purple-200 font-medium">{voteCount} vote</span>
-          </div>
-          <div 
-            className="bg-emerald-500/50 rounded flex items-center justify-center"
-            style={{ height: `${nonVoteHeight}%` }}
-          >
-            <span className="text-[10px] text-emerald-200 font-medium">{nonVoteCount} other</span>
-          </div>
+        <div className="absolute inset-2 bottom-24 flex flex-col gap-[2px]">
+          {voteCount > 0 && (
+            <div className="bg-purple-500/50 rounded flex items-center justify-center" style={{ flex: voteCount / total }}>
+              <span className="text-[9px] text-purple-200">{voteCount} vote</span>
+            </div>
+          )}
+          {transferCount > 0 && (
+            <div className="bg-emerald-500/50 rounded flex items-center justify-center" style={{ flex: transferCount / total }}>
+              <span className="text-[9px] text-emerald-200">{transferCount} xfer</span>
+            </div>
+          )}
+          {(programCount > 0 || otherCount > 0) && (
+            <div className="bg-yellow-500/50 rounded flex items-center justify-center" style={{ flex: (programCount + otherCount) / total }}>
+              <span className="text-[9px] text-yellow-200">{programCount + otherCount} prog</span>
+            </div>
+          )}
         </div>
         
         <div className="absolute top-1 left-2 right-2 flex justify-between items-center">
@@ -65,7 +69,7 @@ const BlockViz = ({ block, isNew }) => {
           <span className="text-[9px] text-gray-400">{formatTimeAgo(block.blockTime)}</span>
         </div>
         
-        <div className="absolute bottom-0 left-0 right-0 bg-black/50 p-2">
+        <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2">
           <p className="text-white font-bold text-lg">{txCount.toLocaleString()}</p>
           <p className="text-[10px] text-cyan-400">transactions</p>
           <p className="text-[9px] text-gray-500 font-mono truncate">
@@ -77,38 +81,35 @@ const BlockViz = ({ block, isNew }) => {
   );
 };
 
-// Aggregated time view block
+// Aggregated time view block with tx type breakdown
 const AggregatedBlockViz = ({ data }) => {
-  const { totalTxns, slots, label, voteCount, nonVoteCount } = data;
+  const { totalTxns, slots, label, voteCount, transferCount, programCount, hasData } = data;
   
-  const voteRatio = totalTxns > 0 ? voteCount / totalTxns : 0.7;
-  const nonVoteRatio = 1 - voteRatio;
+  const total = totalTxns || 1;
 
   return (
-    <div className="relative w-full h-[220px] bg-gradient-to-b from-cyan-500/20 to-blue-600/20 border border-white/10 rounded-lg overflow-hidden">
-      <div className="absolute inset-2 bottom-20 flex flex-col gap-1">
-        <div 
-          className="bg-purple-500/40 rounded flex items-center justify-center"
-          style={{ flex: voteRatio }}
-        >
-          <span className="text-[10px] text-purple-300">{voteCount.toLocaleString()} vote</span>
+    <div className={`relative w-full h-[220px] bg-gradient-to-b from-cyan-500/20 to-blue-600/20 border border-white/10 rounded-lg overflow-hidden ${!hasData ? 'opacity-70' : ''}`}>
+      <div className="absolute inset-2 bottom-24 flex flex-col gap-[2px]">
+        <div className="bg-purple-500/50 rounded flex items-center justify-center" style={{ flex: Math.max(0.1, voteCount / total) }}>
+          <span className="text-[9px] text-purple-200">{voteCount?.toLocaleString()} vote</span>
         </div>
-        <div 
-          className="bg-emerald-500/40 rounded flex items-center justify-center"
-          style={{ flex: nonVoteRatio }}
-        >
-          <span className="text-[10px] text-emerald-300">{nonVoteCount.toLocaleString()} other</span>
+        <div className="bg-emerald-500/50 rounded flex items-center justify-center" style={{ flex: Math.max(0.1, transferCount / total) }}>
+          <span className="text-[9px] text-emerald-200">{transferCount?.toLocaleString()} xfer</span>
+        </div>
+        <div className="bg-yellow-500/50 rounded flex items-center justify-center" style={{ flex: Math.max(0.1, programCount / total) }}>
+          <span className="text-[9px] text-yellow-200">{programCount?.toLocaleString()} prog</span>
         </div>
       </div>
       
-      <div className="absolute top-2 right-2">
+      <div className="absolute top-2 right-2 flex items-center gap-1">
         <span className="text-lg text-cyan-400 font-bold">{label}</span>
+        {!hasData && <span className="text-[8px] text-gray-500">est.</span>}
       </div>
       
       <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2">
-        <p className="text-white font-bold text-lg">{totalTxns.toLocaleString()}</p>
-        <p className="text-[10px] text-cyan-400">total transactions</p>
-        <p className="text-[9px] text-gray-400">{slots.toLocaleString()} slots</p>
+        <p className="text-white font-bold text-lg">{totalTxns?.toLocaleString()}</p>
+        <p className="text-[10px] text-cyan-400">transactions</p>
+        <p className="text-[9px] text-gray-400">{slots?.toLocaleString()} slots</p>
       </div>
     </div>
   );
@@ -148,41 +149,56 @@ export default function Blocks() {
     }
   };
 
-  // Get aggregated data for time views
+  // Get aggregated data for time views - rolling windows from actual blocks
   const getAggregatedData = () => {
+    const now = Date.now() / 1000;
     const aggregated = [];
     
+    const calcFromBlocks = (startSecondsAgo, endSecondsAgo, label) => {
+      const startTime = now - startSecondsAgo;
+      const endTime = now - endSecondsAgo;
+      
+      const relevantBlocks = blocks.filter(b => 
+        b.blockTime && b.blockTime >= startTime && b.blockTime <= endTime
+      );
+      
+      if (relevantBlocks.length > 0) {
+        return {
+          totalTxns: relevantBlocks.reduce((sum, b) => sum + (b.txCount || 0), 0),
+          slots: relevantBlocks.length,
+          label,
+          voteCount: relevantBlocks.reduce((sum, b) => sum + (b.voteCount || 0), 0),
+          transferCount: relevantBlocks.reduce((sum, b) => sum + (b.transferCount || 0), 0),
+          programCount: relevantBlocks.reduce((sum, b) => sum + (b.programCount || b.otherCount || 0), 0),
+          hasData: true
+        };
+      }
+      
+      // Estimate if no data
+      const seconds = startSecondsAgo - endSecondsAgo;
+      const totalTxns = Math.round(tps * seconds);
+      return {
+        totalTxns,
+        slots: Math.round(seconds * 2.5),
+        label,
+        voteCount: Math.round(totalTxns * 0.7),
+        transferCount: Math.round(totalTxns * 0.15),
+        programCount: Math.round(totalTxns * 0.15),
+        hasData: false
+      };
+    };
+    
     if (viewMode === '1m') {
-      // 1 minute = ~150 slots
-      for (let i = 1; i <= 10; i++) {
-        const slots = i * 150;
-        const totalTxns = Math.round(tps * i * 60);
-        const voteCount = Math.round(totalTxns * 0.7);
-        aggregated.push({
-          totalTxns,
-          slots,
-          label: `${i}m`,
-          voteCount,
-          nonVoteCount: totalTxns - voteCount
-        });
+      for (let i = 0; i < 10; i++) {
+        aggregated.push(calcFromBlocks((i + 1) * 60, i * 60, i === 0 ? 'Now' : `${i}m`));
       }
     } else if (viewMode === '10m') {
-      // 10 minutes = ~1500 slots
-      for (let i = 1; i <= 10; i++) {
-        const minutes = i * 10;
-        const slots = minutes * 150;
-        const totalTxns = Math.round(tps * minutes * 60);
-        const voteCount = Math.round(totalTxns * 0.7);
-        aggregated.push({
-          totalTxns,
-          slots,
-          label: `${minutes}m`,
-          voteCount,
-          nonVoteCount: totalTxns - voteCount
-        });
+      for (let i = 0; i < 10; i++) {
+        aggregated.push(calcFromBlocks((i + 1) * 600, i * 600, i === 0 ? 'Now' : `${i * 10}m`));
       }
     }
-    return aggregated;
+    
+    return aggregated.reverse();
   };
 
   useEffect(() => {
