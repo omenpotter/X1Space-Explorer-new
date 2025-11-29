@@ -28,22 +28,26 @@ import MobileNav from '../components/layout/MobileNav';
 
 // Block visualization component for aggregated time view
 const AggregatedBlockViz = ({ data }) => {
-  const { totalTxns, slots, label, voteCount, nonVoteCount } = data;
+  const { totalTxns, slots, label, voteCount, transferCount, programCount } = data;
   
-  // Calculate visual representation based on actual tx types
-  const voteRatio = totalTxns > 0 ? voteCount / totalTxns : 0;
-  const nonVoteRatio = totalTxns > 0 ? nonVoteCount / totalTxns : 0;
+  const total = totalTxns || 1;
+  const voteRatio = voteCount / total;
+  const transferRatio = transferCount / total;
+  const programRatio = programCount / total;
 
   return (
     <div className="relative group cursor-pointer">
       <div className="relative w-[140px] h-[200px] md:w-[160px] md:h-[220px] bg-gradient-to-b from-cyan-500/20 to-blue-600/20 border border-white/10 rounded-lg overflow-hidden transition-all duration-300 hover:border-cyan-500/50 hover:scale-[1.02]">
         {/* Visual representation of tx types */}
-        <div className="absolute inset-2 flex flex-col gap-1">
-          <div className="flex-1 bg-purple-500/30 rounded" style={{ flex: voteRatio || 0.5 }}>
-            <p className="text-[8px] text-purple-300 p-1">Vote TXs</p>
+        <div className="absolute inset-2 bottom-24 flex flex-col gap-[2px]">
+          <div className="bg-purple-500/50 rounded flex items-center justify-center" style={{ flex: Math.max(0.1, voteRatio) }}>
+            <span className="text-[8px] text-purple-200">Vote</span>
           </div>
-          <div className="flex-1 bg-emerald-500/30 rounded" style={{ flex: nonVoteRatio || 0.5 }}>
-            <p className="text-[8px] text-emerald-300 p-1">Other TXs</p>
+          <div className="bg-emerald-500/50 rounded flex items-center justify-center" style={{ flex: Math.max(0.1, transferRatio) }}>
+            <span className="text-[8px] text-emerald-200">Transfer</span>
+          </div>
+          <div className="bg-yellow-500/50 rounded flex items-center justify-center" style={{ flex: Math.max(0.1, programRatio) }}>
+            <span className="text-[8px] text-yellow-200">Program</span>
           </div>
         </div>
         
@@ -54,9 +58,10 @@ const AggregatedBlockViz = ({ data }) => {
         <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2">
           <p className="text-white font-bold text-lg">{totalTxns.toLocaleString()}</p>
           <p className="text-[10px] text-gray-400">{slots.toLocaleString()} slots</p>
-          <div className="flex gap-2 text-[9px] mt-1">
+          <div className="flex flex-wrap gap-1 text-[8px] mt-1">
             <span className="text-purple-400">{voteCount.toLocaleString()} vote</span>
-            <span className="text-emerald-400">{nonVoteCount.toLocaleString()} other</span>
+            <span className="text-emerald-400">{transferCount.toLocaleString()} xfer</span>
+            <span className="text-yellow-400">{programCount.toLocaleString()} prog</span>
           </div>
         </div>
       </div>
@@ -67,8 +72,10 @@ const AggregatedBlockViz = ({ data }) => {
 // Block visualization component - shows actual transaction breakdown
 const BlockViz = ({ block }) => {
   const txCount = block?.txCount || 0;
-  const voteCount = block?.voteCount || Math.floor(txCount * 0.7); // Votes are ~70% of txs
-  const nonVoteCount = block?.nonVoteCount || (txCount - voteCount);
+  const voteCount = block?.voteCount || 0;
+  const transferCount = block?.transferCount || 0;
+  const programCount = block?.programCount || 0;
+  const otherCount = block?.otherCount || (txCount - voteCount);
   
   const formatTimeAgo = (blockTime) => {
     if (!blockTime) return 'just now';
@@ -78,39 +85,41 @@ const BlockViz = ({ block }) => {
     return `${Math.floor(diff / 3600)}h ago`;
   };
 
-  // Visual bars representing transaction types
-  const voteHeight = txCount > 0 ? Math.max(10, (voteCount / txCount) * 100) : 50;
-  const nonVoteHeight = txCount > 0 ? Math.max(10, (nonVoteCount / txCount) * 100) : 50;
+  const total = txCount || 1;
 
   return (
     <div className="relative group cursor-pointer">
       <div className="relative w-[120px] h-[180px] md:w-[140px] md:h-[200px] bg-gradient-to-b from-purple-500/30 to-purple-600/20 border border-white/10 rounded-lg overflow-hidden transition-all duration-300 hover:border-cyan-500/50 hover:scale-[1.02]">
         {/* Transaction type visualization */}
-        <div className="absolute inset-2 bottom-16 flex flex-col gap-1">
-          <div 
-            className="bg-purple-500/40 rounded flex items-end justify-center"
-            style={{ height: `${voteHeight}%` }}
-          >
-            <span className="text-[8px] text-purple-300 pb-1">{voteCount}</span>
-          </div>
-          <div 
-            className="bg-emerald-500/40 rounded flex items-end justify-center"
-            style={{ height: `${nonVoteHeight}%` }}
-          >
-            <span className="text-[8px] text-emerald-300 pb-1">{nonVoteCount}</span>
-          </div>
+        <div className="absolute inset-2 bottom-20 flex flex-col gap-[2px]">
+          {voteCount > 0 && (
+            <div className="bg-purple-500/50 rounded flex items-center justify-center" style={{ flex: voteCount / total }}>
+              <span className="text-[7px] text-purple-200">{voteCount}</span>
+            </div>
+          )}
+          {transferCount > 0 && (
+            <div className="bg-emerald-500/50 rounded flex items-center justify-center" style={{ flex: transferCount / total }}>
+              <span className="text-[7px] text-emerald-200">{transferCount}</span>
+            </div>
+          )}
+          {(programCount > 0 || otherCount > 0) && (
+            <div className="bg-yellow-500/50 rounded flex items-center justify-center" style={{ flex: (programCount + otherCount) / total }}>
+              <span className="text-[7px] text-yellow-200">{programCount + otherCount}</span>
+            </div>
+          )}
         </div>
         
         <div className="absolute top-1 left-2 right-2">
-          <p className="text-[10px] text-cyan-400 font-mono">#{block?.slot?.toLocaleString()}</p>
+          <p className="text-[9px] text-cyan-400 font-mono">#{block?.slot?.toLocaleString()}</p>
         </div>
         
-        <div className="absolute bottom-0 left-0 right-0 bg-black/50 p-2">
-          <p className="text-white font-bold text-sm">{txCount.toLocaleString()} txns</p>
-          <p className="text-[9px] text-gray-400">{formatTimeAgo(block?.blockTime)}</p>
-          <div className="flex gap-1 text-[8px]">
+        <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2">
+          <p className="text-white font-bold text-sm">{txCount.toLocaleString()}</p>
+          <p className="text-[8px] text-gray-400">{formatTimeAgo(block?.blockTime)}</p>
+          <div className="flex flex-wrap gap-1 text-[7px]">
             <span className="text-purple-400">vote</span>
-            <span className="text-emerald-400">other</span>
+            <span className="text-emerald-400">xfer</span>
+            <span className="text-yellow-400">prog</span>
           </div>
         </div>
       </div>
@@ -183,50 +192,72 @@ export default function Dashboard() {
     }
   };
 
-  // Get aggregated blocks based on interval
+  // Get aggregated blocks based on interval - rolling window from actual block data
   // X1 has ~2.5 slots/second = 150 slots/min = 1500 slots/10min
-  // 216,000 slots per epoch (~24 hours)
   const getAggregatedBlocks = () => {
     if (mempoolInterval === 'blocks') return null;
     
-    const tps = dashboardData?.tps || 3000;
+    const now = Date.now() / 1000;
     const aggregated = [];
     
-    if (mempoolInterval === '1m') {
-      // 1 minute = ~150 slots, show 1m through 10m
-      for (let i = 1; i <= 10; i++) {
-        const slots = i * 150; // 150 slots per minute
-        const totalTxns = Math.round(tps * i * 60); // TPS * seconds
-        const voteCount = Math.round(totalTxns * 0.7); // ~70% are vote txs
-        const nonVoteCount = totalTxns - voteCount;
+    // Calculate from actual fetched blocks when available
+    const calcFromBlocks = (startSecondsAgo, endSecondsAgo, label) => {
+      const startTime = now - startSecondsAgo;
+      const endTime = now - endSecondsAgo;
+      
+      const relevantBlocks = historicalBlocks.filter(b => 
+        b.blockTime && b.blockTime >= startTime && b.blockTime <= endTime
+      );
+      
+      if (relevantBlocks.length > 0) {
+        const totalTxns = relevantBlocks.reduce((sum, b) => sum + (b.txCount || 0), 0);
+        const voteCount = relevantBlocks.reduce((sum, b) => sum + (b.voteCount || 0), 0);
+        const transferCount = relevantBlocks.reduce((sum, b) => sum + (b.transferCount || 0), 0);
+        const programCount = relevantBlocks.reduce((sum, b) => sum + (b.programCount || b.otherCount || 0), 0);
         
-        aggregated.push({
+        return {
           totalTxns,
-          slots,
-          label: `${i}m`,
+          slots: relevantBlocks.length,
+          label,
           voteCount,
-          nonVoteCount
-        });
+          transferCount,
+          programCount,
+          hasData: true
+        };
+      }
+      
+      // Estimate based on TPS if no block data
+      const seconds = startSecondsAgo - endSecondsAgo;
+      const tps = dashboardData?.tps || 3000;
+      const totalTxns = Math.round(tps * seconds);
+      const slots = Math.round(seconds * 2.5);
+      
+      return {
+        totalTxns,
+        slots,
+        label,
+        voteCount: Math.round(totalTxns * 0.7),
+        transferCount: Math.round(totalTxns * 0.15),
+        programCount: Math.round(totalTxns * 0.15),
+        hasData: false
+      };
+    };
+    
+    if (mempoolInterval === '1m') {
+      // Rolling 1-minute windows: 0-1m, 1-2m, 2-3m, etc.
+      for (let i = 0; i < 10; i++) {
+        const label = i === 0 ? 'Now' : `${i}m`;
+        aggregated.push(calcFromBlocks((i + 1) * 60, i * 60, label));
       }
     } else {
-      // 10 minute = ~1500 slots, show 10m through 100m
-      for (let i = 1; i <= 10; i++) {
-        const minutes = i * 10;
-        const slots = minutes * 150; // 150 slots per minute
-        const totalTxns = Math.round(tps * minutes * 60);
-        const voteCount = Math.round(totalTxns * 0.7);
-        const nonVoteCount = totalTxns - voteCount;
-        
-        aggregated.push({
-          totalTxns,
-          slots,
-          label: `${minutes}m`,
-          voteCount,
-          nonVoteCount
-        });
+      // Rolling 10-minute windows
+      for (let i = 0; i < 10; i++) {
+        const label = i === 0 ? 'Now' : `${i * 10}m`;
+        aggregated.push(calcFromBlocks((i + 1) * 600, i * 600, label));
       }
     }
-    return aggregated;
+    
+    return aggregated.reverse(); // Show oldest to newest (left to right)
   };
 
   useEffect(() => {

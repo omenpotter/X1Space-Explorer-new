@@ -1,27 +1,51 @@
 // X1 Blockchain RPC Service
-// Uses Solana-compatible JSON-RPC API
+// Uses Solana-compatible JSON-RPC API with fallback endpoints
 
-const X1_RPC_ENDPOINT = 'https://rpc.mainnet.x1.xyz';
+const RPC_ENDPOINTS = [
+  'https://rpc.mainnet.x1.xyz',
+  'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38',
+  'https://rpc.x1galaxy.io/'
+];
 
-// Helper to make RPC calls
+let currentEndpointIndex = 0;
+
+// Helper to make RPC calls with fallback
 async function rpcCall(method, params = []) {
-  const response = await fetch(X1_RPC_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: Date.now(),
-      method,
-      params
-    })
-  });
+  let lastError = null;
   
-  const data = await response.json();
-  if (data.error) {
-    console.error('RPC Error:', data.error);
-    throw new Error(data.error.message);
+  for (let i = 0; i < RPC_ENDPOINTS.length; i++) {
+    const endpointIndex = (currentEndpointIndex + i) % RPC_ENDPOINTS.length;
+    const endpoint = RPC_ENDPOINTS[endpointIndex];
+    
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: Date.now(),
+          method,
+          params
+        })
+      });
+      
+      const data = await response.json();
+      if (data.error) {
+        lastError = new Error(data.error.message);
+        continue;
+      }
+      
+      // Success - update preferred endpoint
+      currentEndpointIndex = endpointIndex;
+      return data.result;
+    } catch (err) {
+      lastError = err;
+      continue;
+    }
   }
-  return data.result;
+  
+  console.error('All RPC endpoints failed:', lastError);
+  throw lastError || new Error('All RPC endpoints failed');
 }
 
 // Get current slot (block height)
@@ -201,19 +225,19 @@ export async function getDashboardData() {
   };
 }
 
-// Get recent blocks with details
+// Get recent blocks with details including transaction type breakdown
 export async function getRecentBlocks(count = 10) {
   const currentSlot = await getSlot();
   const blocks = [];
   
-  // Fetch blocks in parallel - use 'signatures' mode for faster response
+  // Fetch blocks in parallel with full transaction details
   const blockPromises = [];
   for (let i = 0; i < count; i++) {
     const slot = currentSlot - i;
     blockPromises.push(
       rpcCall('getBlock', [slot, { 
         encoding: 'json',
-        transactionDetails: 'signatures',
+        transactionDetails: 'full',
         rewards: false,
         maxSupportedTransactionVersion: 0
       }])
@@ -227,8 +251,45 @@ export async function getRecentBlocks(count = 10) {
   for (const result of results) {
     if (result && result.block) {
       const { slot, block } = result;
-      // When using 'signatures' mode, block.signatures contains the transaction signatures
-      const txCount = block.signatures?.length || 0;
+      const transactions = block.transactions || [];
+      const txCount = transactions.length;
+      
+      // Categorize transactions by type
+      let voteCount = 0;
+      let transferCount = 0;
+      let programCount = 0;
+      let otherCount = 0;
+      
+      transactions.forEach(tx => {
+        const message = tx.transaction?.message;
+        const instructions = message?.instructions || [];
+        const accountKeys = message?.accountKeys || [];
+        
+        // Check if it's a vote transaction
+        const isVote = instructions.some(ix => {
+          const programId = accountKeys[ix.programIdIndex];
+          return programId === 'Vote111111111111111111111111111111111111111';
+        });
+        
+        if (isVote) {
+          voteCount++;
+        } else {
+          // Check for system transfers
+          const isTransfer = instructions.some(ix => {
+            const programId = accountKeys[ix.programIdIndex];
+            return programId === '11111111111111111111111111111111';
+          });
+          
+          if (isTransfer) {
+            transferCount++;
+          } else if (instructions.length > 0) {
+            programCount++;
+          } else {
+            otherCount++;
+          }
+        }
+      });
+      
       blocks.push({
         slot,
         parentSlot: block.parentSlot,
@@ -237,6 +298,10 @@ export async function getRecentBlocks(count = 10) {
         blockTime: block.blockTime,
         blockHeight: block.blockHeight,
         txCount,
+        voteCount,
+        transferCount,
+        programCount,
+        otherCount: otherCount + programCount, // Combine program and other for simplicity
         rewards: []
       });
     }
@@ -246,6 +311,21 @@ export async function getRecentBlocks(count = 10) {
   blocks.sort((a, b) => b.slot - a.slot);
   
   return blocks;
+}
+
+// Get epoch schedule and history
+export async function getEpochSchedule() {
+  return await rpcCall('getEpochSchedule');
+}
+
+// Get inflation rate
+export async function getInflationRate() {
+  return await rpcCall('getInflationRate');
+}
+
+// Get first available block
+export async function getFirstAvailableBlock() {
+  return await rpcCall('getFirstAvailableBlock');
 }
 
 // Known validator data from x1validators.xyz (vote pubkey -> info)
