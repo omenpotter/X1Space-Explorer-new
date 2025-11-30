@@ -26,117 +26,7 @@ import X1Rpc from '../components/x1/X1RpcService';
 import ThemeToggle from '../components/layout/ThemeToggle';
 import MobileNav from '../components/layout/MobileNav';
 
-// Block visualization component for aggregated time view
-const AggregatedBlockViz = ({ data }) => {
-  const { totalTxns, slots, label, voteCount, transferCount, programCount } = data;
-  
-  const total = totalTxns || 1;
-  const voteRatio = voteCount / total;
-  const transferRatio = transferCount / total;
-  const programRatio = programCount / total;
-
-  return (
-    <div className="relative group cursor-pointer">
-      <div className="relative w-[140px] h-[200px] md:w-[160px] md:h-[220px] bg-gradient-to-b from-cyan-500/20 to-blue-600/20 border border-white/10 rounded-lg overflow-hidden transition-all duration-300 hover:border-cyan-500/50 hover:scale-[1.02]">
-        {/* Visual representation of tx types */}
-        <div className="absolute inset-2 bottom-24 flex flex-col gap-[2px]">
-          <div className="bg-purple-500/50 rounded flex items-center justify-center" style={{ flex: Math.max(0.1, voteRatio) }}>
-            <span className="text-[8px] text-purple-200">Vote</span>
-          </div>
-          <div className="bg-emerald-500/50 rounded flex items-center justify-center" style={{ flex: Math.max(0.1, transferRatio) }}>
-            <span className="text-[8px] text-emerald-200">Transfer</span>
-          </div>
-          <div className="bg-yellow-500/50 rounded flex items-center justify-center" style={{ flex: Math.max(0.1, programRatio) }}>
-            <span className="text-[8px] text-yellow-200">Program</span>
-          </div>
-        </div>
-        
-        <div className="absolute top-2 right-2">
-          <p className="text-sm text-cyan-400 font-bold">{label}</p>
-        </div>
-        
-        <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2">
-          <p className="text-white font-bold text-lg">{totalTxns.toLocaleString()}</p>
-          <p className="text-[10px] text-gray-400">{slots.toLocaleString()} slots</p>
-          <div className="flex flex-wrap gap-1 text-[8px] mt-1">
-            <span className="text-purple-400">{voteCount.toLocaleString()} vote</span>
-            <span className="text-emerald-400">{transferCount.toLocaleString()} xfer</span>
-            <span className="text-yellow-400">{programCount.toLocaleString()} prog</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Block visualization component - shows actual transaction breakdown
-const BlockViz = ({ block }) => {
-  const txCount = block?.txCount || 0;
-  const voteCount = block?.voteCount || 0;
-  const transferCount = block?.transferCount || 0;
-  const programCount = block?.programCount || 0;
-  const otherCount = block?.otherCount || (txCount - voteCount);
-  
-  const formatTimeAgo = (blockTime) => {
-    if (!blockTime) return 'just now';
-    const diff = (Date.now() / 1000) - blockTime;
-    if (diff < 60) return `${Math.floor(diff)}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    return `${Math.floor(diff / 3600)}h ago`;
-  };
-
-  const total = txCount || 1;
-
-  return (
-    <div className="relative group cursor-pointer">
-      <div className="relative w-[120px] h-[180px] md:w-[140px] md:h-[200px] bg-gradient-to-b from-purple-500/30 to-purple-600/20 border border-white/10 rounded-lg overflow-hidden transition-all duration-300 hover:border-cyan-500/50 hover:scale-[1.02]">
-        {/* Transaction type visualization */}
-        <div className="absolute inset-2 bottom-20 flex flex-col gap-[2px]">
-          {voteCount > 0 && (
-            <div className="bg-purple-500/50 rounded flex items-center justify-center" style={{ flex: voteCount / total }}>
-              <span className="text-[7px] text-purple-200">{voteCount}</span>
-            </div>
-          )}
-          {transferCount > 0 && (
-            <div className="bg-emerald-500/50 rounded flex items-center justify-center" style={{ flex: transferCount / total }}>
-              <span className="text-[7px] text-emerald-200">{transferCount}</span>
-            </div>
-          )}
-          {(programCount > 0 || otherCount > 0) && (
-            <div className="bg-yellow-500/50 rounded flex items-center justify-center" style={{ flex: (programCount + otherCount) / total }}>
-              <span className="text-[7px] text-yellow-200">{programCount + otherCount}</span>
-            </div>
-          )}
-        </div>
-        
-        <div className="absolute top-1 left-2 right-2">
-          <p className="text-[9px] text-cyan-400 font-mono">#{block?.slot?.toLocaleString()}</p>
-        </div>
-        
-        <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2">
-          <p className="text-white font-bold text-sm">{txCount.toLocaleString()}</p>
-          <p className="text-[8px] text-gray-400">{formatTimeAgo(block?.blockTime)}</p>
-          <div className="flex flex-wrap gap-1 text-[7px]">
-            <span className="text-purple-400">vote</span>
-            <span className="text-emerald-400">xfer</span>
-            <span className="text-yellow-400">prog</span>
-          </div>
-        </div>
-      </div>
-      
-      {block?.slot && (
-        <div className="text-center mt-1">
-          <Link 
-            to={createPageUrl('BlockDetail') + `?slot=${block.slot}`}
-            className="text-cyan-400 hover:underline text-xs font-mono"
-          >
-            {block.slot.toLocaleString()}
-          </Link>
-        </div>
-      )}
-    </div>
-  );
-};
+import { MempoolAggregatedViz, MempoolBlockViz, MempoolLegend } from '../components/x1/MempoolViz';
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -148,6 +38,7 @@ export default function Dashboard() {
   const [tpsInterval, setTpsInterval] = useState('1m');
   const [mempoolInterval, setMempoolInterval] = useState('blocks');
   const [historicalBlocks, setHistoricalBlocks] = useState([]);
+  const [performanceData, setPerformanceData] = useState([]);
 
   // Aggregate TPS data based on selected interval
   const getAggregatedTpsData = () => {
@@ -174,14 +65,16 @@ export default function Dashboard() {
   // Fetch dashboard data
   const fetchData = async () => {
     try {
-      const [data, blocks] = await Promise.all([
+      const [data, blocks, perfHistory] = await Promise.all([
         X1Rpc.getDashboardData(),
-        X1Rpc.getRecentBlocks(10) // Fetch 10 blocks for display
+        X1Rpc.getRecentBlocks(10), // Fetch 10 blocks for display
+        X1Rpc.getPerformanceHistory(60) // Get 60 minutes of performance data
       ]);
       
       setDashboardData(data);
       setRecentBlocks(blocks);
       setHistoricalBlocks(blocks);
+      setPerformanceData(perfHistory);
       setLastUpdate(new Date());
       setError(null);
     } catch (err) {
@@ -192,16 +85,12 @@ export default function Dashboard() {
     }
   };
 
-  // Get aggregated blocks based on interval - uses TPS-based calculation for consistent data
-  // X1 has ~2.5 slots/second = 150 slots/min = 1500 slots/10min
+  // Get aggregated blocks based on interval - uses ACTUAL performance sample data from RPC
   const getAggregatedBlocks = () => {
     if (mempoolInterval === 'blocks') return null;
     
-    const aggregated = [];
-    const tps = dashboardData?.tps || 3000;
-    
     // Use actual block data to calculate tx type ratios
-    let voteRatio = 0.70, transferRatio = 0.15, programRatio = 0.15;
+    let voteRatio = 0.70, transferRatio = 0.12, programRatio = 0.09, otherRatio = 0.09;
     if (recentBlocks.length > 0) {
       const totalTx = recentBlocks.reduce((sum, b) => sum + (b.txCount || 0), 0);
       const totalVote = recentBlocks.reduce((sum, b) => sum + (b.voteCount || 0), 0);
@@ -214,36 +103,46 @@ export default function Dashboard() {
       }
     }
     
+    const aggregated = [];
+    
     if (mempoolInterval === '1m') {
-      // Each 1-minute window: ~150 slots, tps * 60 transactions
+      // Use actual performance samples - each sample is ~1 minute
       for (let i = 0; i < 10; i++) {
-        const label = i === 0 ? 'Now' : `${i}m ago`;
-        const slots = 150; // ~2.5 slots/sec * 60 sec
-        const totalTxns = Math.round(tps * 60);
+        const sample = performanceData[i];
+        const totalTxns = sample?.transactions || (dashboardData?.tps || 3000) * 60;
+        const slots = sample?.slots || 150;
+        
         aggregated.push({
           totalTxns,
           slots,
-          label,
+          label: i === 0 ? 'Now' : `${i}m ago`,
           voteCount: Math.round(totalTxns * voteRatio),
           transferCount: Math.round(totalTxns * transferRatio),
           programCount: Math.round(totalTxns * programRatio),
-          hasData: true
+          timestamp: Date.now() - (i * 60 * 1000)
         });
       }
     } else {
-      // Each 10-minute window: ~1500 slots, tps * 600 transactions
+      // Aggregate 10-minute windows from performance samples
       for (let i = 0; i < 10; i++) {
-        const label = i === 0 ? 'Now' : `${i * 10}m ago`;
-        const slots = 1500; // ~2.5 slots/sec * 600 sec
-        const totalTxns = Math.round(tps * 600);
+        // Sum 10 consecutive 1-minute samples
+        let totalTxns = 0;
+        let totalSlots = 0;
+        for (let j = 0; j < 10; j++) {
+          const sampleIdx = i * 10 + j;
+          const sample = performanceData[sampleIdx];
+          totalTxns += sample?.transactions || (dashboardData?.tps || 3000) * 60;
+          totalSlots += sample?.slots || 150;
+        }
+        
         aggregated.push({
           totalTxns,
-          slots,
-          label,
+          slots: totalSlots,
+          label: i === 0 ? 'Now' : `${i * 10}m ago`,
           voteCount: Math.round(totalTxns * voteRatio),
           transferCount: Math.round(totalTxns * transferRatio),
           programCount: Math.round(totalTxns * programRatio),
-          hasData: true
+          timestamp: Date.now() - (i * 10 * 60 * 1000)
         });
       }
     }
@@ -420,18 +319,21 @@ export default function Dashboard() {
           </div>
 
           <div className="flex-1">
-            <div className="flex items-center gap-2 overflow-x-auto pb-4">
-              {/* Show 10 continuous blocks or aggregated time views - auto-updating */}
-              <div className="flex gap-2" key={mempoolInterval + '-' + (recentBlocks[0]?.slot || 0)}>
-                {mempoolInterval === 'blocks' ? (
-                  recentBlocks.slice(0, 10).map((block) => (
-                    <BlockViz key={block.slot} block={block} />
-                  ))
-                ) : (
-                  getAggregatedBlocks()?.slice(0, 10).map((agg, i) => (
-                    <AggregatedBlockViz key={`${mempoolInterval}-${i}-${dashboardData?.slot}`} data={agg} />
-                  ))
-                )}
+            <div className="flex flex-col gap-2">
+              <MempoolLegend />
+              <div className="flex items-center gap-2 overflow-x-auto pb-4">
+                {/* Show 10 continuous blocks or aggregated time views - auto-updating */}
+                <div className="flex gap-2" key={mempoolInterval + '-' + (recentBlocks[0]?.slot || 0)}>
+                  {mempoolInterval === 'blocks' ? (
+                    recentBlocks.slice(0, 10).map((block, i) => (
+                      <MempoolBlockViz key={block.slot} block={block} isNew={i === 0} />
+                    ))
+                  ) : (
+                    getAggregatedBlocks()?.slice(0, 10).map((agg, i) => (
+                      <MempoolAggregatedViz key={`${mempoolInterval}-${i}-${dashboardData?.slot}`} data={agg} label={agg.label} />
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>
