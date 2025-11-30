@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Zap, Clock, Loader2, ChevronLeft, ChevronRight, TrendingUp, ExternalLink, RefreshCw
+  Loader2, ChevronLeft, RefreshCw, AlertCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -13,129 +13,132 @@ export default function EpochHistory() {
   const [currentEpoch, setCurrentEpoch] = useState(null);
   const [loading, setLoading] = useState(true);
   const [epochHistory, setEpochHistory] = useState([]);
-  const [validators, setValidators] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [epochSchedule, setEpochSchedule] = useState(null);
   const [error, setError] = useState(null);
+  const [loadingProgress, setLoadingProgress] = useState(0);
 
   const fetchData = async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
       setError(null);
+      setLoadingProgress(5);
       
-      // Fetch all data in parallel including REAL block production stats
-      const [epochInfo, validatorData, dashData, epochHistoryData] = await Promise.all([
-        X1Rpc.getEpochInfo(),
-        X1Rpc.getValidatorDetails(),
-        X1Rpc.getDashboardData(),
-        X1Rpc.getEpochHistoryData() // Get actual skip rate from block production
-      ]);
-      
+      // Get basic epoch info first
+      const epochInfo = await X1Rpc.getEpochInfo();
       if (!epochInfo) {
         throw new Error('Failed to fetch epoch info');
       }
       
       setCurrentEpoch(epochInfo);
-      setValidators(validatorData || []);
+      setLoadingProgress(15);
       
-      const activeValidators = (validatorData || []).filter(v => !v.delinquent).length;
-      const totalStake = (validatorData || []).reduce((sum, v) => sum + v.activatedStake, 0) / 1e6;
       const slotsPerEpoch = epochInfo.slotsInEpoch || 216000;
-      const currentTps = dashData?.tps || 3000;
+      setEpochSchedule({ slotsPerEpoch });
       
-      // Use ACTUAL skip rate from block production RPC call for current epoch
-      const actualSkipRate = parseFloat(epochHistoryData?.skipRate || '0') / 100;
-      const actualProduced = epochHistoryData?.producedSlots || epochInfo.slotIndex;
-      const actualSkipped = epochHistoryData?.skippedSlots || 0;
+      // Get current epoch's block production (this is accurate)
+      const currentBlockProd = await X1Rpc.getBlockProduction();
+      setLoadingProgress(25);
       
-      // Build epoch history - fetch REAL data for each epoch
-      const history = [];
+      let currentProduced = epochInfo.slotIndex;
+      let currentSkipped = 0;
+      let currentSkipRate = '0';
       
-      // For current epoch, use the data we already have
-      history.push({
-        epoch: epochInfo.epoch,
-        validators: activeValidators,
-        totalStake,
-        avgTps: currentTps,
-        transactions: Math.round(currentTps * epochInfo.slotIndex * 0.4),
-        duration: Math.round(epochInfo.slotIndex * 0.4),
-        startSlot: epochInfo.epoch * slotsPerEpoch,
-        endSlot: epochInfo.absoluteSlot,
-        produced: actualProduced,
-        skipped: actualSkipped,
-        skipRate: epochHistoryData?.skipRate || '0',
-        isCurrent: true
-      });
-      
-      // For historical epochs, fetch real block production data in parallel
-      // Note: RPC may not have data for very old epochs
-      const epochPromises = [];
-      for (let i = 1; i < 25; i++) {
-        const epoch = epochInfo.epoch - i;
-        epochPromises.push(
-          X1Rpc.getBlockProductionForEpoch(epoch, slotsPerEpoch)
-            .then(epochProd => ({ epoch, epochProd, error: null }))
-            .catch(e => ({ epoch, epochProd: null, error: e }))
-        );
+      if (currentBlockProd?.value?.byIdentity) {
+        const totals = Object.values(currentBlockProd.value.byIdentity).reduce((acc, [leader, produced]) => {
+          acc.leader += leader;
+          acc.produced += produced;
+          return acc;
+        }, { leader: 0, produced: 0 });
+        
+        if (totals.leader > 0) {
+          currentSkipped = totals.leader - totals.produced;
+          currentProduced = totals.produced;
+          currentSkipRate = ((currentSkipped / totals.leader) * 100).toFixed(4);
+        }
       }
       
-      const epochResults = await Promise.all(epochPromises);
+      // Build history array
+      const history = [];
       
-      for (const result of epochResults) {
-        const { epoch, epochProd, error } = result;
-        let producedSlots = slotsPerEpoch;
-        let skippedSlots = 0;
-        let skipRateStr = '0';
-        let isEstimated = false;
+      // Add current epoch with REAL data
+      history.push({
+        epoch: epochInfo.epoch,
+        produced: currentProduced,
+        skipped: currentSkipped,
+        skipRate: currentSkipRate,
+        isCurrent: true,
+        isEstimated: false,
+        dataSource: 'live'
+      });
+      
+      setLoadingProgress(35);
+      
+      // Fetch historical epochs - X1 RPC supports getBlockProduction with slot range
+      // However, historical data may be limited. We'll fetch what's available.
+      const epochsToFetch = 24;
+      let fetchedCount = 0;
+      
+      for (let i = 1; i <= epochsToFetch; i++) {
+        const epoch = epochInfo.epoch - i;
+        if (epoch < 0) break;
         
-        if (epochProd?.value?.byIdentity) {
-          const totals = Object.values(epochProd.value.byIdentity).reduce((acc, [leader, produced]) => {
-            acc.leader += leader;
-            acc.produced += produced;
-            return acc;
-          }, { leader: 0, produced: 0 });
+        const firstSlot = epoch * slotsPerEpoch;
+        const lastSlot = (epoch + 1) * slotsPerEpoch - 1;
+        
+        let produced = slotsPerEpoch;
+        let skipped = 0;
+        let skipRate = '0';
+        let isEstimated = true;
+        let dataSource = 'estimated';
+        
+        try {
+          // Try to get actual block production for this epoch's slot range
+          const epochProd = await X1Rpc.getBlockProduction(firstSlot, lastSlot);
           
-          if (totals.leader > 0) {
-            skippedSlots = totals.leader - totals.produced;
-            producedSlots = totals.produced;
-            skipRateStr = ((skippedSlots / totals.leader) * 100).toFixed(4);
-          } else {
-            // No block production data available - mark as estimated
-            isEstimated = true;
-            skippedSlots = Math.floor(slotsPerEpoch * actualSkipRate);
-            producedSlots = slotsPerEpoch - skippedSlots;
-            skipRateStr = (actualSkipRate * 100).toFixed(4);
+          if (epochProd?.value?.byIdentity) {
+            const totals = Object.values(epochProd.value.byIdentity).reduce((acc, [leader, prod]) => {
+              acc.leader += leader;
+              acc.produced += prod;
+              return acc;
+            }, { leader: 0, produced: 0 });
+            
+            if (totals.leader > 0) {
+              skipped = totals.leader - totals.produced;
+              produced = totals.produced;
+              skipRate = ((skipped / totals.leader) * 100).toFixed(4);
+              isEstimated = false;
+              dataSource = 'onchain';
+            }
           }
-        } else {
-          // If we can't get historical data, use current epoch's rate as estimate
+        } catch (e) {
+          // RPC doesn't have data for this epoch - use N/A
+          produced = slotsPerEpoch;
+          skipped = 0;
+          skipRate = 'N/A';
           isEstimated = true;
-          skippedSlots = Math.floor(slotsPerEpoch * actualSkipRate);
-          producedSlots = slotsPerEpoch - skippedSlots;
-          skipRateStr = (actualSkipRate * 100).toFixed(4);
+          dataSource = 'unavailable';
         }
         
         history.push({
           epoch,
-          validators: activeValidators,
-          totalStake,
-          avgTps: currentTps,
-          transactions: Math.round(currentTps * slotsPerEpoch * 0.4),
-          duration: Math.round(slotsPerEpoch * 0.4),
-          startSlot: epoch * slotsPerEpoch,
-          endSlot: (epoch + 1) * slotsPerEpoch - 1,
-          produced: producedSlots,
-          skipped: skippedSlots,
-          skipRate: isEstimated ? skipRateStr + '*' : skipRateStr,
+          produced,
+          skipped,
+          skipRate,
           isCurrent: false,
-          isEstimated
+          isEstimated,
+          dataSource
         });
+        
+        fetchedCount++;
+        setLoadingProgress(35 + Math.round((fetchedCount / epochsToFetch) * 60));
       }
       
-      // Sort history by epoch descending
+      // Sort by epoch descending
       history.sort((a, b) => b.epoch - a.epoch);
       
       setEpochHistory(history);
-      setEpochSchedule({ slotsPerEpoch });
+      setLoadingProgress(100);
     } catch (err) {
       console.error('Epoch fetch error:', err);
       setError(err.message);
@@ -147,9 +150,16 @@ export default function EpochHistory() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(() => fetchData(), 60000);
+    const interval = setInterval(() => fetchData(), 120000); // Refresh every 2 minutes
     return () => clearInterval(interval);
   }, []);
+
+  const formatNumber = (num) => {
+    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+    if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K';
+    return num?.toLocaleString() || '0';
+  };
 
   const formatDuration = (seconds) => {
     const days = Math.floor(seconds / 86400);
@@ -160,26 +170,31 @@ export default function EpochHistory() {
     return `${mins}m`;
   };
 
-  const formatNumber = (num) => {
-    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
-    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
-    if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K';
-    return num?.toLocaleString() || '0';
-  };
-
-  const chartData = epochHistory.slice(0, 25).reverse().map(e => ({
-    epoch: e.epoch,
-    stake: e.totalStake,
-    tps: e.avgTps,
-    validators: e.validators,
-    produced: e.produced,
-    skipped: e.skipped
-  }));
+  const chartData = epochHistory
+    .filter(e => e.dataSource !== 'unavailable')
+    .slice(0, 25)
+    .reverse()
+    .map(e => ({
+      epoch: e.epoch,
+      produced: e.produced,
+      skipped: e.skipped,
+      skipRate: e.skipRate === 'N/A' ? 0 : parseFloat(e.skipRate)
+    }));
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0a0f1a] text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-cyan-400 mx-auto mb-4" />
+          <p className="text-gray-400 mb-2">Loading Epoch History...</p>
+          <div className="w-48 h-2 bg-gray-800 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-cyan-500 transition-all duration-300"
+              style={{ width: `${loadingProgress}%` }}
+            />
+          </div>
+          <p className="text-gray-500 text-xs mt-2">Fetching on-chain data... {loadingProgress}%</p>
+        </div>
       </div>
     );
   }
@@ -188,6 +203,7 @@ export default function EpochHistory() {
     return (
       <div className="min-h-screen bg-[#0a0f1a] text-white flex items-center justify-center">
         <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <p className="text-red-400 mb-4">Error: {error}</p>
           <Button onClick={() => fetchData()} className="bg-cyan-500">Retry</Button>
         </div>
@@ -195,7 +211,6 @@ export default function EpochHistory() {
     );
   }
 
-  const activeValidatorCount = validators.filter(v => !v.delinquent).length;
   const slotsPerEpoch = epochSchedule?.slotsPerEpoch || 216000;
 
   return (
@@ -210,7 +225,7 @@ export default function EpochHistory() {
               </Link>
               <span className="text-gray-400">|</span>
               <span className="text-white text-xl font-light">Epoch History</span>
-              <Badge className="bg-transparent border border-white/20 text-gray-400">( Mainnet )</Badge>
+              <Badge className="bg-transparent border border-white/20 text-gray-400">Mainnet</Badge>
             </div>
             
             <Button 
@@ -228,6 +243,13 @@ export default function EpochHistory() {
       </header>
 
       <main className="max-w-[1800px] mx-auto px-4 py-6">
+        {/* Data Source Notice */}
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-6">
+          <p className="text-blue-400 text-sm">
+            ℹ️ All data is fetched directly from X1 RPC. Historical epochs may show "N/A" if the RPC doesn't have archived block production data for older slot ranges.
+          </p>
+        </div>
+
         {/* Current Epoch */}
         {currentEpoch && (
           <div className="bg-[#0d1525] border border-white/10 rounded-lg p-6 mb-6">
@@ -237,12 +259,12 @@ export default function EpochHistory() {
                 <p className="text-4xl font-bold text-white">{currentEpoch.epoch}</p>
               </div>
               <div className="text-center">
-                <p className="text-gray-400 text-sm">Active Validators</p>
-                <p className="text-3xl font-bold text-cyan-400">{activeValidatorCount}</p>
-              </div>
-              <div className="text-center">
                 <p className="text-gray-400 text-sm">Slots per Epoch</p>
                 <p className="text-xl font-bold text-white">{slotsPerEpoch.toLocaleString()}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-gray-400 text-sm">Current Slot</p>
+                <p className="text-xl font-bold text-cyan-400">{currentEpoch.absoluteSlot?.toLocaleString()}</p>
               </div>
               <Badge className="bg-emerald-500/20 text-emerald-400 border-0 px-4 py-2">In Progress</Badge>
             </div>
@@ -267,110 +289,112 @@ export default function EpochHistory() {
         )}
 
         {/* Production Chart */}
-        <div className="bg-[#0d1525] border border-white/10 rounded-lg p-4 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-gray-400 text-sm">BLOCK PRODUCTION (25 epochs)</h3>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 bg-emerald-500/70 rounded-sm" />
-                <span className="text-gray-400 text-xs">Produced</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 bg-red-500/70 rounded-sm" />
-                <span className="text-gray-400 text-xs">Skipped</span>
+        {chartData.length > 0 && (
+          <div className="bg-[#0d1525] border border-white/10 rounded-lg p-4 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-gray-400 text-sm">BLOCK PRODUCTION BY EPOCH</h3>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 bg-emerald-500/70 rounded-sm" />
+                  <span className="text-gray-400 text-xs">Produced</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 bg-red-500/70 rounded-sm" />
+                  <span className="text-gray-400 text-xs">Skipped</span>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <XAxis dataKey="epoch" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0d1525', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} 
-                  formatter={(value, name) => [value.toLocaleString(), name === 'produced' ? 'Produced' : 'Skipped']}
-                />
-                <Bar dataKey="produced" fill="#10b981" stackId="a" />
-                <Bar dataKey="skipped" fill="#ef4444" stackId="a" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Charts Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <div className="bg-[#0d1525] border border-white/10 rounded-lg p-4">
-            <h3 className="text-gray-400 text-sm mb-4">VALIDATORS PER EPOCH</h3>
             <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <XAxis dataKey="epoch" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
-                  <YAxis domain={['auto', 'auto']} axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
-                  <Tooltip contentStyle={{ backgroundColor: '#0d1525', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} />
-                  <Area type="monotone" dataKey="validators" stroke="#06b6d4" fill="#06b6d4" fillOpacity={0.2} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          <div className="bg-[#0d1525] border border-white/10 rounded-lg p-4">
-            <h3 className="text-gray-400 text-sm mb-4">AVERAGE TPS PER EPOCH</h3>
-            <div className="h-[200px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
+                <BarChart data={chartData}>
                   <XAxis dataKey="epoch" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
-                  <Tooltip contentStyle={{ backgroundColor: '#0d1525', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} />
-                  <Area type="monotone" dataKey="tps" stroke="#eab308" fill="#eab308" fillOpacity={0.2} />
-                </AreaChart>
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#0d1525', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} 
+                    formatter={(value, name) => [value.toLocaleString(), name === 'produced' ? 'Produced Slots' : 'Skipped Slots']}
+                  />
+                  <Bar dataKey="produced" fill="#10b981" stackId="a" />
+                  <Bar dataKey="skipped" fill="#ef4444" stackId="a" />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Epoch Table */}
         <div className="bg-[#0d1525] border border-white/10 rounded-lg overflow-hidden">
+          <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+            <h3 className="text-white font-medium">Epoch Block Production</h3>
+            <div className="flex items-center gap-4 text-xs">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 bg-emerald-500 rounded-full" />
+                <span className="text-gray-400">On-chain data</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 bg-yellow-500 rounded-full" />
+                <span className="text-gray-400">Unavailable</span>
+              </span>
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/10">
                   <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Epoch</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Validators</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Total Stake</th>
+                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Slot Range</th>
                   <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Produced</th>
                   <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Skipped</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Avg TPS</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Transactions</th>
+                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Skip Rate</th>
+                  <th className="text-center text-gray-400 text-xs font-medium px-4 py-3">Data Source</th>
                   <th className="text-center text-gray-400 text-xs font-medium px-4 py-3">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {epochHistory.map((epoch) => {
-                  const totalSlots = epoch.produced + epoch.skipped;
-                  const prodPercent = totalSlots > 0 ? ((epoch.produced / totalSlots) * 100).toFixed(2) : '0.00';
-                  const skipPercent = totalSlots > 0 ? ((epoch.skipped / totalSlots) * 100).toFixed(2) : '0.00';
+                  const firstSlot = epoch.epoch * slotsPerEpoch;
+                  const lastSlot = (epoch.epoch + 1) * slotsPerEpoch - 1;
                   
                   return (
                     <tr key={epoch.epoch} className="border-b border-white/5 hover:bg-white/[0.02]">
                       <td className="px-4 py-3">
                         <span className="text-cyan-400 font-mono font-medium">{epoch.epoch}</span>
                       </td>
-                      <td className="px-4 py-3 text-right text-white">{epoch.validators}</td>
-                      <td className="px-4 py-3 text-right text-white font-mono">{epoch.totalStake.toFixed(1)}M XNT</td>
+                      <td className="px-4 py-3 text-right text-gray-500 font-mono text-xs">
+                        {formatNumber(firstSlot)} - {formatNumber(lastSlot)}
+                      </td>
                       <td className="px-4 py-3 text-right">
+                        {epoch.dataSource === 'unavailable' ? (
+                          <span className="text-gray-500">N/A</span>
+                        ) : (
                           <span className="text-emerald-400 font-mono">{epoch.produced.toLocaleString()}</span>
-                          <span className="text-gray-500 text-xs ml-1">[{(100 - parseFloat(epoch.skipRate)).toFixed(2)}%]</span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {epoch.dataSource === 'unavailable' ? (
+                          <span className="text-gray-500">N/A</span>
+                        ) : (
                           <span className="text-red-400 font-mono">{epoch.skipped.toLocaleString()}</span>
-                          <span className={`text-xs ml-1 ${epoch.isEstimated ? 'text-yellow-500' : 'text-gray-500'}`}>
-                            [{epoch.skipRate}%{epoch.isEstimated ? ' est.' : ''}]
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {epoch.skipRate === 'N/A' ? (
+                          <span className="text-gray-500">N/A</span>
+                        ) : (
+                          <span className={`font-mono ${parseFloat(epoch.skipRate) > 5 ? 'text-red-400' : 'text-gray-400'}`}>
+                            {epoch.skipRate}%
                           </span>
-                        </td>
-                      <td className="px-4 py-3 text-right text-yellow-400 font-mono">{epoch.avgTps.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-right text-gray-400 font-mono">{formatNumber(epoch.transactions)}</td>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {epoch.dataSource === 'onchain' || epoch.dataSource === 'live' ? (
+                          <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">On-chain</Badge>
+                        ) : (
+                          <Badge className="bg-yellow-500/20 text-yellow-400 border-0 text-xs">Unavailable</Badge>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-center">
                         {epoch.isCurrent ? (
-                          <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">Current</Badge>
+                          <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Current</Badge>
                         ) : (
                           <Badge className="bg-gray-500/20 text-gray-400 border-0 text-xs">Completed</Badge>
                         )}
