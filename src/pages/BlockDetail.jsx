@@ -93,12 +93,9 @@ export default function BlockDetail() {
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
-                  <span className="text-black font-black text-sm">X1</span>
-                </div>
-                <span className="text-white font-bold hidden sm:inline">X1</span>
-                <span className="text-cyan-400 font-bold hidden sm:inline">.space</span>
+              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
+                <ChevronLeft className="w-5 h-5 text-gray-400" />
+                <span className="font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
               </Link>
               <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
             </div>
