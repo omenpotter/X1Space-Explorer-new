@@ -204,64 +204,39 @@ export default function Dashboard() {
           ))}
         </div>
         
-        {/* Assembling X1 Space logo in blocks */}
+        {/* Assembling X1 logo - just 2 blocks */}
         <div className="relative z-10 flex flex-col items-center">
-          {/* X1 block assembly */}
-          <div className="flex gap-1 mb-2">
-            {/* X letter blocks */}
-            {[0, 1, 2].map((i) => (
-              <div
-                key={`x-${i}`}
-                className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-sm shadow-lg shadow-cyan-500/50 flex items-center justify-center"
-                style={{
-                  animation: `assembleBlock 0.6s ease-out forwards`,
-                  animationDelay: `${0.3 + i * 0.1}s`,
-                  opacity: 0,
-                  transform: 'translateY(-100px) scale(0)',
-                }}
-              >
-                {i === 1 && <span className="text-black font-black text-xl md:text-2xl">X</span>}
-              </div>
-            ))}
-            {/* 1 letter blocks */}
-            {[0, 1, 2].map((i) => (
-              <div
-                key={`1-${i}`}
-                className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-sm shadow-lg shadow-cyan-500/50 flex items-center justify-center"
-                style={{
-                  animation: `assembleBlock 0.6s ease-out forwards`,
-                  animationDelay: `${0.6 + i * 0.1}s`,
-                  opacity: 0,
-                  transform: 'translateY(-100px) scale(0)',
-                }}
-              >
-                {i === 1 && <span className="text-black font-black text-xl md:text-2xl">1</span>}
-              </div>
-            ))}
-          </div>
-          
-          {/* Space text blocks */}
-          <div className="flex gap-1">
-            {'SPACE'.split('').map((char, i) => (
-              <div
-                key={`space-${i}`}
-                className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-gray-600 to-gray-800 rounded-sm shadow-lg shadow-gray-500/30 flex items-center justify-center"
-                style={{
-                  animation: `assembleBlock 0.6s ease-out forwards`,
-                  animationDelay: `${0.9 + i * 0.08}s`,
-                  opacity: 0,
-                  transform: 'translateY(-100px) scale(0)',
-                }}
-              >
-                <span className="text-white font-black text-lg md:text-xl">{char}</span>
-              </div>
-            ))}
+          <div className="flex gap-2">
+            {/* X block */}
+            <div
+              className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg shadow-lg shadow-cyan-500/50 flex items-center justify-center"
+              style={{
+                animation: `assembleBlock 0.6s ease-out forwards`,
+                animationDelay: `0.3s`,
+                opacity: 0,
+                transform: 'translateY(-100px) scale(0)',
+              }}
+            >
+              <span className="text-black font-black text-3xl md:text-4xl">X</span>
+            </div>
+            {/* 1 block */}
+            <div
+              className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg shadow-lg shadow-cyan-500/50 flex items-center justify-center"
+              style={{
+                animation: `assembleBlock 0.6s ease-out forwards`,
+                animationDelay: `0.5s`,
+                opacity: 0,
+                transform: 'translateY(-100px) scale(0)',
+              }}
+            >
+              <span className="text-black font-black text-3xl md:text-4xl">1</span>
+            </div>
           </div>
           
           {/* X1 Space text below */}
           <h1 
-            className="text-2xl md:text-3xl font-bold mt-8"
-            style={{ animation: 'fadeInX1 0.5s ease-out 1.8s forwards', opacity: 0 }}
+            className="text-2xl md:text-3xl font-bold mt-6"
+            style={{ animation: 'fadeInX1 0.5s ease-out 1.2s forwards', opacity: 0 }}
           >
             <span className="text-cyan-400">X1</span>
             <span className="text-white">Space</span>
