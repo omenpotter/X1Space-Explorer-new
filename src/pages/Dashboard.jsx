@@ -179,48 +179,94 @@ export default function Dashboard() {
 
   if (loading && !dashboardData) {
     return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex flex-col items-center justify-center relative overflow-hidden">
-        {/* Matrix block animation */}
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center relative overflow-hidden">
+        {/* Matrix rain effect */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute inset-0 grid grid-cols-12 md:grid-cols-16 lg:grid-cols-20 gap-1 p-4 opacity-30">
-            {Array.from({ length: 200 }).map((_, i) => (
+          {Array.from({ length: 30 }).map((_, i) => (
+            <div
+              key={i}
+              className="absolute text-green-500 font-mono text-sm opacity-70 whitespace-nowrap"
+              style={{
+                left: `${(i / 30) * 100}%`,
+                animation: `matrixFall ${3 + Math.random() * 4}s linear infinite`,
+                animationDelay: `${Math.random() * 3}s`,
+              }}
+            >
+              {Array.from({ length: 20 }).map((_, j) => (
+                <div key={j} style={{ opacity: 1 - j * 0.05 }}>
+                  {String.fromCharCode(0x30A0 + Math.random() * 96)}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+        
+        {/* Assembling X1 logo blocks */}
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="relative w-32 h-32 md:w-40 md:h-40">
+            {/* X1 blocks assembling */}
+            {[
+              { x: 0, y: 0, delay: 0 },
+              { x: 1, y: 0, delay: 0.1 },
+              { x: 2, y: 0, delay: 0.2 },
+              { x: 0, y: 1, delay: 0.15 },
+              { x: 1, y: 1, delay: 0.25 },
+              { x: 2, y: 1, delay: 0.3 },
+              { x: 0, y: 2, delay: 0.2 },
+              { x: 1, y: 2, delay: 0.35 },
+              { x: 2, y: 2, delay: 0.4 },
+            ].map((block, i) => (
               <div
                 key={i}
-                className={`aspect-square rounded-sm ${
-                  ['bg-cyan-500', 'bg-purple-500', 'bg-emerald-500', 'bg-yellow-500', 'bg-orange-500'][Math.floor(Math.random() * 5)]
-                }`}
+                className="absolute w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-green-400 to-emerald-600 rounded-sm shadow-lg shadow-green-500/50"
                 style={{
-                  animation: `pulse ${1 + Math.random() * 2}s ease-in-out infinite`,
-                  animationDelay: `${Math.random() * 2}s`,
-                  opacity: 0.3 + Math.random() * 0.5
+                  left: `${block.x * 36 + 16}px`,
+                  top: `${block.y * 36 + 16}px`,
+                  animation: `assembleBlock 0.8s ease-out forwards`,
+                  animationDelay: `${block.delay + 0.5}s`,
+                  opacity: 0,
+                  transform: 'translateY(-100px) scale(0)',
                 }}
               />
             ))}
+            {/* X1 text overlay */}
+            <div 
+              className="absolute inset-0 flex items-center justify-center"
+              style={{ animation: 'fadeInX1 0.5s ease-out 1.5s forwards', opacity: 0 }}
+            >
+              <span className="text-black font-black text-4xl md:text-5xl drop-shadow-lg">X1</span>
+            </div>
           </div>
-        </div>
-        
-        {/* Center logo */}
-        <div className="relative z-10 text-center">
-          <div className="w-24 h-24 md:w-32 md:h-32 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-cyan-500/30">
-            <span className="text-black font-black text-4xl md:text-5xl">X1</span>
-          </div>
-          <h1 className="text-3xl md:text-4xl font-bold mb-2">
-            <span className="text-cyan-400">X1</span>
+          
+          <h1 
+            className="text-2xl md:text-3xl font-bold mt-6"
+            style={{ animation: 'fadeInX1 0.5s ease-out 1.8s forwards', opacity: 0 }}
+          >
+            <span className="text-green-400">X1</span>
             <span className="text-white">Space</span>
           </h1>
         </div>
         
         {/* Bottom right loading text */}
-        <div className="absolute bottom-6 right-6 flex items-center gap-2">
-          <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
-          <span className="text-gray-400 text-sm">Connecting to X1 Blockchain</span>
-          <span className="text-cyan-400 animate-pulse">...</span>
+        <div className="absolute bottom-6 right-6 flex items-center gap-2 z-20">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          <span className="text-green-400 font-mono text-sm">Connecting to X1 Blockchain</span>
+          <span className="text-green-500 animate-pulse">...</span>
         </div>
         
         <style>{`
-          @keyframes pulse {
-            0%, 100% { opacity: 0.2; transform: scale(0.95); }
-            50% { opacity: 0.6; transform: scale(1); }
+          @keyframes matrixFall {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100vh); }
+          }
+          @keyframes assembleBlock {
+            0% { opacity: 0; transform: translateY(-100px) scale(0); }
+            60% { opacity: 1; transform: translateY(10px) scale(1.1); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+          }
+          @keyframes fadeInX1 {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
           }
         `}</style>
       </div>
