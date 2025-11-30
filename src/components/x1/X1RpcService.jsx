@@ -92,6 +92,44 @@ export async function getLatestBlockhash() {
   return await rpcCall('getLatestBlockhash');
 }
 
+// Get account balance
+export async function getBalance(address) {
+  return await rpcCall('getBalance', [address]);
+}
+
+// Get account info
+export async function getAccountInfo(address) {
+  return await rpcCall('getAccountInfo', [address, { encoding: 'jsonParsed' }]);
+}
+
+// Get stake accounts for address
+export async function getStakeAccounts(address) {
+  return await rpcCall('getProgramAccounts', [
+    'Stake11111111111111111111111111111111111111',
+    {
+      encoding: 'jsonParsed',
+      filters: [
+        { memcmp: { offset: 12, bytes: address } }
+      ]
+    }
+  ]);
+}
+
+// Get inflation reward for epoch
+export async function getInflationReward(addresses, epoch) {
+  return await rpcCall('getInflationReward', [addresses, { epoch }]);
+}
+
+// Get multiple accounts
+export async function getMultipleAccounts(addresses) {
+  return await rpcCall('getMultipleAccounts', [addresses, { encoding: 'jsonParsed' }]);
+}
+
+// Get recent block production stats - for accurate skip rate
+export async function getBlockProduction(firstSlot, lastSlot) {
+  return await rpcCall('getBlockProduction', firstSlot && lastSlot ? [{ range: { firstSlot, lastSlot } }] : []);
+}
+
 // Get vote accounts (validators)
 export async function getVoteAccounts() {
   return await rpcCall('getVoteAccounts');
@@ -497,6 +535,123 @@ export async function getValidatorDetails() {
   return validators;
 }
 
+// Get real-time transaction stream from recent blocks with categorization
+export async function getRealtimeTransactions(limit = 50) {
+  const currentSlot = await getSlot();
+  const transactions = [];
+  
+  // Fetch last few blocks to get recent transactions
+  for (let i = 0; i < 3 && transactions.length < limit; i++) {
+    try {
+      const block = await rpcCall('getBlock', [currentSlot - i, {
+        encoding: 'json',
+        transactionDetails: 'full',
+        rewards: false,
+        maxSupportedTransactionVersion: 0
+      }]);
+      
+      if (block?.transactions) {
+        for (const tx of block.transactions) {
+          if (transactions.length >= limit) break;
+          
+          const message = tx.transaction?.message;
+          const accountKeys = message?.accountKeys || [];
+          const instructions = message?.instructions || [];
+          const signature = tx.transaction?.signatures?.[0];
+          
+          // Categorize transaction
+          let type = 'other';
+          let fromAddress = accountKeys[0] || '';
+          let toAddress = '';
+          
+          for (const ix of instructions) {
+            const programId = accountKeys[ix.programIdIndex];
+            if (programId === 'Vote111111111111111111111111111111111111111') {
+              type = 'vote';
+              break;
+            } else if (programId === '11111111111111111111111111111111') {
+              type = 'transfer';
+              // For system program, destination is usually account index 1
+              toAddress = accountKeys[1] || '';
+            } else if (programId === 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') {
+              type = 'token';
+            }
+          }
+          
+          transactions.push({
+            signature,
+            slot: currentSlot - i,
+            blockTime: block.blockTime,
+            type,
+            status: tx.meta?.err ? 'failed' : 'success',
+            fee: (tx.meta?.fee || 0) / 1e9,
+            from: fromAddress,
+            to: toAddress
+          });
+        }
+      }
+    } catch (e) {
+      continue;
+    }
+  }
+  
+  return transactions;
+}
+
+// Get accurate epoch history with real skip rate from block production
+export async function getEpochHistoryData() {
+  const [epochInfo, blockProduction, performanceSamples] = await Promise.all([
+    getEpochInfo(),
+    getBlockProduction().catch(() => null),
+    getRecentPerformanceSamples(60)
+  ]);
+  
+  // Calculate actual skip rate from block production data
+  let skipRate = 0;
+  let producedSlots = epochInfo.slotIndex;
+  let skippedSlots = 0;
+  
+  if (blockProduction?.value?.byIdentity) {
+    const totals = Object.values(blockProduction.value.byIdentity).reduce((acc, [leader, produced]) => {
+      acc.leader += leader;
+      acc.produced += produced;
+      return acc;
+    }, { leader: 0, produced: 0 });
+    
+    skippedSlots = totals.leader - totals.produced;
+    producedSlots = totals.produced;
+    skipRate = totals.leader > 0 ? (skippedSlots / totals.leader) * 100 : 0;
+  }
+  
+  // Calculate average TPS from performance samples
+  const avgTps = performanceSamples.length > 0
+    ? Math.round(performanceSamples.reduce((sum, s) => sum + (s.numTransactions / s.samplePeriodSecs), 0) / performanceSamples.length)
+    : 0;
+  
+  return {
+    epoch: epochInfo.epoch,
+    slotIndex: epochInfo.slotIndex,
+    slotsInEpoch: epochInfo.slotsInEpoch,
+    producedSlots,
+    skippedSlots,
+    skipRate: skipRate.toFixed(4),
+    avgTps,
+    absoluteSlot: epochInfo.absoluteSlot
+  };
+}
+
+// Get performance samples for specific time windows (actual on-chain data)
+export async function getPerformanceHistory(minutes = 60) {
+  const samples = await getRecentPerformanceSamples(minutes);
+  return samples.map((s, i) => ({
+    minutesAgo: minutes - i - 1,
+    tps: Math.round(s.numTransactions / s.samplePeriodSecs),
+    transactions: s.numTransactions,
+    slots: s.numSlots,
+    samplePeriod: s.samplePeriodSecs
+  }));
+}
+
 export default {
   getSlot,
   getBlockHeight,
@@ -518,5 +673,14 @@ export default {
   getVersion,
   getDashboardData,
   getRecentBlocks,
-  getValidatorDetails
+  getValidatorDetails,
+  getBalance,
+  getAccountInfo,
+  getStakeAccounts,
+  getInflationReward,
+  getMultipleAccounts,
+  getBlockProduction,
+  getRealtimeTransactions,
+  getEpochHistoryData,
+  getPerformanceHistory
 };
