@@ -217,7 +217,7 @@ export default function Blocks() {
           )}
 
           {/* Block Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3">
+          <div className="flex gap-2 overflow-x-auto">
             {viewMode === 'blocks' ? (
               blocks.slice(0, 10).map((block, i) => (
                 <MempoolBlockViz key={block.slot} block={block} isNew={block.slot === newBlockSlot || i === 0} />

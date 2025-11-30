@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
   Zap, Loader2, AlertCircle, ArrowLeft, Copy, Check,
-  CheckCircle, XCircle, Clock, Coins, FileCode, GitBranch
+  CheckCircle, XCircle, Clock, Coins, FileCode, GitBranch,
+  ArrowRight, ChevronLeft, ExternalLink, Wallet
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -60,6 +61,18 @@ export default function TransactionDetail() {
             });
           }
 
+          // Parse error details for failed transactions
+          let errorDetails = null;
+          if (tx.meta?.err) {
+            errorDetails = parseTransactionError(tx.meta.err, tx.meta?.logMessages || []);
+          }
+
+          // Detect transaction type
+          const txType = detectTransactionType(instructions, accounts);
+
+          // Extract token transfers if any
+          const tokenTransfers = extractTokenTransfers(tx.meta, accounts);
+
           setTransaction({
             signature,
             slot: tx.slot,
@@ -70,7 +83,11 @@ export default function TransactionDetail() {
             instructions,
             stateChanges,
             logs: tx.meta?.logMessages || [],
-            computeUnits: tx.meta?.computeUnitsConsumed || 0
+            computeUnits: tx.meta?.computeUnitsConsumed || 0,
+            errorDetails,
+            txType,
+            tokenTransfers,
+            rawError: tx.meta?.err
           });
           setError(null);
         } else {
@@ -90,6 +107,103 @@ export default function TransactionDetail() {
     navigator.clipboard.writeText(text);
     setCopied(type);
     setTimeout(() => setCopied(null), 2000);
+  };
+
+  // Parse transaction errors into human-readable format
+  const parseTransactionError = (err, logs) => {
+    let errorMessage = 'Transaction failed';
+    let errorCode = null;
+    let errorType = 'Unknown';
+
+    if (typeof err === 'object') {
+      if (err.InstructionError) {
+        const [index, error] = err.InstructionError;
+        errorType = 'Instruction Error';
+        if (typeof error === 'object') {
+          const errorKey = Object.keys(error)[0];
+          errorCode = error[errorKey];
+          errorMessage = `Instruction ${index} failed: ${errorKey}`;
+        } else {
+          errorMessage = `Instruction ${index} failed: ${error}`;
+        }
+      } else if (err.InsufficientFundsForFee) {
+        errorType = 'Insufficient Funds';
+        errorMessage = 'Insufficient funds for transaction fee';
+      } else if (err.AccountNotFound) {
+        errorType = 'Account Not Found';
+        errorMessage = 'One or more accounts were not found';
+      } else {
+        errorMessage = JSON.stringify(err);
+      }
+    }
+
+    // Try to extract more details from logs
+    const errorLog = logs.find(log => 
+      log.includes('Error') || log.includes('failed') || log.includes('error')
+    );
+    
+    return {
+      message: errorMessage,
+      type: errorType,
+      code: errorCode,
+      logHint: errorLog
+    };
+  };
+
+  // Detect transaction type
+  const detectTransactionType = (instructions, accounts) => {
+    for (const ix of instructions) {
+      if (ix.programId === 'Vote111111111111111111111111111111111111111') {
+        return { type: 'Vote', icon: '🗳️', color: 'purple' };
+      }
+      if (ix.programId === '11111111111111111111111111111111') {
+        return { type: 'System Transfer', icon: '💸', color: 'emerald' };
+      }
+      if (ix.programId === 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') {
+        return { type: 'Token Transfer', icon: '🪙', color: 'yellow' };
+      }
+      if (ix.programId === 'Stake11111111111111111111111111111111111111') {
+        return { type: 'Stake', icon: '🥩', color: 'orange' };
+      }
+    }
+    return { type: 'Program Interaction', icon: '⚡', color: 'cyan' };
+  };
+
+  // Extract token transfers from transaction metadata
+  const extractTokenTransfers = (meta, accounts) => {
+    const transfers = [];
+    
+    if (meta?.preTokenBalances && meta?.postTokenBalances) {
+      const preMap = {};
+      meta.preTokenBalances.forEach(b => {
+        preMap[`${b.accountIndex}-${b.mint}`] = b;
+      });
+      
+      meta.postTokenBalances.forEach(post => {
+        const key = `${post.accountIndex}-${post.mint}`;
+        const pre = preMap[key];
+        const preAmount = parseFloat(pre?.uiTokenAmount?.uiAmountString || '0');
+        const postAmount = parseFloat(post.uiTokenAmount?.uiAmountString || '0');
+        const diff = postAmount - preAmount;
+        
+        if (diff !== 0) {
+          transfers.push({
+            account: accounts[post.accountIndex],
+            mint: post.mint,
+            amount: diff,
+            decimals: post.uiTokenAmount?.decimals || 0,
+            type: diff > 0 ? 'receive' : 'send'
+          });
+        }
+      });
+    }
+    
+    return transfers;
+  };
+
+  const shortenAddress = (addr) => {
+    if (!addr) return '';
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
   if (loading) {
@@ -120,12 +234,9 @@ export default function TransactionDetail() {
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
-                  <span className="text-black font-black text-sm">X1</span>
-                </div>
-                <span className="text-white font-bold hidden sm:inline">X1</span>
-                <span className="text-cyan-400 font-bold hidden sm:inline">.space</span>
+              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
+                <ChevronLeft className="w-5 h-5 text-gray-400" />
+                <span className="font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
               </Link>
               <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
             </div>
@@ -141,7 +252,7 @@ export default function TransactionDetail() {
       <main className="max-w-[1800px] mx-auto px-4 py-6">
         {/* Transaction Header */}
         <div className="bg-[#24384a] rounded-xl p-6 mb-6">
-          <div className="flex items-start justify-between mb-4">
+          <div className="flex items-start justify-between mb-4 flex-wrap gap-4">
             <div className="flex items-center gap-3">
               {transaction.success ? (
                 <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
@@ -153,10 +264,22 @@ export default function TransactionDetail() {
                 </div>
               )}
               <div>
-                <h1 className="text-xl font-bold text-white">Transaction Details</h1>
-                <Badge className={transaction.success ? 'bg-emerald-500/20 text-emerald-400 border-0' : 'bg-red-500/20 text-red-400 border-0'}>
-                  {transaction.success ? 'Success' : 'Failed'}
-                </Badge>
+                <div className="flex items-center gap-2 mb-1">
+                  <h1 className="text-xl font-bold text-white">Transaction Details</h1>
+                  {transaction.txType && (
+                    <span className="text-lg">{transaction.txType.icon}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className={transaction.success ? 'bg-emerald-500/20 text-emerald-400 border-0' : 'bg-red-500/20 text-red-400 border-0'}>
+                    {transaction.success ? 'Success' : 'Failed'}
+                  </Badge>
+                  {transaction.txType && (
+                    <Badge className={`bg-${transaction.txType.color}-500/20 text-${transaction.txType.color}-400 border-0`}>
+                      {transaction.txType.type}
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -175,10 +298,94 @@ export default function TransactionDetail() {
             </Button>
           </div>
 
+          {/* Error Details for Failed Transactions */}
+          {!transaction.success && transaction.errorDetails && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-red-400 font-medium">{transaction.errorDetails.type}</p>
+                  <p className="text-red-300 text-sm mt-1">{transaction.errorDetails.message}</p>
+                  {transaction.errorDetails.code && (
+                    <p className="text-red-400/70 text-xs mt-1 font-mono">Error Code: {transaction.errorDetails.code}</p>
+                  )}
+                  {transaction.errorDetails.logHint && (
+                    <p className="text-red-400/60 text-xs mt-2 font-mono bg-red-500/5 p-2 rounded">
+                      {transaction.errorDetails.logHint}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Visual Flow Summary */}
+          {transaction.stateChanges.length > 0 && (
+            <div className="bg-[#1d2d3a] rounded-lg p-4 mb-4">
+              <p className="text-gray-400 text-xs mb-3">TRANSFER SUMMARY</p>
+              <div className="flex items-center gap-3 flex-wrap">
+                {transaction.stateChanges.filter(c => c.type === 'debit').map((change, i) => (
+                  <div key={`debit-${i}`} className="flex items-center gap-2">
+                    <div className="bg-[#24384a] rounded-lg px-3 py-2">
+                      <p className="text-gray-500 text-[10px]">From</p>
+                      <Link to={createPageUrl('AddressLookup') + `?address=${change.account}`} className="text-cyan-400 font-mono text-xs hover:underline">
+                        {shortenAddress(change.account)}
+                      </Link>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-gray-500" />
+                    <div className="bg-red-500/10 rounded-lg px-3 py-2 border border-red-500/30">
+                      <p className="text-red-400 font-mono text-sm">-{change.amount} XNT</p>
+                    </div>
+                  </div>
+                ))}
+                {transaction.stateChanges.filter(c => c.type === 'credit').slice(0, 3).map((change, i) => (
+                  <div key={`credit-${i}`} className="flex items-center gap-2">
+                    <ArrowRight className="w-4 h-4 text-gray-500" />
+                    <div className="bg-emerald-500/10 rounded-lg px-3 py-2 border border-emerald-500/30">
+                      <p className="text-emerald-400 font-mono text-sm">+{change.amount} XNT</p>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-gray-500" />
+                    <div className="bg-[#24384a] rounded-lg px-3 py-2">
+                      <p className="text-gray-500 text-[10px]">To</p>
+                      <Link to={createPageUrl('AddressLookup') + `?address=${change.account}`} className="text-cyan-400 font-mono text-xs hover:underline">
+                        {shortenAddress(change.account)}
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Token Transfers */}
+          {transaction.tokenTransfers && transaction.tokenTransfers.length > 0 && (
+            <div className="bg-[#1d2d3a] rounded-lg p-4 mb-4">
+              <p className="text-gray-400 text-xs mb-3">TOKEN TRANSFERS</p>
+              <div className="space-y-2">
+                {transaction.tokenTransfers.map((transfer, i) => (
+                  <div key={i} className="flex items-center gap-3 bg-[#24384a] rounded-lg p-3">
+                    <Coins className={`w-5 h-5 ${transfer.type === 'receive' ? 'text-emerald-400' : 'text-red-400'}`} />
+                    <div className="flex-1">
+                      <p className={`font-mono ${transfer.type === 'receive' ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {transfer.type === 'receive' ? '+' : '-'}{Math.abs(transfer.amount).toLocaleString()} tokens
+                      </p>
+                      <p className="text-gray-500 text-xs font-mono truncate">Mint: {transfer.mint}</p>
+                    </div>
+                    <Link to={createPageUrl('AddressLookup') + `?address=${transfer.account}`} className="text-cyan-400 text-xs hover:underline">
+                      {shortenAddress(transfer.account)}
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-[#1d2d3a] rounded-lg p-3">
               <p className="text-gray-400 text-xs mb-1">Slot</p>
-              <p className="text-white font-mono">{transaction.slot?.toLocaleString()}</p>
+              <Link to={createPageUrl('BlockDetail') + `?slot=${transaction.slot}`} className="text-cyan-400 font-mono hover:underline">
+                {transaction.slot?.toLocaleString()}
+              </Link>
             </div>
             <div className="bg-[#1d2d3a] rounded-lg p-3">
               <p className="text-gray-400 text-xs mb-1">Timestamp</p>

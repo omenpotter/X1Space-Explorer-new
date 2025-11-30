@@ -67,35 +67,51 @@ export default function EpochHistory() {
         isCurrent: true
       });
       
-      // For historical epochs, try to fetch real block production data
+      // For historical epochs, fetch real block production data in parallel
       // Note: RPC may not have data for very old epochs
+      const epochPromises = [];
       for (let i = 1; i < 25; i++) {
         const epoch = epochInfo.epoch - i;
-        
+        epochPromises.push(
+          X1Rpc.getBlockProductionForEpoch(epoch, slotsPerEpoch)
+            .then(epochProd => ({ epoch, epochProd, error: null }))
+            .catch(e => ({ epoch, epochProd: null, error: e }))
+        );
+      }
+      
+      const epochResults = await Promise.all(epochPromises);
+      
+      for (const result of epochResults) {
+        const { epoch, epochProd, error } = result;
         let producedSlots = slotsPerEpoch;
         let skippedSlots = 0;
         let skipRateStr = '0';
+        let isEstimated = false;
         
-        try {
-          // Try to get actual block production for this epoch
-          const epochProd = await X1Rpc.getBlockProductionForEpoch(epoch, slotsPerEpoch);
-          if (epochProd?.value?.byIdentity) {
-            const totals = Object.values(epochProd.value.byIdentity).reduce((acc, [leader, produced]) => {
-              acc.leader += leader;
-              acc.produced += produced;
-              return acc;
-            }, { leader: 0, produced: 0 });
-            
+        if (epochProd?.value?.byIdentity) {
+          const totals = Object.values(epochProd.value.byIdentity).reduce((acc, [leader, produced]) => {
+            acc.leader += leader;
+            acc.produced += produced;
+            return acc;
+          }, { leader: 0, produced: 0 });
+          
+          if (totals.leader > 0) {
             skippedSlots = totals.leader - totals.produced;
             producedSlots = totals.produced;
-            skipRateStr = totals.leader > 0 ? ((skippedSlots / totals.leader) * 100).toFixed(4) : '0';
+            skipRateStr = ((skippedSlots / totals.leader) * 100).toFixed(4);
+          } else {
+            // No block production data available - mark as estimated
+            isEstimated = true;
+            skippedSlots = Math.floor(slotsPerEpoch * actualSkipRate);
+            producedSlots = slotsPerEpoch - skippedSlots;
+            skipRateStr = (actualSkipRate * 100).toFixed(4);
           }
-        } catch (e) {
+        } else {
           // If we can't get historical data, use current epoch's rate as estimate
-          // This is clearly marked as estimated in the UI
+          isEstimated = true;
           skippedSlots = Math.floor(slotsPerEpoch * actualSkipRate);
           producedSlots = slotsPerEpoch - skippedSlots;
-          skipRateStr = (actualSkipRate * 100).toFixed(4) + '*'; // * indicates estimated
+          skipRateStr = (actualSkipRate * 100).toFixed(4);
         }
         
         history.push({
@@ -109,10 +125,14 @@ export default function EpochHistory() {
           endSlot: (epoch + 1) * slotsPerEpoch - 1,
           produced: producedSlots,
           skipped: skippedSlots,
-          skipRate: skipRateStr,
-          isCurrent: false
+          skipRate: isEstimated ? skipRateStr + '*' : skipRateStr,
+          isCurrent: false,
+          isEstimated
         });
       }
+      
+      // Sort history by epoch descending
+      history.sort((a, b) => b.epoch - a.epoch);
       
       setEpochHistory(history);
       setEpochSchedule({ slotsPerEpoch });
@@ -337,13 +357,15 @@ export default function EpochHistory() {
                       <td className="px-4 py-3 text-right text-white">{epoch.validators}</td>
                       <td className="px-4 py-3 text-right text-white font-mono">{epoch.totalStake.toFixed(1)}M XNT</td>
                       <td className="px-4 py-3 text-right">
-                            <span className="text-emerald-400 font-mono">{epoch.produced.toLocaleString()}</span>
-                            <span className="text-gray-500 text-xs ml-1">[{(100 - parseFloat(epoch.skipRate || skipPercent)).toFixed(2)}%]</span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <span className="text-red-400 font-mono">{epoch.skipped.toLocaleString()}</span>
-                            <span className="text-gray-500 text-xs ml-1">[{epoch.skipRate || skipPercent}%]</span>
-                          </td>
+                          <span className="text-emerald-400 font-mono">{epoch.produced.toLocaleString()}</span>
+                          <span className="text-gray-500 text-xs ml-1">[{(100 - parseFloat(epoch.skipRate)).toFixed(2)}%]</span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className="text-red-400 font-mono">{epoch.skipped.toLocaleString()}</span>
+                          <span className={`text-xs ml-1 ${epoch.isEstimated ? 'text-yellow-500' : 'text-gray-500'}`}>
+                            [{epoch.skipRate}%{epoch.isEstimated ? ' est.' : ''}]
+                          </span>
+                        </td>
                       <td className="px-4 py-3 text-right text-yellow-400 font-mono">{epoch.avgTps.toLocaleString()}</td>
                       <td className="px-4 py-3 text-right text-gray-400 font-mono">{formatNumber(epoch.transactions)}</td>
                       <td className="px-4 py-3 text-center">

@@ -179,11 +179,50 @@ export default function Dashboard() {
 
   if (loading && !dashboardData) {
     return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-cyan-400 mx-auto mb-4" />
-          <p className="text-gray-400">Connecting to X1 Network...</p>
+      <div className="min-h-screen bg-[#1d2d3a] text-white flex flex-col items-center justify-center relative overflow-hidden">
+        {/* Matrix block animation */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute inset-0 grid grid-cols-12 md:grid-cols-16 lg:grid-cols-20 gap-1 p-4 opacity-30">
+            {Array.from({ length: 200 }).map((_, i) => (
+              <div
+                key={i}
+                className={`aspect-square rounded-sm ${
+                  ['bg-cyan-500', 'bg-purple-500', 'bg-emerald-500', 'bg-yellow-500', 'bg-orange-500'][Math.floor(Math.random() * 5)]
+                }`}
+                style={{
+                  animation: `pulse ${1 + Math.random() * 2}s ease-in-out infinite`,
+                  animationDelay: `${Math.random() * 2}s`,
+                  opacity: 0.3 + Math.random() * 0.5
+                }}
+              />
+            ))}
+          </div>
         </div>
+        
+        {/* Center logo */}
+        <div className="relative z-10 text-center">
+          <div className="w-24 h-24 md:w-32 md:h-32 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-cyan-500/30">
+            <span className="text-black font-black text-4xl md:text-5xl">X1</span>
+          </div>
+          <h1 className="text-3xl md:text-4xl font-bold mb-2">
+            <span className="text-cyan-400">X1</span>
+            <span className="text-white">Space</span>
+          </h1>
+        </div>
+        
+        {/* Bottom right loading text */}
+        <div className="absolute bottom-6 right-6 flex items-center gap-2">
+          <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
+          <span className="text-gray-400 text-sm">Connecting to X1 Blockchain</span>
+          <span className="text-cyan-400 animate-pulse">...</span>
+        </div>
+        
+        <style>{`
+          @keyframes pulse {
+            0%, 100% { opacity: 0.2; transform: scale(0.95); }
+            50% { opacity: 0.6; transform: scale(1); }
+          }
+        `}</style>
       </div>
     );
   }
@@ -321,19 +360,16 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                {/* Show 10 continuous blocks or aggregated time views - auto-updating */}
-              <div className="flex gap-2" key={mempoolInterval + '-' + (recentBlocks[0]?.slot || 0)}>
-                {mempoolInterval === 'blocks' ? (
-                  recentBlocks.slice(0, 10).map((block, i) => (
-                    <MempoolBlockViz key={block.slot} block={block} isNew={i === 0} />
-                  ))
-                ) : (
-                  getAggregatedBlocks()?.slice(0, 10).map((agg, i) => (
-                    <MempoolAggregatedViz key={`${mempoolInterval}-${i}-${dashboardData?.slot}`} data={agg} label={agg.label} />
-                  ))
-                )}
-              </div>
+            <div className="flex items-center gap-2 overflow-x-auto" key={mempoolInterval + '-' + (recentBlocks[0]?.slot || 0)}>
+              {mempoolInterval === 'blocks' ? (
+                recentBlocks.slice(0, 10).map((block, i) => (
+                  <MempoolBlockViz key={block.slot} block={block} isNew={i === 0} />
+                ))
+              ) : (
+                getAggregatedBlocks()?.slice(0, 10).map((agg, i) => (
+                  <MempoolAggregatedViz key={`${mempoolInterval}-${i}-${dashboardData?.slot}`} data={agg} label={agg.label} />
+                ))
+              )}
             </div>
           </div>
         </div>
