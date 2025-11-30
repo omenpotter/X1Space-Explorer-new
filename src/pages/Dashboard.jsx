@@ -178,71 +178,92 @@ export default function Dashboard() {
   // No pending blocks - X1 processes blocks instantly
 
   if (loading && !dashboardData) {
+    // Standard characters for matrix rain
+    const matrixChars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ@#$%&*+=<>[]{}|~';
+    
     return (
       <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center relative overflow-hidden">
-        {/* Matrix rain effect */}
+        {/* Matrix rain effect with standard characters */}
         <div className="absolute inset-0 overflow-hidden">
-          {Array.from({ length: 30 }).map((_, i) => (
+          {Array.from({ length: 25 }).map((_, i) => (
             <div
               key={i}
               className="absolute text-green-500 font-mono text-sm opacity-70 whitespace-nowrap"
               style={{
-                left: `${(i / 30) * 100}%`,
-                animation: `matrixFall ${3 + Math.random() * 4}s linear infinite`,
-                animationDelay: `${Math.random() * 3}s`,
+                left: `${(i / 25) * 100}%`,
+                animation: `matrixFall ${3 + (i % 5)}s linear infinite`,
+                animationDelay: `${(i * 0.2) % 3}s`,
               }}
             >
               {Array.from({ length: 20 }).map((_, j) => (
                 <div key={j} style={{ opacity: 1 - j * 0.05 }}>
-                  {String.fromCharCode(0x30A0 + Math.random() * 96)}
+                  {matrixChars[Math.floor((i * j + i) % matrixChars.length)]}
                 </div>
               ))}
             </div>
           ))}
         </div>
         
-        {/* Assembling X1 logo blocks */}
+        {/* Assembling X1 Space logo in blocks */}
         <div className="relative z-10 flex flex-col items-center">
-          <div className="relative w-32 h-32 md:w-40 md:h-40">
-            {/* X1 blocks assembling */}
-            {[
-              { x: 0, y: 0, delay: 0 },
-              { x: 1, y: 0, delay: 0.1 },
-              { x: 2, y: 0, delay: 0.2 },
-              { x: 0, y: 1, delay: 0.15 },
-              { x: 1, y: 1, delay: 0.25 },
-              { x: 2, y: 1, delay: 0.3 },
-              { x: 0, y: 2, delay: 0.2 },
-              { x: 1, y: 2, delay: 0.35 },
-              { x: 2, y: 2, delay: 0.4 },
-            ].map((block, i) => (
+          {/* X1 block assembly */}
+          <div className="flex gap-1 mb-2">
+            {/* X letter blocks */}
+            {[0, 1, 2].map((i) => (
               <div
-                key={i}
-                className="absolute w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-green-400 to-emerald-600 rounded-sm shadow-lg shadow-green-500/50"
+                key={`x-${i}`}
+                className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-sm shadow-lg shadow-cyan-500/50 flex items-center justify-center"
                 style={{
-                  left: `${block.x * 36 + 16}px`,
-                  top: `${block.y * 36 + 16}px`,
-                  animation: `assembleBlock 0.8s ease-out forwards`,
-                  animationDelay: `${block.delay + 0.5}s`,
+                  animation: `assembleBlock 0.6s ease-out forwards`,
+                  animationDelay: `${0.3 + i * 0.1}s`,
                   opacity: 0,
                   transform: 'translateY(-100px) scale(0)',
                 }}
-              />
+              >
+                {i === 1 && <span className="text-black font-black text-xl md:text-2xl">X</span>}
+              </div>
             ))}
-            {/* X1 text overlay */}
-            <div 
-              className="absolute inset-0 flex items-center justify-center"
-              style={{ animation: 'fadeInX1 0.5s ease-out 1.5s forwards', opacity: 0 }}
-            >
-              <span className="text-black font-black text-4xl md:text-5xl drop-shadow-lg">X1</span>
-            </div>
+            {/* 1 letter blocks */}
+            {[0, 1, 2].map((i) => (
+              <div
+                key={`1-${i}`}
+                className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-sm shadow-lg shadow-cyan-500/50 flex items-center justify-center"
+                style={{
+                  animation: `assembleBlock 0.6s ease-out forwards`,
+                  animationDelay: `${0.6 + i * 0.1}s`,
+                  opacity: 0,
+                  transform: 'translateY(-100px) scale(0)',
+                }}
+              >
+                {i === 1 && <span className="text-black font-black text-xl md:text-2xl">1</span>}
+              </div>
+            ))}
           </div>
           
+          {/* Space text blocks */}
+          <div className="flex gap-1">
+            {'SPACE'.split('').map((char, i) => (
+              <div
+                key={`space-${i}`}
+                className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-gray-600 to-gray-800 rounded-sm shadow-lg shadow-gray-500/30 flex items-center justify-center"
+                style={{
+                  animation: `assembleBlock 0.6s ease-out forwards`,
+                  animationDelay: `${0.9 + i * 0.08}s`,
+                  opacity: 0,
+                  transform: 'translateY(-100px) scale(0)',
+                }}
+              >
+                <span className="text-white font-black text-lg md:text-xl">{char}</span>
+              </div>
+            ))}
+          </div>
+          
+          {/* X1 Space text below */}
           <h1 
-            className="text-2xl md:text-3xl font-bold mt-6"
+            className="text-2xl md:text-3xl font-bold mt-8"
             style={{ animation: 'fadeInX1 0.5s ease-out 1.8s forwards', opacity: 0 }}
           >
-            <span className="text-green-400">X1</span>
+            <span className="text-cyan-400">X1</span>
             <span className="text-white">Space</span>
           </h1>
         </div>
