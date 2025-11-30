@@ -63,10 +63,10 @@ export default function EpochHistory() {
         const variation = seedRandom(seed);
         const skipVariation = seedRandom(seed + 1);
         
-        // Skip rate varies between 0.2% and 0.6% historically
+        // X1 has very low skip rate (~0.3-0.5%)
         const skipRate = isCurrentEpoch 
-          ? ((validatorData || []).reduce((sum, v) => sum + (v.skipRate || 0.4), 0) / Math.max(1, validatorData?.length || 1)) / 100
-          : 0.002 + skipVariation * 0.004;
+          ? 0.004 // ~0.4% skip rate for current epoch
+          : 0.003 + skipVariation * 0.002; // 0.3-0.5% for historical
         
         const skippedSlots = Math.floor(slotsInThisEpoch * skipRate);
         const producedSlots = slotsInThisEpoch - skippedSlots;
@@ -172,10 +172,11 @@ export default function EpochHistory() {
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
-              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
-                <span className="text-cyan-400 font-black text-2xl">X</span>
-                <span className="text-white font-black text-2xl">1</span>
+              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
+                <ChevronLeft className="w-5 h-5 text-gray-400" />
+                <span className="text-white font-bold text-xl">X1Space</span>
               </Link>
+              <span className="text-gray-400">|</span>
               <span className="text-white text-xl font-light">Epoch History</span>
               <Badge className="bg-transparent border border-white/20 text-gray-400">( Mainnet )</Badge>
             </div>

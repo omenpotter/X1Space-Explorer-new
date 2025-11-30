@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Zap, Map, Loader2, Globe, ExternalLink, RefreshCw, Activity, Server
+  Zap, Map, Loader2, Globe, ExternalLink, RefreshCw, Activity, Server, ChevronLeft
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -188,10 +188,11 @@ export default function NetworkMap() {
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
-              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
-                <span className="text-cyan-400 font-black text-2xl">X</span>
-                <span className="text-white font-black text-2xl">1</span>
+              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
+                <ChevronLeft className="w-5 h-5 text-gray-400" />
+                <span className="text-white font-bold text-xl">X1Space</span>
               </Link>
+              <span className="text-gray-400">|</span>
               <span className="text-white text-xl font-light">Network Map</span>
               <Badge className="bg-transparent border border-white/20 text-gray-400">( Mainnet )</Badge>
             </div>

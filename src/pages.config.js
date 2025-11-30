@@ -17,6 +17,8 @@ import TokenExplorer from './pages/TokenExplorer';
 import ValidatorAlerts from './pages/ValidatorAlerts';
 import EpochHistory from './pages/EpochHistory';
 import NetworkMap from './pages/NetworkMap';
+import PortfolioTracker from './pages/PortfolioTracker';
+import WhaleWatcher from './pages/WhaleWatcher';
 
 
 export const PAGES = {
@@ -39,6 +41,8 @@ export const PAGES = {
     "ValidatorAlerts": ValidatorAlerts,
     "EpochHistory": EpochHistory,
     "NetworkMap": NetworkMap,
+    "PortfolioTracker": PortfolioTracker,
+    "WhaleWatcher": WhaleWatcher,
 }
 
 export const pagesConfig = {
