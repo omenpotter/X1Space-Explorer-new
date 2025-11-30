@@ -199,7 +199,7 @@ export default function Dashboard() {
               <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
                 <span className="text-black font-black text-sm">X1</span>
               </div>
-              <span className="hidden sm:block text-white font-bold">X1Space</span>
+              <span className="hidden sm:block font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
               <div className="ml-2 px-2 py-0.5 bg-cyan-500/20 rounded text-cyan-400 text-xs font-medium flex items-center gap-1">
                 <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
                 Mainnet
@@ -296,44 +296,43 @@ export default function Dashboard() {
       <main className="max-w-[1800px] mx-auto px-4 py-6">
         {/* Block Visualization */}
         <div className="flex flex-col gap-4 mb-8">
-          {/* Interval Toggle */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400 text-sm">X1 View:</span>
-              <div className="flex gap-1 bg-[#24384a] rounded-lg p-1">
-                {['blocks', '1m', '10m'].map((interval) => (
-                  <button
-                    key={interval}
-                    onClick={() => setMempoolInterval(interval)}
-                    className={`px-3 py-1 text-xs rounded ${mempoolInterval === interval ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
-                  >
-                    {interval === 'blocks' ? 'Blocks' : interval}
-                  </button>
-                ))}
+          {/* X1 View Box */}
+          <div className="bg-[#24384a] rounded-xl p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <span className="text-white font-medium">X1 View</span>
+                <div className="flex gap-1 bg-[#1d2d3a] rounded-lg p-1">
+                  {['blocks', '1m', '10m'].map((interval) => (
+                    <button
+                      key={interval}
+                      onClick={() => setMempoolInterval(interval)}
+                      className={`px-3 py-1.5 text-xs rounded ${mempoolInterval === interval ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
+                      {interval === 'blocks' ? 'Blocks' : interval}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <MempoolLegend />
+                <div className="flex items-center gap-2 ml-4">
+                  <span className="text-emerald-400 text-sm font-medium">XNT $1.00</span>
+                  <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">OTC</Badge>
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-emerald-400 text-sm font-medium">XNT $1.00</span>
-              <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">OTC</Badge>
-            </div>
-          </div>
-
-          <div className="flex-1">
-            <div className="flex flex-col gap-2">
-              <MempoolLegend />
-              <div className="flex items-center gap-2 overflow-x-auto pb-4">
+            <div className="flex items-center gap-2 overflow-x-auto pb-2">
                 {/* Show 10 continuous blocks or aggregated time views - auto-updating */}
-                <div className="flex gap-2" key={mempoolInterval + '-' + (recentBlocks[0]?.slot || 0)}>
-                  {mempoolInterval === 'blocks' ? (
-                    recentBlocks.slice(0, 10).map((block, i) => (
-                      <MempoolBlockViz key={block.slot} block={block} isNew={i === 0} />
-                    ))
-                  ) : (
-                    getAggregatedBlocks()?.slice(0, 10).map((agg, i) => (
-                      <MempoolAggregatedViz key={`${mempoolInterval}-${i}-${dashboardData?.slot}`} data={agg} label={agg.label} />
-                    ))
-                  )}
-                </div>
+              <div className="flex gap-2" key={mempoolInterval + '-' + (recentBlocks[0]?.slot || 0)}>
+                {mempoolInterval === 'blocks' ? (
+                  recentBlocks.slice(0, 10).map((block, i) => (
+                    <MempoolBlockViz key={block.slot} block={block} isNew={i === 0} />
+                  ))
+                ) : (
+                  getAggregatedBlocks()?.slice(0, 10).map((agg, i) => (
+                    <MempoolAggregatedViz key={`${mempoolInterval}-${i}-${dashboardData?.slot}`} data={agg} label={agg.label} />
+                  ))
+                )}
               </div>
             </div>
           </div>

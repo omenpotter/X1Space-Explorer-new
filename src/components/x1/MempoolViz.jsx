@@ -8,18 +8,18 @@ const TxBlock = ({ type, size = 'sm' }) => {
     vote: 'bg-purple-500',
     transfer: 'bg-emerald-500',
     token: 'bg-yellow-500',
-    other: 'bg-blue-500'
+    other: 'bg-orange-500' // Changed from blue to orange for better visibility
   };
   
   const sizes = {
-    xs: 'w-1.5 h-1.5',
-    sm: 'w-2 h-2',
-    md: 'w-2.5 h-2.5'
+    xs: 'w-2 h-2',
+    sm: 'w-2.5 h-2.5',
+    md: 'w-3 h-3'
   };
   
   return (
     <div 
-      className={`${colors[type] || colors.other} ${sizes[size]} rounded-sm opacity-80 hover:opacity-100 transition-opacity`}
+      className={`${colors[type] || colors.other} ${sizes[size]} rounded-sm opacity-90`}
       title={type}
     />
   );
@@ -29,10 +29,10 @@ const TxBlock = ({ type, size = 'sm' }) => {
 export const MempoolAggregatedViz = ({ data, label, onClick }) => {
   const { totalTxns, voteCount, transferCount, programCount, slots, timestamp } = data;
   
-  // Generate grid of small blocks based on tx type ratios
+  // Generate grid of small blocks based on tx type ratios - fill the box fully
   const blocks = useMemo(() => {
     const result = [];
-    const total = Math.min(200, Math.max(50, Math.floor(totalTxns / 1000))); // 50-200 blocks
+    const total = 120; // Fixed count to fill box nicely
     
     const voteRatio = voteCount / (totalTxns || 1);
     const transferRatio = transferCount / (totalTxns || 1);
@@ -41,12 +41,12 @@ export const MempoolAggregatedViz = ({ data, label, onClick }) => {
     const voteBlocks = Math.round(total * voteRatio);
     const transferBlocks = Math.round(total * transferRatio);
     const programBlocks = Math.round(total * programRatio);
-    const otherBlocks = total - voteBlocks - transferBlocks - programBlocks;
+    const otherBlocks = Math.max(0, total - voteBlocks - transferBlocks - programBlocks);
     
     for (let i = 0; i < voteBlocks; i++) result.push('vote');
     for (let i = 0; i < transferBlocks; i++) result.push('transfer');
     for (let i = 0; i < programBlocks; i++) result.push('token');
-    for (let i = 0; i < Math.max(0, otherBlocks); i++) result.push('other');
+    for (let i = 0; i < otherBlocks; i++) result.push('other');
     
     // Shuffle for visual variety
     for (let i = result.length - 1; i > 0; i--) {
@@ -92,20 +92,25 @@ export const MempoolAggregatedViz = ({ data, label, onClick }) => {
 export const MempoolBlockViz = ({ block, isNew }) => {
   const { slot, txCount, voteCount, transferCount, programCount, otherCount, blockTime } = block || {};
   
-  // Generate grid of small blocks
+  // Generate grid of small blocks - fill the box fully
   const blocks = useMemo(() => {
     if (!txCount) return [];
     const result = [];
-    const total = Math.min(150, Math.max(30, txCount)); // Cap at 150 blocks for display
-    const scale = txCount / total;
+    const total = 80; // Fixed count to fill box nicely
     
-    const voteBlocks = Math.round((voteCount || 0) / scale);
-    const transferBlocks = Math.round((transferCount || 0) / scale);
-    const programBlocks = Math.round((programCount || otherCount || 0) / scale);
+    const voteRatio = (voteCount || 0) / (txCount || 1);
+    const transferRatio = (transferCount || 0) / (txCount || 1);
+    const programRatio = ((programCount || 0) + (otherCount || 0)) / (txCount || 1);
+    
+    const voteBlocks = Math.round(total * voteRatio);
+    const transferBlocks = Math.round(total * transferRatio);
+    const programBlocks = Math.round(total * programRatio);
+    const otherBlocks = Math.max(0, total - voteBlocks - transferBlocks - programBlocks);
     
     for (let i = 0; i < voteBlocks; i++) result.push('vote');
     for (let i = 0; i < transferBlocks; i++) result.push('transfer');
     for (let i = 0; i < programBlocks; i++) result.push('token');
+    for (let i = 0; i < otherBlocks; i++) result.push('other');
     
     // Shuffle
     for (let i = result.length - 1; i > 0; i--) {
@@ -162,21 +167,21 @@ export const MempoolBlockViz = ({ block, isNew }) => {
 
 // Legend for mempool colors
 export const MempoolLegend = () => (
-  <div className="flex items-center gap-4 text-[10px]">
-    <div className="flex items-center gap-1">
-      <div className="w-2 h-2 bg-purple-500 rounded-sm" />
+  <div className="flex items-center gap-4 text-xs">
+    <div className="flex items-center gap-1.5">
+      <div className="w-3 h-3 bg-purple-500 rounded-sm" />
       <span className="text-gray-400">Vote</span>
     </div>
-    <div className="flex items-center gap-1">
-      <div className="w-2 h-2 bg-emerald-500 rounded-sm" />
+    <div className="flex items-center gap-1.5">
+      <div className="w-3 h-3 bg-emerald-500 rounded-sm" />
       <span className="text-gray-400">Transfer</span>
     </div>
-    <div className="flex items-center gap-1">
-      <div className="w-2 h-2 bg-yellow-500 rounded-sm" />
+    <div className="flex items-center gap-1.5">
+      <div className="w-3 h-3 bg-yellow-500 rounded-sm" />
       <span className="text-gray-400">Token/Program</span>
     </div>
-    <div className="flex items-center gap-1">
-      <div className="w-2 h-2 bg-blue-500 rounded-sm" />
+    <div className="flex items-center gap-1.5">
+      <div className="w-3 h-3 bg-orange-500 rounded-sm" />
       <span className="text-gray-400">Other</span>
     </div>
   </div>

@@ -130,6 +130,13 @@ export async function getBlockProduction(firstSlot, lastSlot) {
   return await rpcCall('getBlockProduction', firstSlot && lastSlot ? [{ range: { firstSlot, lastSlot } }] : []);
 }
 
+// Get block production for a specific epoch
+export async function getBlockProductionForEpoch(epoch, slotsPerEpoch = 216000) {
+  const firstSlot = epoch * slotsPerEpoch;
+  const lastSlot = (epoch + 1) * slotsPerEpoch - 1;
+  return await rpcCall('getBlockProduction', [{ range: { firstSlot, lastSlot } }]);
+}
+
 // Get vote accounts (validators)
 export async function getVoteAccounts() {
   return await rpcCall('getVoteAccounts');
@@ -680,6 +687,7 @@ export default {
   getInflationReward,
   getMultipleAccounts,
   getBlockProduction,
+  getBlockProductionForEpoch,
   getRealtimeTransactions,
   getEpochHistoryData,
   getPerformanceHistory

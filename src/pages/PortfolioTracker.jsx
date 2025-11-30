@@ -192,7 +192,7 @@ export default function PortfolioTracker() {
             <div className="flex items-center gap-4">
               <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
                 <ChevronLeft className="w-5 h-5 text-gray-400" />
-                <span className="text-white font-bold text-xl">X1Space</span>
+                <span className="font-bold text-xl"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
               </Link>
               <span className="text-gray-400">|</span>
               <span className="text-white text-xl font-light">Portfolio Tracker</span>

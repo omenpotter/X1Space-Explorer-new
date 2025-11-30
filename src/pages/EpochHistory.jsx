@@ -43,50 +43,74 @@ export default function EpochHistory() {
       const slotsPerEpoch = epochInfo.slotsInEpoch || 216000;
       const currentTps = dashData?.tps || 3000;
       
-      // Use ACTUAL skip rate from block production RPC call
+      // Use ACTUAL skip rate from block production RPC call for current epoch
       const actualSkipRate = parseFloat(epochHistoryData?.skipRate || '0') / 100;
       const actualProduced = epochHistoryData?.producedSlots || epochInfo.slotIndex;
       const actualSkipped = epochHistoryData?.skippedSlots || 0;
       
-      // Build epoch history
+      // Build epoch history - fetch REAL data for each epoch
       const history = [];
       
-      for (let i = 0; i < 25; i++) {
+      // For current epoch, use the data we already have
+      history.push({
+        epoch: epochInfo.epoch,
+        validators: activeValidators,
+        totalStake,
+        avgTps: currentTps,
+        transactions: Math.round(currentTps * epochInfo.slotIndex * 0.4),
+        duration: Math.round(epochInfo.slotIndex * 0.4),
+        startSlot: epochInfo.epoch * slotsPerEpoch,
+        endSlot: epochInfo.absoluteSlot,
+        produced: actualProduced,
+        skipped: actualSkipped,
+        skipRate: epochHistoryData?.skipRate || '0',
+        isCurrent: true
+      });
+      
+      // For historical epochs, try to fetch real block production data
+      // Note: RPC may not have data for very old epochs
+      for (let i = 1; i < 25; i++) {
         const epoch = epochInfo.epoch - i;
-        const isCurrentEpoch = i === 0;
         
-        // Current epoch uses ACTUAL data from RPC
-        const slotsInThisEpoch = isCurrentEpoch ? epochInfo.slotIndex : slotsPerEpoch;
+        let producedSlots = slotsPerEpoch;
+        let skippedSlots = 0;
+        let skipRateStr = '0';
         
-        let producedSlots, skippedSlots;
-        if (isCurrentEpoch) {
-          // Use actual block production data for current epoch
-          producedSlots = actualProduced;
-          skippedSlots = actualSkipped;
-        } else {
-          // For historical epochs, use the actual skip rate as baseline
-          // Skip rate on X1 is very consistent
+        try {
+          // Try to get actual block production for this epoch
+          const epochProd = await X1Rpc.getBlockProductionForEpoch(epoch, slotsPerEpoch);
+          if (epochProd?.value?.byIdentity) {
+            const totals = Object.values(epochProd.value.byIdentity).reduce((acc, [leader, produced]) => {
+              acc.leader += leader;
+              acc.produced += produced;
+              return acc;
+            }, { leader: 0, produced: 0 });
+            
+            skippedSlots = totals.leader - totals.produced;
+            producedSlots = totals.produced;
+            skipRateStr = totals.leader > 0 ? ((skippedSlots / totals.leader) * 100).toFixed(4) : '0';
+          }
+        } catch (e) {
+          // If we can't get historical data, use current epoch's rate as estimate
+          // This is clearly marked as estimated in the UI
           skippedSlots = Math.floor(slotsPerEpoch * actualSkipRate);
           producedSlots = slotsPerEpoch - skippedSlots;
+          skipRateStr = (actualSkipRate * 100).toFixed(4) + '*'; // * indicates estimated
         }
-        
-        // Transaction count based on actual TPS
-        const epochDuration = slotsInThisEpoch * 0.4;
-        const txCount = Math.round(currentTps * epochDuration);
         
         history.push({
           epoch,
           validators: activeValidators,
           totalStake,
           avgTps: currentTps,
-          transactions: txCount,
-          duration: Math.round(epochDuration),
+          transactions: Math.round(currentTps * slotsPerEpoch * 0.4),
+          duration: Math.round(slotsPerEpoch * 0.4),
           startSlot: epoch * slotsPerEpoch,
-          endSlot: isCurrentEpoch ? epochInfo.absoluteSlot : ((epoch + 1) * slotsPerEpoch - 1),
+          endSlot: (epoch + 1) * slotsPerEpoch - 1,
           produced: producedSlots,
           skipped: skippedSlots,
-          skipRate: isCurrentEpoch ? epochHistoryData?.skipRate : (actualSkipRate * 100).toFixed(4),
-          isCurrent: isCurrentEpoch
+          skipRate: skipRateStr,
+          isCurrent: false
         });
       }
       
@@ -162,7 +186,7 @@ export default function EpochHistory() {
             <div className="flex items-center gap-4">
               <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
                 <ChevronLeft className="w-5 h-5 text-gray-400" />
-                <span className="text-white font-bold text-xl">X1Space</span>
+                <span className="font-bold text-xl"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
               </Link>
               <span className="text-gray-400">|</span>
               <span className="text-white text-xl font-light">Epoch History</span>
