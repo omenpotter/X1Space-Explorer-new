@@ -313,13 +313,13 @@ export default function EpochHistory() {
                       <td className="px-4 py-3 text-right text-white">{epoch.validators}</td>
                       <td className="px-4 py-3 text-right text-white font-mono">{epoch.totalStake.toFixed(1)}M XNT</td>
                       <td className="px-4 py-3 text-right">
-                        <span className="text-emerald-400 font-mono">{epoch.produced.toLocaleString()}</span>
-                        <span className="text-gray-500 text-xs ml-1">[{prodPercent}%]</span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className="text-red-400 font-mono">{epoch.skipped.toLocaleString()}</span>
-                        <span className="text-gray-500 text-xs ml-1">[{skipPercent}%]</span>
-                      </td>
+                            <span className="text-emerald-400 font-mono">{epoch.produced.toLocaleString()}</span>
+                            <span className="text-gray-500 text-xs ml-1">[{(100 - parseFloat(epoch.skipRate || skipPercent)).toFixed(2)}%]</span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <span className="text-red-400 font-mono">{epoch.skipped.toLocaleString()}</span>
+                            <span className="text-gray-500 text-xs ml-1">[{epoch.skipRate || skipPercent}%]</span>
+                          </td>
                       <td className="px-4 py-3 text-right text-yellow-400 font-mono">{epoch.avgTps.toLocaleString()}</td>
                       <td className="px-4 py-3 text-right text-gray-400 font-mono">{formatNumber(epoch.transactions)}</td>
                       <td className="px-4 py-3 text-center">
