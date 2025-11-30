@@ -180,52 +180,55 @@ export default function Blocks() {
             <p className="text-gray-400 text-sm">Live from X1 mainnet • TPS: {tps.toLocaleString()}</p>
           </div>
           
-          <div className="flex items-center gap-3">
-            {/* View Toggle */}
-            <div className="flex gap-1 bg-[#24384a] rounded-lg p-1">
-              {['blocks', '1m', '10m'].map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setViewMode(mode)}
-                  className={`px-3 py-1.5 text-xs rounded ${viewMode === mode ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
-                >
-                  {mode === 'blocks' ? 'Blocks' : mode}
-                </button>
-              ))}
-            </div>
-            
-            <Button onClick={() => setIsLive(!isLive)} variant="outline" className={`border-white/10 ${isLive ? 'text-emerald-400' : 'text-gray-400'}`}>
-              {isLive ? <><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-2" /><Pause className="w-4 h-4 mr-1" /> Live</> : <><Play className="w-4 h-4 mr-1" /> Paused</>}
-            </Button>
-          </div>
+          <Button onClick={() => setIsLive(!isLive)} variant="outline" className={`border-white/10 ${isLive ? 'text-emerald-400' : 'text-gray-400'}`}>
+            {isLive ? <><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-2" /><Pause className="w-4 h-4 mr-1" /> Live</> : <><Play className="w-4 h-4 mr-1" /> Paused</>}
+          </Button>
         </div>
 
-        {/* View Info */}
-        {viewMode !== 'blocks' && (
-          <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 mb-4">
-            <p className="text-blue-400 text-sm">
-              {viewMode === '1m' 
-                ? '📊 Actual transaction data from RPC performance samples (1-minute windows).'
-                : '📊 Actual transaction data aggregated from RPC performance samples (10-minute windows).'}
-            </p>
+        {/* Slots View Box */}
+        <div className="bg-[#24384a] rounded-xl p-4 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <span className="text-white font-medium">Slots View</span>
+              <div className="flex gap-1 bg-[#1d2d3a] rounded-lg p-1">
+                {['blocks', '1m', '10m'].map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setViewMode(mode)}
+                    className={`px-3 py-1.5 text-xs rounded ${viewMode === mode ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
+                  >
+                    {mode === 'blocks' ? 'Blocks' : mode}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <MempoolLegend />
           </div>
-        )}
 
-        <MempoolLegend />
-
-        {/* Block Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3 mt-3">
-          {viewMode === 'blocks' ? (
-            blocks.slice(0, 10).map((block, i) => (
-              <MempoolBlockViz key={block.slot} block={block} isNew={block.slot === newBlockSlot || i === 0} />
-            ))
-          ) : (
-            getAggregatedData().map((data, i) => (
-              <MempoolAggregatedViz key={i} data={data} label={data.label} />
-            ))
+          {/* View Info */}
+          {viewMode !== 'blocks' && (
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-2 mb-4">
+              <p className="text-blue-400 text-xs">
+                {viewMode === '1m' 
+                  ? '📊 Actual transaction data from RPC performance samples (1-minute windows).'
+                  : '📊 Actual transaction data aggregated from RPC performance samples (10-minute windows).'}
+              </p>
+            </div>
           )}
+
+          {/* Block Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3">
+            {viewMode === 'blocks' ? (
+              blocks.slice(0, 10).map((block, i) => (
+                <MempoolBlockViz key={block.slot} block={block} isNew={block.slot === newBlockSlot || i === 0} />
+              ))
+            ) : (
+              getAggregatedData().map((data, i) => (
+                <MempoolAggregatedViz key={i} data={data} label={data.label} />
+              ))
+            )}
           </div>
-          </div>
+        </div>
 
         {/* Additional blocks table for blocks view */}
         {viewMode === 'blocks' && blocks.length > 10 && (
