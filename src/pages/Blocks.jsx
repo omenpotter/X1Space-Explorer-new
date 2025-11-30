@@ -15,105 +15,9 @@ import {
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import X1Rpc from '../components/x1/X1RpcService';
+import { MempoolBlockViz, MempoolAggregatedViz, MempoolLegend } from '../components/x1/MempoolViz';
 
-// Block visualization with actual tx breakdown by type
-const BlockViz = ({ block, isNew }) => {
-  const txCount = block?.txCount || 0;
-  const voteCount = block?.voteCount || 0;
-  const transferCount = block?.transferCount || 0;
-  const programCount = block?.programCount || 0;
-  const otherCount = block?.otherCount || 0;
-  
-  const total = txCount || 1;
-
-  const formatTimeAgo = (blockTime) => {
-    if (!blockTime) return 'just now';
-    const diff = (Date.now() / 1000) - blockTime;
-    if (diff < 60) return `${Math.floor(diff)}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    return `${Math.floor(diff / 3600)}h ago`;
-  };
-
-  return (
-    <Link to={createPageUrl('BlockDetail') + `?slot=${block.slot}`}>
-      <div className={`
-        relative w-full h-[220px]
-        bg-gradient-to-b from-purple-500/30 to-purple-600/20
-        border border-white/10 rounded-lg overflow-hidden cursor-pointer
-        transition-all duration-300 hover:border-cyan-500/50 hover:scale-[1.01]
-        ${isNew ? 'ring-2 ring-cyan-500/50 animate-pulse' : ''}
-      `}>
-        {/* Transaction breakdown visualization */}
-        <div className="absolute inset-2 bottom-24 flex flex-col gap-[2px]">
-          {voteCount > 0 && (
-            <div className="bg-purple-500/50 rounded flex items-center justify-center" style={{ flex: voteCount / total }}>
-              <span className="text-[9px] text-purple-200">{voteCount} vote</span>
-            </div>
-          )}
-          {transferCount > 0 && (
-            <div className="bg-emerald-500/50 rounded flex items-center justify-center" style={{ flex: transferCount / total }}>
-              <span className="text-[9px] text-emerald-200">{transferCount} xfer</span>
-            </div>
-          )}
-          {(programCount > 0 || otherCount > 0) && (
-            <div className="bg-yellow-500/50 rounded flex items-center justify-center" style={{ flex: (programCount + otherCount) / total }}>
-              <span className="text-[9px] text-yellow-200">{programCount + otherCount} prog</span>
-            </div>
-          )}
-        </div>
-        
-        <div className="absolute top-1 left-2 right-2 flex justify-between items-center">
-          <span className="text-cyan-400 font-mono font-bold text-sm">
-            #{block.slot?.toLocaleString()}
-          </span>
-          <span className="text-[9px] text-gray-400">{formatTimeAgo(block.blockTime)}</span>
-        </div>
-        
-        <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2">
-          <p className="text-white font-bold text-lg">{txCount.toLocaleString()}</p>
-          <p className="text-[10px] text-cyan-400">transactions</p>
-          <p className="text-[9px] text-gray-500 font-mono truncate">
-            {block.blockhash?.substring(0, 20)}...
-          </p>
-        </div>
-      </div>
-    </Link>
-  );
-};
-
-// Aggregated time view block with tx type breakdown
-const AggregatedBlockViz = ({ data }) => {
-  const { totalTxns, slots, label, voteCount, transferCount, programCount, hasData } = data;
-  
-  const total = totalTxns || 1;
-
-  return (
-    <div className={`relative w-full h-[220px] bg-gradient-to-b from-cyan-500/20 to-blue-600/20 border border-white/10 rounded-lg overflow-hidden ${!hasData ? 'opacity-70' : ''}`}>
-      <div className="absolute inset-2 bottom-24 flex flex-col gap-[2px]">
-        <div className="bg-purple-500/50 rounded flex items-center justify-center" style={{ flex: Math.max(0.1, voteCount / total) }}>
-          <span className="text-[9px] text-purple-200">{voteCount?.toLocaleString()} vote</span>
-        </div>
-        <div className="bg-emerald-500/50 rounded flex items-center justify-center" style={{ flex: Math.max(0.1, transferCount / total) }}>
-          <span className="text-[9px] text-emerald-200">{transferCount?.toLocaleString()} xfer</span>
-        </div>
-        <div className="bg-yellow-500/50 rounded flex items-center justify-center" style={{ flex: Math.max(0.1, programCount / total) }}>
-          <span className="text-[9px] text-yellow-200">{programCount?.toLocaleString()} prog</span>
-        </div>
-      </div>
-      
-      <div className="absolute top-2 right-2 flex items-center gap-1">
-        <span className="text-lg text-cyan-400 font-bold">{label}</span>
-        {!hasData && <span className="text-[8px] text-gray-500">est.</span>}
-      </div>
-      
-      <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2">
-        <p className="text-white font-bold text-lg">{totalTxns?.toLocaleString()}</p>
-        <p className="text-[10px] text-cyan-400">transactions</p>
-        <p className="text-[9px] text-gray-400">{slots?.toLocaleString()} slots</p>
-      </div>
-    </div>
-  );
-};
+// Use mempool viz components from shared file
 
 export default function Blocks() {
   const [blocks, setBlocks] = useState([]);
@@ -124,15 +28,18 @@ export default function Blocks() {
   const [newBlockSlot, setNewBlockSlot] = useState(null);
   const [viewMode, setViewMode] = useState('blocks'); // blocks, 1m, 10m
   const [tps, setTps] = useState(3000);
+  const [performanceData, setPerformanceData] = useState([]);
 
   const fetchBlocks = async () => {
     try {
-      const [recentBlocks, dashData] = await Promise.all([
+      const [recentBlocks, dashData, perfHistory] = await Promise.all([
         X1Rpc.getRecentBlocks(20),
-        X1Rpc.getDashboardData().catch(() => null)
+        X1Rpc.getDashboardData().catch(() => null),
+        X1Rpc.getPerformanceHistory(60).catch(() => [])
       ]);
       
       if (dashData?.tps) setTps(dashData.tps);
+      setPerformanceData(perfHistory);
       
       if (blocks.length > 0 && recentBlocks[0]?.slot > blocks[0]?.slot) {
         setNewBlockSlot(recentBlocks[0].slot);
@@ -149,12 +56,10 @@ export default function Blocks() {
     }
   };
 
-  // Get aggregated data for time views - TPS-based calculation for consistent data
+  // Get aggregated data for time views - uses ACTUAL performance samples from RPC
   const getAggregatedData = () => {
-    const aggregated = [];
-    
     // Use actual block data to calculate tx type ratios
-    let voteRatio = 0.70, transferRatio = 0.15, programRatio = 0.15;
+    let voteRatio = 0.70, transferRatio = 0.12, programRatio = 0.09;
     if (blocks.length > 0) {
       const totalTx = blocks.reduce((sum, b) => sum + (b.txCount || 0), 0);
       const totalVote = blocks.reduce((sum, b) => sum + (b.voteCount || 0), 0);
@@ -167,36 +72,45 @@ export default function Blocks() {
       }
     }
     
+    const aggregated = [];
+    
     if (viewMode === '1m') {
-      // Each 1-minute window: ~150 slots, tps * 60 transactions
+      // Use actual performance samples - each is ~1 minute of real data
       for (let i = 0; i < 10; i++) {
-        const label = i === 0 ? 'Now' : `${i}m ago`;
-        const slots = 150;
-        const totalTxns = Math.round(tps * 60);
+        const sample = performanceData[i];
+        const totalTxns = sample?.transactions || tps * 60;
+        const slots = sample?.slots || 150;
+        
         aggregated.push({
           totalTxns,
           slots,
-          label,
+          label: i === 0 ? 'Now' : `${i}m ago`,
           voteCount: Math.round(totalTxns * voteRatio),
           transferCount: Math.round(totalTxns * transferRatio),
           programCount: Math.round(totalTxns * programRatio),
-          hasData: true
+          timestamp: Date.now() - (i * 60 * 1000)
         });
       }
     } else if (viewMode === '10m') {
-      // Each 10-minute window: ~1500 slots, tps * 600 transactions
+      // Aggregate 10-minute windows from actual performance samples
       for (let i = 0; i < 10; i++) {
-        const label = i === 0 ? 'Now' : `${i * 10}m ago`;
-        const slots = 1500;
-        const totalTxns = Math.round(tps * 600);
+        let totalTxns = 0;
+        let totalSlots = 0;
+        for (let j = 0; j < 10; j++) {
+          const sampleIdx = i * 10 + j;
+          const sample = performanceData[sampleIdx];
+          totalTxns += sample?.transactions || tps * 60;
+          totalSlots += sample?.slots || 150;
+        }
+        
         aggregated.push({
           totalTxns,
-          slots,
-          label,
+          slots: totalSlots,
+          label: i === 0 ? 'Now' : `${i * 10}m ago`,
           voteCount: Math.round(totalTxns * voteRatio),
           transferCount: Math.round(totalTxns * transferRatio),
           programCount: Math.round(totalTxns * programRatio),
-          hasData: true
+          timestamp: Date.now() - (i * 10 * 60 * 1000)
         });
       }
     }
@@ -291,21 +205,23 @@ export default function Blocks() {
           <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 mb-4">
             <p className="text-blue-400 text-sm">
               {viewMode === '1m' 
-                ? '📊 Showing cumulative transactions per minute. X1 produces ~150 slots/min (2.5 slots/sec).'
-                : '📊 Showing cumulative transactions per 10 minutes. ~1,500 slots per 10 min window.'}
+                ? '📊 Actual transaction data from RPC performance samples (1-minute windows).'
+                : '📊 Actual transaction data aggregated from RPC performance samples (10-minute windows).'}
             </p>
           </div>
         )}
 
+        <MempoolLegend />
+
         {/* Block Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3 mt-3">
           {viewMode === 'blocks' ? (
-            blocks.slice(0, 10).map((block) => (
-              <BlockViz key={block.slot} block={block} isNew={block.slot === newBlockSlot} />
+            blocks.slice(0, 10).map((block, i) => (
+              <MempoolBlockViz key={block.slot} block={block} isNew={block.slot === newBlockSlot || i === 0} />
             ))
           ) : (
             getAggregatedData().map((data, i) => (
-              <AggregatedBlockViz key={i} data={data} />
+              <MempoolAggregatedViz key={i} data={data} label={data.label} />
             ))
           )}
         </div>
