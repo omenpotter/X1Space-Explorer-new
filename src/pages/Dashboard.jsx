@@ -666,6 +666,19 @@ export default function Dashboard() {
             <p className="text-white font-medium">Address Lookup</p>
             <p className="text-gray-500 text-xs">Search accounts</p>
           </Link>
+          <Link to={createPageUrl('PortfolioTracker')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
+            <TrendingDown className="w-6 h-6 text-emerald-400 mb-2" />
+            <p className="text-white font-medium">Portfolio</p>
+            <p className="text-gray-500 text-xs">Track holdings & rewards</p>
+          </Link>
+          <Link to={createPageUrl('WhaleWatcher')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
+            <svg className="w-6 h-6 text-cyan-400 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2C8 2 4 6 4 10c0 2 1 4 3 5v2c0 1 1 2 2 2h6c1 0 2-1 2-2v-2c2-1 3-3 3-5 0-4-4-8-8-8z" />
+              <path d="M9 22v-2M15 22v-2" />
+            </svg>
+            <p className="text-white font-medium">Whale Watcher</p>
+            <p className="text-gray-500 text-xs">Track large transactions</p>
+          </Link>
           <Link to={createPageUrl('ValidatorCompare')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
             <svg className="w-6 h-6 text-indigo-400 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 3v18h18" />
