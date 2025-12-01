@@ -4,9 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { 
-  Zap, Bell, Plus, Trash2, Loader2, AlertTriangle,
-  TrendingDown, TrendingUp, CheckCircle, Mail, Globe,
-  Percent, Coins, Activity, Play, Pause, Send
+  Bell, Plus, Trash2, Loader2, AlertTriangle,
+  TrendingDown, TrendingUp, Mail, Globe,
+  Percent, Activity, Play, Pause, Send, ChevronLeft
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -107,16 +107,16 @@ export default function ValidatorAlerts() {
             break;
           case 'stake_increase':
             const stakeIncrease = validator.activatedStake - (prev.stake || validator.activatedStake);
-            if (stakeIncrease >= alert.threshold * 1000000) {
+            if (stakeIncrease >= alert.threshold * 1000) {
               triggered = true;
-              message = `Stake increased by ${(stakeIncrease / 1000000).toFixed(2)}M XNT`;
+              message = `Stake increased by ${(stakeIncrease / 1000).toFixed(2)}K XNT`;
             }
             break;
           case 'stake_decrease':
             const stakeDecrease = (prev.stake || validator.activatedStake) - validator.activatedStake;
-            if (stakeDecrease >= alert.threshold * 1000000) {
+            if (stakeDecrease >= alert.threshold * 1000) {
               triggered = true;
-              message = `Stake decreased by ${(stakeDecrease / 1000000).toFixed(2)}M XNT`;
+              message = `Stake decreased by ${(stakeDecrease / 1000).toFixed(2)}K XNT`;
             }
             break;
         }
@@ -228,8 +228,8 @@ View details at X1.space
       uptime: 99,
       commission: 10,
       delinquent: 0,
-      stake_increase: 1,
-      stake_decrease: 1
+      stake_increase: 100,
+      stake_decrease: 100
     };
     
     const newAlert = {
@@ -270,8 +270,8 @@ View details at X1.space
       case 'uptime': return { label: 'Uptime drops below', suffix: '%', icon: Activity, color: 'text-yellow-400', bgColor: 'bg-yellow-500/20' };
       case 'commission': return { label: 'Commission exceeds', suffix: '%', icon: Percent, color: 'text-red-400', bgColor: 'bg-red-500/20' };
       case 'delinquent': return { label: 'Becomes delinquent', suffix: '', icon: AlertTriangle, color: 'text-red-400', bgColor: 'bg-red-500/20' };
-      case 'stake_increase': return { label: 'Stake increases by', suffix: 'M XNT', icon: TrendingUp, color: 'text-emerald-400', bgColor: 'bg-emerald-500/20' };
-      case 'stake_decrease': return { label: 'Stake decreases by', suffix: 'M XNT', icon: TrendingDown, color: 'text-orange-400', bgColor: 'bg-orange-500/20' };
+      case 'stake_increase': return { label: 'Stake increases by', suffix: 'K XNT', icon: TrendingUp, color: 'text-emerald-400', bgColor: 'bg-emerald-500/20' };
+      case 'stake_decrease': return { label: 'Stake decreases by', suffix: 'K XNT', icon: TrendingDown, color: 'text-orange-400', bgColor: 'bg-orange-500/20' };
       default: return { label: type, suffix: '', icon: Bell, color: 'text-gray-400', bgColor: 'bg-gray-500/20' };
     }
   };
@@ -296,12 +296,9 @@ View details at X1.space
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
-                  <span className="text-black font-black text-sm">X1</span>
-                </div>
-                <span className="text-white font-bold hidden sm:inline">X1</span>
-                <span className="text-cyan-400 font-bold hidden sm:inline">.space</span>
+              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
+                <ChevronLeft className="w-5 h-5 text-gray-400" />
+                <span className="font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
               </Link>
               <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
             </div>
@@ -418,10 +415,10 @@ View details at X1.space
                       <AlertTriangle className="w-3 h-3 mr-1" /> Delinquent
                     </Button>
                     <Button size="sm" variant="outline" className="border-emerald-500/30 text-emerald-400 text-xs h-7" onClick={() => addAlert(v, 'stake_increase')}>
-                      <TrendingUp className="w-3 h-3 mr-1" /> +1M Stake
+                      <TrendingUp className="w-3 h-3 mr-1" /> +100K Stake
                     </Button>
                     <Button size="sm" variant="outline" className="border-orange-500/30 text-orange-400 text-xs h-7" onClick={() => addAlert(v, 'stake_decrease')}>
-                      <TrendingDown className="w-3 h-3 mr-1" /> -1M Stake
+                      <TrendingDown className="w-3 h-3 mr-1" /> -100K Stake
                     </Button>
                   </div>
                 </div>
