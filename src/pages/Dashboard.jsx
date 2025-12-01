@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, memo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, memo, startTransition } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,17 +6,20 @@ import { Search, Zap, AlertCircle, Globe, Calculator, Wallet } from 'lucide-reac
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
-// Lazy load everything heavy
+// Critical: Load RPC service immediately for faster data fetch
+import X1RpcService from '../components/x1/X1RpcService';
+
+// Lazy load non-critical UI components with longer timeout
 const ThemeToggle = lazy(() => import('../components/layout/ThemeToggle'));
 const MobileNav = lazy(() => import('../components/layout/MobileNav'));
+
+// Defer heavy visualizations
 const MempoolViz = lazy(() => import('../components/x1/MempoolViz'));
+const MempoolLegend = lazy(() => import('../components/x1/MempoolViz').then(m => ({ default: m.MempoolLegend })));
 const QuickLinks = lazy(() => import('@/components/dashboard/QuickLinks'));
 const RecentBlocksTable = lazy(() => import('@/components/dashboard/RecentBlocksTable'));
 
-// Lazy load MempoolLegend  
-const MempoolLegend = lazy(() => import('../components/x1/MempoolViz').then(m => ({ default: m.MempoolLegend })));
-
-// Lazy load recharts only when needed
+// Lazy load recharts - heaviest dependency
 const LazyChart = lazy(() => import('recharts').then(m => ({
   default: memo(({ data }) => {
     const { LineChart, Line, ResponsiveContainer, Tooltip, YAxis } = m;
@@ -32,17 +35,8 @@ const LazyChart = lazy(() => import('recharts').then(m => ({
   })
 })));
 
-// Minimal inline fallback
+// Minimal inline fallback - no animation to reduce repaints
 const MiniFallback = memo(() => <div className="w-5 h-5" />);
-
-// Lazy load X1Rpc to reduce initial bundle
-let X1Rpc = null;
-const getX1Rpc = async () => {
-  if (!X1Rpc) {
-    X1Rpc = (await import('../components/x1/X1RpcService')).default;
-  }
-  return X1Rpc;
-};
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,25 +70,29 @@ export default function Dashboard() {
     return aggregated;
   }, [dashboardData?.tpsHistory, tpsInterval]);
 
-  // Memoized fetch function to prevent recreation
+  // Memoized fetch function - prioritize critical data first
   const fetchData = useCallback(async () => {
     try {
-      const rpc = await getX1Rpc();
-      const [data, blocks, perfHistory] = await Promise.all([
-        rpc.getDashboardData(),
-        rpc.getRecentBlocks(10),
-        rpc.getPerformanceHistory(60)
-      ]);
-      
+      // Fetch critical dashboard data first for faster LCP
+      const data = await X1RpcService.getDashboardData();
       setDashboardData(data);
-      setRecentBlocks(blocks);
-      setPerformanceData(perfHistory);
-      setLastUpdate(new Date());
+      setLoading(false);
       setError(null);
+      
+      // Then fetch secondary data in background using startTransition
+      startTransition(() => {
+        Promise.all([
+          X1RpcService.getRecentBlocks(10),
+          X1RpcService.getPerformanceHistory(60)
+        ]).then(([blocks, perfHistory]) => {
+          setRecentBlocks(blocks);
+          setPerformanceData(perfHistory);
+          setLastUpdate(new Date());
+        });
+      });
     } catch (err) {
       console.error('Failed to fetch data:', err);
       setError(err.message);
-    } finally {
       setLoading(false);
     }
   }, []);
@@ -163,9 +161,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 5000); // Refresh every 5 seconds
+    // Use longer interval (10s) to reduce main thread blocking
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchData]);
 
   const handleSearch = () => {
     if (searchQuery) {
@@ -188,20 +187,14 @@ export default function Dashboard() {
 
   // No pending blocks - X1 processes blocks instantly
 
-  // Simplified loading state - no heavy animations
+  // Ultra-minimal loading state - pure CSS, no animations blocking render
   if (loading && !dashboardData) {
     return (
       <div className="min-h-screen bg-[#1d2d3a] text-white flex flex-col items-center justify-center">
-        <div className="flex gap-2 mb-4">
-          <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
-            <span className="text-black font-black text-3xl">X1</span>
-          </div>
+        <div className="w-12 h-12 bg-cyan-500 rounded-lg flex items-center justify-center mb-3">
+          <span className="text-black font-black text-xl">X1</span>
         </div>
-        <h1 className="text-2xl font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></h1>
-        <div className="mt-4 flex items-center gap-2">
-          <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
-          <span className="text-gray-400 text-sm">Connecting...</span>
-        </div>
+        <p className="text-gray-400 text-sm">Loading...</p>
       </div>
     );
   }
