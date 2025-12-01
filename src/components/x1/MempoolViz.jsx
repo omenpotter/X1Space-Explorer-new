@@ -1,9 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
-// Small transaction block for mempool visualization
-const TxBlock = ({ type, size = 'sm' }) => {
+// Small transaction block for mempool visualization - memoized
+const TxBlock = memo(({ type, size = 'sm' }) => {
   const colors = {
     vote: 'bg-purple-500',
     transfer: 'bg-emerald-500',
@@ -23,10 +23,12 @@ const TxBlock = ({ type, size = 'sm' }) => {
       title={type}
     />
   );
-};
+});
 
-// Mempool-style aggregated view with many small boxes
-export const MempoolAggregatedViz = ({ data, label, onClick }) => {
+TxBlock.displayName = 'TxBlock';
+
+// Mempool-style aggregated view with many small boxes - memoized
+export const MempoolAggregatedViz = memo(({ data, label, onClick }) => {
   const { totalTxns, voteCount, transferCount, programCount, slots, timestamp } = data;
   
   // Generate grid of small blocks based on tx type ratios - fill the box fully
@@ -88,10 +90,10 @@ export const MempoolAggregatedViz = ({ data, label, onClick }) => {
   );
 });
 
-MempoolLegend.displayName = 'MempoolLegend';
+MempoolAggregatedViz.displayName = 'MempoolAggregatedViz';
 
-// Mempool-style block view with small tx boxes
-export const MempoolBlockViz = ({ block, isNew }) => {
+// Mempool-style block view with small tx boxes - memoized
+export const MempoolBlockViz = memo(({ block, isNew }) => {
   const { slot, txCount, voteCount, transferCount, programCount, otherCount, blockTime } = block || {};
   
   // Generate grid of small blocks - fill the box fully
@@ -165,10 +167,12 @@ export const MempoolBlockViz = ({ block, isNew }) => {
       </div>
     </Link>
   );
-};
+});
 
-// Legend for mempool colors
-export const MempoolLegend = () => (
+MempoolBlockViz.displayName = 'MempoolBlockViz';
+
+// Legend for mempool colors - memoized
+export const MempoolLegend = memo(() => (
   <div className="flex items-center gap-4 text-xs">
     <div className="flex items-center gap-1.5">
       <div className="w-3 h-3 bg-purple-500 rounded-sm" />
@@ -187,6 +191,8 @@ export const MempoolLegend = () => (
       <span className="text-gray-400">Other</span>
     </div>
   </div>
-);
+));
+
+MempoolLegend.displayName = 'MempoolLegend';
 
 export default { MempoolAggregatedViz, MempoolBlockViz, MempoolLegend };
