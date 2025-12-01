@@ -80,10 +80,11 @@ export default function Dashboard() {
   // Memoized fetch function to prevent recreation
   const fetchData = useCallback(async () => {
     try {
+      const rpc = await getX1Rpc();
       const [data, blocks, perfHistory] = await Promise.all([
-        X1Rpc.getDashboardData(),
-        X1Rpc.getRecentBlocks(10),
-        X1Rpc.getPerformanceHistory(60)
+        rpc.getDashboardData(),
+        rpc.getRecentBlocks(10),
+        rpc.getPerformanceHistory(60)
       ]);
       
       setDashboardData(data);
