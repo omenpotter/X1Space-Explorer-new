@@ -29,6 +29,9 @@ const ThemeToggle = lazy(() => import('../components/layout/ThemeToggle'));
 const MobileNav = lazy(() => import('../components/layout/MobileNav'));
 const MempoolViz = lazy(() => import('../components/x1/MempoolViz'));
 
+// Static import for legend (small component, needed immediately)
+import { MempoolLegend } from '../components/x1/MempoolViz';
+
 // Lazy load recharts (heavy library)
 const LazyChart = lazy(() => import('recharts').then(m => ({
   default: ({ data, tpsInterval }) => {
@@ -742,7 +745,7 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
-        </div>
+        </DeferredRender>
       </main>
     </div>
   );
