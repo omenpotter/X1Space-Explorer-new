@@ -1,10 +1,14 @@
 // RPC Response Cache for performance optimization
+// Using WeakMap-like pattern with Map for better memory management
 const cache = new Map();
 const CACHE_DURATIONS = {
   short: 5000,      // 5 seconds - for real-time data
   medium: 30000,    // 30 seconds - for validator data
   long: 300000,     // 5 minutes - for static data like supply
 };
+
+// Limit cache size to prevent memory bloat
+const MAX_CACHE_SIZE = 50;
 
 export function getCached(key) {
   const entry = cache.get(key);
@@ -17,6 +21,16 @@ export function getCached(key) {
 }
 
 export function setCache(key, data, duration = 'short') {
+  // Prevent cache from growing too large
+  if (cache.size >= MAX_CACHE_SIZE) {
+    // Remove oldest entries
+    const entries = Array.from(cache.entries());
+    entries.sort((a, b) => a[1].expiry - b[1].expiry);
+    for (let i = 0; i < 10; i++) {
+      cache.delete(entries[i][0]);
+    }
+  }
+  
   const expiry = Date.now() + (CACHE_DURATIONS[duration] || CACHE_DURATIONS.short);
   cache.set(key, { data, expiry });
 }
