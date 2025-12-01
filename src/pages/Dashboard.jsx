@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, memo 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Zap, ExternalLink, AlertCircle } from 'lucide-react';
+import { Search, Zap, AlertCircle, Globe, Calculator, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
@@ -336,7 +336,9 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <MempoolLegend />
+                <Suspense fallback={<div className="h-4" />}>
+                  <MempoolLegend />
+                </Suspense>
                 <div className="flex items-center gap-2 ml-4">
                   <span className="text-emerald-400 text-sm font-medium">XNT $1.00</span>
                   <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">OTC</Badge>
