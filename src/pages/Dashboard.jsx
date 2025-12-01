@@ -53,7 +53,6 @@ export default function Dashboard() {
   const [lastUpdate, setLastUpdate] = useState(null);
   const [tpsInterval, setTpsInterval] = useState('1m');
   const [mempoolInterval, setMempoolInterval] = useState('blocks');
-  const [historicalBlocks, setHistoricalBlocks] = useState([]);
   const [performanceData, setPerformanceData] = useState([]);
 
   // Memoized TPS data aggregation
@@ -89,7 +88,6 @@ export default function Dashboard() {
       
       setDashboardData(data);
       setRecentBlocks(blocks);
-      setHistoricalBlocks(blocks);
       setPerformanceData(perfHistory);
       setLastUpdate(new Date());
       setError(null);
