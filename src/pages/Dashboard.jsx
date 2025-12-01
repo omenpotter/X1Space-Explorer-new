@@ -10,8 +10,8 @@ import { createPageUrl } from '@/utils';
 const ThemeToggle = lazy(() => import('../components/layout/ThemeToggle'));
 const MobileNav = lazy(() => import('../components/layout/MobileNav'));
 const MempoolViz = lazy(() => import('../components/x1/MempoolViz'));
-const QuickLinks = lazy(() => import('../components/dashboard/QuickLinks'));
-const RecentBlocksTable = lazy(() => import('../components/dashboard/RecentBlocksTable'));
+const QuickLinks = lazy(() => import('@/components/dashboard/QuickLinks'));
+const RecentBlocksTable = lazy(() => import('@/components/dashboard/RecentBlocksTable'));
 
 // Lazy load MempoolLegend  
 const MempoolLegend = lazy(() => import('../components/x1/MempoolViz').then(m => ({ default: m.MempoolLegend })));
