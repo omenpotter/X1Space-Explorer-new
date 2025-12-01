@@ -1,75 +1,48 @@
-import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, memo } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Search, 
-  Zap,
-  TrendingDown,
-  ExternalLink,
-  Loader2,
-  AlertCircle,
-  Globe,
-  Calculator,
-  Wallet,
-  Star,
-  Trophy,
-  Coins,
-  Map,
-  Clock,
-  Bell
-} from 'lucide-react';
+import { Search, Zap, ExternalLink, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import X1Rpc from '../components/x1/X1RpcService';
-import DeferredRender from '../components/common/DeferredRender';
 
-// Lazy load heavy components
+// Lazy load everything heavy
 const ThemeToggle = lazy(() => import('../components/layout/ThemeToggle'));
 const MobileNav = lazy(() => import('../components/layout/MobileNav'));
 const MempoolViz = lazy(() => import('../components/x1/MempoolViz'));
+const QuickLinks = lazy(() => import('../components/dashboard/QuickLinks'));
+const RecentBlocksTable = lazy(() => import('../components/dashboard/RecentBlocksTable'));
 
-// Static import for legend (small component, needed immediately)
-import { MempoolLegend } from '../components/x1/MempoolViz';
+// Lazy load MempoolLegend  
+const MempoolLegend = lazy(() => import('../components/x1/MempoolViz').then(m => ({ default: m.MempoolLegend })));
 
-// Lazy load recharts (heavy library)
+// Lazy load recharts only when needed
 const LazyChart = lazy(() => import('recharts').then(m => ({
-  default: ({ data, tpsInterval }) => {
+  default: memo(({ data }) => {
     const { LineChart, Line, ResponsiveContainer, Tooltip, YAxis } = m;
     return (
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data}>
-          <YAxis 
-            domain={['auto', 'auto']}
-            axisLine={false}
-            tickLine={false}
-            tick={{ fill: '#6b7280', fontSize: 10 }}
-            width={50}
-          />
-          <Tooltip 
-            contentStyle={{ 
-              backgroundColor: '#1d2d3a', 
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: '8px'
-            }}
-            labelStyle={{ color: '#9ca3af' }}
-            formatter={(value) => [`${value.toLocaleString()} TPS`, 'Avg TPS']}
-          />
-          <Line 
-            type="monotone" 
-            dataKey="tps" 
-            stroke="#eab308" 
-            strokeWidth={2}
-            dot={false}
-          />
+          <YAxis domain={['auto', 'auto']} axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} width={50} />
+          <Tooltip contentStyle={{ backgroundColor: '#1d2d3a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} labelStyle={{ color: '#9ca3af' }} formatter={(value) => [`${value.toLocaleString()} TPS`, 'Avg TPS']} />
+          <Line type="monotone" dataKey="tps" stroke="#eab308" strokeWidth={2} dot={false} />
         </LineChart>
       </ResponsiveContainer>
     );
-  }
+  })
 })));
 
-// Inline minimal fallback for lazy components
-const MiniFallback = () => <div className="w-5 h-5" />;
+// Minimal inline fallback
+const MiniFallback = memo(() => <div className="w-5 h-5" />);
+
+// Lazy load X1Rpc to reduce initial bundle
+let X1Rpc = null;
+const getX1Rpc = async () => {
+  if (!X1Rpc) {
+    X1Rpc = (await import('../components/x1/X1RpcService')).default;
+  }
+  return X1Rpc;
+};
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
