@@ -312,7 +312,9 @@ export default function Dashboard() {
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <MobileNav />
+                <Suspense fallback={<MiniFallback />}>
+                  <MobileNav />
+                </Suspense>
               <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
                 <span className="text-black font-black text-sm">X1</span>
               </div>
@@ -372,7 +374,9 @@ export default function Dashboard() {
                   <Wallet className="w-5 h-5" />
                 </Button>
               </Link>
-              <ThemeToggle />
+              <Suspense fallback={<MiniFallback />}>
+                <ThemeToggle />
+              </Suspense>
             </nav>
             
             <div className="flex-1 max-w-md">
@@ -438,17 +442,14 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 overflow-x-auto" key={mempoolInterval + '-' + (recentBlocks[0]?.slot || 0)}>
-              {mempoolInterval === 'blocks' ? (
-                recentBlocks.slice(0, 10).map((block, i) => (
-                  <MempoolBlockViz key={block.slot} block={block} isNew={i === 0} />
-                ))
-              ) : (
-                getAggregatedBlocks()?.slice(0, 10).map((agg, i) => (
-                  <MempoolAggregatedViz key={`${mempoolInterval}-${i}-${dashboardData?.slot}`} data={agg} label={agg.label} />
-                ))
-              )}
-            </div>
+            <Suspense fallback={<div className="flex gap-2">{Array(10).fill(0).map((_, i) => <div key={i} className="w-[100px] h-[140px] bg-slate-800/50 rounded-lg animate-pulse" />)}</div>}>
+              <MempoolViz 
+                mempoolInterval={mempoolInterval}
+                recentBlocks={recentBlocks}
+                aggregatedBlocks={aggregatedBlocks}
+                dashboardSlot={dashboardData?.slot}
+              />
+            </Suspense>
           </div>
         </div>
 
@@ -582,40 +583,16 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="h-[200px]">
-                {dashboardData?.tpsHistory?.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={getAggregatedTpsData()}>
-                      <YAxis 
-                        domain={['auto', 'auto']}
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: '#6b7280', fontSize: 10 }}
-                        width={50}
-                      />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#1d2d3a', 
-                          border: '1px solid rgba(255,255,255,0.1)',
-                          borderRadius: '8px'
-                        }}
-                        labelStyle={{ color: '#9ca3af' }}
-                        formatter={(value) => [`${value.toLocaleString()} TPS`, 'Avg TPS']}
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="tps" 
-                        stroke="#eab308" 
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-gray-500">
-                    Loading TPS data...
+                    {aggregatedTpsData.length > 0 ? (
+                      <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500">Loading chart...</div>}>
+                        <LazyChart data={aggregatedTpsData} tpsInterval={tpsInterval} />
+                      </Suspense>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-gray-500">
+                        Loading TPS data...
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
             </div>
 
             {/* Version Info */}
