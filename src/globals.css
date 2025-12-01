@@ -2,6 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Critical CSS - inline critical styles for above-the-fold content */
+/* Optimize font loading */
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  
+  /* Prevent CLS from font loading */
+  body {
+    font-display: swap;
+  }
+  
+  /* GPU acceleration for animations */
+  .animate-pulse {
+    will-change: opacity;
+  }
+}
+
 @layer base {
   :root {
     --background: 222 47% 17%;
