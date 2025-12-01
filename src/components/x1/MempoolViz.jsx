@@ -206,5 +206,4 @@ const MempoolViz = memo(({ mempoolInterval, recentBlocks, aggregatedBlocks, dash
 
 MempoolViz.displayName = 'MempoolViz';
 
-export { MempoolAggregatedViz, MempoolBlockViz, MempoolLegend };
 export default MempoolViz;

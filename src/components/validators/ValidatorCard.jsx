@@ -1,23 +1,14 @@
-import React, { memo, useMemo, useCallback } from 'react';
+import React, { memo, useMemo } from 'react';
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
 const ValidatorCard = memo(function ValidatorCard({ validator, rank, totalStake }) {
-  // Memoize computed values
-  const formattedStake = useMemo(() => {
-    const stake = validator.activatedStake;
-    if (stake >= 1e6) return (stake / 1e6).toFixed(2) + 'M';
-    if (stake >= 1e3) return (stake / 1e3).toFixed(2) + 'K';
-    return stake.toFixed(2);
-  }, [validator.activatedStake]);
-  
   const stakePercent = useMemo(() => 
     ((validator.activatedStake / totalStake) * 100).toFixed(2),
     [validator.activatedStake, totalStake]
   );
-  const stakePercent = parseFloat(validator.stakePercent) || 0;
   
   const formatStake = (stake) => {
     if (stake >= 1e6) return (stake / 1e6).toFixed(2) + 'M';
