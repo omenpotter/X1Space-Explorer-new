@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,12 +21,52 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { LineChart, Line, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
 import X1Rpc from '../components/x1/X1RpcService';
-import ThemeToggle from '../components/layout/ThemeToggle';
-import MobileNav from '../components/layout/MobileNav';
+import DeferredRender from '../components/common/DeferredRender';
 
-import { MempoolAggregatedViz, MempoolBlockViz, MempoolLegend } from '../components/x1/MempoolViz';
+// Lazy load heavy components
+const ThemeToggle = lazy(() => import('../components/layout/ThemeToggle'));
+const MobileNav = lazy(() => import('../components/layout/MobileNav'));
+const MempoolViz = lazy(() => import('../components/x1/MempoolViz'));
+
+// Lazy load recharts (heavy library)
+const LazyChart = lazy(() => import('recharts').then(m => ({
+  default: ({ data, tpsInterval }) => {
+    const { LineChart, Line, ResponsiveContainer, Tooltip, YAxis } = m;
+    return (
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data}>
+          <YAxis 
+            domain={['auto', 'auto']}
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: '#6b7280', fontSize: 10 }}
+            width={50}
+          />
+          <Tooltip 
+            contentStyle={{ 
+              backgroundColor: '#1d2d3a', 
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '8px'
+            }}
+            labelStyle={{ color: '#9ca3af' }}
+            formatter={(value) => [`${value.toLocaleString()} TPS`, 'Avg TPS']}
+          />
+          <Line 
+            type="monotone" 
+            dataKey="tps" 
+            stroke="#eab308" 
+            strokeWidth={2}
+            dot={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    );
+  }
+})));
+
+// Inline minimal fallback for lazy components
+const MiniFallback = () => <div className="w-5 h-5" />;
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -40,16 +80,15 @@ export default function Dashboard() {
   const [historicalBlocks, setHistoricalBlocks] = useState([]);
   const [performanceData, setPerformanceData] = useState([]);
 
-  // Aggregate TPS data based on selected interval
-  const getAggregatedTpsData = () => {
+  // Memoized TPS data aggregation
+  const aggregatedTpsData = useMemo(() => {
     if (!dashboardData?.tpsHistory?.length) return [];
     
     const history = dashboardData.tpsHistory;
     if (tpsInterval === '1m') {
-      return history; // Already 1-minute samples
+      return history;
     }
     
-    // Aggregate to 10-minute bars
     const aggregated = [];
     for (let i = 0; i < history.length; i += 10) {
       const chunk = history.slice(i, i + 10);
@@ -60,15 +99,15 @@ export default function Dashboard() {
       });
     }
     return aggregated;
-  };
+  }, [dashboardData?.tpsHistory, tpsInterval]);
 
-  // Fetch dashboard data
-  const fetchData = async () => {
+  // Memoized fetch function to prevent recreation
+  const fetchData = useCallback(async () => {
     try {
       const [data, blocks, perfHistory] = await Promise.all([
         X1Rpc.getDashboardData(),
-        X1Rpc.getRecentBlocks(10), // Fetch 10 blocks for display
-        X1Rpc.getPerformanceHistory(60) // Get 60 minutes of performance data
+        X1Rpc.getRecentBlocks(10),
+        X1Rpc.getPerformanceHistory(60)
       ]);
       
       setDashboardData(data);
@@ -83,14 +122,13 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // Get aggregated blocks based on interval - uses ACTUAL performance sample data from RPC
-  const getAggregatedBlocks = () => {
+  // Memoized aggregated blocks calculation
+  const aggregatedBlocks = useMemo(() => {
     if (mempoolInterval === 'blocks') return null;
     
-    // Use actual block data to calculate tx type ratios
-    let voteRatio = 0.70, transferRatio = 0.12, programRatio = 0.09, otherRatio = 0.09;
+    let voteRatio = 0.70, transferRatio = 0.12, programRatio = 0.09;
     if (recentBlocks.length > 0) {
       const totalTx = recentBlocks.reduce((sum, b) => sum + (b.txCount || 0), 0);
       const totalVote = recentBlocks.reduce((sum, b) => sum + (b.voteCount || 0), 0);
@@ -104,12 +142,12 @@ export default function Dashboard() {
     }
     
     const aggregated = [];
+    const baseTps = dashboardData?.tps || 3000;
     
     if (mempoolInterval === '1m') {
-      // Use actual performance samples - each sample is ~1 minute
       for (let i = 0; i < 10; i++) {
         const sample = performanceData[i];
-        const totalTxns = sample?.transactions || (dashboardData?.tps || 3000) * 60;
+        const totalTxns = sample?.transactions || baseTps * 60;
         const slots = sample?.slots || 150;
         
         aggregated.push({
@@ -123,15 +161,13 @@ export default function Dashboard() {
         });
       }
     } else {
-      // Aggregate 10-minute windows from performance samples
       for (let i = 0; i < 10; i++) {
-        // Sum 10 consecutive 1-minute samples
         let totalTxns = 0;
         let totalSlots = 0;
         for (let j = 0; j < 10; j++) {
           const sampleIdx = i * 10 + j;
           const sample = performanceData[sampleIdx];
-          totalTxns += sample?.transactions || (dashboardData?.tps || 3000) * 60;
+          totalTxns += sample?.transactions || baseTps * 60;
           totalSlots += sample?.slots || 150;
         }
         
@@ -148,7 +184,7 @@ export default function Dashboard() {
     }
     
     return aggregated;
-  };
+  }, [mempoolInterval, recentBlocks, performanceData, dashboardData?.tps]);
 
   useEffect(() => {
     fetchData();
