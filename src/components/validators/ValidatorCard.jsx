@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
-export default function ValidatorCard({ validator, rank, totalStake }) {
+const ValidatorCard = memo(function ValidatorCard({ validator, rank, totalStake }) {
   const stakePercent = parseFloat(validator.stakePercent) || 0;
   
   const formatStake = (stake) => {
@@ -108,4 +108,6 @@ export default function ValidatorCard({ validator, rank, totalStake }) {
       </td>
     </tr>
   );
-}
+});
+
+export default ValidatorCard;
