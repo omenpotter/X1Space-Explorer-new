@@ -86,7 +86,9 @@ export const MempoolAggregatedViz = ({ data, label, onClick }) => {
       </div>
     </div>
   );
-};
+});
+
+MempoolLegend.displayName = 'MempoolLegend';
 
 // Mempool-style block view with small tx boxes
 export const MempoolBlockViz = ({ block, isNew }) => {
