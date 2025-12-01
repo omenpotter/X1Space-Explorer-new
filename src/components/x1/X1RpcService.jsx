@@ -235,6 +235,10 @@ export async function getVersion() {
 
 // Aggregate function to get dashboard data
 export async function getDashboardData() {
+  // Check cache first - dashboard data cached for 5 seconds
+  const cached = getCached('dashboardData');
+  if (cached) return cached;
+  
   const [
     slot,
     blockHeight,
@@ -265,7 +269,7 @@ export async function getDashboardData() {
   const slotsRemaining = epochInfo.slotsInEpoch - epochInfo.slotIndex;
   const timeRemaining = Math.round(slotsRemaining * 0.4); // ~400ms per slot
 
-  return {
+  const result = {
     slot,
     blockHeight,
     epoch: epochInfo.epoch,
@@ -290,10 +294,18 @@ export async function getDashboardData() {
     },
     version: version['solana-core'] || version.version
   };
+  
+  // Cache dashboard data for 5 seconds
+  setCache('dashboardData', result, 'short');
+  return result;
 }
 
 // Get recent blocks with details including transaction type breakdown
 export async function getRecentBlocks(count = 10) {
+  // Check cache first
+  const cached = getCached('recentBlocks');
+  if (cached) return cached;
+  
   const currentSlot = await getSlot();
   const blocks = [];
   
@@ -377,6 +389,8 @@ export async function getRecentBlocks(count = 10) {
   // Sort by slot descending
   blocks.sort((a, b) => b.slot - a.slot);
   
+  // Cache for 3 seconds
+  setCache('recentBlocks', blocks, 'short');
   return blocks;
 }
 

@@ -156,8 +156,14 @@ export default function Dashboard() {
   }, [mempoolInterval, recentBlocks, performanceData, dashboardData?.tps]);
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 5000);
+    // Use requestIdleCallback for non-blocking initial fetch
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => fetchData(), { timeout: 1000 });
+    } else {
+      fetchData();
+    }
+    // Longer interval reduces main thread blocking
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
