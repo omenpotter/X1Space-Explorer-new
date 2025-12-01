@@ -1,5 +1,8 @@
 // X1 Blockchain RPC Service
 // Uses Solana-compatible JSON-RPC API with fallback endpoints
+// Optimized with caching and connection pooling
+
+import { getCached, setCache, debounceRpc } from './RpcCache';
 
 const RPC_ENDPOINTS = [
   'https://rpc.mainnet.x1.xyz',
@@ -9,8 +12,24 @@ const RPC_ENDPOINTS = [
 
 let currentEndpointIndex = 0;
 
-// Helper to make RPC calls with fallback
-async function rpcCall(method, params = []) {
+// Preconnect to RPC endpoints on module load
+if (typeof window !== 'undefined') {
+  RPC_ENDPOINTS.forEach(endpoint => {
+    const link = document.createElement('link');
+    link.rel = 'preconnect';
+    link.href = new URL(endpoint).origin;
+    document.head.appendChild(link);
+  });
+}
+
+// Helper to make RPC calls with fallback and caching
+async function rpcCall(method, params = [], cacheKey = null, cacheDuration = 'short') {
+  // Check cache first
+  if (cacheKey) {
+    const cached = getCached(cacheKey);
+    if (cached) return cached;
+  }
+  
   let lastError = null;
   
   for (let i = 0; i < RPC_ENDPOINTS.length; i++) {
@@ -35,8 +54,11 @@ async function rpcCall(method, params = []) {
         continue;
       }
       
-      // Success - update preferred endpoint
+      // Success - update preferred endpoint and cache
       currentEndpointIndex = endpointIndex;
+      if (cacheKey) {
+        setCache(cacheKey, data.result, cacheDuration);
+      }
       return data.result;
     } catch (err) {
       lastError = err;
@@ -137,19 +159,19 @@ export async function getBlockProductionForEpoch(epoch, slotsPerEpoch = 216000) 
   return await rpcCall('getBlockProduction', [{ range: { firstSlot, lastSlot } }]);
 }
 
-// Get vote accounts (validators)
+// Get vote accounts (validators) - cached for 30 seconds
 export async function getVoteAccounts() {
-  return await rpcCall('getVoteAccounts');
+  return await rpcCall('getVoteAccounts', [], 'voteAccounts', 'medium');
 }
 
-// Get cluster nodes
+// Get cluster nodes - cached for 30 seconds
 export async function getClusterNodes() {
-  return await rpcCall('getClusterNodes');
+  return await rpcCall('getClusterNodes', [], 'clusterNodes', 'medium');
 }
 
-// Get supply info
+// Get supply info (cached for 5 minutes)
 export async function getSupply() {
-  return await rpcCall('getSupply');
+  return await rpcCall('getSupply', [], 'supply', 'long');
 }
 
 // Get transaction count
@@ -206,9 +228,9 @@ export async function getHealth() {
   }
 }
 
-// Get version
+// Get version (cached for 5 minutes)
 export async function getVersion() {
-  return await rpcCall('getVersion');
+  return await rpcCall('getVersion', [], 'version', 'long');
 }
 
 // Aggregate function to get dashboard data
