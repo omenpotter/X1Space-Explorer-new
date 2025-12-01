@@ -2,7 +2,7 @@
 // Using WeakMap-like pattern with Map for better memory management
 const cache = new Map();
 const CACHE_DURATIONS = {
-  short: 5000,      // 5 seconds - for real-time data
+  short: 3000,      // 3 seconds - for real-time data (reduced for faster updates)
   medium: 30000,    // 30 seconds - for validator data
   long: 300000,     // 5 minutes - for static data like supply
 };
