@@ -188,94 +188,20 @@ export default function Dashboard() {
 
   // No pending blocks - X1 processes blocks instantly
 
+  // Simplified loading state - no heavy animations
   if (loading && !dashboardData) {
-    // Standard characters for matrix rain
-    const matrixChars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ@#$%&*+=<>[]{}|~';
-    
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center relative overflow-hidden">
-        {/* Matrix rain effect with standard characters */}
-        <div className="absolute inset-0 overflow-hidden">
-          {Array.from({ length: 25 }).map((_, i) => (
-            <div
-              key={i}
-              className="absolute text-green-500 font-mono text-sm opacity-70 whitespace-nowrap"
-              style={{
-                left: `${(i / 25) * 100}%`,
-                animation: `matrixFall ${3 + (i % 5)}s linear infinite`,
-                animationDelay: `${(i * 0.2) % 3}s`,
-              }}
-            >
-              {Array.from({ length: 20 }).map((_, j) => (
-                <div key={j} style={{ opacity: 1 - j * 0.05 }}>
-                  {matrixChars[Math.floor((i * j + i) % matrixChars.length)]}
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-        
-        {/* Assembling X1 logo - just 2 blocks */}
-        <div className="relative z-10 flex flex-col items-center">
-          <div className="flex gap-2">
-            {/* X block */}
-            <div
-              className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg shadow-lg shadow-cyan-500/50 flex items-center justify-center"
-              style={{
-                animation: `assembleBlock 0.6s ease-out forwards`,
-                animationDelay: `0.3s`,
-                opacity: 0,
-                transform: 'translateY(-100px) scale(0)',
-              }}
-            >
-              <span className="text-black font-black text-3xl md:text-4xl">X</span>
-            </div>
-            {/* 1 block */}
-            <div
-              className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg shadow-lg shadow-cyan-500/50 flex items-center justify-center"
-              style={{
-                animation: `assembleBlock 0.6s ease-out forwards`,
-                animationDelay: `0.5s`,
-                opacity: 0,
-                transform: 'translateY(-100px) scale(0)',
-              }}
-            >
-              <span className="text-black font-black text-3xl md:text-4xl">1</span>
-            </div>
+      <div className="min-h-screen bg-[#1d2d3a] text-white flex flex-col items-center justify-center">
+        <div className="flex gap-2 mb-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
+            <span className="text-black font-black text-3xl">X1</span>
           </div>
-          
-          {/* X1 Space text below */}
-          <h1 
-            className="text-2xl md:text-3xl font-bold mt-6"
-            style={{ animation: 'fadeInX1 0.5s ease-out 1.2s forwards', opacity: 0 }}
-          >
-            <span className="text-cyan-400">X1</span>
-            <span className="text-white">Space</span>
-          </h1>
         </div>
-        
-        {/* Bottom right loading text */}
-        <div className="absolute bottom-6 right-6 flex items-center gap-2 z-20">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          <span className="text-green-400 font-mono text-sm">Connecting to X1 Blockchain</span>
-          <span className="text-green-500 animate-pulse">...</span>
+        <h1 className="text-2xl font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></h1>
+        <div className="mt-4 flex items-center gap-2">
+          <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
+          <span className="text-gray-400 text-sm">Connecting...</span>
         </div>
-        
-        <style>{`
-          @keyframes matrixFall {
-            0% { transform: translateY(-100%); }
-            100% { transform: translateY(100vh); }
-          }
-          @keyframes assembleBlock {
-            0% { opacity: 0; transform: translateY(-100px) scale(0); }
-            60% { opacity: 1; transform: translateY(10px) scale(1.1); }
-            100% { opacity: 1; transform: translateY(0) scale(1); }
-          }
-          @keyframes fadeInX1 {
-            0% { opacity: 0; }
-            100% { opacity: 1; }
-          }
-        `}</style>
       </div>
     );
   }
