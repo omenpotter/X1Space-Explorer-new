@@ -1,16 +1,18 @@
-import React from 'react';
+import React, { memo, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Sun, Moon } from 'lucide-react';
 
-export default function ThemeToggle() {
+const ThemeToggle = memo(function ThemeToggle() {
   const [isDark, setIsDark] = React.useState(true);
 
-  const toggleTheme = () => {
-    setIsDark(!isDark);
-    localStorage.setItem('x1_theme', isDark ? 'light' : 'dark');
-    // Apply theme class to body
-    document.body.classList.toggle('light-theme', isDark);
-  };
+  const toggleTheme = useCallback(() => {
+    setIsDark(prev => {
+      const newValue = !prev;
+      localStorage.setItem('x1_theme', newValue ? 'dark' : 'light');
+      document.body.classList.toggle('light-theme', !newValue);
+      return newValue;
+    });
+  }, []);
 
   React.useEffect(() => {
     const saved = localStorage.getItem('x1_theme');
@@ -30,4 +32,6 @@ export default function ThemeToggle() {
       {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
     </Button>
   );
-}
+});
+
+export default ThemeToggle;

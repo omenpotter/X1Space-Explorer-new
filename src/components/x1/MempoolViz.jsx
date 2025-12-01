@@ -1,6 +1,8 @@
-import React, { useMemo, memo } from 'react';
+import React, { useMemo, memo, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+
+// Optimized to prevent unnecessary re-renders
 
 // Small transaction block for mempool visualization - memoized
 const TxBlock = memo(({ type, size = 'sm' }) => {

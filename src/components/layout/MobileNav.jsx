@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { 
@@ -8,6 +8,7 @@ import {
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
+// Memoized nav items to prevent recreation
 const navItems = [
   { name: 'Dashboard', icon: Zap, page: 'Dashboard' },
   { name: 'Blocks', icon: BarChart3, page: 'Blocks' },
@@ -25,8 +26,9 @@ const navItems = [
   { name: 'API Docs', icon: Code, page: 'ApiDocs' },
 ];
 
-export default function MobileNav() {
+const MobileNav = memo(function MobileNav() {
   const [open, setOpen] = useState(false);
+  const handleClose = useCallback(() => setOpen(false), []);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -50,7 +52,7 @@ export default function MobileNav() {
             <Link 
               key={item.page} 
               to={createPageUrl(item.page)}
-              onClick={() => setOpen(false)}
+              onClick={handleClose}
             >
               <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors">
                 <item.icon className="w-5 h-5" />
@@ -62,4 +64,6 @@ export default function MobileNav() {
       </SheetContent>
     </Sheet>
   );
-}
+});
+
+export default MobileNav;
