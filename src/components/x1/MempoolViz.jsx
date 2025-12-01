@@ -8,7 +8,7 @@ const TxBlock = memo(({ type, size = 'sm' }) => {
     vote: 'bg-purple-500',
     transfer: 'bg-emerald-500',
     token: 'bg-yellow-500',
-    other: 'bg-orange-500' // Changed from blue to orange for better visibility
+    other: 'bg-orange-500'
   };
   
   const sizes = {
@@ -29,12 +29,11 @@ TxBlock.displayName = 'TxBlock';
 
 // Mempool-style aggregated view with many small boxes - memoized
 export const MempoolAggregatedViz = memo(({ data, label, onClick }) => {
-  const { totalTxns, voteCount, transferCount, programCount, slots, timestamp } = data;
+  const { totalTxns, voteCount, transferCount, programCount, slots } = data;
   
-  // Generate grid of small blocks based on tx type ratios - fill the box fully
   const blocks = useMemo(() => {
     const result = [];
-    const total = 80; // Reduced to fit better in container
+    const total = 80;
     
     const voteRatio = voteCount / (totalTxns || 1);
     const transferRatio = transferCount / (totalTxns || 1);
@@ -50,7 +49,6 @@ export const MempoolAggregatedViz = memo(({ data, label, onClick }) => {
     for (let i = 0; i < programBlocks; i++) result.push('token');
     for (let i = 0; i < otherBlocks; i++) result.push('other');
     
-    // Shuffle for visual variety
     for (let i = result.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [result[i], result[j]] = [result[j], result[i]];
@@ -64,20 +62,17 @@ export const MempoolAggregatedViz = memo(({ data, label, onClick }) => {
       className="relative flex-1 min-w-[100px] max-w-[160px] h-[140px] bg-gradient-to-b from-slate-800/50 to-slate-900/50 border border-white/10 rounded-lg overflow-hidden cursor-pointer hover:border-cyan-500/50 transition-all flex flex-col"
       onClick={onClick}
     >
-      {/* Header */}
       <div className="px-2 py-1 bg-black/40 flex items-center justify-between flex-shrink-0">
         <span className="text-cyan-400 font-bold text-xs">{label}</span>
         <span className="text-gray-500 text-[8px]">{slots?.toLocaleString()} slots</span>
       </div>
       
-      {/* Mempool grid - flexible middle */}
       <div className="flex-1 px-1.5 py-1 flex flex-wrap gap-[1px] content-start overflow-hidden">
         {blocks.map((type, i) => (
           <TxBlock key={i} type={type} size="xs" />
         ))}
       </div>
       
-      {/* Footer stats */}
       <div className="bg-black/60 px-2 py-1.5 flex-shrink-0">
         <p className="text-white font-bold text-sm">{totalTxns?.toLocaleString()}</p>
         <div className="flex gap-1 text-[7px]">
@@ -96,11 +91,10 @@ MempoolAggregatedViz.displayName = 'MempoolAggregatedViz';
 export const MempoolBlockViz = memo(({ block, isNew }) => {
   const { slot, txCount, voteCount, transferCount, programCount, otherCount, blockTime } = block || {};
   
-  // Generate grid of small blocks - fill the box fully
   const blocks = useMemo(() => {
     if (!txCount) return [];
     const result = [];
-    const total = 60; // Reduced to fit better
+    const total = 60;
     
     const voteRatio = (voteCount || 0) / (txCount || 1);
     const transferRatio = (transferCount || 0) / (txCount || 1);
@@ -116,7 +110,6 @@ export const MempoolBlockViz = memo(({ block, isNew }) => {
     for (let i = 0; i < programBlocks; i++) result.push('token');
     for (let i = 0; i < otherBlocks; i++) result.push('other');
     
-    // Shuffle
     for (let i = result.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [result[i], result[j]] = [result[j], result[i]];
@@ -142,20 +135,17 @@ export const MempoolBlockViz = memo(({ block, isNew }) => {
         hover:border-cyan-500/50 transition-all flex flex-col
         ${isNew ? 'ring-2 ring-cyan-500/50 animate-pulse' : ''}
       `}>
-        {/* Header */}
         <div className="px-2 py-1 bg-black/40 flex items-center justify-between flex-shrink-0">
           <span className="text-cyan-400 font-mono text-[9px]">#{slot?.toLocaleString()}</span>
           <span className="text-gray-500 text-[8px]">{formatTimeAgo(blockTime)}</span>
         </div>
         
-        {/* Mempool grid - flexible middle */}
         <div className="flex-1 px-1.5 py-1 flex flex-wrap gap-[1px] content-start overflow-hidden">
           {blocks.map((type, i) => (
             <TxBlock key={i} type={type} size="xs" />
           ))}
         </div>
         
-        {/* Footer */}
         <div className="bg-black/60 px-2 py-1.5 flex-shrink-0">
           <p className="text-white font-bold text-sm">{txCount?.toLocaleString()}</p>
           <div className="flex gap-1 text-[7px]">
