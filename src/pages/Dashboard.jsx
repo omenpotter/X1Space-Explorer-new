@@ -745,6 +745,7 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
+        </div>
         </DeferredRender>
       </main>
     </div>
