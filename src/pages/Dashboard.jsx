@@ -611,7 +611,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Quick Links */}
+        {/* Quick Links - Deferred for performance */}
+        <DeferredRender delay={100} priority="low" fallback={<div className="mt-8 h-32" />}>
         <div className="mt-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
           <Link to={createPageUrl('NetworkHealth')} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
             <Globe className="w-6 h-6 text-cyan-400 mb-2" />

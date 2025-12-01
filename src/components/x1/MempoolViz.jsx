@@ -185,4 +185,24 @@ export const MempoolLegend = memo(() => (
 
 MempoolLegend.displayName = 'MempoolLegend';
 
-export default { MempoolAggregatedViz, MempoolBlockViz, MempoolLegend };
+// Combined wrapper component for Dashboard
+const MempoolViz = memo(({ mempoolInterval, recentBlocks, aggregatedBlocks, dashboardSlot }) => {
+  return (
+    <div className="flex items-center gap-2 overflow-x-auto" key={mempoolInterval + '-' + (recentBlocks[0]?.slot || 0)}>
+      {mempoolInterval === 'blocks' ? (
+        recentBlocks.slice(0, 10).map((block, i) => (
+          <MempoolBlockViz key={block.slot} block={block} isNew={i === 0} />
+        ))
+      ) : (
+        aggregatedBlocks?.slice(0, 10).map((agg, i) => (
+          <MempoolAggregatedViz key={`${mempoolInterval}-${i}-${dashboardSlot}`} data={agg} label={agg.label} />
+        ))
+      )}
+    </div>
+  );
+});
+
+MempoolViz.displayName = 'MempoolViz';
+
+export { MempoolAggregatedViz, MempoolBlockViz, MempoolLegend };
+export default MempoolViz;
