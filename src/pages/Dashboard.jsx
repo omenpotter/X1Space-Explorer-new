@@ -51,6 +51,7 @@ export default function Dashboard() {
   const [tpsInterval, setTpsInterval] = useState('1m');
   const [mempoolInterval, setMempoolInterval] = useState('blocks');
   const [performanceData, setPerformanceData] = useState([]);
+  const [pendingTxCount, setPendingTxCount] = useState(0);
 
   const aggregatedTpsData = useMemo(() => {
     if (!dashboardData?.tpsHistory?.length) return [];
@@ -75,15 +76,17 @@ export default function Dashboard() {
   const fetchData = useCallback(async () => {
     try {
       const rpc = await getX1Rpc();
-      const [data, blocks, perfHistory] = await Promise.all([
+      const [data, blocks, perfHistory, pendingTxs] = await Promise.all([
         rpc.getDashboardData(),
         rpc.getRecentBlocks(10),
-        rpc.getPerformanceHistory(60)
+        rpc.getPerformanceHistory(60),
+        rpc.getPendingTransactions().catch(() => [])
       ]);
       
       setDashboardData(data);
       setRecentBlocks(blocks);
       setPerformanceData(perfHistory);
+      setPendingTxCount(pendingTxs.length);
       setLastUpdate(new Date());
       setError(null);
     } catch (err) {
@@ -365,6 +368,8 @@ export default function Dashboard() {
                 recentBlocks={recentBlocks}
                 aggregatedBlocks={aggregatedBlocks}
                 dashboardSlot={dashboardData?.slot}
+                showPending={true}
+                pendingCount={pendingTxCount}
               />
             </Suspense>
           </div>
