@@ -32,14 +32,8 @@ const LazyChart = lazy(() => import('recharts').then(m => ({
 
 const MiniFallback = memo(() => <div className="w-5 h-5" />);
 
-// Lazy load RPC service
-let X1Rpc = null;
-const getX1Rpc = async () => {
-  if (!X1Rpc) {
-    X1Rpc = (await import('../components/x1/X1RpcService')).default;
-  }
-  return X1Rpc;
-};
+// Import RPC service directly for faster initial load
+import X1Rpc from '../components/x1/X1RpcService';
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -75,24 +69,30 @@ export default function Dashboard() {
 
   const fetchData = useCallback(async () => {
     try {
-      const rpc = await getX1Rpc();
-      const [data, blocks, perfHistory, pendingTxs] = await Promise.all([
-        rpc.getDashboardData(),
-        rpc.getRecentBlocks(10),
-        rpc.getPerformanceHistory(60),
-        rpc.getPendingTransactions().catch(() => [])
+      // Fetch dashboard data and blocks first (most important)
+      const [data, blocks] = await Promise.all([
+        X1Rpc.getDashboardData(),
+        X1Rpc.getRecentBlocks(10)
       ]);
       
+      // Update UI immediately with critical data
       setDashboardData(data);
       setRecentBlocks(blocks);
-      setPerformanceData(perfHistory);
-      setPendingTxCount(pendingTxs.length);
       setLastUpdate(new Date());
+      setLoading(false);
       setError(null);
+      
+      // Fetch secondary data in background (non-blocking)
+      Promise.all([
+        X1Rpc.getPerformanceHistory(60),
+        X1Rpc.getPendingTransactions().catch(() => [])
+      ]).then(([perfHistory, pendingTxs]) => {
+        setPerformanceData(perfHistory);
+        setPendingTxCount(pendingTxs.length);
+      });
     } catch (err) {
       console.error('Failed to fetch data:', err);
       setError(err.message);
-    } finally {
       setLoading(false);
     }
   }, []);
