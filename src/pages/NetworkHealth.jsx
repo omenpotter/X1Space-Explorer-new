@@ -3,28 +3,38 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
   Zap, Loader2, AlertCircle, Globe, Server, Activity, 
-  CheckCircle, XCircle, Clock, Wifi, ChevronLeft
+  CheckCircle, XCircle, Clock, Wifi, ChevronLeft, RefreshCw,
+  Network, Database, Shield, TrendingUp
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, AreaChart, Area } from 'recharts';
 import X1Rpc from '../components/x1/X1RpcService';
 
 export default function NetworkHealth() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [validators, setValidators] = useState([]);
+  const [clusterNodes, setClusterNodes] = useState([]);
+  const [performanceHistory, setPerformanceHistory] = useState([]);
+  const [blockProduction, setBlockProduction] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [dashData, validatorData] = await Promise.all([
+        const [dashData, validatorData, nodes, perfHistory, blockProd] = await Promise.all([
           X1Rpc.getDashboardData(),
-          X1Rpc.getValidatorDetails()
+          X1Rpc.getValidatorDetails(),
+          X1Rpc.getClusterNodes(),
+          X1Rpc.getPerformanceHistory(60),
+          X1Rpc.getBlockProduction().catch(() => null)
         ]);
         setData(dashData);
         setValidators(validatorData);
+        setClusterNodes(nodes);
+        setPerformanceHistory(perfHistory);
+        setBlockProduction(blockProd);
         setError(null);
       } catch (err) {
         setError(err.message);
@@ -77,6 +87,45 @@ export default function NetworkHealth() {
     value: value / 1e6
   }));
 
+  // Node type distribution
+  const rpcNodes = clusterNodes.filter(n => n.rpc).length;
+  const gossipNodes = clusterNodes.filter(n => n.gossip).length;
+  const tpuNodes = clusterNodes.filter(n => n.tpu).length;
+
+  // TPS history for chart
+  const tpsChartData = performanceHistory.slice(0, 30).reverse().map((p, i) => ({
+    time: `${30 - i}m`,
+    tps: p.tps,
+    txs: p.transactions
+  }));
+
+  // Block production stats
+  let skipRate = 0;
+  let totalProduced = 0;
+  let totalLeader = 0;
+  if (blockProduction?.value?.byIdentity) {
+    Object.values(blockProduction.value.byIdentity).forEach(([leader, produced]) => {
+      totalLeader += leader;
+      totalProduced += produced;
+    });
+    skipRate = totalLeader > 0 ? ((totalLeader - totalProduced) / totalLeader * 100) : 0;
+  }
+
+  // BFT participation (estimate from active stake)
+  const totalStake = validators.reduce((sum, v) => sum + v.activatedStake, 0);
+  const activeStake = validators.filter(v => !v.delinquent).reduce((sum, v) => sum + v.activatedStake, 0);
+  const bftParticipation = totalStake > 0 ? (activeStake / totalStake * 100) : 0;
+
+  // Uptime distribution
+  const uptimeBuckets = { '99%+': 0, '95-99%': 0, '90-95%': 0, '<90%': 0 };
+  validators.forEach(v => {
+    if (v.uptime >= 99) uptimeBuckets['99%+']++;
+    else if (v.uptime >= 95) uptimeBuckets['95-99%']++;
+    else if (v.uptime >= 90) uptimeBuckets['90-95%']++;
+    else uptimeBuckets['<90%']++;
+  });
+  const uptimeData = Object.entries(uptimeBuckets).map(([name, value]) => ({ name, value }));
+
   const COLORS = ['#06b6d4', '#8b5cf6', '#f59e0b', '#ef4444', '#10b981'];
 
   return (
@@ -114,8 +163,8 @@ export default function NetworkHealth() {
           Network Health
         </h1>
 
-        {/* Health Overview */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {/* Health Overview - Extended */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
           <div className="bg-[#24384a] rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <Wifi className="w-4 h-4 text-emerald-400" />
@@ -132,6 +181,13 @@ export default function NetworkHealth() {
           </div>
           <div className="bg-[#24384a] rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
+              <Network className="w-4 h-4 text-purple-400" />
+              <span className="text-gray-400 text-xs">Total Nodes</span>
+            </div>
+            <p className="text-xl font-bold text-white">{clusterNodes.length}</p>
+          </div>
+          <div className="bg-[#24384a] rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
               <CheckCircle className="w-4 h-4 text-emerald-400" />
               <span className="text-gray-400 text-xs">Active Validators</span>
             </div>
@@ -139,14 +195,100 @@ export default function NetworkHealth() {
           </div>
           <div className="bg-[#24384a] rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
-              <XCircle className="w-4 h-4 text-red-400" />
-              <span className="text-gray-400 text-xs">Delinquent</span>
+              <Shield className="w-4 h-4 text-yellow-400" />
+              <span className="text-gray-400 text-xs">BFT Participation</span>
             </div>
-            <p className="text-xl font-bold text-red-400">{delinquentCount}</p>
+            <p className="text-xl font-bold text-yellow-400">{bftParticipation.toFixed(1)}%</p>
+          </div>
+          <div className="bg-[#24384a] rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Database className="w-4 h-4 text-red-400" />
+              <span className="text-gray-400 text-xs">Skip Rate</span>
+            </div>
+            <p className="text-xl font-bold text-red-400">{skipRate.toFixed(2)}%</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* TPS Historical Chart */}
+        <div className="bg-[#24384a] rounded-xl p-4 mb-6">
+          <h3 className="text-gray-400 text-sm mb-4">TPS HISTORY (LAST 30 MINUTES)</h3>
+          <div className="h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={tpsChartData}>
+                <defs>
+                  <linearGradient id="tpsGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1d2d3a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} 
+                  formatter={(value) => [`${value.toLocaleString()} TPS`, 'TPS']}
+                />
+                <Area type="monotone" dataKey="tps" stroke="#06b6d4" fill="url(#tpsGradient)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Node Infrastructure Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-[#24384a] rounded-xl p-4">
+            <h3 className="text-gray-400 text-sm mb-3">NODE INFRASTRUCTURE</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400 text-sm">RPC Nodes</span>
+                <span className="text-cyan-400 font-bold">{rpcNodes}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400 text-sm">Gossip Nodes</span>
+                <span className="text-purple-400 font-bold">{gossipNodes}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400 text-sm">TPU Nodes</span>
+                <span className="text-emerald-400 font-bold">{tpuNodes}</span>
+              </div>
+            </div>
+          </div>
+          <div className="bg-[#24384a] rounded-xl p-4">
+            <h3 className="text-gray-400 text-sm mb-3">BLOCK PRODUCTION</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400 text-sm">Leader Slots</span>
+                <span className="text-white font-bold">{totalLeader.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400 text-sm">Blocks Produced</span>
+                <span className="text-emerald-400 font-bold">{totalProduced.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400 text-sm">Skipped Slots</span>
+                <span className="text-red-400 font-bold">{(totalLeader - totalProduced).toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+          <div className="bg-[#24384a] rounded-xl p-4">
+            <h3 className="text-gray-400 text-sm mb-3">CONSENSUS HEALTH</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400 text-sm">Active Stake</span>
+                <span className="text-emerald-400 font-bold">{(activeStake / 1e6).toFixed(1)}M XNT</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400 text-sm">Participation Rate</span>
+                <span className="text-yellow-400 font-bold">{bftParticipation.toFixed(2)}%</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400 text-sm">Delinquent Stake</span>
+                <span className="text-red-400 font-bold">{((totalStake - activeStake) / 1e6).toFixed(1)}M XNT</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Version Distribution */}
           <div className="bg-[#24384a] rounded-xl p-4">
             <h3 className="text-gray-400 text-sm mb-4">VERSION DISTRIBUTION</h3>
@@ -173,6 +315,21 @@ export default function NetworkHealth() {
                   </Pie>
                   <Tooltip contentStyle={{ backgroundColor: '#1d2d3a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} />
                 </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Uptime Distribution */}
+          <div className="bg-[#24384a] rounded-xl p-4">
+            <h3 className="text-gray-400 text-sm mb-4">VALIDATOR UPTIME</h3>
+            <div className="h-[200px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={uptimeData} layout="vertical">
+                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} width={50} />
+                  <Tooltip contentStyle={{ backgroundColor: '#1d2d3a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} formatter={(value) => `${value} validators`} />
+                  <Bar dataKey="value" fill="#10b981" radius={[0, 4, 4, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </div>

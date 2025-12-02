@@ -19,6 +19,7 @@ import EpochHistory from './pages/EpochHistory';
 import NetworkMap from './pages/NetworkMap';
 import PortfolioTracker from './pages/PortfolioTracker';
 import WhaleWatcher from './pages/WhaleWatcher';
+import TransactionFlowPage from './pages/TransactionFlowPage';
 
 
 export const PAGES = {
@@ -43,6 +44,7 @@ export const PAGES = {
     "NetworkMap": NetworkMap,
     "PortfolioTracker": PortfolioTracker,
     "WhaleWatcher": WhaleWatcher,
+    "TransactionFlowPage": TransactionFlowPage,
 }
 
 export const pagesConfig = {

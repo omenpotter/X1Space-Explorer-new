@@ -1,0 +1,380 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { 
+  ChevronLeft, Loader2, Search, ArrowRight, ArrowLeftRight,
+  Filter, RefreshCw, Wallet, ExternalLink, Zap
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+import X1Rpc from '../components/x1/X1RpcService';
+import AddressFlowGraph from '../components/transactions/AddressFlowGraph';
+
+export default function TransactionFlowPage() {
+  const [address, setAddress] = useState('');
+  const [inputAddress, setInputAddress] = useState('');
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [filterType, setFilterType] = useState('all');
+  const [flowData, setFlowData] = useState({ nodes: [], edges: [] });
+
+  // Parse URL params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const addr = params.get('address');
+    if (addr) {
+      setAddress(addr);
+      setInputAddress(addr);
+    }
+  }, []);
+
+  const fetchTransactions = useCallback(async () => {
+    if (!address || address.length < 32) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const signatures = await X1Rpc.getSignaturesForAddress(address, { limit: 50 });
+      
+      const txDetails = [];
+      for (const sig of signatures.slice(0, 30)) {
+        try {
+          const tx = await X1Rpc.getTransaction(sig.signature);
+          if (tx) {
+            const message = tx.transaction?.message;
+            const accountKeys = message?.accountKeys || [];
+            const instructions = message?.instructions || [];
+            const preBalances = tx.meta?.preBalances || [];
+            const postBalances = tx.meta?.postBalances || [];
+            
+            // Determine type
+            let type = 'other';
+            let amount = 0;
+            let from = accountKeys[0];
+            let to = '';
+            
+            for (const ix of instructions) {
+              const programId = accountKeys[ix.programIdIndex];
+              if (programId === 'Vote111111111111111111111111111111111111111') {
+                type = 'vote';
+                break;
+              } else if (programId === '11111111111111111111111111111111') {
+                type = 'transfer';
+                to = accountKeys[1] || '';
+              } else if (programId === 'Stake11111111111111111111111111111111111111') {
+                type = 'stake';
+              } else if (programId === 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') {
+                type = 'token';
+              }
+            }
+            
+            // Calculate amount from balance changes
+            for (let i = 0; i < accountKeys.length; i++) {
+              if (accountKeys[i] === address) {
+                const change = (postBalances[i] - preBalances[i]) / 1e9;
+                amount = Math.abs(change);
+                break;
+              }
+            }
+            
+            txDetails.push({
+              signature: sig.signature,
+              slot: sig.slot,
+              blockTime: sig.blockTime,
+              type,
+              amount,
+              from,
+              to,
+              status: tx.meta?.err ? 'failed' : 'success',
+              fee: (tx.meta?.fee || 0) / 1e9,
+              accountKeys
+            });
+          }
+        } catch (e) {
+          // Skip failed tx fetch
+        }
+      }
+      
+      setTransactions(txDetails);
+      buildFlowData(txDetails, address);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [address]);
+
+  const buildFlowData = (txs, centerAddress) => {
+    const nodes = new Map();
+    const edges = [];
+    
+    // Center node (searched address)
+    nodes.set(centerAddress, {
+      id: centerAddress,
+      label: centerAddress.substring(0, 6) + '...',
+      type: 'center',
+      txCount: txs.length,
+      totalAmount: 0
+    });
+    
+    let centerInflow = 0;
+    let centerOutflow = 0;
+    
+    txs.forEach(tx => {
+      if (tx.type === 'vote') return; // Skip vote transactions for clarity
+      
+      // Determine flow direction
+      const isOutgoing = tx.from === centerAddress;
+      const otherAddress = isOutgoing ? tx.to : tx.from;
+      
+      if (!otherAddress || otherAddress === centerAddress) return;
+      
+      // Add/update other node
+      if (!nodes.has(otherAddress)) {
+        nodes.set(otherAddress, {
+          id: otherAddress,
+          label: otherAddress.substring(0, 6) + '...',
+          type: tx.type,
+          txCount: 0,
+          totalAmount: 0
+        });
+      }
+      const node = nodes.get(otherAddress);
+      node.txCount++;
+      node.totalAmount += tx.amount;
+      
+      // Track inflow/outflow
+      if (isOutgoing) {
+        centerOutflow += tx.amount;
+      } else {
+        centerInflow += tx.amount;
+      }
+      
+      // Add edge
+      edges.push({
+        from: isOutgoing ? centerAddress : otherAddress,
+        to: isOutgoing ? otherAddress : centerAddress,
+        amount: tx.amount,
+        type: tx.type,
+        signature: tx.signature
+      });
+    });
+    
+    // Update center node with totals
+    const centerNode = nodes.get(centerAddress);
+    centerNode.inflow = centerInflow;
+    centerNode.outflow = centerOutflow;
+    
+    setFlowData({
+      nodes: Array.from(nodes.values()),
+      edges,
+      centerAddress
+    });
+  };
+
+  useEffect(() => {
+    if (address) {
+      fetchTransactions();
+    }
+  }, [address, fetchTransactions]);
+
+  const handleSearch = () => {
+    if (inputAddress && inputAddress.length >= 32) {
+      setAddress(inputAddress);
+      window.history.pushState({}, '', `${window.location.pathname}?address=${inputAddress}`);
+    }
+  };
+
+  const filteredTxs = filterType === 'all' 
+    ? transactions 
+    : transactions.filter(tx => tx.type === filterType);
+
+  const formatAmount = (amt) => {
+    if (amt >= 1e6) return (amt / 1e6).toFixed(2) + 'M';
+    if (amt >= 1e3) return (amt / 1e3).toFixed(2) + 'K';
+    return amt.toFixed(4);
+  };
+
+  const getTypeColor = (type) => {
+    const colors = {
+      transfer: 'bg-blue-500/20 text-blue-400',
+      stake: 'bg-emerald-500/20 text-emerald-400',
+      token: 'bg-yellow-500/20 text-yellow-400',
+      vote: 'bg-purple-500/20 text-purple-400',
+      other: 'bg-gray-500/20 text-gray-400'
+    };
+    return colors[type] || colors.other;
+  };
+
+  return (
+    <div className="min-h-screen bg-[#1d2d3a] text-white">
+      <header className="bg-[#1d2d3a] border-b border-white/5">
+        <div className="max-w-[1800px] mx-auto px-4 py-3">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
+                <ChevronLeft className="w-5 h-5 text-gray-400" />
+                <span className="font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
+              </Link>
+              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
+            </div>
+            <nav className="hidden md:flex items-center gap-1">
+              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
+              <Link to={createPageUrl('TransactionFlowPage')}><Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg"><ArrowLeftRight className="w-5 h-5" /></Button></Link>
+            </nav>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-[1800px] mx-auto px-4 py-6">
+        <h1 className="text-2xl font-bold text-white flex items-center gap-3 mb-6">
+          <ArrowLeftRight className="w-7 h-7 text-cyan-400" />
+          Transaction Flow
+        </h1>
+
+        {/* Search */}
+        <div className="bg-[#24384a] rounded-xl p-4 mb-6">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Enter X1 address to visualize transaction flow..."
+              value={inputAddress}
+              onChange={(e) => setInputAddress(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              className="bg-[#1d2d3a] border-0 text-white flex-1 font-mono"
+            />
+            <Button onClick={handleSearch} className="bg-cyan-500 hover:bg-cyan-600">
+              <Search className="w-4 h-4 mr-2" /> Analyze
+            </Button>
+          </div>
+        </div>
+
+        {loading && (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6">
+            <p className="text-red-400">{error}</p>
+          </div>
+        )}
+
+        {!loading && address && flowData.nodes.length > 0 && (
+          <>
+            {/* Summary Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-[#24384a] rounded-xl p-4">
+                <p className="text-gray-400 text-xs mb-1">Total Transactions</p>
+                <p className="text-2xl font-bold text-white">{transactions.length}</p>
+              </div>
+              <div className="bg-[#24384a] rounded-xl p-4">
+                <p className="text-gray-400 text-xs mb-1">Connected Addresses</p>
+                <p className="text-2xl font-bold text-cyan-400">{flowData.nodes.length - 1}</p>
+              </div>
+              <div className="bg-[#24384a] rounded-xl p-4">
+                <p className="text-gray-400 text-xs mb-1">Total Inflow</p>
+                <p className="text-2xl font-bold text-emerald-400">+{formatAmount(flowData.nodes[0]?.inflow || 0)} XNT</p>
+              </div>
+              <div className="bg-[#24384a] rounded-xl p-4">
+                <p className="text-gray-400 text-xs mb-1">Total Outflow</p>
+                <p className="text-2xl font-bold text-red-400">-{formatAmount(flowData.nodes[0]?.outflow || 0)} XNT</p>
+              </div>
+            </div>
+
+            {/* Flow Graph */}
+            <div className="bg-[#24384a] rounded-xl p-4 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-gray-400 text-sm">TRANSACTION FLOW VISUALIZATION</h3>
+                <Button variant="ghost" size="sm" onClick={fetchTransactions} className="text-gray-400">
+                  <RefreshCw className="w-4 h-4 mr-2" /> Refresh
+                </Button>
+              </div>
+              <AddressFlowGraph flowData={flowData} />
+            </div>
+
+            {/* Filters */}
+            <div className="flex items-center gap-2 mb-4">
+              <Filter className="w-4 h-4 text-gray-400" />
+              <span className="text-gray-400 text-sm">Filter:</span>
+              {['all', 'transfer', 'stake', 'token'].map((type) => (
+                <Button 
+                  key={type} 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setFilterType(type)}
+                  className={`border-white/10 ${filterType === type ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
+                >
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </Button>
+              ))}
+            </div>
+
+            {/* Transaction List */}
+            <div className="bg-[#24384a] rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-white/10">
+                      <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Type</th>
+                      <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Signature</th>
+                      <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Amount</th>
+                      <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Counterparty</th>
+                      <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTxs.slice(0, 20).map((tx) => (
+                      <tr key={tx.signature} className="border-b border-white/5 hover:bg-white/[0.02]">
+                        <td className="px-4 py-3">
+                          <Badge className={`${getTypeColor(tx.type)} border-0`}>
+                            {tx.type}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Link 
+                            to={createPageUrl('TransactionDetail') + `?sig=${tx.signature}`}
+                            className="text-cyan-400 hover:underline font-mono text-sm"
+                          >
+                            {tx.signature.substring(0, 16)}...
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className={tx.from === address ? 'text-red-400' : 'text-emerald-400'}>
+                            {tx.from === address ? '-' : '+'}{formatAmount(tx.amount)} XNT
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Link 
+                            to={createPageUrl('AddressLookup') + `?address=${tx.from === address ? tx.to : tx.from}`}
+                            className="text-gray-400 hover:text-cyan-400 font-mono text-sm"
+                          >
+                            {(tx.from === address ? tx.to : tx.from)?.substring(0, 12)}...
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-right text-gray-400 text-sm">
+                          {tx.blockTime ? new Date(tx.blockTime * 1000).toLocaleString() : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+
+        {!loading && !address && (
+          <div className="bg-[#24384a] rounded-xl p-12 text-center">
+            <Wallet className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+            <h2 className="text-xl text-gray-400 mb-2">Enter an address to visualize</h2>
+            <p className="text-gray-500">See the flow of transactions to and from any X1 address</p>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
