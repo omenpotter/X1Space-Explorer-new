@@ -32,26 +32,31 @@ export default function Blocks() {
 
   const fetchBlocks = async () => {
     try {
-      const [recentBlocks, dashData, perfHistory] = await Promise.all([
-        X1Rpc.getRecentBlocks(20),
+      // Fetch blocks first for fastest display, then other data
+      const recentBlocks = await X1Rpc.getRecentBlocks(20);
+      
+      // Update blocks immediately for fast UI
+      if (recentBlocks.length > 0) {
+        if (blocks.length > 0 && recentBlocks[0]?.slot > blocks[0]?.slot) {
+          setNewBlockSlot(recentBlocks[0].slot);
+          setTimeout(() => setNewBlockSlot(null), 1000);
+        }
+        setBlocks(recentBlocks);
+        setLoading(false);
+      }
+      
+      // Then fetch dashboard and performance data in parallel
+      const [dashData, perfHistory] = await Promise.all([
         X1Rpc.getDashboardData().catch(() => null),
         X1Rpc.getPerformanceHistory(60).catch(() => [])
       ]);
       
       if (dashData?.tps) setTps(dashData.tps);
       setPerformanceData(perfHistory);
-      
-      if (blocks.length > 0 && recentBlocks[0]?.slot > blocks[0]?.slot) {
-        setNewBlockSlot(recentBlocks[0].slot);
-        setTimeout(() => setNewBlockSlot(null), 1000);
-      }
-      
-      setBlocks(recentBlocks);
       setError(null);
     } catch (err) {
       console.error('Failed to fetch blocks:', err);
       setError(err.message);
-    } finally {
       setLoading(false);
     }
   };
@@ -137,7 +142,8 @@ export default function Blocks() {
   useEffect(() => {
     fetchBlocks();
     if (isLive) {
-      const interval = setInterval(fetchBlocks, 3000);
+      // Faster refresh rate for 3000+ TPS network
+      const interval = setInterval(fetchBlocks, 2000);
       return () => clearInterval(interval);
     }
   }, [isLive]);

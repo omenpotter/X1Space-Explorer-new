@@ -176,14 +176,10 @@ export default function Dashboard() {
   }, [mempoolInterval, recentBlocks, performanceData]);
 
   useEffect(() => {
-    // Use requestIdleCallback for non-blocking initial fetch
-    if ('requestIdleCallback' in window) {
-      requestIdleCallback(() => fetchData(), { timeout: 1000 });
-    } else {
-      fetchData();
-    }
-    // Longer interval reduces main thread blocking
-    const interval = setInterval(fetchData, 10000);
+    // Fetch immediately on mount for fast initial load
+    fetchData();
+    // Refresh every 3 seconds for live slot updates at 3000+ TPS
+    const interval = setInterval(fetchData, 3000);
     return () => clearInterval(interval);
   }, [fetchData]);
 

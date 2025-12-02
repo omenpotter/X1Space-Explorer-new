@@ -302,8 +302,9 @@ export async function getDashboardData() {
 
 // Get recent blocks with details including transaction type breakdown
 export async function getRecentBlocks(count = 10) {
-  // Check cache first
-  const cached = getCached('recentBlocks');
+  // Check cache first - use very short cache for fast-moving slots
+  const cacheKey = 'recentBlocks';
+  const cached = getCached(cacheKey);
   if (cached) return cached;
   
   const currentSlot = await getSlot();
@@ -389,7 +390,7 @@ export async function getRecentBlocks(count = 10) {
   // Sort by slot descending
   blocks.sort((a, b) => b.slot - a.slot);
   
-  // Cache for 3 seconds
+  // Cache for 2 seconds (short) - slots move fast at 3000+ TPS
   setCache('recentBlocks', blocks, 'short');
   return blocks;
 }

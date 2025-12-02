@@ -187,7 +187,7 @@ export const MempoolLegend = memo(() => (
 
 MempoolLegend.displayName = 'MempoolLegend';
 
-// Pending transactions mini-viz that loops
+// Pending transactions mini-viz that loops - SAME SIZE as block boxes
 const PendingTxViz = memo(({ pendingCount = 0 }) => {
   const [animKey, setAnimKey] = useState(0);
   
@@ -200,7 +200,7 @@ const PendingTxViz = memo(({ pendingCount = 0 }) => {
 
   const txTypes = useMemo(() => {
     const types = [];
-    const count = Math.min(pendingCount || 12, 24);
+    const count = Math.min(pendingCount || 20, 60);
     for (let i = 0; i < count; i++) {
       const rand = Math.random();
       if (rand < 0.6) types.push('vote');
@@ -212,28 +212,21 @@ const PendingTxViz = memo(({ pendingCount = 0 }) => {
   }, [pendingCount, animKey]);
 
   return (
-    <div className="relative flex-shrink-0 w-[80px] h-[140px] bg-gradient-to-b from-cyan-900/30 to-slate-900/50 border border-dashed border-cyan-500/30 rounded-lg overflow-hidden flex flex-col">
-      <div className="px-2 py-1 bg-cyan-500/10 flex items-center justify-center flex-shrink-0">
-        <span className="text-cyan-400 font-mono text-[8px] animate-pulse">⏳ PENDING</span>
+    <div className="relative flex-1 min-w-[100px] max-w-[140px] h-[140px] bg-gradient-to-b from-cyan-900/30 to-slate-900/50 border border-dashed border-cyan-500/30 rounded-lg overflow-hidden flex flex-col">
+      <div className="px-2 py-1 bg-cyan-500/10 flex items-center justify-between flex-shrink-0">
+        <span className="text-cyan-400 font-mono text-[9px] animate-pulse">⏳ PENDING</span>
+        <span className="text-gray-500 text-[8px]">now</span>
       </div>
       
-      <div className="flex-1 px-1.5 py-1 flex flex-wrap gap-[2px] content-start overflow-hidden">
+      <div className="flex-1 px-1.5 py-1 flex flex-wrap gap-[1px] content-start overflow-hidden">
         {txTypes.map((type, i) => (
-          <div 
-            key={`${animKey}-${i}`}
-            className={`w-2 h-2 rounded-sm opacity-70 animate-pulse ${
-              type === 'vote' ? 'bg-purple-500' :
-              type === 'transfer' ? 'bg-emerald-500' :
-              type === 'token' ? 'bg-yellow-500' : 'bg-orange-500'
-            }`}
-            style={{ animationDelay: `${i * 50}ms` }}
-          />
+          <TxBlock key={`${animKey}-${i}`} type={type} size="xs" />
         ))}
       </div>
       
-      <div className="bg-cyan-500/10 px-2 py-1.5 flex-shrink-0 text-center">
-        <p className="text-cyan-400 font-bold text-xs">{pendingCount || '...'}</p>
-        <p className="text-gray-500 text-[7px]">pending</p>
+      <div className="bg-cyan-500/10 px-2 py-1.5 flex-shrink-0">
+        <p className="text-cyan-400 font-bold text-sm">{pendingCount || '...'}</p>
+        <p className="text-gray-500 text-[7px]">pending txs</p>
       </div>
     </div>
   );
