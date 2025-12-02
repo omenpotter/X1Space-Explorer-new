@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { 
   Zap, Star, Plus, Trash2, Bell, BellOff, ExternalLink,
-  TrendingUp, TrendingDown, Loader2
+  TrendingUp, TrendingDown, Loader2, Wallet, History, RefreshCw
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -13,15 +14,24 @@ import X1Rpc from '../components/x1/X1RpcService';
 export default function Watchlist() {
   const [validators, setValidators] = useState([]);
   const [watchlist, setWatchlist] = useState([]);
+  const [addressWatchlist, setAddressWatchlist] = useState([]);
+  const [addressData, setAddressData] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [addressInput, setAddressInput] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [activeTab, setActiveTab] = useState('validators');
+  const [refreshingAddresses, setRefreshingAddresses] = useState(false);
 
   useEffect(() => {
-    // Load watchlist from localStorage
+    // Load watchlists from localStorage
     const saved = localStorage.getItem('x1_watchlist');
+    const savedAddresses = localStorage.getItem('x1_address_watchlist');
     if (saved) {
       setWatchlist(JSON.parse(saved));
+    }
+    if (savedAddresses) {
+      setAddressWatchlist(JSON.parse(savedAddresses));
     }
 
     const fetchValidators = async () => {
@@ -36,6 +46,84 @@ export default function Watchlist() {
     };
     fetchValidators();
   }, []);
+
+  // Fetch address data for watchlist
+  useEffect(() => {
+    const fetchAddressData = async () => {
+      if (addressWatchlist.length === 0) return;
+      
+      const newData = {};
+      for (const addr of addressWatchlist) {
+        try {
+          const [balance, signatures] = await Promise.all([
+            X1Rpc.getBalance(addr.address),
+            X1Rpc.getSignaturesForAddress(addr.address, { limit: 5 })
+          ]);
+          newData[addr.address] = {
+            balance: (balance?.value || 0) / 1e9,
+            recentTxCount: signatures?.length || 0,
+            lastTx: signatures?.[0]?.blockTime ? new Date(signatures[0].blockTime * 1000) : null
+          };
+        } catch (e) {
+          newData[addr.address] = { balance: 0, recentTxCount: 0, lastTx: null };
+        }
+      }
+      setAddressData(newData);
+    };
+    
+    fetchAddressData();
+  }, [addressWatchlist]);
+
+  const refreshAddressData = async () => {
+    setRefreshingAddresses(true);
+    const newData = {};
+    for (const addr of addressWatchlist) {
+      try {
+        const [balance, signatures] = await Promise.all([
+          X1Rpc.getBalance(addr.address),
+          X1Rpc.getSignaturesForAddress(addr.address, { limit: 5 })
+        ]);
+        newData[addr.address] = {
+          balance: (balance?.value || 0) / 1e9,
+          recentTxCount: signatures?.length || 0,
+          lastTx: signatures?.[0]?.blockTime ? new Date(signatures[0].blockTime * 1000) : null
+        };
+      } catch (e) {
+        newData[addr.address] = { balance: 0, recentTxCount: 0, lastTx: null };
+      }
+    }
+    setAddressData(newData);
+    setRefreshingAddresses(false);
+  };
+
+  const addAddress = () => {
+    if (!addressInput || addressInput.length < 32) return;
+    if (addressWatchlist.find(a => a.address === addressInput)) return;
+    
+    const newList = [...addressWatchlist, {
+      address: addressInput,
+      label: '',
+      alerts: true,
+      addedAt: new Date().toISOString()
+    }];
+    setAddressWatchlist(newList);
+    localStorage.setItem('x1_address_watchlist', JSON.stringify(newList));
+    setAddressInput('');
+  };
+
+  const removeAddress = (address) => {
+    const newList = addressWatchlist.filter(a => a.address !== address);
+    setAddressWatchlist(newList);
+    localStorage.setItem('x1_address_watchlist', JSON.stringify(newList));
+  };
+
+  const updateAddressLabel = (address, label) => {
+    const newList = addressWatchlist.map(a => 
+      a.address === address ? { ...a, label } : a
+    );
+    setAddressWatchlist(newList);
+    localStorage.setItem('x1_address_watchlist', JSON.stringify(newList));
+  };
 
   const addToWatchlist = (validator) => {
     if (watchlist.find(w => w.votePubkey === validator.votePubkey)) return;
@@ -120,16 +208,30 @@ export default function Watchlist() {
             <Star className="w-7 h-7 text-yellow-400" />
             Watchlist
           </h1>
-          <Button 
-            onClick={() => setShowAdd(!showAdd)} 
-            className="bg-cyan-500 hover:bg-cyan-600"
-          >
-            <Plus className="w-4 h-4 mr-2" /> Add Validator
-          </Button>
         </div>
 
-        {/* Add Validator Panel */}
-        {showAdd && (
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
+          <TabsList className="bg-[#24384a] border-0">
+            <TabsTrigger value="validators" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400">
+              Validators ({watchlist.length})
+            </TabsTrigger>
+            <TabsTrigger value="addresses" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400">
+              Addresses ({addressWatchlist.length})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="validators" className="mt-4">
+            <div className="flex justify-end mb-4">
+              <Button 
+                onClick={() => setShowAdd(!showAdd)} 
+                className="bg-cyan-500 hover:bg-cyan-600"
+              >
+                <Plus className="w-4 h-4 mr-2" /> Add Validator
+              </Button>
+            </div>
+
+            {/* Add Validator Panel */}
+            {showAdd && (
           <div className="bg-[#24384a] rounded-xl p-4 mb-6">
             <Input
               placeholder="Search validators..."
@@ -156,68 +258,159 @@ export default function Watchlist() {
           </div>
         )}
 
-        {/* Watchlist */}
-        {watchlist.length === 0 ? (
-          <div className="bg-[#24384a] rounded-xl p-8 text-center">
-            <Star className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400">Your watchlist is empty</p>
-            <p className="text-gray-500 text-sm mt-2">Add validators to track their performance</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {watchlist.map((item) => {
-              const data = getValidatorData(item.votePubkey);
-              return (
-                <div key={item.votePubkey} className="bg-[#24384a] rounded-xl p-4">
-                  <div className="flex items-center gap-4">
-                    <span className="text-2xl">{item.icon || '🔷'}</span>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-white font-medium">{item.name || item.votePubkey.substring(0, 12) + '...'}</p>
-                        {data?.delinquent && (
-                          <Badge className="bg-red-500/20 text-red-400 border-0 text-xs">Delinquent</Badge>
-                        )}
-                      </div>
-                      {data && (
-                        <div className="flex items-center gap-4 mt-1 text-sm">
-                          <span className="text-cyan-400">{formatStake(data.activatedStake)} XNT</span>
-                          <span className={`flex items-center gap-1 ${data.uptime >= 99 ? 'text-emerald-400' : 'text-yellow-400'}`}>
-                            {data.uptime >= 99 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                            {data.uptime?.toFixed(1)}% uptime
-                          </span>
-                          <span className="text-gray-500">{data.commission}% comm</span>
+            {/* Watchlist */}
+            {watchlist.length === 0 ? (
+              <div className="bg-[#24384a] rounded-xl p-8 text-center">
+                <Star className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400">Your watchlist is empty</p>
+                <p className="text-gray-500 text-sm mt-2">Add validators to track their performance</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {watchlist.map((item) => {
+                  const data = getValidatorData(item.votePubkey);
+                  return (
+                    <div key={item.votePubkey} className="bg-[#24384a] rounded-xl p-4">
+                      <div className="flex items-center gap-4">
+                        <span className="text-2xl">{item.icon || '🔷'}</span>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-white font-medium">{item.name || item.votePubkey.substring(0, 12) + '...'}</p>
+                            {data?.delinquent && (
+                              <Badge className="bg-red-500/20 text-red-400 border-0 text-xs">Delinquent</Badge>
+                            )}
+                          </div>
+                          {data && (
+                            <div className="flex items-center gap-4 mt-1 text-sm">
+                              <span className="text-cyan-400">{formatStake(data.activatedStake)} XNT</span>
+                              <span className={`flex items-center gap-1 ${data.uptime >= 99 ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                                {data.uptime >= 99 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                {data.uptime?.toFixed(1)}% uptime
+                              </span>
+                              <span className="text-gray-500">{data.commission}% comm</span>
+                            </div>
+                          )}
                         </div>
-                      )}
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => toggleAlerts(item.votePubkey)}
+                            className={item.alerts ? 'text-yellow-400' : 'text-gray-500'}
+                          >
+                            {item.alerts ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                          </Button>
+                          <Link to={createPageUrl('ValidatorDetail') + `?id=${item.votePubkey}`}>
+                            <Button variant="ghost" size="icon" className="text-gray-400 hover:text-cyan-400">
+                              <ExternalLink className="w-4 h-4" />
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeFromWatchlist(item.votePubkey)}
+                            className="text-gray-500 hover:text-red-400"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => toggleAlerts(item.votePubkey)}
-                        className={item.alerts ? 'text-yellow-400' : 'text-gray-500'}
-                      >
-                        {item.alerts ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
-                      </Button>
-                      <Link to={createPageUrl('ValidatorDetail') + `?id=${item.votePubkey}`}>
-                        <Button variant="ghost" size="icon" className="text-gray-400 hover:text-cyan-400">
-                          <ExternalLink className="w-4 h-4" />
-                        </Button>
-                      </Link>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeFromWatchlist(item.votePubkey)}
-                        className="text-gray-500 hover:text-red-400"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="addresses" className="mt-4">
+            {/* Add Address */}
+            <div className="bg-[#24384a] rounded-xl p-4 mb-4">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter X1 address to watch..."
+                  value={addressInput}
+                  onChange={(e) => setAddressInput(e.target.value)}
+                  className="bg-[#1d2d3a] border-0 text-white flex-1 font-mono text-sm"
+                />
+                <Button onClick={addAddress} className="bg-cyan-500 hover:bg-cyan-600">
+                  <Plus className="w-4 h-4 mr-2" /> Add
+                </Button>
+                {addressWatchlist.length > 0 && (
+                  <Button 
+                    onClick={refreshAddressData} 
+                    variant="outline" 
+                    className="border-white/10"
+                    disabled={refreshingAddresses}
+                  >
+                    <RefreshCw className={`w-4 h-4 ${refreshingAddresses ? 'animate-spin' : ''}`} />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Address Watchlist */}
+            {addressWatchlist.length === 0 ? (
+              <div className="bg-[#24384a] rounded-xl p-8 text-center">
+                <Wallet className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400">No addresses tracked</p>
+                <p className="text-gray-500 text-sm mt-2">Add X1 addresses to monitor their balance and activity</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {addressWatchlist.map((item) => {
+                  const data = addressData[item.address] || {};
+                  return (
+                    <div key={item.address} className="bg-[#24384a] rounded-xl p-4">
+                      <div className="flex items-center gap-4">
+                        <Wallet className="w-8 h-8 text-cyan-400" />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              placeholder="Add label..."
+                              value={item.label}
+                              onChange={(e) => updateAddressLabel(item.address, e.target.value)}
+                              className="bg-transparent border-0 text-white font-medium p-0 h-auto w-40"
+                            />
+                            <p className="text-gray-500 font-mono text-xs">
+                              {item.address.substring(0, 8)}...{item.address.substring(item.address.length - 6)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-4 mt-1 text-sm">
+                            <span className="text-cyan-400 font-bold">{data.balance?.toFixed(4) || '...'} XNT</span>
+                            <span className="text-gray-500 flex items-center gap-1">
+                              <History className="w-3 h-3" />
+                              {data.recentTxCount || 0} recent txs
+                            </span>
+                            {data.lastTx && (
+                              <span className="text-gray-500 text-xs">
+                                Last: {data.lastTx.toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Link to={createPageUrl('AddressLookup') + `?address=${item.address}`}>
+                            <Button variant="ghost" size="icon" className="text-gray-400 hover:text-cyan-400">
+                              <ExternalLink className="w-4 h-4" />
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeAddress(item.address)}
+                            className="text-gray-500 hover:text-red-400"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
