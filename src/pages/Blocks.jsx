@@ -56,7 +56,7 @@ export default function Blocks() {
     }
   };
 
-  // Get aggregated data for time views - uses ACTUAL performance samples from RPC
+  // Get aggregated data for time views - uses ONLY real on-chain data from RPC
   const getAggregatedData = () => {
     // Use actual block data to calculate tx type ratios
     let voteRatio = 0.70, transferRatio = 0.12, programRatio = 0.09;
@@ -75,11 +75,13 @@ export default function Blocks() {
     const aggregated = [];
     
     if (viewMode === '1m') {
-      // Use actual performance samples - each is ~1 minute of real data
-      for (let i = 0; i < 10; i++) {
+      // Show only real data from RPC performance samples
+      const availableSamples = Math.min(10, performanceData.length);
+      for (let i = 0; i < availableSamples; i++) {
         const sample = performanceData[i];
-        const totalTxns = sample?.transactions || tps * 60;
-        const slots = sample?.slots || 150;
+        if (!sample) continue; // Skip if no real data
+        const totalTxns = sample.transactions;
+        const slots = sample.slots;
         
         aggregated.push({
           totalTxns,
@@ -88,20 +90,33 @@ export default function Blocks() {
           voteCount: Math.round(totalTxns * voteRatio),
           transferCount: Math.round(totalTxns * transferRatio),
           programCount: Math.round(totalTxns * programRatio),
-          timestamp: Date.now() - (i * 60 * 1000)
+          timestamp: Date.now() - (i * 60 * 1000),
+          isRealData: true
         });
       }
     } else if (viewMode === '10m') {
-      // Aggregate 10-minute windows from actual performance samples
-      for (let i = 0; i < 10; i++) {
+      // For 10m view, only show windows where we have complete real data
+      // RPC returns ~60 samples, so we can show 6 complete 10-minute windows
+      const maxWindows = Math.floor(performanceData.length / 10);
+      const windowsToShow = Math.min(6, maxWindows);
+      
+      for (let i = 0; i < windowsToShow; i++) {
         let totalTxns = 0;
         let totalSlots = 0;
+        let hasAllData = true;
+        
         for (let j = 0; j < 10; j++) {
           const sampleIdx = i * 10 + j;
           const sample = performanceData[sampleIdx];
-          totalTxns += sample?.transactions || tps * 60;
-          totalSlots += sample?.slots || 150;
+          if (!sample) {
+            hasAllData = false;
+            break;
+          }
+          totalTxns += sample.transactions;
+          totalSlots += sample.slots;
         }
+        
+        if (!hasAllData) break; // Stop if we don't have complete data
         
         aggregated.push({
           totalTxns,
@@ -110,7 +125,8 @@ export default function Blocks() {
           voteCount: Math.round(totalTxns * voteRatio),
           transferCount: Math.round(totalTxns * transferRatio),
           programCount: Math.round(totalTxns * programRatio),
-          timestamp: Date.now() - (i * 10 * 60 * 1000)
+          timestamp: Date.now() - (i * 10 * 60 * 1000),
+          isRealData: true
         });
       }
     }

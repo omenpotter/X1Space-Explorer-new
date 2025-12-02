@@ -111,13 +111,15 @@ export default function Dashboard() {
     }
     
     const aggregated = [];
-    const baseTps = dashboardData?.tps || 3000;
     
     if (mempoolInterval === '1m') {
-      for (let i = 0; i < 10; i++) {
+      // Show only data we have from RPC (up to 10 minutes)
+      const availableSamples = Math.min(10, performanceData.length);
+      for (let i = 0; i < availableSamples; i++) {
         const sample = performanceData[i];
-        const totalTxns = sample?.transactions || baseTps * 60;
-        const slots = sample?.slots || 150;
+        if (!sample) continue; // Skip if no real data
+        const totalTxns = sample.transactions;
+        const slots = sample.slots;
         
         aggregated.push({
           totalTxns,
@@ -126,19 +128,33 @@ export default function Dashboard() {
           voteCount: Math.round(totalTxns * voteRatio),
           transferCount: Math.round(totalTxns * transferRatio),
           programCount: Math.round(totalTxns * programRatio),
-          timestamp: Date.now() - (i * 60 * 1000)
+          timestamp: Date.now() - (i * 60 * 1000),
+          isRealData: true
         });
       }
     } else {
-      for (let i = 0; i < 10; i++) {
+      // For 10m view, only show windows where we have complete real data
+      // RPC returns ~60 samples, so we can show 6 complete 10-minute windows
+      const maxWindows = Math.floor(performanceData.length / 10);
+      const windowsToShow = Math.min(6, maxWindows);
+      
+      for (let i = 0; i < windowsToShow; i++) {
         let totalTxns = 0;
         let totalSlots = 0;
+        let hasAllData = true;
+        
         for (let j = 0; j < 10; j++) {
           const sampleIdx = i * 10 + j;
           const sample = performanceData[sampleIdx];
-          totalTxns += sample?.transactions || baseTps * 60;
-          totalSlots += sample?.slots || 150;
+          if (!sample) {
+            hasAllData = false;
+            break;
+          }
+          totalTxns += sample.transactions;
+          totalSlots += sample.slots;
         }
+        
+        if (!hasAllData) break; // Stop if we don't have complete data
         
         aggregated.push({
           totalTxns,
@@ -147,13 +163,14 @@ export default function Dashboard() {
           voteCount: Math.round(totalTxns * voteRatio),
           transferCount: Math.round(totalTxns * transferRatio),
           programCount: Math.round(totalTxns * programRatio),
-          timestamp: Date.now() - (i * 10 * 60 * 1000)
+          timestamp: Date.now() - (i * 10 * 60 * 1000),
+          isRealData: true
         });
       }
     }
     
     return aggregated;
-  }, [mempoolInterval, recentBlocks, performanceData, dashboardData?.tps]);
+  }, [mempoolInterval, recentBlocks, performanceData]);
 
   useEffect(() => {
     // Use requestIdleCallback for non-blocking initial fetch
