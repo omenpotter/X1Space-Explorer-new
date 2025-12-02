@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,8 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import X1Rpc from '../components/x1/X1RpcService';
 import AddressFlowGraph from '../components/transactions/AddressFlowGraph';
+import FlowFilters from '../components/transactions/FlowFilters';
+import FlowExport from '../components/transactions/FlowExport';
 
 export default function TransactionFlowPage() {
   const [address, setAddress] = useState('');
@@ -19,6 +21,10 @@ export default function TransactionFlowPage() {
   const [error, setError] = useState(null);
   const [filterType, setFilterType] = useState('all');
   const [flowData, setFlowData] = useState({ nodes: [], edges: [] });
+  const [dateRange, setDateRange] = useState({ from: null, to: null });
+  const [amountRange, setAmountRange] = useState({ min: '', max: '' });
+  const [searchSignature, setSearchSignature] = useState('');
+  const graphRef = useRef(null);
 
   // Parse URL params
   useEffect(() => {
@@ -188,9 +194,47 @@ export default function TransactionFlowPage() {
     }
   };
 
-  const filteredTxs = filterType === 'all' 
-    ? transactions 
-    : transactions.filter(tx => tx.type === filterType);
+  // Advanced filtering with memoization
+  const filteredTxs = useMemo(() => {
+    return transactions.filter(tx => {
+      // Type filter
+      if (filterType !== 'all' && tx.type !== filterType) return false;
+      
+      // Signature/address search
+      if (searchSignature) {
+        const search = searchSignature.toLowerCase();
+        const matchSig = tx.signature?.toLowerCase().includes(search);
+        const matchFrom = tx.from?.toLowerCase().includes(search);
+        const matchTo = tx.to?.toLowerCase().includes(search);
+        if (!matchSig && !matchFrom && !matchTo) return false;
+      }
+      
+      // Date range filter
+      if (dateRange.from && tx.blockTime) {
+        const txDate = new Date(tx.blockTime * 1000);
+        if (txDate < dateRange.from) return false;
+      }
+      if (dateRange.to && tx.blockTime) {
+        const txDate = new Date(tx.blockTime * 1000);
+        const endOfDay = new Date(dateRange.to);
+        endOfDay.setHours(23, 59, 59, 999);
+        if (txDate > endOfDay) return false;
+      }
+      
+      // Amount range filter
+      if (amountRange.min && tx.amount < parseFloat(amountRange.min)) return false;
+      if (amountRange.max && tx.amount > parseFloat(amountRange.max)) return false;
+      
+      return true;
+    });
+  }, [transactions, filterType, searchSignature, dateRange, amountRange]);
+
+  const clearFilters = useCallback(() => {
+    setFilterType('all');
+    setDateRange({ from: null, to: null });
+    setAmountRange({ min: '', max: '' });
+    setSearchSignature('');
+  }, []);
 
   const formatAmount = (amt) => {
     if (amt >= 1e6) return (amt / 1e6).toFixed(2) + 'M';
@@ -286,31 +330,37 @@ export default function TransactionFlowPage() {
             </div>
 
             {/* Flow Graph */}
-            <div className="bg-[#24384a] rounded-xl p-4 mb-6">
+            <div className="bg-[#24384a] rounded-xl p-4 mb-6" ref={graphRef}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-gray-400 text-sm">TRANSACTION FLOW VISUALIZATION</h3>
-                <Button variant="ghost" size="sm" onClick={fetchTransactions} className="text-gray-400">
-                  <RefreshCw className="w-4 h-4 mr-2" /> Refresh
-                </Button>
+                <div className="flex items-center gap-2">
+                  <FlowExport flowData={flowData} transactions={transactions} graphRef={graphRef} />
+                  <Button variant="ghost" size="sm" onClick={fetchTransactions} className="text-gray-400">
+                    <RefreshCw className="w-4 h-4 mr-2" /> Refresh
+                  </Button>
+                </div>
               </div>
               <AddressFlowGraph flowData={flowData} />
             </div>
 
-            {/* Filters */}
-            <div className="flex items-center gap-2 mb-4">
-              <Filter className="w-4 h-4 text-gray-400" />
-              <span className="text-gray-400 text-sm">Filter:</span>
-              {['all', 'transfer', 'stake', 'token'].map((type) => (
-                <Button 
-                  key={type} 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setFilterType(type)}
-                  className={`border-white/10 ${filterType === type ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
-                >
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                </Button>
-              ))}
+            {/* Advanced Filters */}
+            <FlowFilters
+              filterType={filterType}
+              setFilterType={setFilterType}
+              dateRange={dateRange}
+              setDateRange={setDateRange}
+              amountRange={amountRange}
+              setAmountRange={setAmountRange}
+              searchSignature={searchSignature}
+              setSearchSignature={setSearchSignature}
+              onClearFilters={clearFilters}
+            />
+
+            {/* Filter results count */}
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-gray-400 text-sm">
+                Showing {filteredTxs.length} of {transactions.length} transactions
+              </span>
             </div>
 
             {/* Transaction List */}
