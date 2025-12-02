@@ -2,9 +2,9 @@
 // Using WeakMap-like pattern with Map for better memory management
 const cache = new Map();
 const CACHE_DURATIONS = {
-  short: 3000,      // 3 seconds - for real-time data (reduced for faster updates)
-  medium: 30000,    // 30 seconds - for validator data
-  long: 300000,     // 5 minutes - for static data like supply
+  short: 2000,      // 2 seconds - for real-time data (slots move fast at 3000+ TPS)
+  medium: 15000,    // 15 seconds - for validator data
+  long: 60000,      // 1 minute - for static data like supply
 };
 
 // Limit cache size to prevent memory bloat
