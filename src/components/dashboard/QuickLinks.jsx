@@ -2,11 +2,12 @@ import React, { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { 
-  Globe, Calculator, Wallet, Star, Trophy, Coins, Map, Clock, Bell, TrendingDown 
+  Globe, Calculator, Wallet, Star, Trophy, Coins, Map, Clock, Bell, TrendingDown, ArrowLeftRight 
 } from 'lucide-react';
 
 const links = [
   { page: 'NetworkHealth', icon: Globe, color: 'text-cyan-400', title: 'Network Health', desc: 'Monitor network status' },
+  { page: 'TransactionFlowPage', icon: ArrowLeftRight, color: 'text-blue-400', title: 'Transaction Flow', desc: 'Visualize address flows' },
   { page: 'TokenExplorer', icon: Coins, color: 'text-yellow-400', title: 'Tokens', desc: 'SPL token explorer' },
   { page: 'NetworkMap', icon: Map, color: 'text-emerald-400', title: 'Network Map', desc: 'Global node distribution' },
   { page: 'EpochHistory', icon: Clock, color: 'text-purple-400', title: 'Epoch History', desc: 'Historical data' },
@@ -15,7 +16,6 @@ const links = [
   { page: 'Watchlist', icon: Star, color: 'text-orange-400', title: 'Watchlist', desc: 'Track validators' },
   { page: 'Leaderboard', icon: Trophy, color: 'text-amber-400', title: 'Leaderboard', desc: 'Top validators' },
   { page: 'AddressLookup', icon: Wallet, color: 'text-blue-400', title: 'Address Lookup', desc: 'Search accounts' },
-  { page: 'PortfolioTracker', icon: TrendingDown, color: 'text-emerald-400', title: 'Portfolio', desc: 'Track holdings & rewards' },
 ];
 
 const QuickLinks = memo(function QuickLinks() {
