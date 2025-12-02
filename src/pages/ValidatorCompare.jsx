@@ -24,12 +24,17 @@ export default function ValidatorComparePage() {
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSelector, setShowSelector] = useState(true);
+  const [blockProduction, setBlockProduction] = useState(null);
 
   useEffect(() => {
     const fetchValidators = async () => {
       try {
-        const data = await X1Rpc.getValidatorDetails();
+        const [data, blockProd] = await Promise.all([
+          X1Rpc.getValidatorDetails(),
+          X1Rpc.getBlockProduction().catch(() => null)
+        ]);
         setValidators(data);
+        setBlockProduction(blockProd);
         setError(null);
       } catch (err) {
         console.error('Failed to fetch validators:', err);
@@ -222,6 +227,7 @@ export default function ValidatorComparePage() {
         <ValidatorCompare 
           validators={selectedValidators} 
           onRemove={removeValidator}
+          blockProduction={blockProduction}
         />
       </main>
     </div>
