@@ -29,37 +29,50 @@ export default function Blocks() {
   const [viewMode, setViewMode] = useState('blocks'); // blocks, 1m, 10m
   const [tps, setTps] = useState(3000);
   const [performanceData, setPerformanceData] = useState([]);
+  const isMounted = React.useRef(true);
+  const initialFetchDone = React.useRef(false);
 
-  const fetchBlocks = async () => {
+  const fetchBlocks = React.useCallback(async () => {
+    if (!isMounted.current) return;
+    
     try {
-      // Fetch blocks first for fastest display, then other data
+      // Fetch blocks first for fastest display
       const recentBlocks = await X1Rpc.getRecentBlocks(20);
+      
+      if (!isMounted.current) return;
       
       // Update blocks immediately for fast UI
       if (recentBlocks.length > 0) {
-        if (blocks.length > 0 && recentBlocks[0]?.slot > blocks[0]?.slot) {
-          setNewBlockSlot(recentBlocks[0].slot);
-          setTimeout(() => setNewBlockSlot(null), 1000);
-        }
-        setBlocks(recentBlocks);
+        setBlocks(prevBlocks => {
+          if (prevBlocks.length > 0 && recentBlocks[0]?.slot > prevBlocks[0]?.slot) {
+            setNewBlockSlot(recentBlocks[0].slot);
+            setTimeout(() => setNewBlockSlot(null), 1000);
+          }
+          return recentBlocks;
+        });
         setLoading(false);
+        initialFetchDone.current = true;
       }
       
-      // Then fetch dashboard and performance data in parallel
-      const [dashData, perfHistory] = await Promise.all([
+      // Then fetch dashboard and performance data in parallel (non-blocking)
+      Promise.all([
         X1Rpc.getDashboardData().catch(() => null),
         X1Rpc.getPerformanceHistory(60).catch(() => [])
-      ]);
+      ]).then(([dashData, perfHistory]) => {
+        if (!isMounted.current) return;
+        if (dashData?.tps) setTps(dashData.tps);
+        setPerformanceData(perfHistory);
+      });
       
-      if (dashData?.tps) setTps(dashData.tps);
-      setPerformanceData(perfHistory);
       setError(null);
     } catch (err) {
       console.error('Failed to fetch blocks:', err);
-      setError(err.message);
-      setLoading(false);
+      if (isMounted.current) {
+        setError(err.message);
+        setLoading(false);
+      }
     }
-  };
+  }, []);
 
   // Get aggregated data for time views - uses ONLY real on-chain data from RPC
   const getAggregatedData = () => {
@@ -140,13 +153,22 @@ export default function Blocks() {
   };
 
   useEffect(() => {
+    isMounted.current = true;
+    
+    // Fetch immediately on mount
     fetchBlocks();
+    
+    let interval;
     if (isLive) {
       // Faster refresh rate for 3000+ TPS network
-      const interval = setInterval(fetchBlocks, 2000);
-      return () => clearInterval(interval);
+      interval = setInterval(fetchBlocks, 2000);
     }
-  }, [isLive]);
+    
+    return () => {
+      isMounted.current = false;
+      if (interval) clearInterval(interval);
+    };
+  }, [isLive, fetchBlocks]);
 
   if (loading && blocks.length === 0) {
     return (

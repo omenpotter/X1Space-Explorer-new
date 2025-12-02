@@ -2,12 +2,15 @@ import React, { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { 
-  Globe, Calculator, Wallet, Star, Trophy, Coins, Map, Clock, Bell, TrendingDown, ArrowLeftRight 
+  Globe, Calculator, Wallet, Star, Trophy, Coins, Map, Clock, Bell, Scale, PieChart, Fish, ArrowLeftRight 
 } from 'lucide-react';
 
 const links = [
   { page: 'NetworkHealth', icon: Globe, color: 'text-cyan-400', title: 'Network Health', desc: 'Monitor network status' },
   { page: 'TransactionFlowPage', icon: ArrowLeftRight, color: 'text-blue-400', title: 'Transaction Flow', desc: 'Visualize address flows' },
+  { page: 'PortfolioTracker', icon: PieChart, color: 'text-pink-400', title: 'Portfolio', desc: 'Track your holdings' },
+  { page: 'WhaleWatcher', icon: Fish, color: 'text-blue-500', title: 'Whale Watcher', desc: 'Large transactions' },
+  { page: 'ValidatorCompare', icon: Scale, color: 'text-indigo-400', title: 'Compare', desc: 'Compare validators' },
   { page: 'TokenExplorer', icon: Coins, color: 'text-yellow-400', title: 'Tokens', desc: 'SPL token explorer' },
   { page: 'NetworkMap', icon: Map, color: 'text-emerald-400', title: 'Network Map', desc: 'Global node distribution' },
   { page: 'EpochHistory', icon: Clock, color: 'text-purple-400', title: 'Epoch History', desc: 'Historical data' },
