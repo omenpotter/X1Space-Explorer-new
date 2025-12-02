@@ -695,6 +695,55 @@ export async function getPerformanceHistory(minutes = 60) {
   }));
 }
 
+// Get pending/recent transactions from mempool-like view (unconfirmed recent txs)
+export async function getPendingTransactions() {
+  try {
+    const currentSlot = await getSlot();
+    // Get the latest block which may have very recent transactions
+    const block = await rpcCall('getBlock', [currentSlot, {
+      encoding: 'json',
+      transactionDetails: 'full',
+      rewards: false,
+      maxSupportedTransactionVersion: 0
+    }]).catch(() => null);
+    
+    if (!block?.transactions) return [];
+    
+    // Return the most recent transactions as "pending-like" (just confirmed)
+    return block.transactions.slice(0, 20).map(tx => {
+      const message = tx.transaction?.message;
+      const accountKeys = message?.accountKeys || [];
+      const instructions = message?.instructions || [];
+      const signature = tx.transaction?.signatures?.[0];
+      
+      let type = 'other';
+      for (const ix of instructions) {
+        const programId = accountKeys[ix.programIdIndex];
+        if (programId === 'Vote111111111111111111111111111111111111111') {
+          type = 'vote';
+          break;
+        } else if (programId === '11111111111111111111111111111111') {
+          type = 'transfer';
+        } else if (programId === 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') {
+          type = 'token';
+        }
+      }
+      
+      return {
+        signature,
+        slot: currentSlot,
+        type,
+        status: tx.meta?.err ? 'failed' : 'pending',
+        fee: (tx.meta?.fee || 0) / 1e9,
+        from: accountKeys[0] || '',
+        timestamp: Date.now()
+      };
+    });
+  } catch (e) {
+    return [];
+  }
+}
+
 export default {
   getSlot,
   getBlockHeight,
@@ -726,5 +775,6 @@ export default {
   getBlockProductionForEpoch,
   getRealtimeTransactions,
   getEpochHistoryData,
-  getPerformanceHistory
+  getPerformanceHistory,
+  getPendingTransactions
 };
