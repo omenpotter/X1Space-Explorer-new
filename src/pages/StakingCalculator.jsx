@@ -17,11 +17,14 @@ export default function StakingCalculator() {
   const [selectedValidator, setSelectedValidator] = useState(null);
   const [timeframe, setTimeframe] = useState('year');
 
+  const [searchQuery, setSearchQuery] = useState('');
+
   useEffect(() => {
     const fetchValidators = async () => {
       try {
         const data = await X1Rpc.getValidatorDetails();
-        setValidators(data.filter(v => !v.delinquent).slice(0, 50));
+        // Get ALL active validators, not just top 50
+        setValidators(data.filter(v => !v.delinquent));
         if (data.length > 0) setSelectedValidator(data[0]);
       } catch (err) {
         console.error(err);
@@ -31,6 +34,15 @@ export default function StakingCalculator() {
     };
     fetchValidators();
   }, []);
+
+  // Filter validators by search
+  const filteredValidators = validators.filter(v => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return v.votePubkey.toLowerCase().includes(query) ||
+           v.nodePubkey.toLowerCase().includes(query) ||
+           (v.name && v.name.toLowerCase().includes(query));
+  });
 
   // X1 Network Staking APY Calculation
   // APY = Base Network Rate * (1 - Validator Commission) * Uptime Factor
@@ -135,9 +147,15 @@ export default function StakingCalculator() {
               ))}
             </div>
 
-            <h3 className="text-gray-400 text-sm mb-4">SELECT VALIDATOR</h3>
-            <div className="max-h-[200px] overflow-y-auto space-y-2">
-              {validators.slice(0, 20).map((v) => {
+            <h3 className="text-gray-400 text-sm mb-4">SELECT VALIDATOR ({validators.length} available)</h3>
+            <Input
+              placeholder="Search by name or pubkey..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-[#1d2d3a] border-0 text-white mb-3"
+            />
+            <div className="max-h-[300px] overflow-y-auto space-y-2">
+              {filteredValidators.slice(0, 50).map((v) => {
                 const vAPY = calculateValidatorAPY(v);
                 return (
                   <button
