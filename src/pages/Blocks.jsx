@@ -355,7 +355,7 @@ export default function Blocks() {
             ) : (
               getAggregatedData().length > 0 ? (
                 getAggregatedData().map((data, i) => (
-                  <MempoolAggregatedViz key={`${viewMode}-${i}`} data={data} label={data.label} />
+                  <MempoolAggregatedViz key={`${viewMode}-${i}`} data={data} label={data.label} viewMode={viewMode} />
                 ))
               ) : (
                 <div className="text-gray-500 py-8 w-full text-center">
