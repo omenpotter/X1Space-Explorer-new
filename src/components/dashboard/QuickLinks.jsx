@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { 
-  Globe, Calculator, Wallet, Star, Trophy, Coins, Map, Clock, Bell, Scale, PieChart, Fish, ArrowLeftRight, LayoutGrid 
+  Globe, Calculator, Wallet, Star, Trophy, Coins, Map, Bell, Scale, PieChart, Fish, ArrowLeftRight, LayoutGrid 
 } from 'lucide-react';
 
 const links = [
@@ -14,7 +14,6 @@ const links = [
   { page: 'ValidatorCompare', icon: Scale, color: 'text-indigo-400', title: 'Compare', desc: 'Compare validators' },
   { page: 'TokenExplorer', icon: Coins, color: 'text-yellow-400', title: 'Tokens', desc: 'SPL token explorer' },
   { page: 'NetworkMap', icon: Map, color: 'text-emerald-400', title: 'Network Map', desc: 'Global node distribution' },
-  { page: 'EpochHistory', icon: Clock, color: 'text-purple-400', title: 'Epoch History', desc: 'Historical data' },
   { page: 'StakingCalculator', icon: Calculator, color: 'text-cyan-400', title: 'Staking Calculator', desc: 'Estimate rewards' },
   { page: 'ValidatorAlerts', icon: Bell, color: 'text-yellow-400', title: 'Alerts', desc: 'Validator notifications' },
   { page: 'Watchlist', icon: Star, color: 'text-orange-400', title: 'Watchlist', desc: 'Track validators' },
