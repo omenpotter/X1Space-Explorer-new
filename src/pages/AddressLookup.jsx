@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { 
   Zap, Search, Wallet, Copy, Check, ExternalLink, 
-  ArrowUpRight, ArrowDownLeft, Clock, Loader2, RefreshCw
+  ArrowUpRight, ArrowDownLeft, Clock, Loader2, AlertCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -37,121 +37,104 @@ export default function AddressLookup() {
     setError(null);
     
     try {
-      // Fetch real on-chain data
+      // Fetch real account info from RPC
       const [accountInfo, balance, signatures] = await Promise.all([
         X1Rpc.getAccountInfo(searchAddress).catch(() => null),
         X1Rpc.getBalance(searchAddress).catch(() => ({ value: 0 })),
         X1Rpc.getSignaturesForAddress(searchAddress, { limit: 20 }).catch(() => [])
       ]);
-
+      
       // Determine account type
       let accountType = 'wallet';
       let label = null;
-      let commission = null;
-      let authorizedVoter = null;
-      let authorizedWithdrawer = null;
-      let rootSlot = null;
-      let lastTimestamp = null;
-
-      if (accountInfo?.value?.data?.parsed) {
-        const parsed = accountInfo.value.data.parsed;
-        if (parsed.type === 'vote') {
+      let voteAccountData = null;
+      
+      if (accountInfo?.value) {
+        const owner = accountInfo.value.owner;
+        if (owner === 'Vote111111111111111111111111111111111111111') {
           accountType = 'vote';
-          label = 'Vote Account';
-          commission = parsed.info?.commission;
-          authorizedVoter = parsed.info?.authorizedVoter;
-          authorizedWithdrawer = parsed.info?.authorizedWithdrawer;
-          rootSlot = parsed.info?.rootSlot;
-          lastTimestamp = parsed.info?.lastTimestamp?.timestamp;
-        } else if (parsed.type === 'stake') {
-          accountType = 'stake';
-          label = 'Stake Account';
-        }
-      }
-
-      // Get transaction details for recent transactions
-      const recentTxs = await Promise.all(
-        signatures.slice(0, 10).map(async (sig) => {
-          try {
-            const tx = await X1Rpc.getTransaction(sig.signature);
-            let type = 'transaction';
-            let amount = 0;
-
-            // Parse transaction type
-            if (tx?.transaction?.message) {
-              const accountKeys = tx.transaction.message.accountKeys || [];
-              const instructions = tx.transaction.message.instructions || [];
-              
-              for (const ix of instructions) {
-                const programId = accountKeys[ix.programIdIndex];
-                if (programId === 'Vote111111111111111111111111111111111111111') {
-                  type = 'vote';
-                } else if (programId === '11111111111111111111111111111111') {
-                  type = 'transfer';
-                  // Parse transfer amount from pre/post balances
-                  const preBalances = tx.meta?.preBalances || [];
-                  const postBalances = tx.meta?.postBalances || [];
-                  const accountIndex = accountKeys.findIndex(k => k === searchAddress);
-                  if (accountIndex >= 0) {
-                    amount = (postBalances[accountIndex] - preBalances[accountIndex]) / 1e9;
-                  }
-                } else if (programId === 'Stake11111111111111111111111111111111111111') {
-                  type = 'stake';
-                } else if (programId === 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') {
-                  type = 'token';
-                }
-              }
-            }
-
-            return {
-              signature: sig.signature,
-              slot: sig.slot,
-              blockTime: sig.blockTime,
-              type,
-              amount,
-              status: sig.err ? 'failed' : 'success'
-            };
-          } catch {
-            return {
-              signature: sig.signature,
-              slot: sig.slot,
-              blockTime: sig.blockTime,
-              type: 'transaction',
-              amount: 0,
-              status: sig.err ? 'failed' : 'success'
+          // Parse vote account data
+          const parsed = accountInfo.value.data?.parsed;
+          if (parsed?.info) {
+            voteAccountData = {
+              authorizedVoter: parsed.info.authorizedVoters?.[0]?.authorizedVoter,
+              authorizedWithdrawer: parsed.info.authorizedWithdrawer,
+              commission: parsed.info.commission,
+              rootSlot: parsed.info.rootSlot,
+              lastTimestamp: parsed.info.lastTimestamp?.timestamp
             };
           }
-        })
-      );
-
-      // Find earliest transaction
-      const earliestTx = signatures.length > 0 
-        ? signatures[signatures.length - 1]
-        : null;
-
+        } else if (owner === 'Stake11111111111111111111111111111111111111') {
+          accountType = 'stake';
+        } else if (owner === 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') {
+          accountType = 'token';
+        }
+      }
+      
+      // Fetch transaction details for recent transactions
+      const recentTxs = [];
+      for (const sig of signatures.slice(0, 10)) {
+        try {
+          const tx = await X1Rpc.getTransaction(sig.signature);
+          if (tx) {
+            const message = tx.transaction?.message;
+            const accountKeys = message?.accountKeys || [];
+            const instructions = message?.instructions || [];
+            const preBalances = tx.meta?.preBalances || [];
+            const postBalances = tx.meta?.postBalances || [];
+            
+            // Determine type and amount
+            let type = 'other';
+            let amount = 0;
+            
+            for (const ix of instructions) {
+              const programId = accountKeys[ix.programIdIndex];
+              if (programId === 'Vote111111111111111111111111111111111111111') {
+                type = 'vote';
+                break;
+              } else if (programId === '11111111111111111111111111111111') {
+                type = 'transfer';
+              } else if (programId === 'Stake11111111111111111111111111111111111111') {
+                type = 'stake';
+              } else if (programId === 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') {
+                type = 'token';
+              }
+            }
+            
+            // Calculate balance change for this address
+            for (let i = 0; i < accountKeys.length; i++) {
+              if (accountKeys[i] === searchAddress) {
+                amount = (postBalances[i] - preBalances[i]) / 1e9;
+                break;
+              }
+            }
+            
+            recentTxs.push({
+              signature: sig.signature,
+              type,
+              amount,
+              slot: sig.slot,
+              blockTime: sig.blockTime,
+              status: tx.meta?.err ? 'failed' : 'success'
+            });
+          }
+        } catch (e) {
+          // Skip failed tx fetch
+        }
+      }
+      
       setResult({
         address: searchAddress,
         label,
         type: accountType,
-        balance: balance.value / 1e9,
+        balance: (balance?.value || 0) / 1e9,
         transactions: signatures.length,
-        firstSeen: earliestTx?.blockTime ? new Date(earliestTx.blockTime * 1000) : null,
+        firstSeen: signatures.length > 0 ? new Date(signatures[signatures.length - 1]?.blockTime * 1000) : null,
         recentTxs,
-        // Vote account specific
-        commission,
-        authorizedVoter,
-        authorizedWithdrawer,
-        rootSlot,
-        lastTimestamp: lastTimestamp ? new Date(lastTimestamp * 1000) : null,
-        // Raw account data
-        owner: accountInfo?.value?.owner,
-        executable: accountInfo?.value?.executable,
-        rentEpoch: accountInfo?.value?.rentEpoch,
-        dataSize: accountInfo?.value?.data?.length || 0
+        voteAccountData
       });
     } catch (err) {
-      console.error('Failed to fetch address:', err);
-      setError(err.message || 'Failed to fetch address data');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -163,18 +146,16 @@ export default function AddressLookup() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const formatTimeAgo = (timestamp) => {
-    if (!timestamp) return '-';
-    const seconds = Math.floor((Date.now() - timestamp * 1000) / 1000);
-    if (seconds < 60) return `${seconds}s ago`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    return `${Math.floor(seconds / 86400)}d ago`;
-  };
-
-  const truncateSignature = (sig) => {
-    if (!sig) return '-';
-    return `${sig.substring(0, 8)}...${sig.slice(-8)}`;
+  const formatTime = (blockTime) => {
+    if (!blockTime) return '-';
+    const date = new Date(blockTime * 1000);
+    const now = new Date();
+    const diff = (now - date) / 1000;
+    
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return date.toLocaleDateString();
   };
 
   return (
@@ -187,7 +168,8 @@ export default function AddressLookup() {
                 <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
                   <span className="text-black font-black text-sm">X1</span>
                 </div>
-                <span className="font-bold hidden sm:inline"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
+                <span className="text-white font-bold hidden sm:inline">X1</span>
+                <span className="text-cyan-400 font-bold hidden sm:inline">.space</span>
               </Link>
               <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
             </div>
@@ -209,7 +191,7 @@ export default function AddressLookup() {
         <div className="bg-[#24384a] rounded-xl p-6 mb-6">
           <div className="flex gap-2">
             <Input
-              placeholder="Enter wallet or vote account address..."
+              placeholder="Enter wallet address..."
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               className="bg-[#1d2d3a] border-0 text-white font-mono flex-1"
@@ -219,7 +201,12 @@ export default function AddressLookup() {
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             </Button>
           </div>
-          {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
+          {error && (
+            <div className="flex items-center gap-2 mt-3 text-red-400 text-sm">
+              <AlertCircle className="w-4 h-4" />
+              <span>{error}</span>
+            </div>
+          )}
         </div>
 
         {result && (
@@ -229,158 +216,138 @@ export default function AddressLookup() {
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <Badge className={`border-0 ${result.type === 'vote' ? 'bg-purple-500/20 text-purple-400' : result.type === 'stake' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-cyan-500/20 text-cyan-400'}`}>
-                      {result.type === 'vote' ? 'Vote Account' : result.type === 'stake' ? 'Stake Account' : 'Wallet'}
-                    </Badge>
+                    <Badge className="bg-purple-500/20 text-purple-400 border-0 capitalize">{result.type} Account</Badge>
+                    {result.type === 'vote' && result.voteAccountData?.commission !== undefined && (
+                      <Badge className="bg-cyan-500/20 text-cyan-400 border-0">
+                        {result.voteAccountData.commission}% Commission
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <code className="text-cyan-400 font-mono text-sm sm:text-lg break-all">{result.address}</code>
+                    <code className="text-cyan-400 font-mono text-sm md:text-lg break-all">{result.address}</code>
                     <button onClick={copyAddress} className="text-gray-500 hover:text-white shrink-0">
                       {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                     </button>
+                    <a 
+                      href={`https://explorer.mainnet.x1.xyz/address/${result.address}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-500 hover:text-cyan-400 shrink-0"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
                   </div>
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => handleSearch(result.address)}
-                  className="border-white/10 text-gray-400 hover:text-white shrink-0"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </Button>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="bg-[#1d2d3a] rounded-lg p-4">
-                  <p className="text-gray-400 text-xs mb-1">Balance (XNT)</p>
-                  <p className="text-xl font-bold text-cyan-400">{result.balance.toLocaleString(undefined, { maximumFractionDigits: 9 })}</p>
+                  <p className="text-gray-400 text-xs mb-1">Balance</p>
+                  <p className="text-xl font-bold text-cyan-400">{result.balance.toLocaleString(undefined, { maximumFractionDigits: 9 })} XNT</p>
                 </div>
                 <div className="bg-[#1d2d3a] rounded-lg p-4">
                   <p className="text-gray-400 text-xs mb-1">Recent Transactions</p>
                   <p className="text-xl font-bold text-white">{result.transactions}</p>
                 </div>
-                {result.type === 'vote' && result.commission !== null && (
+                {result.firstSeen && (
                   <div className="bg-[#1d2d3a] rounded-lg p-4">
-                    <p className="text-gray-400 text-xs mb-1">Commission</p>
-                    <p className="text-xl font-bold text-yellow-400">{result.commission}%</p>
-                  </div>
-                )}
-                {result.type === 'vote' && result.rootSlot && (
-                  <div className="bg-[#1d2d3a] rounded-lg p-4">
-                    <p className="text-gray-400 text-xs mb-1">Root Slot</p>
-                    <p className="text-xl font-bold text-white">{result.rootSlot.toLocaleString()}</p>
+                    <p className="text-gray-400 text-xs mb-1">First Activity</p>
+                    <p className="text-xl font-bold text-white">{result.firstSeen.toLocaleDateString()}</p>
                   </div>
                 )}
               </div>
 
               {/* Vote Account Details */}
-              {result.type === 'vote' && (
-                <div className="mt-4 space-y-2">
-                  {result.authorizedVoter && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-gray-400">Authorized Voter:</span>
-                      <Link to={createPageUrl('AddressLookup') + `?address=${result.authorizedVoter}`} className="text-cyan-400 font-mono hover:underline">
-                        {truncateSignature(result.authorizedVoter)}
-                      </Link>
-                    </div>
-                  )}
-                  {result.authorizedWithdrawer && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-gray-400">Authorized Withdrawer:</span>
-                      <Link to={createPageUrl('AddressLookup') + `?address=${result.authorizedWithdrawer}`} className="text-cyan-400 font-mono hover:underline">
-                        {truncateSignature(result.authorizedWithdrawer)}
-                      </Link>
-                    </div>
-                  )}
-                  {result.lastTimestamp && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-gray-400">Last Timestamp:</span>
-                      <span className="text-white">{result.lastTimestamp.toLocaleString()}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Account Info */}
-              {result.owner && (
-                <div className="mt-4 pt-4 border-t border-white/10 space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-400">Assigned Program Id:</span>
-                    <span className="text-white font-mono">{result.owner === '11111111111111111111111111111111' ? 'System Program' : truncateSignature(result.owner)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-400">Executable:</span>
-                    <span className="text-white">{result.executable ? 'Yes' : 'No'}</span>
+              {result.type === 'vote' && result.voteAccountData && (
+                <div className="mt-4 pt-4 border-t border-white/10">
+                  <h4 className="text-gray-400 text-sm mb-3">VOTE ACCOUNT DETAILS</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    {result.voteAccountData.authorizedVoter && (
+                      <div>
+                        <span className="text-gray-500">Authorized Voter:</span>
+                        <p className="text-cyan-400 font-mono text-xs truncate">{result.voteAccountData.authorizedVoter}</p>
+                      </div>
+                    )}
+                    {result.voteAccountData.authorizedWithdrawer && (
+                      <div>
+                        <span className="text-gray-500">Authorized Withdrawer:</span>
+                        <p className="text-cyan-400 font-mono text-xs truncate">{result.voteAccountData.authorizedWithdrawer}</p>
+                      </div>
+                    )}
+                    {result.voteAccountData.rootSlot && (
+                      <div>
+                        <span className="text-gray-500">Root Slot:</span>
+                        <p className="text-white font-mono">{result.voteAccountData.rootSlot.toLocaleString()}</p>
+                      </div>
+                    )}
+                    {result.voteAccountData.lastTimestamp && (
+                      <div>
+                        <span className="text-gray-500">Last Timestamp:</span>
+                        <p className="text-white">{new Date(result.voteAccountData.lastTimestamp * 1000).toLocaleString()}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Transaction History */}
+            {/* Recent Transactions */}
             <div className="bg-[#24384a] rounded-xl p-6">
-              <h3 className="text-gray-400 text-sm mb-4">TRANSACTION HISTORY</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-gray-400 text-sm">RECENT TRANSACTIONS</h3>
+                <Link to={createPageUrl('TransactionFlowPage') + `?address=${result.address}`}>
+                  <Button variant="ghost" size="sm" className="text-cyan-400 hover:text-cyan-300">
+                    View Flow →
+                  </Button>
+                </Link>
+              </div>
               {result.recentTxs.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">No transactions found</p>
+                <p className="text-gray-500 text-center py-8">No recent transactions found</p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {result.recentTxs.map((tx, i) => (
-                    <div key={i} className="flex items-center gap-4 p-3 bg-[#1d2d3a] rounded-lg hover:bg-[#2a4258] transition-colors">
+                    <Link 
+                      key={i} 
+                      to={createPageUrl('TransactionDetail') + `?sig=${tx.signature}`}
+                      className="flex items-center gap-4 p-3 bg-[#1d2d3a] rounded-lg hover:bg-[#2a4055] transition-colors"
+                    >
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                        tx.type === 'vote' ? 'bg-purple-500/20' : 
-                        tx.amount > 0 ? 'bg-emerald-500/20' : 
-                        tx.amount < 0 ? 'bg-red-500/20' : 'bg-gray-500/20'
+                        tx.amount > 0 ? 'bg-emerald-500/20' : tx.amount < 0 ? 'bg-red-500/20' : 'bg-gray-500/20'
                       }`}>
-                        {tx.type === 'vote' ? (
-                          <span className="text-purple-400 text-xs font-bold">V</span>
-                        ) : tx.amount > 0 ? (
+                        {tx.amount > 0 ? (
                           <ArrowDownLeft className="w-5 h-5 text-emerald-400" />
                         ) : tx.amount < 0 ? (
                           <ArrowUpRight className="w-5 h-5 text-red-400" />
                         ) : (
-                          <span className="text-gray-400 text-xs">TX</span>
+                          <Clock className="w-5 h-5 text-gray-400" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <Link 
-                          to={createPageUrl('TransactionDetail') + `?signature=${tx.signature}`}
-                          className="text-cyan-400 font-mono text-sm hover:underline block truncate"
-                        >
-                          {tx.signature}
-                        </Link>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <span className="capitalize">{tx.type}</span>
-                          <span>•</span>
-                          <span>Block {tx.slot?.toLocaleString()}</span>
-                          <Badge className={`text-xs border-0 ${tx.status === 'success' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                            {tx.status}
+                        <p className="text-cyan-400 font-mono text-sm truncate">{tx.signature}</p>
+                        <div className="flex items-center gap-2">
+                          <Badge className={`text-xs border-0 ${
+                            tx.type === 'vote' ? 'bg-purple-500/20 text-purple-400' :
+                            tx.type === 'transfer' ? 'bg-blue-500/20 text-blue-400' :
+                            tx.type === 'stake' ? 'bg-emerald-500/20 text-emerald-400' :
+                            'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {tx.type}
                           </Badge>
+                          <span className="text-gray-500 text-xs">Slot {tx.slot?.toLocaleString()}</span>
                         </div>
                       </div>
                       <div className="text-right shrink-0">
                         {tx.amount !== 0 && (
-                          <p className={`font-mono text-sm ${tx.amount > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          <p className={`font-mono ${tx.amount > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                             {tx.amount > 0 ? '+' : ''}{tx.amount.toFixed(6)} XNT
                           </p>
                         )}
                         <p className="text-gray-500 text-xs flex items-center gap-1 justify-end">
-                          <Clock className="w-3 h-3" /> {formatTimeAgo(tx.blockTime)}
+                          <Clock className="w-3 h-3" /> {formatTime(tx.blockTime)}
                         </p>
                       </div>
-                    </div>
+                    </Link>
                   ))}
-                </div>
-              )}
-              
-              {result.recentTxs.length > 0 && (
-                <div className="mt-4 text-center">
-                  <a 
-                    href={`https://explorer.mainnet.x1.xyz/address/${result.address}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-cyan-400 text-sm hover:underline inline-flex items-center gap-1"
-                  >
-                    View all on X1 Explorer <ExternalLink className="w-3 h-3" />
-                  </a>
                 </div>
               )}
             </div>
