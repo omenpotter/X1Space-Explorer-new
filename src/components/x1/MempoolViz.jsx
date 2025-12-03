@@ -111,24 +111,33 @@ export const MempoolBlockViz = memo(({ block, isNew }) => {
   const { slot, txCount, voteCount, transferCount, programCount, otherCount, blockTime } = block || {};
   
   const blocks = useMemo(() => {
-    if (!txCount) return [];
     const result = [];
     const total = 60;
     
-    const voteRatio = (voteCount || 0) / (txCount || 1);
-    const transferRatio = (transferCount || 0) / (txCount || 1);
-    const programRatio = ((programCount || 0) + (otherCount || 0)) / (txCount || 1);
+    // If we have real transaction counts, use them
+    if (txCount && txCount > 0) {
+      const voteRatio = (voteCount || 0) / txCount;
+      const transferRatio = (transferCount || 0) / txCount;
+      const programRatio = ((programCount || 0) + (otherCount || 0)) / txCount;
+      
+      const voteBlocks = Math.round(total * voteRatio);
+      const transferBlocks = Math.round(total * transferRatio);
+      const programBlocks = Math.round(total * programRatio);
+      const otherBlocks = Math.max(0, total - voteBlocks - transferBlocks - programBlocks);
+      
+      for (let i = 0; i < voteBlocks; i++) result.push('vote');
+      for (let i = 0; i < transferBlocks; i++) result.push('transfer');
+      for (let i = 0; i < programBlocks; i++) result.push('token');
+      for (let i = 0; i < otherBlocks; i++) result.push('other');
+    } else {
+      // Default distribution for blocks without tx data - typical X1 ratio
+      for (let i = 0; i < 42; i++) result.push('vote');    // ~70%
+      for (let i = 0; i < 9; i++) result.push('transfer'); // ~15%
+      for (let i = 0; i < 6; i++) result.push('token');    // ~10%
+      for (let i = 0; i < 3; i++) result.push('other');    // ~5%
+    }
     
-    const voteBlocks = Math.round(total * voteRatio);
-    const transferBlocks = Math.round(total * transferRatio);
-    const programBlocks = Math.round(total * programRatio);
-    const otherBlocks = Math.max(0, total - voteBlocks - transferBlocks - programBlocks);
-    
-    for (let i = 0; i < voteBlocks; i++) result.push('vote');
-    for (let i = 0; i < transferBlocks; i++) result.push('transfer');
-    for (let i = 0; i < programBlocks; i++) result.push('token');
-    for (let i = 0; i < otherBlocks; i++) result.push('other');
-    
+    // Shuffle for visual variety
     for (let i = result.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [result[i], result[j]] = [result[j], result[i]];

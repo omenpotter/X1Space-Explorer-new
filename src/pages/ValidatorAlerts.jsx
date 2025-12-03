@@ -390,9 +390,31 @@ https://x1.space
         {/* Notification Config */}
         <div className="bg-[#24384a] rounded-xl p-4 mb-6">
           <h3 className="text-gray-400 text-sm mb-4">NOTIFICATION SETTINGS</h3>
+          
+          {/* Email limitation notice */}
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-4">
+            <p className="text-yellow-400 text-sm">
+              ⚠️ <strong>Email Limitation:</strong> Email notifications currently only work for registered app users. 
+              For external notifications, please use a <strong>Webhook</strong> (Discord, Slack, Telegram bot, etc.)
+            </p>
+          </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-gray-500 text-xs mb-1 block">Email Address</label>
+              <label className="text-gray-500 text-xs mb-1 block">Webhook URL (Recommended)</label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="https://discord.com/api/webhooks/..."
+                  value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
+                  className="bg-[#1d2d3a] border-0 text-white flex-1"
+                />
+                <Button variant="ghost" size="icon" className="text-gray-400"><Globe className="w-4 h-4" /></Button>
+              </div>
+              <p className="text-gray-600 text-xs mt-1">Works with Discord, Slack, Telegram bots, etc.</p>
+            </div>
+            <div>
+              <label className="text-gray-500 text-xs mb-1 block">Email (App Users Only)</label>
               <div className="flex gap-2">
                 <Input
                   type="email"
@@ -402,18 +424,6 @@ https://x1.space
                   className="bg-[#1d2d3a] border-0 text-white flex-1"
                 />
                 <Button variant="ghost" size="icon" className="text-gray-400"><Mail className="w-4 h-4" /></Button>
-              </div>
-            </div>
-            <div>
-              <label className="text-gray-500 text-xs mb-1 block">Webhook URL (Discord, Slack, etc.)</label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="https://hooks.slack.com/..."
-                  value={webhookUrl}
-                  onChange={(e) => setWebhookUrl(e.target.value)}
-                  className="bg-[#1d2d3a] border-0 text-white flex-1"
-                />
-                <Button variant="ghost" size="icon" className="text-gray-400"><Globe className="w-4 h-4" /></Button>
               </div>
             </div>
           </div>
@@ -426,10 +436,10 @@ https://x1.space
               variant="outline" 
               size="sm" 
               className="border-cyan-500/30 text-cyan-400"
-              disabled={testingNotification || (!emailAddress && !webhookUrl)}
+              disabled={testingNotification || !webhookUrl}
             >
               {testingNotification ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-              Test Notification
+              Test Webhook
             </Button>
           </div>
         </div>
