@@ -288,6 +288,16 @@ export default function Dashboard() {
                   <Wallet className="w-5 h-5" />
                 </Button>
               </Link>
+              <Link to={createPageUrl('CustomDashboard')}>
+                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" title="Custom Dashboard">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="3" width="7" height="9" rx="1" />
+                    <rect x="14" y="3" width="7" height="5" rx="1" />
+                    <rect x="14" y="12" width="7" height="9" rx="1" />
+                    <rect x="3" y="16" width="7" height="5" rx="1" />
+                  </svg>
+                </Button>
+              </Link>
               <Suspense fallback={<MiniFallback />}>
                 <ThemeToggle />
               </Suspense>

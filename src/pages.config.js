@@ -20,6 +20,7 @@ import NetworkMap from './pages/NetworkMap';
 import PortfolioTracker from './pages/PortfolioTracker';
 import WhaleWatcher from './pages/WhaleWatcher';
 import TransactionFlowPage from './pages/TransactionFlowPage';
+import CustomDashboard from './pages/CustomDashboard';
 
 
 export const PAGES = {
@@ -45,6 +46,7 @@ export const PAGES = {
     "PortfolioTracker": PortfolioTracker,
     "WhaleWatcher": WhaleWatcher,
     "TransactionFlowPage": TransactionFlowPage,
+    "CustomDashboard": CustomDashboard,
 }
 
 export const pagesConfig = {
