@@ -127,10 +127,13 @@ export default function NetworkHealth() {
     value: value / 1e6
   }));
 
-  // Node type distribution
-  const rpcNodes = clusterNodes.filter(n => n.rpc).length;
-  const gossipNodes = clusterNodes.filter(n => n.gossip).length;
-  const tpuNodes = clusterNodes.filter(n => n.tpu).length;
+  // Node type distribution - actual counts from cluster nodes
+  // RPC nodes have the rpc field populated
+  // Gossip nodes have gossip address
+  // TPU nodes have tpu address for transaction processing
+  const rpcNodes = clusterNodes.filter(n => n.rpc !== null && n.rpc !== undefined).length;
+  const gossipNodes = clusterNodes.filter(n => n.gossip !== null && n.gossip !== undefined).length;
+  const tpuNodes = clusterNodes.filter(n => n.tpu !== null && n.tpu !== undefined).length;
 
   // TPS history for chart
   const tpsChartData = performanceHistory.slice(0, 30).reverse().map((p, i) => ({
@@ -379,17 +382,22 @@ export default function NetworkHealth() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-[#24384a] rounded-xl p-4">
             <h3 className="text-gray-400 text-sm mb-3">NODE INFRASTRUCTURE</h3>
+            <p className="text-gray-500 text-xs mb-3">From getClusterNodes RPC</p>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-gray-400 text-sm">RPC Nodes</span>
+                <span className="text-gray-400 text-sm">Total Cluster Nodes</span>
+                <span className="text-white font-bold">{clusterNodes.length}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400 text-sm">With RPC</span>
                 <span className="text-cyan-400 font-bold">{rpcNodes}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-400 text-sm">Gossip Nodes</span>
+                <span className="text-gray-400 text-sm">With Gossip</span>
                 <span className="text-purple-400 font-bold">{gossipNodes}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-400 text-sm">TPU Nodes</span>
+                <span className="text-gray-400 text-sm">With TPU</span>
                 <span className="text-emerald-400 font-bold">{tpuNodes}</span>
               </div>
             </div>
