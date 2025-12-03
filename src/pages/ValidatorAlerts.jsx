@@ -279,8 +279,9 @@ View details at X1.space
   const filteredValidators = validators.filter(v => {
     const query = searchQuery.toLowerCase();
     return v.votePubkey.toLowerCase().includes(query) || 
+           v.nodePubkey.toLowerCase().includes(query) ||
            (v.name && v.name.toLowerCase().includes(query));
-  }).slice(0, 20);
+  }).slice(0, 50);
 
   if (loading) {
     return (

@@ -162,6 +162,7 @@ export default function Watchlist() {
     const inWatchlist = watchlist.find(w => w.votePubkey === v.votePubkey);
     if (inWatchlist) return false;
     return v.votePubkey.toLowerCase().includes(query) || 
+           v.nodePubkey.toLowerCase().includes(query) ||
            (v.name && v.name.toLowerCase().includes(query));
   });
 
