@@ -31,7 +31,7 @@ TxBlock.displayName = 'TxBlock';
 
 // Mempool-style aggregated view with many small boxes - memoized
 export const MempoolAggregatedViz = memo(({ data, label, onClick }) => {
-  const { totalTxns, voteCount, transferCount, programCount, slots } = data || {};
+  const { totalTxns, voteCount, transferCount, programCount, otherCount, slots } = data || {};
   
   const blocks = useMemo(() => {
     const result = [];
@@ -42,30 +42,31 @@ export const MempoolAggregatedViz = memo(({ data, label, onClick }) => {
     const safeVoteCount = voteCount || 0;
     const safeTransferCount = transferCount || 0;
     const safeProgramCount = programCount || 0;
+    const safeOtherCount = otherCount || 0;
     
-    const voteRatio = safeVoteCount / safeTotalTxns;
-    const transferRatio = safeTransferCount / safeTotalTxns;
-    const programRatio = safeProgramCount / safeTotalTxns;
-    const otherRatio = Math.max(0, 1 - voteRatio - transferRatio - programRatio);
+    // Calculate actual ratios from real data
+    const totalKnown = safeVoteCount + safeTransferCount + safeProgramCount + safeOtherCount;
     
-    const voteBlocks = Math.round(total * voteRatio);
-    const transferBlocks = Math.round(total * transferRatio);
-    const programBlocks = Math.round(total * programRatio);
-    const otherBlocks = Math.max(0, total - voteBlocks - transferBlocks - programBlocks);
+    let voteBlocks, transferBlocks, programBlocks, otherBlocks;
     
-    // Always generate blocks even if some categories are 0
+    if (totalKnown > 0) {
+      voteBlocks = Math.round((safeVoteCount / totalKnown) * total);
+      transferBlocks = Math.round((safeTransferCount / totalKnown) * total);
+      programBlocks = Math.round((safeProgramCount / totalKnown) * total);
+      otherBlocks = Math.max(0, total - voteBlocks - transferBlocks - programBlocks);
+    } else {
+      // Default distribution if no type data
+      voteBlocks = Math.round(total * 0.70);
+      transferBlocks = Math.round(total * 0.12);
+      programBlocks = Math.round(total * 0.09);
+      otherBlocks = total - voteBlocks - transferBlocks - programBlocks;
+    }
+    
+    // Generate colored blocks
     for (let i = 0; i < voteBlocks; i++) result.push('vote');
     for (let i = 0; i < transferBlocks; i++) result.push('transfer');
     for (let i = 0; i < programBlocks; i++) result.push('token');
     for (let i = 0; i < otherBlocks; i++) result.push('other');
-    
-    // If we have no data, show placeholder blocks
-    if (result.length === 0) {
-      for (let i = 0; i < 56; i++) result.push('vote');
-      for (let i = 0; i < 12; i++) result.push('transfer');
-      for (let i = 0; i < 8; i++) result.push('token');
-      for (let i = 0; i < 4; i++) result.push('other');
-    }
     
     // Shuffle for visual variety
     for (let i = result.length - 1; i > 0; i--) {
@@ -74,7 +75,7 @@ export const MempoolAggregatedViz = memo(({ data, label, onClick }) => {
     }
     
     return result;
-  }, [totalTxns, voteCount, transferCount, programCount]);
+  }, [totalTxns, voteCount, transferCount, programCount, otherCount]);
 
   return (
     <div 
@@ -95,9 +96,10 @@ export const MempoolAggregatedViz = memo(({ data, label, onClick }) => {
       <div className="bg-black/60 px-2 py-1.5 flex-shrink-0">
         <p className="text-white font-bold text-sm">{totalTxns?.toLocaleString()}</p>
         <div className="flex gap-1 text-[7px]">
-          <span className="text-purple-400">{voteCount?.toLocaleString()}</span>
-          <span className="text-emerald-400">{transferCount?.toLocaleString()}</span>
-          <span className="text-yellow-400">{programCount?.toLocaleString()}</span>
+          <span className="text-purple-400" title="Votes">{voteCount?.toLocaleString() || 0}</span>
+          <span className="text-emerald-400" title="Transfers">{transferCount?.toLocaleString() || 0}</span>
+          <span className="text-yellow-400" title="Token/Program">{programCount?.toLocaleString() || 0}</span>
+          <span className="text-orange-400" title="Other">{otherCount?.toLocaleString() || 0}</span>
         </div>
       </div>
     </div>
