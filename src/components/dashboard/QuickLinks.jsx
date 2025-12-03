@@ -2,10 +2,11 @@ import React, { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { 
-  Globe, Calculator, Wallet, Star, Trophy, Coins, Map, Clock, Bell, Scale, PieChart, Fish, ArrowLeftRight 
+  Globe, Calculator, Wallet, Star, Trophy, Coins, Map, Clock, Bell, Scale, PieChart, Fish, ArrowLeftRight, LayoutGrid 
 } from 'lucide-react';
 
 const links = [
+  { page: 'CustomDashboard', icon: LayoutGrid, color: 'text-pink-400', title: 'Custom Dashboard', desc: 'Build your view' },
   { page: 'NetworkHealth', icon: Globe, color: 'text-cyan-400', title: 'Network Health', desc: 'Monitor network status' },
   { page: 'TransactionFlowPage', icon: ArrowLeftRight, color: 'text-blue-400', title: 'Transaction Flow', desc: 'Visualize address flows' },
   { page: 'PortfolioTracker', icon: PieChart, color: 'text-pink-400', title: 'Portfolio', desc: 'Track your holdings' },
