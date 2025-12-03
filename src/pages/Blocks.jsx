@@ -36,22 +36,57 @@ export default function Blocks() {
     if (!isMounted.current) return;
     
     try {
-      // Fetch current slot first for immediate update
+      // Fetch current slot first for immediate display
       const currentSlot = await X1Rpc.getSlot();
       
-      // Fetch blocks with no caching for real-time data
-      const recentBlocks = await X1Rpc.getRecentBlocks(20);
+      // Fetch blocks directly without cache for fresh data
+      const blockPromises = [];
+      for (let i = 0; i < 20; i++) {
+        const slot = currentSlot - i;
+        blockPromises.push(
+          X1Rpc.getBlock(slot).then(block => block ? { slot, block } : null).catch(() => null)
+        );
+      }
+      
+      const results = await Promise.all(blockPromises);
+      const recentBlocks = results
+        .filter(r => r && r.block)
+        .map(({ slot, block }) => {
+          const transactions = block.transactions || [];
+          const txCount = transactions.length;
+          
+          let voteCount = 0, transferCount = 0, programCount = 0;
+          transactions.forEach(tx => {
+            const message = tx.transaction?.message;
+            const accountKeys = message?.accountKeys || [];
+            const instructions = message?.instructions || [];
+            const isVote = instructions.some(ix => accountKeys[ix.programIdIndex] === 'Vote111111111111111111111111111111111111111');
+            if (isVote) voteCount++;
+            else if (instructions.some(ix => accountKeys[ix.programIdIndex] === '11111111111111111111111111111111')) transferCount++;
+            else programCount++;
+          });
+          
+          return {
+            slot,
+            blockhash: block.blockhash,
+            blockTime: block.blockTime,
+            blockHeight: block.blockHeight,
+            txCount,
+            voteCount,
+            transferCount,
+            programCount,
+            otherCount: programCount
+          };
+        })
+        .sort((a, b) => b.slot - a.slot);
       
       if (!isMounted.current) return;
       
-      // Update blocks immediately - always show latest
       if (recentBlocks.length > 0) {
-        const latestSlot = recentBlocks[0]?.slot;
         setBlocks(prevBlocks => {
-          // Check if we have new blocks
-          if (prevBlocks.length > 0 && latestSlot > prevBlocks[0]?.slot) {
-            setNewBlockSlot(latestSlot);
-            setTimeout(() => setNewBlockSlot(null), 800);
+          if (prevBlocks.length > 0 && recentBlocks[0]?.slot > prevBlocks[0]?.slot) {
+            setNewBlockSlot(recentBlocks[0].slot);
+            setTimeout(() => setNewBlockSlot(null), 1000);
           }
           return recentBlocks;
         });
@@ -59,7 +94,7 @@ export default function Blocks() {
         initialFetchDone.current = true;
       }
       
-      // Fetch dashboard and performance data in parallel (non-blocking)
+      // Fetch TPS data in background
       Promise.all([
         X1Rpc.getDashboardData().catch(() => null),
         X1Rpc.getPerformanceHistory(60).catch(() => [])
