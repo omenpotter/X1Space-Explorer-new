@@ -242,20 +242,24 @@ export default function Watchlist() {
               className="bg-[#1d2d3a] border-0 text-white mb-4"
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[300px] overflow-y-auto">
-              {filteredValidators.slice(0, 20).map((v) => (
-                <button
-                  key={v.votePubkey}
-                  onClick={() => addToWatchlist(v)}
-                  className="flex items-center gap-3 p-3 bg-[#1d2d3a] rounded-lg hover:bg-[#263d50] transition-colors text-left"
-                >
-                  <span>{v.icon || '🔷'}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm truncate">{v.name || v.votePubkey.substring(0, 12) + '...'}</p>
-                    <p className="text-gray-500 text-xs">{formatStake(v.activatedStake)} XNT</p>
-                  </div>
-                  <Plus className="w-4 h-4 text-cyan-400" />
-                </button>
-              ))}
+              {filteredValidators.slice(0, 20).map((v) => {
+                const displayName = v.name || getDisplayName(v.votePubkey, v.nodePubkey, v.activatedStake * 1e9);
+                const icon = v.icon || getValidatorIcon(v.votePubkey, v.nodePubkey, v.activatedStake * 1e9);
+                return (
+                  <button
+                    key={v.votePubkey}
+                    onClick={() => addToWatchlist({...v, name: displayName, icon})}
+                    className="flex items-center gap-3 p-3 bg-[#1d2d3a] rounded-lg hover:bg-[#263d50] transition-colors text-left"
+                  >
+                    <span>{icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm truncate">{displayName}</p>
+                      <p className="text-gray-500 text-xs">{formatStake(v.activatedStake)} XNT</p>
+                    </div>
+                    <Plus className="w-4 h-4 text-cyan-400" />
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

@@ -158,15 +158,17 @@ export default function StakingCalculator() {
             <div className="max-h-[300px] overflow-y-auto space-y-2">
               {filteredValidators.slice(0, 50).map((v) => {
                 const vAPY = calculateValidatorAPY(v);
+                const displayName = v.name || getDisplayName(v.votePubkey, v.nodePubkey, v.activatedStake * 1e9);
+                const icon = v.icon || getValidatorIcon(v.votePubkey, v.nodePubkey, v.activatedStake * 1e9);
                 return (
                   <button
                     key={v.votePubkey}
-                    onClick={() => setSelectedValidator(v)}
+                    onClick={() => setSelectedValidator({...v, name: displayName, icon})}
                     className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${selectedValidator?.votePubkey === v.votePubkey ? 'bg-cyan-500/20 border border-cyan-500/50' : 'bg-[#1d2d3a] hover:bg-[#263d50]'}`}
                   >
-                    <span>{v.icon || '🔷'}</span>
+                    <span>{icon}</span>
                     <div className="flex-1 text-left">
-                      <p className="text-white text-sm truncate">{v.name || v.votePubkey.substring(0, 12) + '...'}</p>
+                      <p className="text-white text-sm truncate">{displayName}</p>
                       <p className="text-gray-500 text-xs">{v.commission}% commission • {v.uptime?.toFixed(1)}% uptime</p>
                     </div>
                     <Badge className={`border-0 text-xs ${vAPY >= 7 ? 'bg-emerald-500/20 text-emerald-400' : vAPY >= 5 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
