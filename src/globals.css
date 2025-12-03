@@ -2,26 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Critical CSS - inline critical styles for above-the-fold content */
-/* Optimize font loading */
-@layer base {
-  html {
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
-  }
-  
-  /* Prevent CLS from font loading */
-  body {
-    font-display: swap;
-  }
-  
-  /* GPU acceleration for animations */
-  .animate-pulse {
-    will-change: opacity;
-  }
-}
-
 @layer base {
   :root {
     --background: 222 47% 17%;
@@ -45,28 +25,6 @@
     --ring: 187 85% 53%;
     --radius: 0.5rem;
   }
-
-  .light-theme {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 17%;
-    --card: 0 0% 98%;
-    --card-foreground: 222 47% 17%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 17%;
-    --primary: 187 85% 43%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 222 47% 17%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
-    --accent: 220 14% 96%;
-    --accent-foreground: 222 47% 17%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 187 85% 43%;
-  }
 }
 
 @layer base {
@@ -78,18 +36,50 @@
   }
 }
 
-/* Light theme overrides */
+/* Light theme styles */
 .light-theme {
-  background: #ffffff !important;
+  --background: 0 0% 98%;
+  --foreground: 222 47% 17%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 17%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 17%;
+  --primary: 187 85% 43%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 222 47% 17%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 46%;
+  --accent: 220 14% 96%;
+  --accent-foreground: 222 47% 17%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 187 85% 43%;
 }
 
+/* Light theme overrides for specific colors */
 .light-theme .bg-\[\#1d2d3a\] {
-  background: #f8fafc !important;
+  background-color: #f8fafc !important;
 }
 
 .light-theme .bg-\[\#24384a\] {
-  background: #ffffff !important;
+  background-color: #ffffff !important;
   border: 1px solid #e2e8f0;
+}
+
+.light-theme .bg-\[\#0a0f1a\] {
+  background-color: #f8fafc !important;
+}
+
+.light-theme .bg-\[\#0d1525\] {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.light-theme .bg-\[\#1a2436\] {
+  background-color: #f1f5f9 !important;
 }
 
 .light-theme .text-white {
@@ -104,25 +94,13 @@
   color: #94a3b8 !important;
 }
 
-.light-theme .border-white\/5 {
-  border-color: #e2e8f0 !important;
+.light-theme .text-gray-600 {
+  color: #475569 !important;
 }
 
+.light-theme .border-white\/5,
 .light-theme .border-white\/10 {
   border-color: #e2e8f0 !important;
-}
-
-.light-theme .bg-\[#0a0f1a\] {
-  background: #f8fafc !important;
-}
-
-.light-theme .bg-\[#0d1525\] {
-  background: #ffffff !important;
-  border-color: #e2e8f0 !important;
-}
-
-.light-theme .bg-\[#1a2436\] {
-  background: #f1f5f9 !important;
 }
 
 .light-theme .text-cyan-400 {
@@ -145,7 +123,55 @@
   color: #9333ea !important;
 }
 
-/* Leaflet dark popup */
+.light-theme .text-orange-400 {
+  color: #ea580c !important;
+}
+
+.light-theme .text-blue-400 {
+  color: #2563eb !important;
+}
+
+.light-theme .bg-cyan-500\/20 {
+  background-color: rgba(6, 182, 212, 0.15) !important;
+}
+
+.light-theme .bg-emerald-500\/20 {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+}
+
+.light-theme .bg-red-500\/20 {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+}
+
+.light-theme .bg-yellow-500\/20 {
+  background-color: rgba(234, 179, 8, 0.15) !important;
+}
+
+.light-theme .bg-purple-500\/20 {
+  background-color: rgba(168, 85, 247, 0.15) !important;
+}
+
+.light-theme .bg-blue-500\/10 {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+.light-theme .bg-slate-800\/50,
+.light-theme .bg-slate-900\/50 {
+  background-color: #f1f5f9 !important;
+}
+
+.light-theme .bg-black\/40,
+.light-theme .bg-black\/60 {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Chart tooltip in light mode */
+.light-theme .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+/* Leaflet popup in dark mode */
 .leaflet-popup-content-wrapper {
   background: #1d2d3a !important;
   border-radius: 8px !important;
@@ -157,4 +183,12 @@
 
 .leaflet-popup-content {
   margin: 0 !important;
+}
+
+.light-theme .leaflet-popup-content-wrapper {
+  background: #ffffff !important;
+}
+
+.light-theme .leaflet-popup-tip {
+  background: #ffffff !important;
 }
