@@ -1,55 +1,44 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Sun, Moon } from 'lucide-react';
 
 export default function ThemeToggle() {
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('x1space-theme') !== 'light';
+    }
+    return true;
+  });
   
-  useEffect(() => {
-    // Check saved preference
-    const saved = localStorage.getItem('x1space-theme');
-    if (saved === 'light') {
-      setIsDark(false);
-      applyLightTheme();
+  const applyTheme = useCallback((dark) => {
+    const root = document.documentElement;
+    const body = document.body;
+    
+    if (dark) {
+      root.classList.remove('light-theme');
+      body.classList.remove('light-theme');
+      root.setAttribute('data-theme', 'dark');
+      body.style.backgroundColor = '#1d2d3a';
+      body.style.color = '#ffffff';
     } else {
-      setIsDark(true);
-      applyDarkTheme();
+      root.classList.add('light-theme');
+      body.classList.add('light-theme');
+      root.setAttribute('data-theme', 'light');
+      body.style.backgroundColor = '#f8fafc';
+      body.style.color = '#1e293b';
     }
   }, []);
   
-  const applyDarkTheme = () => {
-    document.documentElement.classList.remove('light-theme');
-    document.body.classList.remove('light-theme');
-    document.documentElement.style.setProperty('--bg-primary', '#1d2d3a');
-    document.documentElement.style.setProperty('--bg-secondary', '#24384a');
-    document.documentElement.style.setProperty('--text-primary', '#ffffff');
-    document.documentElement.style.setProperty('--text-secondary', '#9ca3af');
-    document.body.style.backgroundColor = '#1d2d3a';
-    document.body.style.color = '#ffffff';
-  };
+  useEffect(() => {
+    applyTheme(isDark);
+  }, [isDark, applyTheme]);
   
-  const applyLightTheme = () => {
-    document.documentElement.classList.add('light-theme');
-    document.body.classList.add('light-theme');
-    document.documentElement.style.setProperty('--bg-primary', '#f8fafc');
-    document.documentElement.style.setProperty('--bg-secondary', '#ffffff');
-    document.documentElement.style.setProperty('--text-primary', '#1e293b');
-    document.documentElement.style.setProperty('--text-secondary', '#64748b');
-    document.body.style.backgroundColor = '#f8fafc';
-    document.body.style.color = '#1e293b';
-  };
-  
-  const toggleTheme = () => {
-    if (isDark) {
-      setIsDark(false);
-      localStorage.setItem('x1space-theme', 'light');
-      applyLightTheme();
-    } else {
-      setIsDark(true);
-      localStorage.setItem('x1space-theme', 'dark');
-      applyDarkTheme();
-    }
-  };
+  const toggleTheme = useCallback(() => {
+    const newIsDark = !isDark;
+    setIsDark(newIsDark);
+    localStorage.setItem('x1space-theme', newIsDark ? 'dark' : 'light');
+    applyTheme(newIsDark);
+  }, [isDark, applyTheme]);
   
   return (
     <Button
