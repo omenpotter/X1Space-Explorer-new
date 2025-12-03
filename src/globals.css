@@ -112,6 +112,39 @@
   border-color: #e2e8f0 !important;
 }
 
+.light-theme .bg-\[#0a0f1a\] {
+  background: #f8fafc !important;
+}
+
+.light-theme .bg-\[#0d1525\] {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+.light-theme .bg-\[#1a2436\] {
+  background: #f1f5f9 !important;
+}
+
+.light-theme .text-cyan-400 {
+  color: #0891b2 !important;
+}
+
+.light-theme .text-emerald-400 {
+  color: #059669 !important;
+}
+
+.light-theme .text-red-400 {
+  color: #dc2626 !important;
+}
+
+.light-theme .text-yellow-400 {
+  color: #ca8a04 !important;
+}
+
+.light-theme .text-purple-400 {
+  color: #9333ea !important;
+}
+
 /* Leaflet dark popup */
 .leaflet-popup-content-wrapper {
   background: #1d2d3a !important;

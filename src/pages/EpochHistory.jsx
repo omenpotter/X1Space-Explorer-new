@@ -75,8 +75,8 @@ export default function EpochHistory() {
       setLoadingProgress(35);
       
       // Fetch historical epochs - X1 RPC supports getBlockProduction with slot range
-      // However, historical data may be limited. We'll fetch what's available.
-      const epochsToFetch = 24;
+      // Fetch more epochs for better historical view
+      const epochsToFetch = 50;
       let fetchedCount = 0;
       
       for (let i = 1; i <= epochsToFetch; i++) {
@@ -172,7 +172,7 @@ export default function EpochHistory() {
 
   const chartData = epochHistory
     .filter(e => e.dataSource !== 'unavailable')
-    .slice(0, 25)
+    .slice(0, 50)
     .reverse()
     .map(e => ({
       epoch: e.epoch,
