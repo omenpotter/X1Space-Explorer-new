@@ -74,12 +74,13 @@ export default function EpochHistory() {
       
       setLoadingProgress(35);
       
-      // Fetch historical epochs - X1 RPC supports getBlockProduction with slot range
-      // Fetch more epochs for better historical view
-      const epochsToFetch = 50;
+      // Fetch ALL historical epochs from epoch 0 to current
+      // X1 RPC should have block production data for all epochs
+      const totalEpochs = epochInfo.epoch;
       let fetchedCount = 0;
       
-      for (let i = 1; i <= epochsToFetch; i++) {
+      // Fetch in batches for progress tracking
+      for (let i = 1; i <= totalEpochs; i++) {
         const epoch = epochInfo.epoch - i;
         if (epoch < 0) break;
         
@@ -112,7 +113,7 @@ export default function EpochHistory() {
             }
           }
         } catch (e) {
-          // RPC doesn't have data for this epoch - use N/A
+          // RPC doesn't have data for this epoch - mark as unavailable
           produced = slotsPerEpoch;
           skipped = 0;
           skipRate = 'N/A';
@@ -131,7 +132,14 @@ export default function EpochHistory() {
         });
         
         fetchedCount++;
-        setLoadingProgress(35 + Math.round((fetchedCount / epochsToFetch) * 60));
+        // Update progress - cap at 95% until complete
+        const progress = Math.min(95, 35 + Math.round((fetchedCount / Math.max(totalEpochs, 1)) * 60));
+        setLoadingProgress(progress);
+        
+        // Add small delay every 10 epochs to prevent rate limiting
+        if (fetchedCount % 10 === 0) {
+          await new Promise(r => setTimeout(r, 100));
+        }
       }
       
       // Sort by epoch descending
@@ -246,7 +254,8 @@ export default function EpochHistory() {
         {/* Data Source Notice */}
         <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-6">
           <p className="text-blue-400 text-sm">
-            ℹ️ All data is fetched directly from X1 RPC. Historical epochs may show "N/A" if the RPC doesn't have archived block production data for older slot ranges.
+            ℹ️ Fetching block production data for <strong>all {currentEpoch?.epoch || 0} epochs</strong> from X1 RPC. 
+            Historical epochs may show "N/A" if the RPC doesn't have archived data for very old slot ranges.
           </p>
         </div>
 

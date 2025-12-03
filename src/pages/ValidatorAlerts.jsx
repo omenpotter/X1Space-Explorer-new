@@ -206,63 +206,69 @@ View details at X1.space
     }
   };
 
-  // Test notification
+  // Test notification - Webhook only
   const testNotification = async () => {
     setTestingNotification(true);
     const config = JSON.parse(localStorage.getItem('x1_alert_config') || '{}');
     
-    if (!config.emailAddress && !config.webhookUrl) {
-      alert('Please configure email address or webhook URL first');
+    if (!config.webhookUrl) {
+      alert('Please configure a webhook URL first (Discord, Slack, etc.)');
       setTestingNotification(false);
       return;
     }
     
     try {
-      // Send test email directly
-      if (config.emailAddress) {
-        await base44.integrations.Core.SendEmail({
-          to: config.emailAddress,
-          subject: '🔔 X1Space Alert Test',
-          body: `
-Hello!
-
-This is a test notification from X1Space Validator Alerts.
-
-If you received this email, your alert notifications are configured correctly!
-
----
-X1Space - Your X1 Blockchain Explorer
-https://x1.space
-          `.trim()
-        });
-        alert(`Test email sent to ${config.emailAddress}! Check your inbox (and spam folder).`);
+      // Send webhook notification
+      // Discord webhook format
+      const isDiscord = config.webhookUrl.includes('discord.com');
+      const isSlack = config.webhookUrl.includes('slack.com');
+      
+      let payload;
+      if (isDiscord) {
+        payload = {
+          content: '🔔 **X1Space Alert Test**',
+          embeds: [{
+            title: 'Test Notification',
+            description: 'Your webhook is configured correctly! You will receive validator alerts here.',
+            color: 0x06b6d4, // cyan
+            fields: [
+              { name: 'Status', value: '✅ Working', inline: true },
+              { name: 'Source', value: 'X1Space Validator Alerts', inline: true }
+            ],
+            timestamp: new Date().toISOString(),
+            footer: { text: 'X1Space - X1 Blockchain Explorer' }
+          }]
+        };
+      } else if (isSlack) {
+        payload = {
+          text: '🔔 X1Space Alert Test',
+          blocks: [
+            { type: 'header', text: { type: 'plain_text', text: '🔔 X1Space Alert Test' } },
+            { type: 'section', text: { type: 'mrkdwn', text: 'Your webhook is configured correctly! You will receive validator alerts here.' } }
+          ]
+        };
+      } else {
+        // Generic webhook
+        payload = {
+          type: 'x1_validator_alert',
+          content: '🔔 X1Space Test Notification - Your webhook is configured correctly!',
+          validatorName: 'Test',
+          message: 'This is a test notification',
+          timestamp: new Date().toISOString()
+        };
       }
       
-      // Send webhook if configured
-      if (config.webhookUrl) {
-        try {
-          await fetch(config.webhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            mode: 'no-cors',
-            body: JSON.stringify({
-              type: 'x1_validator_alert',
-              content: '🔔 X1Space Test Notification - Your webhook is configured correctly!',
-              validatorName: 'Test',
-              message: 'This is a test notification',
-              timestamp: new Date().toISOString()
-            })
-          });
-          if (!config.emailAddress) {
-            alert('Webhook notification sent! Check your webhook destination.');
-          }
-        } catch (e) {
-          console.error('Webhook failed:', e);
-        }
-      }
+      await fetch(config.webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        mode: 'no-cors',
+        body: JSON.stringify(payload)
+      });
+      
+      alert('Webhook notification sent! Check your Discord/Slack/webhook destination.');
     } catch (err) {
-      console.error('Test notification failed:', err);
-      alert('Failed to send test notification: ' + err.message);
+      console.error('Webhook failed:', err);
+      alert('Failed to send webhook: ' + err.message);
     } finally {
       setTestingNotification(false);
     }
