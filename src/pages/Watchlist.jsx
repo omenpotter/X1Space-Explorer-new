@@ -10,6 +10,7 @@ import {
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import X1Rpc from '../components/x1/X1RpcService';
+import { getDisplayName, getValidatorIcon } from '../components/x1/ValidatorNames';
 
 export default function Watchlist() {
   const [validators, setValidators] = useState([]);

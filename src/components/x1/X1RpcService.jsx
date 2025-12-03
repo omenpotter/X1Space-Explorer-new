@@ -441,39 +441,30 @@ export async function getFirstAvailableBlock() {
   return await rpcCall('getFirstAvailableBlock');
 }
 
-// Generate validator names based on stake amount
-// X1 Labs validators have very high stake (>50M XNT each)
-// This provides consistent naming without hardcoding specific pubkeys
+import { getValidatorName as getNameFromService, getDisplayName, getValidatorIcon } from './ValidatorNames';
+
+// Generate validator names - uses ValidatorNames service
 function generateValidatorName(votePubkey, nodePubkey, activatedStake) {
+  const info = getNameFromService(votePubkey, nodePubkey, activatedStake);
+  if (info) {
+    return info;
+  }
+  
+  // Fallback for unknown validators
   const stakeInXnt = activatedStake / 1e9;
-  
-  // X1 Labs validators - very high stake (>50M XNT)
-  if (stakeInXnt > 50000000) {
-    const shortId = votePubkey.substring(0, 6);
-    return { name: `X1 Labs (${shortId})`, icon: '🔷', website: 'https://x1.xyz' };
-  }
-  
-  // Major validators - high stake (5M-50M XNT)
-  if (stakeInXnt > 5000000) {
-    const shortId = votePubkey.substring(0, 6);
-    return { name: `Major Validator (${shortId})`, icon: '🔹', website: null };
-  }
-  
-  // Community validators - moderate stake (500K-5M XNT)
-  if (stakeInXnt > 500000) {
-    const shortId = votePubkey.substring(0, 6);
-    return { name: `Community Node (${shortId})`, icon: '🔸', website: null };
-  }
-  
-  // Small validators (100K-500K XNT)
-  if (stakeInXnt > 100000) {
-    const shortId = votePubkey.substring(0, 6);
-    return { name: `Validator ${shortId}`, icon: '⚪', website: null };
-  }
-  
-  // Micro validators (<100K XNT)
   const shortId = votePubkey.substring(0, 6);
-  return { name: `Node ${shortId}`, icon: '⚫', website: null };
+  
+  if (stakeInXnt > 50000000) {
+    return { name: `X1 Labs`, icon: '🔷', website: 'https://x1.xyz' };
+  }
+  if (stakeInXnt > 200000) {
+    return { name: `Validator ${shortId}`, icon: '🔹', website: null };
+  }
+  if (stakeInXnt > 100000) {
+    return { name: `Node ${shortId}`, icon: '🔸', website: null };
+  }
+  
+  return { name: getDisplayName(votePubkey, nodePubkey, activatedStake), icon: getValidatorIcon(votePubkey, nodePubkey, activatedStake), website: null };
 }
 
 // Get validator details with enhanced info
