@@ -116,7 +116,7 @@ export async function getBlock(slot, options = {}) {
     slot,
     {
       encoding: 'json',
-      transactionDetails: options.transactionDetails || 'signatures',
+      transactionDetails: options.transactionDetails || 'full',
       rewards: true,
       maxSupportedTransactionVersion: 0
     }
