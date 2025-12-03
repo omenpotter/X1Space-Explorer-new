@@ -264,6 +264,28 @@ export { PendingTxViz };
 
 // Combined wrapper component for Dashboard
 const MempoolViz = memo(({ mempoolInterval, recentBlocks, aggregatedBlocks, dashboardSlot, showPending = true, pendingCount = 0 }) => {
+  // Show loading or placeholder for 1m/10m views when no data
+  if (mempoolInterval !== 'blocks' && (!aggregatedBlocks || aggregatedBlocks.length === 0)) {
+    return (
+      <div className="flex items-center gap-2 overflow-x-auto">
+        <div className="text-gray-500 py-8 w-full text-center">
+          Loading {mempoolInterval} performance data...
+        </div>
+      </div>
+    );
+  }
+  
+  // Show loading for blocks view when no blocks
+  if (mempoolInterval === 'blocks' && (!recentBlocks || recentBlocks.length === 0)) {
+    return (
+      <div className="flex items-center gap-2 overflow-x-auto">
+        <div className="text-gray-500 py-8 w-full text-center">
+          Loading blocks...
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className="flex items-center gap-2 overflow-x-auto" key={mempoolInterval + '-' + (recentBlocks[0]?.slot || 0)}>
       {showPending && mempoolInterval === 'blocks' && (
@@ -274,7 +296,7 @@ const MempoolViz = memo(({ mempoolInterval, recentBlocks, aggregatedBlocks, dash
           <MempoolBlockViz key={block.slot} block={block} isNew={i === 0} />
         ))
       ) : (
-        aggregatedBlocks?.map((agg, i) => (
+        aggregatedBlocks.map((agg, i) => (
           <MempoolAggregatedViz key={`${mempoolInterval}-${i}-${dashboardSlot}`} data={agg} label={agg.label} />
         ))
       )}
