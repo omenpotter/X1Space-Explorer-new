@@ -4,11 +4,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { 
   Zap, Trophy, Medal, Crown, TrendingUp, Loader2, ArrowUp, ArrowDown,
-  Search, Star, Filter
+  Search, Star, Filter, ChevronLeft
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import X1Rpc from '../components/x1/X1RpcService';
+import { getDisplayName, getValidatorIcon } from '../components/x1/ValidatorNames';
 
 export default function Leaderboard() {
   const [validators, setValidators] = useState([]);
@@ -247,6 +248,10 @@ export default function Leaderboard() {
             const rank = i + 1;
             const skipRate = getActualSkipRate(v);
             const isFollowed = followedValidators.includes(v.votePubkey);
+            // Get display name based on stake
+            const displayName = v.name || getDisplayName(v.votePubkey, v.nodePubkey, v.activatedStake * 1e9);
+            const validatorIcon = v.icon || getValidatorIcon(v.votePubkey, v.nodePubkey, v.activatedStake * 1e9);
+            
             return (
               <div key={v.votePubkey} className={`flex items-center gap-4 p-4 rounded-xl border transition-all hover:scale-[1.01] ${getRankBg(rank)}`}>
                 <div className="w-10 flex items-center justify-center">
@@ -263,11 +268,11 @@ export default function Leaderboard() {
                 </button>
                 <Link to={createPageUrl('ValidatorDetail') + `?id=${v.votePubkey}`} className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-500/30 flex items-center justify-center text-lg shrink-0">
-                    {v.icon || '🔷'}
+                    {validatorIcon}
                   </div>
                   <div className="min-w-0">
                     <p className="text-white font-medium truncate">
-                      {v.name || `Validator ${v.votePubkey.substring(0, 8)}...`}
+                      {displayName}
                     </p>
                     <p className="text-gray-500 text-xs font-mono truncate">{v.votePubkey}</p>
                   </div>
