@@ -209,14 +209,63 @@ View details at X1.space
   // Test notification
   const testNotification = async () => {
     setTestingNotification(true);
-    await sendNotification({
-      id: Date.now(),
-      validatorName: 'Test Validator',
-      type: 'test',
-      message: 'This is a test notification from X1.space',
-      timestamp: new Date().toISOString()
-    });
-    setTestingNotification(false);
+    const config = JSON.parse(localStorage.getItem('x1_alert_config') || '{}');
+    
+    if (!config.emailAddress && !config.webhookUrl) {
+      alert('Please configure email address or webhook URL first');
+      setTestingNotification(false);
+      return;
+    }
+    
+    try {
+      // Send test email directly
+      if (config.emailAddress) {
+        await base44.integrations.Core.SendEmail({
+          to: config.emailAddress,
+          subject: '🔔 X1Space Alert Test',
+          body: `
+Hello!
+
+This is a test notification from X1Space Validator Alerts.
+
+If you received this email, your alert notifications are configured correctly!
+
+---
+X1Space - Your X1 Blockchain Explorer
+https://x1.space
+          `.trim()
+        });
+        alert(`Test email sent to ${config.emailAddress}! Check your inbox (and spam folder).`);
+      }
+      
+      // Send webhook if configured
+      if (config.webhookUrl) {
+        try {
+          await fetch(config.webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            mode: 'no-cors',
+            body: JSON.stringify({
+              type: 'x1_validator_alert',
+              content: '🔔 X1Space Test Notification - Your webhook is configured correctly!',
+              validatorName: 'Test',
+              message: 'This is a test notification',
+              timestamp: new Date().toISOString()
+            })
+          });
+          if (!config.emailAddress) {
+            alert('Webhook notification sent! Check your webhook destination.');
+          }
+        } catch (e) {
+          console.error('Webhook failed:', e);
+        }
+      }
+    } catch (err) {
+      console.error('Test notification failed:', err);
+      alert('Failed to send test notification: ' + err.message);
+    } finally {
+      setTestingNotification(false);
+    }
   };
 
   const saveConfig = () => {
