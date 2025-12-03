@@ -148,52 +148,57 @@ export default function Blocks() {
   // Get aggregated data for time views - uses ONLY real on-chain data from RPC
   const getAggregatedData = () => {
     // Use actual block data to calculate tx type ratios
-    let voteRatio = 0.70, transferRatio = 0.12, programRatio = 0.09;
+    let voteRatio = 0.70, transferRatio = 0.12, programRatio = 0.09, otherRatio = 0.09;
     if (blocks.length > 0) {
       const totalTx = blocks.reduce((sum, b) => sum + (b.txCount || 0), 0);
       const totalVote = blocks.reduce((sum, b) => sum + (b.voteCount || 0), 0);
       const totalTransfer = blocks.reduce((sum, b) => sum + (b.transferCount || 0), 0);
-      const totalProgram = blocks.reduce((sum, b) => sum + (b.programCount || b.otherCount || 0), 0);
+      const totalProgram = blocks.reduce((sum, b) => sum + (b.programCount || 0), 0);
+      const totalOther = blocks.reduce((sum, b) => sum + (b.otherCount || 0), 0);
       if (totalTx > 0) {
         voteRatio = totalVote / totalTx;
         transferRatio = totalTransfer / totalTx;
         programRatio = totalProgram / totalTx;
+        otherRatio = totalOther / totalTx;
       }
     }
-    
+
     const aggregated = [];
-    
+
     if (viewMode === '1m') {
-      // Show only real data from RPC performance samples
       const availableSamples = Math.min(10, performanceData.length);
       for (let i = 0; i < availableSamples; i++) {
         const sample = performanceData[i];
-        if (!sample) continue; // Skip if no real data
+        if (!sample) continue;
         const totalTxns = sample.transactions;
         const slots = sample.slots;
-        
+
+        const voteCount = Math.round(totalTxns * voteRatio);
+        const transferCount = Math.round(totalTxns * transferRatio);
+        const programCount = Math.round(totalTxns * programRatio);
+        const otherCount = Math.max(0, totalTxns - voteCount - transferCount - programCount);
+
         aggregated.push({
           totalTxns,
           slots,
           label: i === 0 ? 'Now' : `${i}m ago`,
-          voteCount: Math.round(totalTxns * voteRatio),
-          transferCount: Math.round(totalTxns * transferRatio),
-          programCount: Math.round(totalTxns * programRatio),
+          voteCount,
+          transferCount,
+          programCount,
+          otherCount,
           timestamp: Date.now() - (i * 60 * 1000),
           isRealData: true
         });
       }
     } else if (viewMode === '10m') {
-      // For 10m view, only show windows where we have complete real data
-      // RPC returns ~60 samples, so we can show 6 complete 10-minute windows
       const maxWindows = Math.floor(performanceData.length / 10);
       const windowsToShow = Math.min(6, maxWindows);
-      
+
       for (let i = 0; i < windowsToShow; i++) {
         let totalTxns = 0;
         let totalSlots = 0;
         let hasAllData = true;
-        
+
         for (let j = 0; j < 10; j++) {
           const sampleIdx = i * 10 + j;
           const sample = performanceData[sampleIdx];
@@ -204,22 +209,28 @@ export default function Blocks() {
           totalTxns += sample.transactions;
           totalSlots += sample.slots;
         }
-        
-        if (!hasAllData) break; // Stop if we don't have complete data
-        
+
+        if (!hasAllData) break;
+
+        const voteCount = Math.round(totalTxns * voteRatio);
+        const transferCount = Math.round(totalTxns * transferRatio);
+        const programCount = Math.round(totalTxns * programRatio);
+        const otherCount = Math.max(0, totalTxns - voteCount - transferCount - programCount);
+
         aggregated.push({
           totalTxns,
           slots: totalSlots,
           label: i === 0 ? 'Now' : `${i * 10}m ago`,
-          voteCount: Math.round(totalTxns * voteRatio),
-          transferCount: Math.round(totalTxns * transferRatio),
-          programCount: Math.round(totalTxns * programRatio),
+          voteCount,
+          transferCount,
+          programCount,
+          otherCount,
           timestamp: Date.now() - (i * 10 * 60 * 1000),
           isRealData: true
         });
       }
     }
-    
+
     return aggregated;
   };
 
