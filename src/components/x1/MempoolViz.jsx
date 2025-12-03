@@ -31,26 +31,43 @@ TxBlock.displayName = 'TxBlock';
 
 // Mempool-style aggregated view with many small boxes - memoized
 export const MempoolAggregatedViz = memo(({ data, label, onClick }) => {
-  const { totalTxns, voteCount, transferCount, programCount, slots } = data;
+  const { totalTxns, voteCount, transferCount, programCount, slots } = data || {};
   
   const blocks = useMemo(() => {
     const result = [];
     const total = 80;
     
-    const voteRatio = voteCount / (totalTxns || 1);
-    const transferRatio = transferCount / (totalTxns || 1);
-    const programRatio = programCount / (totalTxns || 1);
+    // Use safe defaults if data is missing
+    const safeTotalTxns = totalTxns || 1;
+    const safeVoteCount = voteCount || 0;
+    const safeTransferCount = transferCount || 0;
+    const safeProgramCount = programCount || 0;
+    
+    const voteRatio = safeVoteCount / safeTotalTxns;
+    const transferRatio = safeTransferCount / safeTotalTxns;
+    const programRatio = safeProgramCount / safeTotalTxns;
+    const otherRatio = Math.max(0, 1 - voteRatio - transferRatio - programRatio);
     
     const voteBlocks = Math.round(total * voteRatio);
     const transferBlocks = Math.round(total * transferRatio);
     const programBlocks = Math.round(total * programRatio);
     const otherBlocks = Math.max(0, total - voteBlocks - transferBlocks - programBlocks);
     
+    // Always generate blocks even if some categories are 0
     for (let i = 0; i < voteBlocks; i++) result.push('vote');
     for (let i = 0; i < transferBlocks; i++) result.push('transfer');
     for (let i = 0; i < programBlocks; i++) result.push('token');
     for (let i = 0; i < otherBlocks; i++) result.push('other');
     
+    // If we have no data, show placeholder blocks
+    if (result.length === 0) {
+      for (let i = 0; i < 56; i++) result.push('vote');
+      for (let i = 0; i < 12; i++) result.push('transfer');
+      for (let i = 0; i < 8; i++) result.push('token');
+      for (let i = 0; i < 4; i++) result.push('other');
+    }
+    
+    // Shuffle for visual variety
     for (let i = result.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [result[i], result[j]] = [result[j], result[i]];

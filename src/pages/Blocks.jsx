@@ -303,13 +303,23 @@ export default function Blocks() {
           {/* Block Grid */}
           <div className="flex gap-2 overflow-x-auto">
             {viewMode === 'blocks' ? (
-              blocks.slice(0, 10).map((block, i) => (
-                <MempoolBlockViz key={block.slot} block={block} isNew={block.slot === newBlockSlot || i === 0} />
-              ))
+              blocks.length > 0 ? (
+                blocks.slice(0, 10).map((block, i) => (
+                  <MempoolBlockViz key={block.slot} block={block} isNew={block.slot === newBlockSlot || i === 0} />
+                ))
+              ) : (
+                <div className="text-gray-500 py-8 w-full text-center">Loading blocks...</div>
+              )
             ) : (
-              getAggregatedData().map((data, i) => (
-                <MempoolAggregatedViz key={i} data={data} label={data.label} />
-              ))
+              getAggregatedData().length > 0 ? (
+                getAggregatedData().map((data, i) => (
+                  <MempoolAggregatedViz key={`${viewMode}-${i}`} data={data} label={data.label} />
+                ))
+              ) : (
+                <div className="text-gray-500 py-8 w-full text-center">
+                  Loading performance data... (requires ~{viewMode === '1m' ? '1' : '10'} minutes of data)
+                </div>
+              )
             )}
           </div>
         </div>
