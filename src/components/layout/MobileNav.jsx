@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { 
   Menu, Zap, Globe, Calculator, Wallet, Star, Trophy, 
-  Code, BarChart3, Coins, Bell, Map, Clock
+  Code, BarChart3, Coins, Bell, Map
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -17,7 +17,6 @@ const navItems = [
   { name: 'Tokens', icon: Coins, page: 'TokenExplorer' },
   { name: 'Network Health', icon: Globe, page: 'NetworkHealth' },
   { name: 'Network Map', icon: Map, page: 'NetworkMap' },
-  { name: 'Epoch History', icon: Clock, page: 'EpochHistory' },
   { name: 'Staking Calculator', icon: Calculator, page: 'StakingCalculator' },
   { name: 'Address Lookup', icon: Wallet, page: 'AddressLookup' },
   { name: 'Watchlist', icon: Star, page: 'Watchlist' },
