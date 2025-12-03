@@ -441,34 +441,19 @@ export async function getFirstAvailableBlock() {
   return await rpcCall('getFirstAvailableBlock');
 }
 
-import { getValidatorName as getNameFromService, getDisplayName, getValidatorIcon } from './ValidatorNames';
+import { getValidatorName as getNameFromService, getDisplayName, getValidatorIcon, fetchAllValidatorIdentities } from './ValidatorNames';
 
 // Generate validator names - uses ValidatorNames service
 function generateValidatorName(votePubkey, nodePubkey, activatedStake) {
   const info = getNameFromService(votePubkey, nodePubkey, activatedStake);
-  if (info) {
-    return info;
-  }
-  
-  // Fallback for unknown validators
-  const stakeInXnt = activatedStake / 1e9;
-  const shortId = votePubkey.substring(0, 6);
-  
-  if (stakeInXnt > 50000000) {
-    return { name: `X1 Labs`, icon: '🔷', website: 'https://x1.xyz' };
-  }
-  if (stakeInXnt > 200000) {
-    return { name: `Validator ${shortId}`, icon: '🔹', website: null };
-  }
-  if (stakeInXnt > 100000) {
-    return { name: `Node ${shortId}`, icon: '🔸', website: null };
-  }
-  
-  return { name: getDisplayName(votePubkey, nodePubkey, activatedStake), icon: getValidatorIcon(votePubkey, nodePubkey, activatedStake), website: null };
+  return info || { name: `${votePubkey.substring(0, 6)}...${votePubkey.slice(-4)}`, icon: '⚪', website: null };
 }
 
 // Get validator details with enhanced info
 export async function getValidatorDetails() {
+  // Fetch validator identities first for best name resolution
+  await fetchAllValidatorIdentities().catch(() => {});
+  
   const [voteAccounts, clusterNodes, epochInfo, currentSlot] = await Promise.all([
     getVoteAccounts(),
     getClusterNodes(),
