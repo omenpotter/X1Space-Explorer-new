@@ -441,41 +441,40 @@ export async function getFirstAvailableBlock() {
   return await rpcCall('getFirstAvailableBlock');
 }
 
-// Known validator data from x1validators.xyz (vote pubkey -> info)
-const KNOWN_VALIDATORS = {
-  // X1 Labs nodes (vote pubkeys from x1validators.xyz)
-  'Gv5kyHCneaRKNJPgyPreoiYnBVBm2XYqt981zYykcSSU': { name: 'X1 Labs (node9)', website: 'https://x1.xyz', icon: '🔷' },
-  '8gv2VxK7YoQbPoTCm6JMAisXSe7pRH8fNNsRH43wT2o': { name: 'X1 Labs (node5)', website: 'https://x1.xyz', icon: '🔷' },
-  '8LWKkcneaRKNJPgyPreoiYnBVBm2XYqt981zYgHHeNg': { name: 'X1 Labs (node8)', website: 'https://x1.xyz', icon: '🔷' },
-  '4V2QkkneaRKNJPgyPreoiYnBVBm2XYqt981zY2Q8uBF': { name: 'X1 Labs (node2)', website: 'https://x1.xyz', icon: '🔷' },
-  'CkMwg4TM6jaSC5rJALQjvLc51XFY5pJ1H9f1Tmu5Qdxs': { name: 'X1 Labs (node3)', website: 'https://x1.xyz', icon: '🔷' },
-  '7J5wJaneaRKNJPgyPreoiYnBVBm2XYqt981zYbzfoTy': { name: 'X1 Labs (node4)', website: 'https://x1.xyz', icon: '🔷' },
-  '5Rzytnub9yGTFHqSmauFLsAbdXFbehMwPBLiuEgKajUN': { name: 'X1 Labs (node1)', website: 'https://x1.xyz', icon: '🔷' },
-  '7ufaUVneaRKNJPgyPreoiYnBVBm2XYqt981zYVPSMZA': { name: 'X1 Labs (node0)', website: 'https://x1.xyz', icon: '🔷' },
-  '73RKDYneaRKNJPgyPreoiYnBVBm2XYqt981zYLM7YUr': { name: 'X1 Labs (node6)', website: 'https://x1.xyz', icon: '🔷' },
-  'B9xaPxneaRKNJPgyPreoiYnBVBm2XYqt981zYs4it7Q': { name: 'X1 Labs (node11)', website: 'https://x1.xyz', icon: '🔷' },
-  'EXDQt1T1eQ4NjttSdxn1eNS3EkHDrmZ3ZrgZmMSbfYiy': { name: 'X1 Labs (node10)', website: 'https://x1.xyz', icon: '🔷' },
-  '4Y9fnKcTJ3Kxj6744HZX8ubd89DPKibyKckGnPWGkfU3': { name: 'X1 Labs (node7)', website: 'https://x1.xyz', icon: '🔷' },
-  // Community validators from x1validators.xyz
-  '4B71UaneaRKNJPgyPreoiYnBVBm2XYqt981zYPNBH6c': { name: "Tang's X1 node", website: null, icon: '🐉' },
-  '9Vhw2cneaRKNJPgyPreoiYnBVBm2XYqt981zYh6fig9': { name: 'xen_artist', website: null, icon: '🎨' },
-  'FTPty3neaRKNJPgyPreoiYnBVBm2XYqt981zYmrq6A4': { name: 'Evmoon', website: null, icon: '🌙' },
-  '2sUYt9neaRKNJPgyPreoiYnBVBm2XYqt981zY267GPh': { name: 'Marask X1 Legion', website: null, icon: '⚔️' },
-  'FBJ6MvneaRKNJPgyPreoiYnBVBm2XYqt981zYdhRipg': { name: 'X1 LFC', website: null, icon: '⚽' },
-  '2MGKPVneaRKNJPgyPreoiYnBVBm2XYqt981zY4mTUqk': { name: 'Dantey', website: null, icon: '🦊' },
-  '4yyo9aneaRKNJPgyPreoiYnBVBm2XYqt981zYbSHZPE': { name: 'XEN.PUB #1', website: null, icon: '📰' },
-  '2ErUnfneaRKNJPgyPreoiYnBVBm2XYqt981zYjbTbTA': { name: 'Fortiblox', website: null, icon: '🏰' },
-  'EnrWRfneaRKNJPgyPreoiYnBVBm2XYqt981zYrF2NEx': { name: 'Q #1', website: null, icon: '❓' },
-  'GoFgVdneaRKNJPgyPreoiYnBVBm2XYqt981zYP7EXtC': { name: 'FoX1', website: null, icon: '🦊' },
-  'w7br9QneaRKNJPgyPreoiYnBVBm2XYqt981zYiHFdnA': { name: 'Bolt', website: null, icon: '⚡' },
-  '8wzhEzneaRKNJPgyPreoiYnBVBm2XYqt981zYqtLdgt': { name: 'Blockspeed', website: null, icon: '🚀' },
-  '2yWWPRneaRKNJPgyPreoiYnBVBm2XYqt981zYdbBs1M': { name: 'N1X', website: null, icon: '💎' },
-  '4Xc2boneaRKNJPgyPreoiYnBVBm2XYqt981zYKgfBN7': { name: 'Phoenix', website: null, icon: '🔥' },
-  'HNezNfneaRKNJPgyPreoiYnBVBm2XYqt981zYcZ9kCT': { name: "X1's The Black Pearl", website: null, icon: '🏴‍☠️' },
-  'BGmH5VneaRKNJPgyPreoiYnBVBm2XYqt981zY9bojL4': { name: 'Frogger', website: null, icon: '🐸' },
-  '8d23bAneaRKNJPgyPreoiYnBVBm2XYqt981zY5YEhhy': { name: 'Octopus', website: null, icon: '🐙' },
-  'pYgBVhneaRKNJPgyPreoiYnBVBm2XYqt981zYWwdCce': { name: 'X1 ANONYMOUS', website: null, icon: '👤' },
-};
+// Generate validator names based on stake amount
+// X1 Labs validators have very high stake (>50M XNT each)
+// This provides consistent naming without hardcoding specific pubkeys
+function generateValidatorName(votePubkey, nodePubkey, activatedStake) {
+  const stakeInXnt = activatedStake / 1e9;
+  
+  // X1 Labs validators - very high stake (>50M XNT)
+  if (stakeInXnt > 50000000) {
+    const shortId = votePubkey.substring(0, 6);
+    return { name: `X1 Labs (${shortId})`, icon: '🔷', website: 'https://x1.xyz' };
+  }
+  
+  // Major validators - high stake (5M-50M XNT)
+  if (stakeInXnt > 5000000) {
+    const shortId = votePubkey.substring(0, 6);
+    return { name: `Major Validator (${shortId})`, icon: '🔹', website: null };
+  }
+  
+  // Community validators - moderate stake (500K-5M XNT)
+  if (stakeInXnt > 500000) {
+    const shortId = votePubkey.substring(0, 6);
+    return { name: `Community Node (${shortId})`, icon: '🔸', website: null };
+  }
+  
+  // Small validators (100K-500K XNT)
+  if (stakeInXnt > 100000) {
+    const shortId = votePubkey.substring(0, 6);
+    return { name: `Validator ${shortId}`, icon: '⚪', website: null };
+  }
+  
+  // Micro validators (<100K XNT)
+  const shortId = votePubkey.substring(0, 6);
+  return { name: `Node ${shortId}`, icon: '⚫', website: null };
+}
 
 // Get validator details with enhanced info
 export async function getValidatorDetails() {
@@ -495,45 +494,18 @@ export async function getValidatorDetails() {
   // Calculate total stake for percentage calculations
   const totalActiveStake = voteAccounts.current.reduce((sum, v) => sum + v.activatedStake, 0);
 
-  // Helper function to match validator by partial pubkey
-  const findKnownValidator = (votePubkey, nodePubkey) => {
-    // Direct match first
-    if (KNOWN_VALIDATORS[votePubkey]) return KNOWN_VALIDATORS[votePubkey];
-    if (KNOWN_VALIDATORS[nodePubkey]) return KNOWN_VALIDATORS[nodePubkey];
-    
-    // Try matching by start of pubkey (first 6 chars)
-    const voteStart = votePubkey.substring(0, 6);
-    const nodeStart = nodePubkey?.substring(0, 6);
-    
-    for (const [key, value] of Object.entries(KNOWN_VALIDATORS)) {
-      if (key.startsWith(voteStart) || (nodeStart && key.startsWith(nodeStart))) {
-        return value;
-      }
-    }
-    
-    // Check if this is an X1 Labs node based on stake (>60M XNT)
-    return null;
-  };
+
 
   // Combine vote accounts with node info
   const validators = voteAccounts.current.map((v) => {
     const node = nodeMap[v.nodePubkey] || {};
     
-    // Try to find validator info from known list
-    const knownInfo = findKnownValidator(v.votePubkey, v.nodePubkey);
+    // Generate validator name based on stake amount
+    const validatorInfo = generateValidatorName(v.votePubkey, v.nodePubkey, v.activatedStake);
     
-    // If no known info but has very high stake (>60M), it's likely X1 Labs
-    let name = knownInfo?.name || null;
-    let website = knownInfo?.website || null;
-    let icon = knownInfo?.icon || null;
-    
-    if (!name && v.activatedStake > 60000000000000000) { // >60M XNT in lamports
-      // This is likely an X1 Labs node
-      const shortKey = v.votePubkey.substring(0, 6);
-      name = `X1 Labs (${shortKey}...)`;
-      website = 'https://x1.xyz';
-      icon = '🔷';
-    }
+    let name = validatorInfo.name;
+    let website = validatorInfo.website;
+    let icon = validatorInfo.icon;
     
     // Calculate epoch credits for performance metrics
     const epochCredits = v.epochCredits || [];
@@ -580,7 +552,7 @@ export async function getValidatorDetails() {
   // Add delinquent validators
   voteAccounts.delinquent.forEach(v => {
     const node = nodeMap[v.nodePubkey] || {};
-    const knownInfo = KNOWN_VALIDATORS[v.nodePubkey] || KNOWN_VALIDATORS[v.votePubkey];
+    const validatorInfo = generateValidatorName(v.votePubkey, v.nodePubkey, v.activatedStake);
     
     validators.push({
       votePubkey: v.votePubkey,
@@ -596,9 +568,9 @@ export async function getValidatorDetails() {
       creditsPrevEpoch: 0,
       version: node.version || 'unknown',
       delinquent: true,
-      name: knownInfo?.name || null,
-      website: knownInfo?.website || null,
-      icon: knownInfo?.icon || null,
+      name: validatorInfo.name,
+      website: validatorInfo.website,
+      icon: validatorInfo.icon,
       uptime: 0,
       skipRate: 100
     });
