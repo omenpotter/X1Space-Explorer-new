@@ -30,7 +30,7 @@ const TxBlock = memo(({ type, size = 'sm' }) => {
 TxBlock.displayName = 'TxBlock';
 
 // Mempool-style aggregated view with many small boxes - memoized
-export const MempoolAggregatedViz = memo(({ data, label, onClick }) => {
+export const MempoolAggregatedViz = memo(({ data, label, onClick, viewMode = '1m' }) => {
   const { totalTxns, voteCount, transferCount, programCount, otherCount, slots } = data || {};
   
   const blocks = useMemo(() => {
@@ -38,35 +38,52 @@ export const MempoolAggregatedViz = memo(({ data, label, onClick }) => {
     const total = 80;
     
     // Use safe defaults if data is missing
-    const safeTotalTxns = totalTxns || 1;
     const safeVoteCount = voteCount || 0;
     const safeTransferCount = transferCount || 0;
     const safeProgramCount = programCount || 0;
     const safeOtherCount = otherCount || 0;
     
-    // Calculate actual ratios from real data
-    const totalKnown = safeVoteCount + safeTransferCount + safeProgramCount + safeOtherCount;
+    // Thresholds for showing dots based on view mode
+    // 1m: 10 token/program = 1 dot, 5 other = 1 dot
+    // 10m: 100 token/program = 1 dot, 50 other = 1 dot
+    const programThreshold = viewMode === '10m' ? 100 : 10;
+    const otherThreshold = viewMode === '10m' ? 50 : 5;
+    const voteThreshold = viewMode === '10m' ? 1000 : 100;
+    const transferThreshold = viewMode === '10m' ? 50 : 5;
     
-    let voteBlocks, transferBlocks, programBlocks, otherBlocks;
+    // Calculate dots based on thresholds
+    const voteDots = Math.min(56, Math.max(1, Math.floor(safeVoteCount / voteThreshold)));
+    const transferDots = Math.min(12, Math.max(safeTransferCount > 0 ? 1 : 0, Math.floor(safeTransferCount / transferThreshold)));
+    const programDots = Math.min(8, Math.max(safeProgramCount > 0 ? 1 : 0, Math.floor(safeProgramCount / programThreshold)));
+    const otherDots = Math.min(4, Math.max(safeOtherCount > 0 ? 1 : 0, Math.floor(safeOtherCount / otherThreshold)));
     
-    if (totalKnown > 0) {
-      voteBlocks = Math.round((safeVoteCount / totalKnown) * total);
-      transferBlocks = Math.round((safeTransferCount / totalKnown) * total);
-      programBlocks = Math.round((safeProgramCount / totalKnown) * total);
-      otherBlocks = Math.max(0, total - voteBlocks - transferBlocks - programBlocks);
+    // If we have no transaction data at all, use default distribution
+    const totalDots = voteDots + transferDots + programDots + otherDots;
+    
+    if (totalDots === 0 || (safeVoteCount === 0 && safeTransferCount === 0 && safeProgramCount === 0 && safeOtherCount === 0)) {
+      // Default distribution
+      for (let i = 0; i < 56; i++) result.push('vote');
+      for (let i = 0; i < 12; i++) result.push('transfer');
+      for (let i = 0; i < 8; i++) result.push('token');
+      for (let i = 0; i < 4; i++) result.push('other');
     } else {
-      // Default distribution if no type data
-      voteBlocks = Math.round(total * 0.70);
-      transferBlocks = Math.round(total * 0.12);
-      programBlocks = Math.round(total * 0.09);
-      otherBlocks = total - voteBlocks - transferBlocks - programBlocks;
+      // Generate colored blocks based on actual counts
+      for (let i = 0; i < voteDots; i++) result.push('vote');
+      for (let i = 0; i < transferDots; i++) result.push('transfer');
+      for (let i = 0; i < programDots; i++) result.push('token');
+      for (let i = 0; i < otherDots; i++) result.push('other');
+      
+      // Fill remaining slots proportionally if under 80
+      while (result.length < total) {
+        if (safeVoteCount > 0) result.push('vote');
+        else if (safeTransferCount > 0) result.push('transfer');
+        else result.push('vote');
+        if (result.length >= total) break;
+      }
     }
     
-    // Generate colored blocks
-    for (let i = 0; i < voteBlocks; i++) result.push('vote');
-    for (let i = 0; i < transferBlocks; i++) result.push('transfer');
-    for (let i = 0; i < programBlocks; i++) result.push('token');
-    for (let i = 0; i < otherBlocks; i++) result.push('other');
+    // Trim to exactly 80 if over
+    while (result.length > total) result.pop();
     
     // Shuffle for visual variety
     for (let i = result.length - 1; i > 0; i--) {
@@ -75,7 +92,7 @@ export const MempoolAggregatedViz = memo(({ data, label, onClick }) => {
     }
     
     return result;
-  }, [totalTxns, voteCount, transferCount, programCount, otherCount]);
+  }, [voteCount, transferCount, programCount, otherCount, viewMode]);
 
   return (
     <div 
@@ -299,7 +316,7 @@ const MempoolViz = memo(({ mempoolInterval, recentBlocks, aggregatedBlocks, dash
         ))
       ) : (
         aggregatedBlocks.map((agg, i) => (
-          <MempoolAggregatedViz key={`${mempoolInterval}-${i}-${dashboardSlot}`} data={agg} label={agg.label} />
+          <MempoolAggregatedViz key={`${mempoolInterval}-${i}-${dashboardSlot}`} data={agg} label={agg.label} viewMode={mempoolInterval} />
         ))
       )}
     </div>

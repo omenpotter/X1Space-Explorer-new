@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
 // Lazy load components
-const ThemeToggle = lazy(() => import('../components/layout/ThemeToggle'));
+
 const MobileNav = lazy(() => import('../components/layout/MobileNav'));
 const MempoolViz = lazy(() => import('../components/x1/MempoolViz'));
 const MempoolLegend = lazy(() => import('../components/x1/MempoolViz').then(m => ({ default: m.MempoolLegend })));
@@ -311,9 +311,7 @@ export default function Dashboard() {
                   </svg>
                 </Button>
               </Link>
-              <Suspense fallback={<MiniFallback />}>
-                <ThemeToggle />
-              </Suspense>
+
             </nav>
             
             <div className="flex-1 max-w-md">
