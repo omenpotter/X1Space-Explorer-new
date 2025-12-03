@@ -36,17 +36,22 @@ export default function Blocks() {
     if (!isMounted.current) return;
     
     try {
-      // Fetch blocks first for fastest display
+      // Fetch current slot first for immediate update
+      const currentSlot = await X1Rpc.getSlot();
+      
+      // Fetch blocks with no caching for real-time data
       const recentBlocks = await X1Rpc.getRecentBlocks(20);
       
       if (!isMounted.current) return;
       
-      // Update blocks immediately for fast UI
+      // Update blocks immediately - always show latest
       if (recentBlocks.length > 0) {
+        const latestSlot = recentBlocks[0]?.slot;
         setBlocks(prevBlocks => {
-          if (prevBlocks.length > 0 && recentBlocks[0]?.slot > prevBlocks[0]?.slot) {
-            setNewBlockSlot(recentBlocks[0].slot);
-            setTimeout(() => setNewBlockSlot(null), 1000);
+          // Check if we have new blocks
+          if (prevBlocks.length > 0 && latestSlot > prevBlocks[0]?.slot) {
+            setNewBlockSlot(latestSlot);
+            setTimeout(() => setNewBlockSlot(null), 800);
           }
           return recentBlocks;
         });
@@ -54,7 +59,7 @@ export default function Blocks() {
         initialFetchDone.current = true;
       }
       
-      // Then fetch dashboard and performance data in parallel (non-blocking)
+      // Fetch dashboard and performance data in parallel (non-blocking)
       Promise.all([
         X1Rpc.getDashboardData().catch(() => null),
         X1Rpc.getPerformanceHistory(60).catch(() => [])
@@ -160,8 +165,8 @@ export default function Blocks() {
     
     let interval;
     if (isLive) {
-      // Faster refresh rate for 3000+ TPS network
-      interval = setInterval(fetchBlocks, 2000);
+      // Very fast refresh rate for 3000+ TPS network - 1 second
+      interval = setInterval(fetchBlocks, 1000);
     }
     
     return () => {
