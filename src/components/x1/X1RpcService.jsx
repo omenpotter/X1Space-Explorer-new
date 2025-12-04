@@ -7,8 +7,19 @@ import { getCached, setCache, debounceRpc } from './RpcCache';
 const RPC_ENDPOINTS = [
   'https://rpc.mainnet.x1.xyz',
   'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38',
-  'https://rpc.x1galaxy.io/'
+  'https://rpc.x1galaxy.io/',
+  'https://nexus.fortiblox.com/rpc'
 ];
+
+// API keys for authenticated endpoints
+const RPC_AUTH = {
+  'https://nexus.fortiblox.com/rpc': {
+    headers: {
+      'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0',
+      'Authorization': 'Bearer fbx_d4a25e545366fed1ea1582884e62874d6b9fdf94d1f6c4b9889fefa951300dff'
+    }
+  }
+};
 
 let currentEndpointIndex = 0;
 let lastSuccessfulEndpoint = 0;
@@ -51,19 +62,26 @@ async function rpcCall(method, params = [], cacheKey = null, cacheDuration = 'sh
     
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
-      
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: Date.now(),
-          method,
-          params
-        }),
-        signal: controller.signal
-      });
+              const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
+              // Get auth headers if this endpoint requires them
+              const authConfig = RPC_AUTH[endpoint] || {};
+              const headers = {
+                'Content-Type': 'application/json',
+                ...(authConfig.headers || {})
+              };
+
+              const response = await fetch(endpoint, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                  jsonrpc: '2.0',
+                  id: Date.now(),
+                  method,
+                  params
+                }),
+                signal: controller.signal
+              });
       
       clearTimeout(timeoutId);
       
