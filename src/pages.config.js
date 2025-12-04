@@ -20,6 +20,7 @@ import PortfolioTracker from './pages/PortfolioTracker';
 import WhaleWatcher from './pages/WhaleWatcher';
 import TransactionFlowPage from './pages/TransactionFlowPage';
 import CustomDashboard from './pages/CustomDashboard';
+import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
@@ -50,4 +51,5 @@ export const PAGES = {
 export const pagesConfig = {
     mainPage: "Dashboard",
     Pages: PAGES,
+    Layout: __Layout,
 };
