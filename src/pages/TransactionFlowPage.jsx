@@ -43,13 +43,27 @@ export default function TransactionFlowPage() {
     setError(null);
     
     try {
-      const signatures = await X1Rpc.getSignaturesForAddress(address, { limit: 50 });
+      const signatures = await X1Rpc.getSignaturesForAddress(address, { limit: 100 });
+      
+      if (!signatures || signatures.length === 0) {
+        setError('No transactions found for this address. The address may be new or have no activity.');
+        setLoading(false);
+        return;
+      }
       
       const txDetails = [];
-      for (const sig of signatures.slice(0, 30)) {
-        try {
-          const tx = await X1Rpc.getTransaction(sig.signature);
-          if (tx) {
+      // Fetch transactions in batches for better performance
+      const batchSize = 10;
+      for (let i = 0; i < Math.min(signatures.length, 50); i += batchSize) {
+        const batch = signatures.slice(i, i + batchSize);
+        const batchResults = await Promise.allSettled(
+          batch.map(sig => X1Rpc.getTransaction(sig.signature))
+        );
+        
+        batchResults.forEach((result, idx) => {
+          if (result.status === 'fulfilled' && result.value) {
+            const tx = result.value;
+            const sig = batch[idx];
             const message = tx.transaction?.message;
             const accountKeys = message?.accountKeys || [];
             const instructions = message?.instructions || [];
@@ -59,7 +73,7 @@ export default function TransactionFlowPage() {
             // Determine type
             let type = 'other';
             let amount = 0;
-            let from = accountKeys[0];
+            let from = accountKeys[0] || '';
             let to = '';
             
             for (const ix of instructions) {
@@ -69,7 +83,10 @@ export default function TransactionFlowPage() {
                 break;
               } else if (programId === '11111111111111111111111111111111') {
                 type = 'transfer';
-                to = accountKeys[1] || '';
+                // Find the destination account (usually index 1 for system transfers)
+                if (accountKeys[1] && accountKeys[1] !== from) {
+                  to = accountKeys[1];
+                }
               } else if (programId === 'Stake11111111111111111111111111111111111111') {
                 type = 'stake';
               } else if (programId === 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') {
@@ -77,37 +94,62 @@ export default function TransactionFlowPage() {
               }
             }
             
-            // Calculate amount from balance changes
+            // Calculate amount from balance changes for the searched address
             for (let i = 0; i < accountKeys.length; i++) {
               if (accountKeys[i] === address) {
                 const change = (postBalances[i] - preBalances[i]) / 1e9;
                 amount = Math.abs(change);
+                // Determine if this is incoming or outgoing
+                if (change > 0) {
+                  // Incoming - find the sender
+                  for (let j = 0; j < accountKeys.length; j++) {
+                    if (j !== i && (preBalances[j] - postBalances[j]) / 1e9 > 0) {
+                      from = accountKeys[j];
+                      to = address;
+                      break;
+                    }
+                  }
+                } else {
+                  // Outgoing
+                  from = address;
+                  for (let j = 0; j < accountKeys.length; j++) {
+                    if (j !== i && (postBalances[j] - preBalances[j]) / 1e9 > 0) {
+                      to = accountKeys[j];
+                      break;
+                    }
+                  }
+                }
                 break;
               }
             }
             
-            txDetails.push({
-              signature: sig.signature,
-              slot: sig.slot,
-              blockTime: sig.blockTime,
-              type,
-              amount,
-              from,
-              to,
-              status: tx.meta?.err ? 'failed' : 'success',
-              fee: (tx.meta?.fee || 0) / 1e9,
-              accountKeys
-            });
+            // Only add if we have meaningful data
+            if (amount > 0 || type !== 'other') {
+              txDetails.push({
+                signature: sig.signature,
+                slot: sig.slot,
+                blockTime: sig.blockTime,
+                type,
+                amount,
+                from,
+                to,
+                status: tx.meta?.err ? 'failed' : 'success',
+                fee: (tx.meta?.fee || 0) / 1e9,
+                accountKeys
+              });
+            }
           }
-        } catch (e) {
-          // Skip failed tx fetch
-        }
+        });
+      }
+      
+      if (txDetails.length === 0) {
+        setError('Could not parse transaction details. The address may only have vote or system transactions.');
       }
       
       setTransactions(txDetails);
       buildFlowData(txDetails, address);
     } catch (err) {
-      setError(err.message);
+      setError('Failed to fetch transactions: ' + err.message);
     } finally {
       setLoading(false);
     }

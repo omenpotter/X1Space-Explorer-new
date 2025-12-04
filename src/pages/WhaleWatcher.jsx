@@ -217,10 +217,12 @@ export default function WhaleWatcher() {
   const unstakeVolume = transactions.filter(t => t.type === 'unstake').reduce((sum, t) => sum + t.amount, 0);
 
   const applyCustomThreshold = () => {
-    const value = parseInt(customThreshold);
-    if (value && value > 0) {
+    const value = parseFloat(customThreshold);
+    if (!isNaN(value) && value > 0) {
       setMinAmount(value);
       setCustomThreshold('');
+      // Trigger a new fetch with the new threshold
+      setLoading(true);
     }
   };
 

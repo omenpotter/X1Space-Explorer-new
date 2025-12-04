@@ -24,6 +24,7 @@ export default function TokenExplorer() {
   const [searching, setSearching] = useState(false);
   const [tokens, setTokens] = useState([]);
   const [loadingTokens, setLoadingTokens] = useState(false);
+  const [allTokens, setAllTokens] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -46,6 +47,9 @@ export default function TokenExplorer() {
           current: voteAccounts.current.length,
           totalStake: voteAccounts.current.reduce((sum, v) => sum + v.activatedStake, 0) / 1e9
         });
+        
+        // Fetch SPL tokens from the token program
+        fetchAllTokens();
       } catch (err) {
         console.error('Failed to fetch data:', err);
       } finally {
@@ -54,6 +58,71 @@ export default function TokenExplorer() {
     };
     fetchData();
   }, []);
+
+  // Fetch all SPL tokens on the chain
+  const fetchAllTokens = async () => {
+    setLoadingTokens(true);
+    try {
+      // Get largest token accounts to find active tokens
+      const response = await fetch('https://rpc.mainnet.x1.xyz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'getProgramAccounts',
+          params: [
+            'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+            {
+              encoding: 'jsonParsed',
+              filters: [
+                { dataSize: 82 } // Token mint accounts are 82 bytes
+              ]
+            }
+          ]
+        })
+      });
+      
+      const data = await response.json();
+      if (data.result) {
+        const tokenList = data.result
+          .map(acc => {
+            const info = acc.account?.data?.parsed?.info;
+            if (!info) return null;
+            
+            const decimals = info.decimals || 0;
+            const rawSupply = info.supply ? BigInt(info.supply) : BigInt(0);
+            const totalSupply = Number(rawSupply) / Math.pow(10, decimals);
+            
+            // Filter out tokens with 0 supply
+            if (totalSupply === 0) return null;
+            
+            return {
+              mint: acc.pubkey,
+              name: `Token ${acc.pubkey.substring(0, 6)}`,
+              symbol: acc.pubkey.substring(0, 4).toUpperCase(),
+              decimals,
+              totalSupply,
+              circulating: totalSupply,
+              price: 0,
+              marketCap: 0,
+              mintAuthority: info.mintAuthority,
+              freezeAuthority: info.freezeAuthority,
+              isNative: false
+            };
+          })
+          .filter(t => t !== null)
+          .sort((a, b) => b.totalSupply - a.totalSupply)
+          .slice(0, 100); // Show top 100 tokens by supply
+        
+        setAllTokens(tokenList);
+      }
+    } catch (err) {
+      console.error('Failed to fetch tokens:', err);
+    } finally {
+      setLoadingTokens(false);
+    }
+  };
 
   const searchToken = async () => {
     if (!searchQuery || searchQuery.length < 32) {
@@ -128,12 +197,14 @@ export default function TokenExplorer() {
   };
 
   // XNT native token - $1.00 OTC
+  // Max supply is 500M XNT
+  const MAX_SUPPLY = 500000000;
   const xntToken = {
     mint: 'Native XNT',
     name: 'X1 Native Token',
     symbol: 'XNT',
     decimals: 9,
-    totalSupply: supply.total,
+    totalSupply: MAX_SUPPLY,
     circulating: supply.circulating,
     price: 1.00,
     marketCap: supply.circulating * 1.00,
@@ -280,7 +351,7 @@ export default function TokenExplorer() {
         <div className="bg-[#24384a] rounded-xl overflow-hidden mb-6">
           <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
             <h3 className="text-white font-medium">All Tokens on X1</h3>
-            <Badge className="bg-cyan-500/20 text-cyan-400 border-0">{tokens.length + 1} tokens</Badge>
+            <Badge className="bg-cyan-500/20 text-cyan-400 border-0">{tokens.length + allTokens.length + 1} tokens</Badge>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -320,8 +391,8 @@ export default function TokenExplorer() {
                   <td className="px-4 py-3 text-center text-gray-400">{xntToken.decimals}</td>
                 </tr>
                 
-                {/* Other tokens */}
-                {tokens.map((token, i) => (
+                {/* Other tokens - combine searched and discovered */}
+                {[...tokens, ...allTokens.filter(t => !tokens.find(st => st.mint === t.mint))].map((token, i) => (
                   <tr key={token.mint} className="border-b border-white/5 hover:bg-white/[0.02]">
                     <td className="px-4 py-3 text-gray-400">{i + 2}</td>
                     <td className="px-4 py-3">
@@ -355,7 +426,16 @@ export default function TokenExplorer() {
                   </tr>
                 ))}
                 
-                {tokens.length === 0 && (
+                {loadingTokens && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                      <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin text-cyan-400" />
+                      <p>Loading tokens from chain...</p>
+                    </td>
+                  </tr>
+                )}
+                
+                {!loadingTokens && tokens.length === 0 && allTokens.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                       <Coins className="w-8 h-8 mx-auto mb-2 opacity-50" />
