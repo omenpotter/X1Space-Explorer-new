@@ -43,18 +43,30 @@ export default function TransactionFlowPage() {
     setError(null);
     
     try {
+      // First check if address exists and get balance
+      const balanceResult = await X1Rpc.getBalance(address);
+      const balance = (balanceResult?.value || 0) / 1e9;
+      
+      // Get signatures for address
       const signatures = await X1Rpc.getSignaturesForAddress(address, { limit: 100 });
       
       if (!signatures || signatures.length === 0) {
-        setError('No transactions found for this address. The address may be new or have no activity.');
+        // Address exists but no transactions - show balance only
+        if (balance > 0) {
+          setError(`Address has ${balance.toFixed(4)} XNT but no recent transaction history found.`);
+        } else {
+          setError('No transactions found for this address. The address may be new or have no activity.');
+        }
+        setTransactions([]);
+        buildFlowData([], address);
         setLoading(false);
         return;
       }
       
       const txDetails = [];
-      // Fetch transactions in batches for better performance
-      const batchSize = 10;
-      for (let i = 0; i < Math.min(signatures.length, 50); i += batchSize) {
+      // Fetch transactions in parallel batches
+      const batchSize = 5;
+      for (let i = 0; i < Math.min(signatures.length, 30); i += batchSize) {
         const batch = signatures.slice(i, i + batchSize);
         const batchResults = await Promise.allSettled(
           batch.map(sig => X1Rpc.getTransaction(sig.signature))
@@ -72,9 +84,6 @@ export default function TransactionFlowPage() {
             
             // Determine type
             let type = 'other';
-            let amount = 0;
-            let from = accountKeys[0] || '';
-            let to = '';
             
             for (const ix of instructions) {
               const programId = accountKeys[ix.programIdIndex];
@@ -83,10 +92,6 @@ export default function TransactionFlowPage() {
                 break;
               } else if (programId === '11111111111111111111111111111111') {
                 type = 'transfer';
-                // Find the destination account (usually index 1 for system transfers)
-                if (accountKeys[1] && accountKeys[1] !== from) {
-                  to = accountKeys[1];
-                }
               } else if (programId === 'Stake11111111111111111111111111111111111111') {
                 type = 'stake';
               } else if (programId === 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') {
@@ -94,28 +99,44 @@ export default function TransactionFlowPage() {
               }
             }
             
-            // Calculate amount from balance changes for the searched address
+            // Find the searched address in account keys and calculate its balance change
+            let amount = 0;
+            let from = '';
+            let to = '';
+            let addressIdx = -1;
+            
             for (let i = 0; i < accountKeys.length; i++) {
               if (accountKeys[i] === address) {
+                addressIdx = i;
                 const change = (postBalances[i] - preBalances[i]) / 1e9;
                 amount = Math.abs(change);
-                // Determine if this is incoming or outgoing
+                
                 if (change > 0) {
-                  // Incoming - find the sender
+                  // Incoming - address received funds
+                  to = address;
+                  // Find who sent (largest outgoing balance change)
+                  let maxOut = 0;
                   for (let j = 0; j < accountKeys.length; j++) {
-                    if (j !== i && (preBalances[j] - postBalances[j]) / 1e9 > 0) {
-                      from = accountKeys[j];
-                      to = address;
-                      break;
+                    if (j !== i) {
+                      const outChange = (preBalances[j] - postBalances[j]) / 1e9;
+                      if (outChange > maxOut) {
+                        maxOut = outChange;
+                        from = accountKeys[j];
+                      }
                     }
                   }
-                } else {
-                  // Outgoing
+                } else if (change < 0) {
+                  // Outgoing - address sent funds
                   from = address;
+                  // Find who received (largest incoming balance change)
+                  let maxIn = 0;
                   for (let j = 0; j < accountKeys.length; j++) {
-                    if (j !== i && (postBalances[j] - preBalances[j]) / 1e9 > 0) {
-                      to = accountKeys[j];
-                      break;
+                    if (j !== i) {
+                      const inChange = (postBalances[j] - preBalances[j]) / 1e9;
+                      if (inChange > maxIn) {
+                        maxIn = inChange;
+                        to = accountKeys[j];
+                      }
                     }
                   }
                 }
@@ -123,32 +144,31 @@ export default function TransactionFlowPage() {
               }
             }
             
-            // Only add if we have meaningful data
-            if (amount > 0 || type !== 'other') {
-              txDetails.push({
-                signature: sig.signature,
-                slot: sig.slot,
-                blockTime: sig.blockTime,
-                type,
-                amount,
-                from,
-                to,
-                status: tx.meta?.err ? 'failed' : 'success',
-                fee: (tx.meta?.fee || 0) / 1e9,
-                accountKeys
-              });
-            }
+            // Include all transactions, even vote transactions for completeness
+            txDetails.push({
+              signature: sig.signature,
+              slot: sig.slot,
+              blockTime: sig.blockTime || tx.blockTime,
+              type,
+              amount,
+              from: from || accountKeys[0] || '',
+              to: to || accountKeys[1] || '',
+              status: tx.meta?.err ? 'failed' : 'success',
+              fee: (tx.meta?.fee || 0) / 1e9,
+              accountKeys
+            });
           }
         });
       }
       
-      if (txDetails.length === 0) {
-        setError('Could not parse transaction details. The address may only have vote or system transactions.');
+      if (txDetails.length === 0 && signatures.length > 0) {
+        setError('Found ' + signatures.length + ' signatures but could not fetch transaction details from RPC.');
       }
       
       setTransactions(txDetails);
       buildFlowData(txDetails, address);
     } catch (err) {
+      console.error('Transaction flow fetch error:', err);
       setError('Failed to fetch transactions: ' + err.message);
     } finally {
       setLoading(false);

@@ -82,72 +82,94 @@ export default function WhaleWatcher() {
     });
   }, [alertsEnabled, soundEnabled]);
 
-  // Fetch whale transactions from RPC
+  // Fetch whale transactions from RPC - scan multiple blocks for large transfers
   const fetchWhaleTransactions = useCallback(async () => {
     try {
-      // Get real transactions from recent blocks
-      const realtimeTxs = await X1Rpc.getRealtimeTransactions(100);
-      
-      // Filter for whale-sized transactions
-      // Since we can't easily get amounts from basic tx data, we'll use fee as a proxy
-      // and fetch actual amounts for transfer transactions
+      setLoading(true);
       const whaleTxs = [];
       
-      for (const tx of realtimeTxs) {
-        // Skip vote transactions for whale watching
-        if (tx.type === 'vote') continue;
-        
-        // For non-vote transactions, try to get more details
-        try {
-          const details = await X1Rpc.getTransaction(tx.signature);
-          if (details) {
-            // Calculate amount from balance changes
-            const preBalances = details.meta?.preBalances || [];
-            const postBalances = details.meta?.postBalances || [];
-            
-            let maxTransfer = 0;
-            for (let i = 0; i < preBalances.length; i++) {
-              const diff = Math.abs((preBalances[i] - postBalances[i]) / 1e9);
-              if (diff > maxTransfer) maxTransfer = diff;
-            }
-            
-            if (maxTransfer >= minAmount) {
-              // Determine transaction type
-              let type = 'transfer';
-              const accountKeys = details.transaction?.message?.accountKeys || [];
-              const hasStakeProgram = accountKeys.some(k => k === 'Stake11111111111111111111111111111111111111');
-              
-              if (hasStakeProgram) {
-                // Check if staking or unstaking based on balance change direction
-                const firstAccountChange = (postBalances[0] || 0) - (preBalances[0] || 0);
-                type = firstAccountChange < 0 ? 'stake' : 'unstake';
-              }
-              
-              const whaleTx = {
-                id: tx.signature,
-                signature: tx.signature,
-                from: accountKeys[0] || tx.from,
-                to: accountKeys[1] || tx.to,
-                amount: maxTransfer,
-                type,
-                slot: tx.slot,
-                timestamp: (details.blockTime || tx.blockTime || 0) * 1000 || Date.now(),
-                status: details.meta?.err ? 'failed' : 'success',
-                isNew: false
-              };
-              
-              whaleTxs.push(whaleTx);
-            }
-          }
-        } catch (e) {
-          // Skip if can't fetch details
-        }
-        
-        // Limit to prevent too many RPC calls
-        if (whaleTxs.length >= 20) break;
+      // Get current slot
+      const currentSlot = await X1Rpc.getSlot();
+      
+      // Scan last 10 blocks for large transactions
+      const blockPromises = [];
+      for (let i = 0; i < 10; i++) {
+        blockPromises.push(
+          X1Rpc.getBlock(currentSlot - i, { transactionDetails: 'full' }).catch(() => null)
+        );
       }
       
-      // Sort by amount
+      const blocks = await Promise.all(blockPromises);
+      
+      for (const block of blocks) {
+        if (!block?.transactions) continue;
+        
+        for (const tx of block.transactions) {
+          // Skip vote transactions
+          const message = tx.transaction?.message;
+          const accountKeys = message?.accountKeys || [];
+          const instructions = message?.instructions || [];
+          const signature = tx.transaction?.signatures?.[0];
+          
+          const isVote = instructions.some(ix => {
+            const programId = accountKeys[ix.programIdIndex];
+            return programId === 'Vote111111111111111111111111111111111111111';
+          });
+          
+          if (isVote) continue;
+          
+          // Calculate max balance change
+          const preBalances = tx.meta?.preBalances || [];
+          const postBalances = tx.meta?.postBalances || [];
+          
+          let maxTransfer = 0;
+          let fromIdx = 0;
+          let toIdx = 1;
+          
+          for (let i = 0; i < preBalances.length; i++) {
+            const diff = Math.abs((preBalances[i] - postBalances[i]) / 1e9);
+            if (diff > maxTransfer) {
+              maxTransfer = diff;
+              // Determine from/to based on who lost money
+              if ((preBalances[i] - postBalances[i]) > 0) {
+                fromIdx = i;
+              } else {
+                toIdx = i;
+              }
+            }
+          }
+          
+          // Check if this qualifies as a whale transaction
+          if (maxTransfer >= minAmount) {
+            // Determine transaction type
+            let type = 'transfer';
+            const hasStakeProgram = instructions.some(ix => {
+              const programId = accountKeys[ix.programIdIndex];
+              return programId === 'Stake11111111111111111111111111111111111111';
+            });
+            
+            if (hasStakeProgram) {
+              const firstAccountChange = (postBalances[0] || 0) - (preBalances[0] || 0);
+              type = firstAccountChange < 0 ? 'stake' : 'unstake';
+            }
+            
+            whaleTxs.push({
+              id: signature,
+              signature,
+              from: accountKeys[fromIdx] || '',
+              to: accountKeys[toIdx] || '',
+              amount: maxTransfer,
+              type,
+              slot: block.parentSlot + 1,
+              timestamp: block.blockTime ? block.blockTime * 1000 : Date.now(),
+              status: tx.meta?.err ? 'failed' : 'success',
+              isNew: false
+            });
+          }
+        }
+      }
+      
+      // Sort by amount descending
       whaleTxs.sort((a, b) => b.amount - a.amount);
       
       // Check for new whales and trigger alerts
@@ -220,10 +242,22 @@ export default function WhaleWatcher() {
     const value = parseFloat(customThreshold);
     if (!isNaN(value) && value > 0) {
       setMinAmount(value);
-      setCustomThreshold('');
       // Trigger a new fetch with the new threshold
       setLoading(true);
+      fetchWhaleTransactions();
     }
+  };
+
+  const clearCustomThreshold = () => {
+    setCustomThreshold('');
+    setMinAmount(100000);
+    setLoading(true);
+    fetchWhaleTransactions();
+  };
+
+  const searchWhales = () => {
+    setLoading(true);
+    fetchWhaleTransactions();
   };
 
   return (
@@ -316,19 +350,21 @@ export default function WhaleWatcher() {
                 </Button>
               ))}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
               <Input 
                 type="number"
-                placeholder="Custom"
+                placeholder="Custom amount"
                 value={customThreshold}
                 onChange={(e) => setCustomThreshold(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && applyCustomThreshold()}
-                className="w-28 bg-[#1a2436] border-white/10 text-white"
+                className="w-32 bg-[#1a2436] border-white/10 text-white"
               />
-              <Button onClick={applyCustomThreshold} size="sm" className="bg-cyan-500">Set</Button>
+              <Button onClick={applyCustomThreshold} size="sm" className="bg-cyan-500 hover:bg-cyan-600">Set</Button>
+              <Button onClick={clearCustomThreshold} size="sm" variant="outline" className="border-white/20 text-gray-400 hover:text-white">Clear</Button>
             </div>
+            <span className="text-gray-500 text-sm ml-2">Current: {formatAmount(minAmount)}+ XNT</span>
           </div>
-          <div className="flex items-center gap-2 mt-4">
+          <div className="flex items-center gap-2 mt-4 flex-wrap">
             <span className="text-gray-400 text-sm">Type:</span>
             {['all', 'transfer', 'stake', 'unstake'].map((type) => (
               <Button 
@@ -341,6 +377,12 @@ export default function WhaleWatcher() {
                 {type.charAt(0).toUpperCase() + type.slice(1)}
               </Button>
             ))}
+            <div className="ml-auto">
+              <Button onClick={searchWhales} className="bg-cyan-500 hover:bg-cyan-600">
+                <Fish className="w-4 h-4 mr-2" />
+                Search Whales
+              </Button>
+            </div>
           </div>
         </div>
 

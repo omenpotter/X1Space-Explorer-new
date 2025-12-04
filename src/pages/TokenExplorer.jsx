@@ -197,15 +197,14 @@ export default function TokenExplorer() {
   };
 
   // XNT native token - $1.00 OTC
-  // Max supply is 500M XNT
-  const MAX_SUPPLY = 500000000;
+  // Total supply and circulating supply come from on-chain getSupply RPC
   const xntToken = {
     mint: 'Native XNT',
     name: 'X1 Native Token',
     symbol: 'XNT',
     decimals: 9,
-    totalSupply: MAX_SUPPLY,
-    circulating: supply.circulating,
+    totalSupply: supply.total, // From getSupply RPC
+    circulating: supply.circulating, // From getSupply RPC
     price: 1.00,
     marketCap: supply.circulating * 1.00,
     isNative: true

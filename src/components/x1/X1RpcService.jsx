@@ -6,9 +6,9 @@ import { getCached, setCache, debounceRpc } from './RpcCache';
 
 const RPC_ENDPOINTS = [
   'https://rpc.mainnet.x1.xyz',
+  'https://nexus.fortiblox.com/rpc',
   'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38',
-  'https://rpc.x1galaxy.io/',
-  'https://nexus.fortiblox.com/rpc'
+  'https://rpc.x1galaxy.io/'
 ];
 
 // API keys for authenticated endpoints
@@ -20,6 +20,28 @@ const RPC_AUTH = {
     }
   }
 };
+
+// Test all RPCs and log status
+export async function testAllRPCs() {
+  const results = {};
+  for (const endpoint of RPC_ENDPOINTS) {
+    try {
+      const authConfig = RPC_AUTH[endpoint] || {};
+      const headers = { 'Content-Type': 'application/json', ...(authConfig.headers || {}) };
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getSlot', params: [] })
+      });
+      const data = await response.json();
+      results[endpoint] = data.result ? 'OK - Slot: ' + data.result : 'Error: ' + (data.error?.message || 'Unknown');
+    } catch (err) {
+      results[endpoint] = 'Failed: ' + err.message;
+    }
+  }
+  console.log('RPC Status:', results);
+  return results;
+}
 
 let currentEndpointIndex = 0;
 let lastSuccessfulEndpoint = 0;
