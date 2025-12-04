@@ -151,8 +151,7 @@ export default function Leaderboard() {
                 <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
                   <span className="text-black font-black text-sm">X1</span>
                 </div>
-                <span className="text-white font-bold hidden sm:inline">X1</span>
-                <span className="text-cyan-400 font-bold hidden sm:inline">.space</span>
+                <span className="font-bold hidden sm:inline"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
               </Link>
               <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
             </div>
