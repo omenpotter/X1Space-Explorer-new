@@ -80,8 +80,7 @@ export default function Search() {
                   <span className="text-black font-black text-sm">X1</span>
                 </div>
                 <div className="hidden sm:block">
-                  <span className="text-white font-bold">X1</span>
-                  <span className="text-cyan-400 font-bold">.space</span>
+                  <span className="font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
                 </div>
               </Link>
               <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
