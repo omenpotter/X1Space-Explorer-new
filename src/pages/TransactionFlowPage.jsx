@@ -244,10 +244,10 @@ export default function TransactionFlowPage() {
   };
 
   useEffect(() => {
-    if (address) {
+    if (address && address.length >= 32) {
       fetchTransactions();
     }
-  }, [address, fetchTransactions]);
+  }, [address]);
 
   const handleSearch = () => {
     if (inputAddress && inputAddress.length >= 32) {

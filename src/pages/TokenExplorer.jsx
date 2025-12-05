@@ -59,32 +59,55 @@ export default function TokenExplorer() {
     fetchData();
   }, []);
 
-  // Fetch all SPL tokens on the chain
+  // Fetch all SPL tokens on the chain - try all RPCs
   const fetchAllTokens = async () => {
     setLoadingTokens(true);
     try {
-      // Get largest token accounts to find active tokens
-      const response = await fetch('https://rpc.mainnet.x1.xyz', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'getProgramAccounts',
-          params: [
-            'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-            {
-              encoding: 'jsonParsed',
-              filters: [
-                { dataSize: 82 } // Token mint accounts are 82 bytes
-              ]
-            }
-          ]
-        })
-      });
+      const rpcEndpoints = [
+        'https://rpc.mainnet.x1.xyz',
+        'https://nexus.fortiblox.com/rpc',
+        'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38',
+        'https://rpc.x1galaxy.io/'
+      ];
       
-      const data = await response.json();
-      if (data.result) {
+      let data = null;
+      for (const rpc of rpcEndpoints) {
+        try {
+          const headers = { 'Content-Type': 'application/json' };
+          if (rpc.includes('fortiblox')) {
+            headers['X-API-Key'] = 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0';
+            headers['Authorization'] = 'Bearer fbx_d4a25e545366fed1ea1582884e62874d6b9fdf94d1f6c4b9889fefa951300dff';
+          }
+          
+          const response = await fetch(rpc, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'getProgramAccounts',
+              params: [
+                'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+                {
+                  encoding: 'jsonParsed',
+                  filters: [{ dataSize: 82 }]
+                }
+              ]
+            })
+          });
+          
+          data = await response.json();
+          if (data.result && data.result.length > 0) {
+            console.log(`Fetched ${data.result.length} tokens from ${rpc}`);
+            break;
+          }
+        } catch (e) {
+          console.log(`Failed to fetch from ${rpc}:`, e.message);
+          continue;
+        }
+      }
+      
+      if (data?.result) {
         const tokenList = data.result
           .map(acc => {
             const info = acc.account?.data?.parsed?.info;
@@ -94,7 +117,6 @@ export default function TokenExplorer() {
             const rawSupply = info.supply ? BigInt(info.supply) : BigInt(0);
             const totalSupply = Number(rawSupply) / Math.pow(10, decimals);
             
-            // Filter out tokens with 0 supply
             if (totalSupply === 0) return null;
             
             return {
@@ -113,9 +135,12 @@ export default function TokenExplorer() {
           })
           .filter(t => t !== null)
           .sort((a, b) => b.totalSupply - a.totalSupply)
-          .slice(0, 100); // Show top 100 tokens by supply
+          .slice(0, 200);
         
         setAllTokens(tokenList);
+        console.log(`Loaded ${tokenList.length} SPL tokens`);
+      } else {
+        console.warn('No tokens found from any RPC');
       }
     } catch (err) {
       console.error('Failed to fetch tokens:', err);

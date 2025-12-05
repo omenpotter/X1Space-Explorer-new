@@ -191,11 +191,14 @@ export default function WhaleWatcher() {
 
   useEffect(() => {
     fetchWhaleTransactions();
+  }, [fetchWhaleTransactions]);
+
+  useEffect(() => {
     if (isLive) {
       const interval = setInterval(fetchWhaleTransactions, 15000); // Every 15 seconds
       return () => clearInterval(interval);
     }
-  }, [isLive, minAmount]);
+  }, [isLive, fetchWhaleTransactions]);
 
   const formatAmount = (amount) => {
     if (amount >= 1e6) return (amount / 1e6).toFixed(2) + 'M';
