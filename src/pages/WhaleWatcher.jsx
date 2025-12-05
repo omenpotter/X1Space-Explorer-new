@@ -82,108 +82,85 @@ export default function WhaleWatcher() {
     });
   }, [alertsEnabled, soundEnabled]);
 
-  // Fetch whale transactions from RPC - scan multiple blocks for large transfers
+  // Fetch whale transactions - fast scan of recent blocks
   const fetchWhaleTransactions = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
+      const currentSlot = await X1Rpc.getSlot();
       const whaleTxs = [];
       
-      // Get current slot
-      const currentSlot = await X1Rpc.getSlot();
-      
-      // Scan last 10 blocks for large transactions
-      const blockPromises = [];
-      for (let i = 0; i < 10; i++) {
-        blockPromises.push(
-          X1Rpc.getBlock(currentSlot - i, { transactionDetails: 'full' }).catch(() => null)
-        );
-      }
-      
-      const blocks = await Promise.all(blockPromises);
-      
-      for (const block of blocks) {
-        if (!block?.transactions) continue;
-        
-        for (const tx of block.transactions) {
-          // Skip vote transactions
-          const message = tx.transaction?.message;
-          const accountKeys = message?.accountKeys || [];
-          const instructions = message?.instructions || [];
-          const signature = tx.transaction?.signatures?.[0];
+      // Scan last 20 blocks quickly
+      for (let i = 0; i < 20; i++) {
+        try {
+          const block = await X1Rpc.getBlock(currentSlot - i, { transactionDetails: 'full' });
+          if (!block?.transactions) continue;
           
-          const isVote = instructions.some(ix => {
-            const programId = accountKeys[ix.programIdIndex];
-            return programId === 'Vote111111111111111111111111111111111111111';
-          });
-          
-          if (isVote) continue;
-          
-          // Calculate max balance change
-          const preBalances = tx.meta?.preBalances || [];
-          const postBalances = tx.meta?.postBalances || [];
-          
-          let maxTransfer = 0;
-          let fromIdx = 0;
-          let toIdx = 1;
-          
-          for (let i = 0; i < preBalances.length; i++) {
-            const diff = Math.abs((preBalances[i] - postBalances[i]) / 1e9);
-            if (diff > maxTransfer) {
-              maxTransfer = diff;
-              // Determine from/to based on who lost money
-              if ((preBalances[i] - postBalances[i]) > 0) {
-                fromIdx = i;
-              } else {
-                toIdx = i;
+          block.transactions.forEach(tx => {
+            const message = tx.transaction?.message;
+            const accountKeys = message?.accountKeys || [];
+            const instructions = message?.instructions || [];
+            
+            // Skip votes
+            const isVote = instructions.some(ix => accountKeys[ix.programIdIndex] === 'Vote111111111111111111111111111111111111111');
+            if (isVote) return;
+            
+            // Get balance changes
+            const preBalances = tx.meta?.preBalances || [];
+            const postBalances = tx.meta?.postBalances || [];
+            let maxTransfer = 0, fromIdx = 0, toIdx = 1;
+            
+            for (let j = 0; j < preBalances.length; j++) {
+              const diff = Math.abs((preBalances[j] - postBalances[j]) / 1e9);
+              if (diff > maxTransfer) {
+                maxTransfer = diff;
+                fromIdx = (preBalances[j] - postBalances[j]) > 0 ? j : toIdx;
+                toIdx = (preBalances[j] - postBalances[j]) > 0 ? toIdx : j;
               }
             }
-          }
-          
-          // Check if this qualifies as a whale transaction
-          if (maxTransfer >= minAmount) {
-            // Determine transaction type
-            let type = 'transfer';
-            const hasStakeProgram = instructions.some(ix => {
-              const programId = accountKeys[ix.programIdIndex];
-              return programId === 'Stake11111111111111111111111111111111111111';
-            });
             
-            if (hasStakeProgram) {
-              const firstAccountChange = (postBalances[0] || 0) - (preBalances[0] || 0);
-              type = firstAccountChange < 0 ? 'stake' : 'unstake';
+            if (maxTransfer >= minAmount) {
+              let type = 'transfer';
+              if (instructions.some(ix => accountKeys[ix.programIdIndex] === 'Stake11111111111111111111111111111111111111')) {
+                type = (postBalances[0] - preBalances[0]) < 0 ? 'stake' : 'unstake';
+              }
+              
+              whaleTxs.push({
+                id: tx.transaction.signatures[0],
+                signature: tx.transaction.signatures[0],
+                from: accountKeys[fromIdx] || '',
+                to: accountKeys[toIdx] || '',
+                amount: maxTransfer,
+                type,
+                slot: currentSlot - i,
+                timestamp: block.blockTime ? block.blockTime * 1000 : Date.now(),
+                status: tx.meta?.err ? 'failed' : 'success',
+                isNew: false
+              });
             }
-            
-            whaleTxs.push({
-              id: signature,
-              signature,
-              from: accountKeys[fromIdx] || '',
-              to: accountKeys[toIdx] || '',
-              amount: maxTransfer,
-              type,
-              slot: block.parentSlot + 1,
-              timestamp: block.blockTime ? block.blockTime * 1000 : Date.now(),
-              status: tx.meta?.err ? 'failed' : 'success',
-              isNew: false
-            });
-          }
+          });
+          
+          if (whaleTxs.length >= 50) break; // Limit results
+        } catch (e) {
+          console.log(`Block ${currentSlot - i} error:`, e.message);
         }
       }
       
-      // Sort by amount descending
       whaleTxs.sort((a, b) => b.amount - a.amount);
       
-      // Check for new whales and trigger alerts
+      // Mark new transactions
       const prevIds = new Set(transactions.map(t => t.id));
       whaleTxs.forEach(tx => {
-        if (!prevIds.has(tx.id) && tx.amount >= minAmount) {
+        if (!prevIds.has(tx.id)) {
           tx.isNew = true;
-          triggerAlert(tx);
+          if (tx.amount >= minAmount) triggerAlert(tx);
         }
       });
       
       setTransactions(whaleTxs);
+      console.log(`Found ${whaleTxs.length} whale transactions >= ${minAmount} XNT`);
     } catch (err) {
       console.error('Whale fetch error:', err);
+      setTransactions([]);
     } finally {
       setLoading(false);
     }

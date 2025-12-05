@@ -43,19 +43,19 @@ export default function TransactionFlowPage() {
     setError(null);
     
     try {
-      // First check if address exists and get balance
-      const balanceResult = await X1Rpc.getBalance(address);
+      // Get balance and signatures in parallel
+      const [balanceResult, signatures] = await Promise.all([
+        X1Rpc.getBalance(address).catch(() => ({ value: 0 })),
+        X1Rpc.getSignaturesForAddress(address, { limit: 50 }).catch(() => [])
+      ]);
+      
       const balance = (balanceResult?.value || 0) / 1e9;
       
-      // Get signatures for address
-      const signatures = await X1Rpc.getSignaturesForAddress(address, { limit: 100 });
-      
       if (!signatures || signatures.length === 0) {
-        // Address exists but no transactions - show balance only
         if (balance > 0) {
-          setError(`Address has ${balance.toFixed(4)} XNT but no recent transaction history found.`);
+          setError(`Address has ${balance.toFixed(4)} XNT but no transaction history available.`);
         } else {
-          setError('No transactions found for this address. The address may be new or have no activity.');
+          setError('No transactions found. Address may be new or inactive.');
         }
         setTransactions([]);
         buildFlowData([], address);
@@ -63,113 +63,100 @@ export default function TransactionFlowPage() {
         return;
       }
       
-      const txDetails = [];
-      // Fetch transactions in parallel batches
-      const batchSize = 5;
-      for (let i = 0; i < Math.min(signatures.length, 30); i += batchSize) {
-        const batch = signatures.slice(i, i + batchSize);
-        const batchResults = await Promise.allSettled(
-          batch.map(sig => X1Rpc.getTransaction(sig.signature))
-        );
-        
-        batchResults.forEach((result, idx) => {
-          if (result.status === 'fulfilled' && result.value) {
-            const tx = result.value;
-            const sig = batch[idx];
-            const message = tx.transaction?.message;
-            const accountKeys = message?.accountKeys || [];
-            const instructions = message?.instructions || [];
-            const preBalances = tx.meta?.preBalances || [];
-            const postBalances = tx.meta?.postBalances || [];
-            
-            // Determine type
-            let type = 'other';
-            
-            for (const ix of instructions) {
-              const programId = accountKeys[ix.programIdIndex];
-              if (programId === 'Vote111111111111111111111111111111111111111') {
-                type = 'vote';
-                break;
-              } else if (programId === '11111111111111111111111111111111') {
-                type = 'transfer';
-              } else if (programId === 'Stake11111111111111111111111111111111111111') {
-                type = 'stake';
-              } else if (programId === 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') {
-                type = 'token';
-              }
-            }
-            
-            // Find the searched address in account keys and calculate its balance change
-            let amount = 0;
-            let from = '';
-            let to = '';
-            let addressIdx = -1;
-            
-            for (let i = 0; i < accountKeys.length; i++) {
-              if (accountKeys[i] === address) {
-                addressIdx = i;
-                const change = (postBalances[i] - preBalances[i]) / 1e9;
-                amount = Math.abs(change);
-                
-                if (change > 0) {
-                  // Incoming - address received funds
-                  to = address;
-                  // Find who sent (largest outgoing balance change)
-                  let maxOut = 0;
-                  for (let j = 0; j < accountKeys.length; j++) {
-                    if (j !== i) {
-                      const outChange = (preBalances[j] - postBalances[j]) / 1e9;
-                      if (outChange > maxOut) {
-                        maxOut = outChange;
-                        from = accountKeys[j];
-                      }
-                    }
-                  }
-                } else if (change < 0) {
-                  // Outgoing - address sent funds
-                  from = address;
-                  // Find who received (largest incoming balance change)
-                  let maxIn = 0;
-                  for (let j = 0; j < accountKeys.length; j++) {
-                    if (j !== i) {
-                      const inChange = (postBalances[j] - preBalances[j]) / 1e9;
-                      if (inChange > maxIn) {
-                        maxIn = inChange;
-                        to = accountKeys[j];
-                      }
-                    }
-                  }
-                }
-                break;
-              }
-            }
-            
-            // Include all transactions, even vote transactions for completeness
-            txDetails.push({
-              signature: sig.signature,
-              slot: sig.slot,
-              blockTime: sig.blockTime || tx.blockTime,
-              type,
-              amount,
-              from: from || accountKeys[0] || '',
-              to: to || accountKeys[1] || '',
-              status: tx.meta?.err ? 'failed' : 'success',
-              fee: (tx.meta?.fee || 0) / 1e9,
-              accountKeys
-            });
-          }
-        });
-      }
+      console.log(`Fetching ${signatures.length} transactions for ${address.substring(0, 8)}...`);
       
-      if (txDetails.length === 0 && signatures.length > 0) {
-        setError('Found ' + signatures.length + ' signatures but could not fetch transaction details from RPC.');
+      const txDetails = [];
+      // Parallel fetch with Promise.all for speed
+      const txPromises = signatures.slice(0, 30).map(sig => 
+        X1Rpc.getTransaction(sig.signature)
+          .then(tx => ({ sig, tx }))
+          .catch(() => null)
+      );
+      
+      const results = await Promise.all(txPromises);
+      
+      results.forEach(result => {
+        if (!result?.tx) return;
+        
+        const { sig, tx } = result;
+        const message = tx.transaction?.message;
+        const accountKeys = message?.accountKeys || [];
+        const instructions = message?.instructions || [];
+        const preBalances = tx.meta?.preBalances || [];
+        const postBalances = tx.meta?.postBalances || [];
+        
+        // Determine type
+        let type = 'other';
+        for (const ix of instructions) {
+          const programId = accountKeys[ix.programIdIndex];
+          if (programId === 'Vote111111111111111111111111111111111111111') {
+            type = 'vote';
+            break;
+          } else if (programId === '11111111111111111111111111111111') {
+            type = 'transfer';
+          } else if (programId === 'Stake11111111111111111111111111111111111111') {
+            type = 'stake';
+          } else if (programId === 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') {
+            type = 'token';
+          }
+        }
+        
+        // Calculate amount and direction
+        let amount = 0, from = '', to = '';
+        for (let i = 0; i < accountKeys.length; i++) {
+          if (accountKeys[i] === address) {
+            const change = (postBalances[i] - preBalances[i]) / 1e9;
+            amount = Math.abs(change);
+            
+            if (change > 0) {
+              to = address;
+              // Find sender
+              for (let j = 0; j < accountKeys.length; j++) {
+                if (j !== i && (preBalances[j] - postBalances[j]) / 1e9 > 0) {
+                  from = accountKeys[j];
+                  break;
+                }
+              }
+            } else if (change < 0) {
+              from = address;
+              // Find receiver
+              for (let j = 0; j < accountKeys.length; j++) {
+                if (j !== i && (postBalances[j] - preBalances[j]) / 1e9 > 0) {
+                  to = accountKeys[j];
+                  break;
+                }
+              }
+            }
+            break;
+          }
+        }
+        
+        txDetails.push({
+          signature: sig.signature,
+          slot: sig.slot,
+          blockTime: sig.blockTime || tx.blockTime,
+          type,
+          amount,
+          from: from || accountKeys[0] || '',
+          to: to || accountKeys[1] || '',
+          status: tx.meta?.err ? 'failed' : 'success',
+          fee: (tx.meta?.fee || 0) / 1e9,
+          accountKeys
+        });
+      });
+      
+      console.log(`Loaded ${txDetails.length} transactions`);
+      
+      if (txDetails.length === 0) {
+        setError(`Found ${signatures.length} signatures but couldn't fetch details from RPC.`);
       }
       
       setTransactions(txDetails);
       buildFlowData(txDetails, address);
     } catch (err) {
-      console.error('Transaction flow fetch error:', err);
-      setError('Failed to fetch transactions: ' + err.message);
+      console.error('Transaction flow error:', err);
+      setError('RPC error: ' + err.message);
+      setTransactions([]);
     } finally {
       setLoading(false);
     }
