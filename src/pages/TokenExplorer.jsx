@@ -36,10 +36,16 @@ export default function TokenExplorer() {
           X1Rpc.getVoteAccounts()
         ]);
         
+        const totalSupply = supplyData?.value?.total / 1e9 || 0;
+        const circulatingSupply = supplyData?.value?.circulating / 1e9 || 0;
+        const nonCirculatingSupply = supplyData?.value?.nonCirculating / 1e9 || 0;
+        
+        console.log('Supply from RPC:', { total: totalSupply, circulating: circulatingSupply, nonCirculating: nonCirculatingSupply });
+        
         setSupply({
-          total: supplyData.value.total / 1e9,
-          circulating: supplyData.value.circulating / 1e9,
-          nonCirculating: supplyData.value.nonCirculating / 1e9
+          total: totalSupply,
+          circulating: circulatingSupply,
+          nonCirculating: nonCirculatingSupply
         });
         setEpochInfo(epoch);
         setInflationRate(inflation);
@@ -48,10 +54,10 @@ export default function TokenExplorer() {
           totalStake: voteAccounts.current.reduce((sum, v) => sum + v.activatedStake, 0) / 1e9
         });
         
-        // Fetch SPL tokens from the token program
+        // Fetch SPL tokens
         fetchAllTokens();
       } catch (err) {
-        console.error('Failed to fetch data:', err);
+        console.error('Failed to fetch token data:', err);
       } finally {
         setLoading(false);
       }

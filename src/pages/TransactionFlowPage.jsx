@@ -101,33 +101,50 @@ export default function TransactionFlowPage() {
           }
         }
         
-        // Calculate amount and direction
+        // Calculate amount and direction - find largest transfer
         let amount = 0, from = '', to = '';
+        let addressChange = 0;
+        
+        // Find the address in account keys and its balance change
         for (let i = 0; i < accountKeys.length; i++) {
           if (accountKeys[i] === address) {
-            const change = (postBalances[i] - preBalances[i]) / 1e9;
-            amount = Math.abs(change);
-            
-            if (change > 0) {
-              to = address;
-              // Find sender
-              for (let j = 0; j < accountKeys.length; j++) {
-                if (j !== i && (preBalances[j] - postBalances[j]) / 1e9 > 0) {
-                  from = accountKeys[j];
-                  break;
-                }
-              }
-            } else if (change < 0) {
-              from = address;
-              // Find receiver
-              for (let j = 0; j < accountKeys.length; j++) {
-                if (j !== i && (postBalances[j] - preBalances[j]) / 1e9 > 0) {
-                  to = accountKeys[j];
-                  break;
-                }
-              }
-            }
+            addressChange = (postBalances[i] - preBalances[i]) / 1e9;
             break;
+          }
+        }
+        
+        // Find all balance changes and determine counterparty
+        const changes = [];
+        for (let i = 0; i < accountKeys.length; i++) {
+          const change = (postBalances[i] - preBalances[i]) / 1e9;
+          if (Math.abs(change) > 0.0001 && accountKeys[i] !== address) { // Min 0.0001 XNT
+            changes.push({ address: accountKeys[i], change, index: i });
+          }
+        }
+        
+        // Sort by absolute change to find the main counterparty
+        changes.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+        
+        if (addressChange > 0) {
+          // Address received
+          to = address;
+          amount = Math.abs(addressChange);
+          // Find who sent (negative change)
+          const sender = changes.find(c => c.change < 0);
+          from = sender ? sender.address : accountKeys[0];
+        } else if (addressChange < 0) {
+          // Address sent
+          from = address;
+          amount = Math.abs(addressChange);
+          // Find who received (positive change)
+          const receiver = changes.find(c => c.change > 0);
+          to = receiver ? receiver.address : accountKeys[1];
+        } else {
+          // No direct balance change - might be a contract interaction
+          if (changes.length > 0) {
+            amount = Math.abs(changes[0].change);
+            from = changes[0].change < 0 ? changes[0].address : address;
+            to = changes[0].change > 0 ? changes[0].address : address;
           }
         }
         

@@ -13,7 +13,7 @@ import X1Rpc from '../components/x1/X1RpcService';
 export default function WhaleWatcher() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [minAmount, setMinAmount] = useState(100000);
+  const [minAmount, setMinAmount] = useState(10000); // Lower default threshold
   const [alertsEnabled, setAlertsEnabled] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [isLive, setIsLive] = useState(true);
@@ -82,84 +82,113 @@ export default function WhaleWatcher() {
     });
   }, [alertsEnabled, soundEnabled]);
 
-  // Fetch whale transactions - fast scan of recent blocks
+  // Fetch whale transactions - scan recent blocks for large transfers
   const fetchWhaleTransactions = useCallback(async () => {
     setLoading(true);
     try {
       const currentSlot = await X1Rpc.getSlot();
       const whaleTxs = [];
       
-      // Scan last 20 blocks quickly
-      for (let i = 0; i < 20; i++) {
+      // Scan last 30 blocks
+      for (let i = 0; i < 30; i++) {
         try {
           const block = await X1Rpc.getBlock(currentSlot - i, { transactionDetails: 'full' });
           if (!block?.transactions) continue;
           
           block.transactions.forEach(tx => {
-            const message = tx.transaction?.message;
+            if (!tx.transaction || !tx.meta) return;
+            
+            const message = tx.transaction.message;
             const accountKeys = message?.accountKeys || [];
             const instructions = message?.instructions || [];
+            const preBalances = tx.meta.preBalances || [];
+            const postBalances = tx.meta.postBalances || [];
             
-            // Skip votes
-            const isVote = instructions.some(ix => accountKeys[ix.programIdIndex] === 'Vote111111111111111111111111111111111111111');
+            // Skip vote transactions
+            const isVote = instructions.some(ix => {
+              const programId = accountKeys[ix.programIdIndex];
+              return programId === 'Vote111111111111111111111111111111111111111';
+            });
             if (isVote) return;
             
-            // Get balance changes
-            const preBalances = tx.meta?.preBalances || [];
-            const postBalances = tx.meta?.postBalances || [];
-            let maxTransfer = 0, fromIdx = 0, toIdx = 1;
+            // Find largest balance change (excluding fee payer account which is idx 0)
+            let maxTransfer = 0;
+            let fromIdx = -1;
+            let toIdx = -1;
             
             for (let j = 0; j < preBalances.length; j++) {
-              const diff = Math.abs((preBalances[j] - postBalances[j]) / 1e9);
-              if (diff > maxTransfer) {
-                maxTransfer = diff;
-                fromIdx = (preBalances[j] - postBalances[j]) > 0 ? j : toIdx;
-                toIdx = (preBalances[j] - postBalances[j]) > 0 ? toIdx : j;
+              const balanceChange = (postBalances[j] - preBalances[j]) / 1e9;
+              const absChange = Math.abs(balanceChange);
+              
+              if (absChange > maxTransfer && absChange > 0.01) { // Min 0.01 XNT
+                maxTransfer = absChange;
+                if (balanceChange < 0) {
+                  fromIdx = j; // This account sent
+                } else {
+                  toIdx = j; // This account received
+                }
               }
             }
             
-            if (maxTransfer >= minAmount) {
+            // Check if qualifies as whale transaction
+            if (maxTransfer >= minAmount && fromIdx >= 0) {
+              // Find recipient (who gained the most)
+              if (toIdx < 0) {
+                let maxGain = 0;
+                for (let j = 0; j < preBalances.length; j++) {
+                  const gain = (postBalances[j] - preBalances[j]) / 1e9;
+                  if (gain > maxGain && j !== fromIdx) {
+                    maxGain = gain;
+                    toIdx = j;
+                  }
+                }
+              }
+              
+              // Determine type
               let type = 'transfer';
-              if (instructions.some(ix => accountKeys[ix.programIdIndex] === 'Stake11111111111111111111111111111111111111')) {
+              const hasStakeProgram = instructions.some(ix => 
+                accountKeys[ix.programIdIndex] === 'Stake11111111111111111111111111111111111111'
+              );
+              if (hasStakeProgram) {
                 type = (postBalances[0] - preBalances[0]) < 0 ? 'stake' : 'unstake';
               }
               
               whaleTxs.push({
                 id: tx.transaction.signatures[0],
                 signature: tx.transaction.signatures[0],
-                from: accountKeys[fromIdx] || '',
-                to: accountKeys[toIdx] || '',
+                from: accountKeys[fromIdx] || accountKeys[0] || '',
+                to: accountKeys[toIdx] || accountKeys[1] || '',
                 amount: maxTransfer,
                 type,
                 slot: currentSlot - i,
                 timestamp: block.blockTime ? block.blockTime * 1000 : Date.now(),
-                status: tx.meta?.err ? 'failed' : 'success',
+                status: tx.meta.err ? 'failed' : 'success',
                 isNew: false
               });
             }
           });
           
-          if (whaleTxs.length >= 50) break; // Limit results
+          if (whaleTxs.length >= 50) break;
         } catch (e) {
-          console.log(`Block ${currentSlot - i} error:`, e.message);
+          // Skip failed blocks
         }
       }
       
       whaleTxs.sort((a, b) => b.amount - a.amount);
       
-      // Mark new transactions
+      // Mark new ones
       const prevIds = new Set(transactions.map(t => t.id));
       whaleTxs.forEach(tx => {
         if (!prevIds.has(tx.id)) {
           tx.isNew = true;
-          if (tx.amount >= minAmount) triggerAlert(tx);
+          triggerAlert(tx);
         }
       });
       
       setTransactions(whaleTxs);
-      console.log(`Found ${whaleTxs.length} whale transactions >= ${minAmount} XNT`);
+      console.log(`Loaded ${whaleTxs.length} whale transactions >= ${formatAmount(minAmount)} XNT`);
     } catch (err) {
-      console.error('Whale fetch error:', err);
+      console.error('Whale watcher error:', err);
       setTransactions([]);
     } finally {
       setLoading(false);
@@ -318,7 +347,7 @@ export default function WhaleWatcher() {
               <span className="text-gray-400 text-sm">Min Amount:</span>
             </div>
             <div className="flex gap-2">
-              {[100000, 500000, 1000000, 5000000].map((val) => (
+              {[10000, 50000, 100000, 500000].map((val) => (
                 <Button 
                   key={val} 
                   variant="outline" 
