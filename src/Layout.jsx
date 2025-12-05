@@ -27,7 +27,7 @@ export default function Layout({ children, currentPageName }) {
                 <span className="text-black font-black text-xs">X1</span>
               </div>
               <span className="text-sm font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
-              <span className="text-gray-500 text-xs ml-2">© 2024</span>
+              <span className="text-gray-500 text-xs ml-2">© 2025-2026</span>
             </div>
             
             <div className="flex items-center gap-4">
