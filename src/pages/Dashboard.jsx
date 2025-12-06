@@ -312,16 +312,7 @@ export default function Dashboard() {
                   </svg>
                 </Button>
               </Link>
-              <Link to={createPageUrl('Analytics')}>
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M3 3v18h18" />
-                    <path d="M18 17V9" />
-                    <path d="M13 17V5" />
-                    <path d="M8 17v-3" />
-                  </svg>
-                </Button>
-              </Link>
+
               <Link to={createPageUrl('TokenExplorer')}>
                 <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg">
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
