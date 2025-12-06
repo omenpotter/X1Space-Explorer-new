@@ -30,45 +30,46 @@ export default function TokenExplorer() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [supplyData, epoch, inflation, voteAccounts] = await Promise.all([
-          X1Rpc.getSupply(),
+        // Fetch with explicit RPC call
+        const supplyData = await X1Rpc.getSupply();
+        console.log('RAW Supply Response:', JSON.stringify(supplyData, null, 2));
+        
+        const [epoch, inflation, voteAccounts] = await Promise.all([
           X1Rpc.getEpochInfo(),
           X1Rpc.getInflationRate().catch(() => null),
           X1Rpc.getVoteAccounts()
         ]);
         
-        // Handle different RPC response formats
+        // Parse supply - handle all possible formats
         let totalSupply = 0;
         let circulatingSupply = 0;
         let nonCirculatingSupply = 0;
         
         if (supplyData?.value) {
-          totalSupply = Number(supplyData.value.total || 0) / 1e9;
-          circulatingSupply = Number(supplyData.value.circulating || 0) / 1e9;
-          nonCirculatingSupply = Number(supplyData.value.nonCirculating || 0) / 1e9;
-        } else if (supplyData?.total) {
-          // Alternative format
+          // Standard Solana format
+          const val = supplyData.value;
+          totalSupply = Number(val.total || 0) / 1e9;
+          circulatingSupply = Number(val.circulating || 0) / 1e9;
+          nonCirculatingSupply = Number(val.nonCirculating || 0) / 1e9;
+        } else if (typeof supplyData === 'object' && supplyData.total) {
+          // Direct format
           totalSupply = Number(supplyData.total || 0) / 1e9;
           circulatingSupply = Number(supplyData.circulating || 0) / 1e9;
           nonCirculatingSupply = Number(supplyData.nonCirculating || 0) / 1e9;
         }
         
-        console.log('XNT Supply from RPC:', { 
-          total: totalSupply, 
-          circulating: circulatingSupply, 
-          nonCirculating: nonCirculatingSupply, 
-          rawValue: supplyData?.value,
-          rawData: supplyData 
-        });
+        console.log('✓ Parsed Supply:', { totalSupply, circulatingSupply, nonCirculatingSupply });
         
-        // Debug: Check if supply is loaded correctly
-        console.log('Final supply state:', { totalSupply, circulatingSupply, nonCirculatingSupply });
+        // IMPORTANT: Set state immediately
+        const finalSupply = {
+          total: totalSupply || 0,
+          circulating: circulatingSupply || 0,
+          nonCirculating: nonCirculatingSupply || 0
+        };
         
-        setSupply({
-          total: totalSupply,
-          circulating: circulatingSupply,
-          nonCirculating: nonCirculatingSupply
-        });
+        setSupply(finalSupply);
+        console.log('✓ Supply state set:', finalSupply);
+        
         setEpochInfo(epoch);
         setInflationRate(inflation);
         setValidators({
@@ -76,15 +77,16 @@ export default function TokenExplorer() {
           totalStake: voteAccounts.current.reduce((sum, v) => sum + v.activatedStake, 0) / 1e9
         });
         
-        // Fetch SPL tokens
-        fetchAllTokens();
+        // Fetch SPL tokens after main data
+        setTimeout(() => fetchAllTokens(), 500);
       } catch (err) {
-        console.error('Failed to fetch token data:', err);
+        console.error('❌ Failed to fetch token data:', err);
       } finally {
         setLoading(false);
       }
     };
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fetch all SPL tokens - try all RPCs aggressively
@@ -308,20 +310,28 @@ export default function TokenExplorer() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-black/20 rounded-lg p-3">
               <p className="text-gray-400 text-xs">Total Supply</p>
-              <p className="text-xl font-bold text-white">{formatSupply(xntToken.totalSupply)} XNT</p>
+              <p className="text-xl font-bold text-white">
+                {supply.total > 0 ? formatSupply(supply.total) : '...'} XNT
+              </p>
             </div>
             <div className="bg-black/20 rounded-lg p-3">
               <p className="text-gray-400 text-xs">Circulating Supply</p>
-              <p className="text-xl font-bold text-cyan-400">{formatSupply(xntToken.circulating)} XNT</p>
+              <p className="text-xl font-bold text-cyan-400">
+                {supply.circulating > 0 ? formatSupply(supply.circulating) : '...'} XNT
+              </p>
             </div>
             <div className="bg-black/20 rounded-lg p-3">
               <p className="text-gray-400 text-xs">Market Cap (OTC)</p>
-              <p className="text-xl font-bold text-white">${formatSupply(xntToken.marketCap)}</p>
+              <p className="text-xl font-bold text-white">
+                ${supply.circulating > 0 ? formatSupply(supply.circulating * 1.00) : '...'}
+              </p>
             </div>
             <div className="bg-black/20 rounded-lg p-3">
               <p className="text-gray-400 text-xs">Staked</p>
               <p className="text-xl font-bold text-emerald-400">{formatSupply(validators.totalStake)} XNT</p>
-              <p className="text-gray-500 text-xs">{((validators.totalStake / supply.circulating) * 100).toFixed(1)}% of supply</p>
+              <p className="text-gray-500 text-xs">
+                {supply.circulating > 0 ? ((validators.totalStake / supply.circulating) * 100).toFixed(1) : '0'}% of supply
+              </p>
             </div>
           </div>
         </div>
@@ -428,9 +438,15 @@ export default function TokenExplorer() {
                     <span className="text-emerald-400 font-mono">${xntToken.price.toFixed(2)}</span>
                     <Badge className="ml-2 bg-emerald-500/20 text-emerald-400 border-0 text-[10px]">OTC</Badge>
                   </td>
-                  <td className="px-4 py-3 text-right text-white font-mono">${formatSupply(xntToken.marketCap)}</td>
-                  <td className="px-4 py-3 text-right text-gray-400 font-mono">{formatSupply(xntToken.totalSupply)}</td>
-                  <td className="px-4 py-3 text-right text-cyan-400 font-mono">{formatSupply(xntToken.circulating)}</td>
+                  <td className="px-4 py-3 text-right text-white font-mono">
+                    ${supply.circulating > 0 ? formatSupply(supply.circulating * 1.00) : '...'}
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-400 font-mono">
+                    {supply.total > 0 ? formatSupply(supply.total) : '...'} XNT
+                  </td>
+                  <td className="px-4 py-3 text-right text-cyan-400 font-mono">
+                    {supply.circulating > 0 ? formatSupply(supply.circulating) : '...'} XNT
+                  </td>
                   <td className="px-4 py-3 text-center text-gray-400">{xntToken.decimals}</td>
                 </tr>
                 

@@ -211,10 +211,13 @@ export default function WhaleWatcher() {
 
   useEffect(() => {
     if (isLive) {
-      const interval = setInterval(fetchWhaleTransactions, 15000); // Every 15 seconds
+      const interval = setInterval(() => {
+        fetchWhaleTransactions();
+      }, 15000); // Every 15 seconds
       return () => clearInterval(interval);
     }
-  }, [isLive, fetchWhaleTransactions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLive, minAmount]);
 
   const formatAmount = (amount) => {
     if (amount >= 1e6) return (amount / 1e6).toFixed(2) + 'M';
@@ -604,12 +607,59 @@ export default function WhaleWatcher() {
         {/* Alert History */}
         {alertHistory.length > 0 && (
           <div className="mt-6 bg-[#0d1525] border border-white/10 rounded-lg p-4">
-            <h3 className="text-white font-medium mb-3">Recent Alerts ({alertHistory.length})</h3>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {alertHistory.slice(0, 10).map((alert, i) => (
-                <div key={i} className="flex items-center justify-between text-sm bg-[#1a2436] rounded px-3 py-2">
-                  <span className="text-gray-400">{formatAmount(alert.amount)} XNT {alert.type}</span>
-                  <span className="text-gray-500">{formatTime(alert.alertTime)}</span>
+            <h3 className="text-white font-medium mb-3 flex items-center gap-2">
+              <Bell className="w-4 h-4 text-cyan-400" />
+              Recent Alerts ({alertHistory.length})
+            </h3>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {alertHistory.slice(0, 15).map((alert, i) => (
+                <div key={i} className="bg-[#1a2436] border border-white/5 rounded-lg px-4 py-3 hover:bg-[#1f2d45] transition-colors">
+                  <div className="flex items-center justify-between mb-2">
+                    <Badge className={`${getTypeColor(alert.type)} border-0 flex items-center gap-1`}>
+                      {getTypeIcon(alert.type)}
+                      {alert.type}
+                    </Badge>
+                    <span className="text-gray-500 text-xs">{formatTime(alert.alertTime)}</span>
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400">Amount:</span>
+                      <span className="text-white font-mono font-bold">{formatAmount(alert.amount)} XNT</span>
+                    </div>
+                    {alert.from && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-400">From:</span>
+                        <Link 
+                          to={createPageUrl('AddressLookup') + `?address=${alert.from}`}
+                          className="text-cyan-400 hover:underline font-mono"
+                        >
+                          {alert.from.substring(0, 8)}...{alert.from.slice(-6)}
+                        </Link>
+                      </div>
+                    )}
+                    {alert.to && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-400">To:</span>
+                        <Link 
+                          to={createPageUrl('AddressLookup') + `?address=${alert.to}`}
+                          className="text-emerald-400 hover:underline font-mono"
+                        >
+                          {alert.to.substring(0, 8)}...{alert.to.slice(-6)}
+                        </Link>
+                      </div>
+                    )}
+                    {alert.slot && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-400">Slot:</span>
+                        <Link 
+                          to={createPageUrl('BlockDetail') + `?slot=${alert.slot}`}
+                          className="text-gray-300 hover:text-cyan-400 font-mono"
+                        >
+                          {alert.slot.toLocaleString()}
+                        </Link>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
