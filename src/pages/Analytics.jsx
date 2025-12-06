@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, TrendingUp, Activity, Users, Zap, BarChart3, Loader2 } from 'lucide-react';
+import { ChevronLeft, TrendingUp, Activity, Users, Zap, BarChart3, Loader2, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from 'recharts';
@@ -10,23 +10,66 @@ import X1Rpc from '../components/x1/X1RpcService';
 export default function Analytics() {
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('24h');
+  const [compareRange, setCompareRange] = useState(null);
   const [networkData, setNetworkData] = useState({
     totalTxs: 0,
     activeAddresses: 0,
     avgTps: 0,
     validators: 0
   });
+  const [prevNetworkData, setPrevNetworkData] = useState(null);
   const [tpsHistory, setTpsHistory] = useState([]);
   const [txTypeDistribution, setTxTypeDistribution] = useState([]);
   const [validatorPerformance, setValidatorPerformance] = useState([]);
   const [gasUsage, setGasUsage] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [showAlerts, setShowAlerts] = useState(true);
 
   useEffect(() => {
     fetchAnalytics();
+    
+    // Real-time updates every 10 seconds
+    const interval = setInterval(() => {
+      fetchAnalytics(true);
+    }, 10000);
+    
+    return () => clearInterval(interval);
   }, [timeRange]);
 
-  const fetchAnalytics = async () => {
-    setLoading(true);
+  const checkForAlerts = (newData, oldData) => {
+    const newAlerts = [];
+    
+    if (oldData) {
+      // TPS surge detection
+      if (newData.avgTps > oldData.avgTps * 1.5) {
+        newAlerts.push({
+          id: Date.now(),
+          type: 'surge',
+          message: `TPS surge detected: ${newData.avgTps} (up ${((newData.avgTps / oldData.avgTps - 1) * 100).toFixed(0)}%)`,
+          severity: 'warning',
+          timestamp: Date.now()
+        });
+      }
+      
+      // Transaction drop
+      if (newData.totalTxs < oldData.totalTxs * 0.7) {
+        newAlerts.push({
+          id: Date.now() + 1,
+          type: 'drop',
+          message: `Transaction volume dropped significantly`,
+          severity: 'error',
+          timestamp: Date.now()
+        });
+      }
+    }
+    
+    if (newAlerts.length > 0) {
+      setAlerts(prev => [...newAlerts, ...prev].slice(0, 10));
+    }
+  };
+
+  const fetchAnalytics = async (isUpdate = false) => {
+    if (!isUpdate) setLoading(true);
     try {
       const [currentSlot, performance, validators, blocks] = await Promise.all([
         X1Rpc.getSlot(),
@@ -39,12 +82,20 @@ export default function Analytics() {
       const totalTxs = performance.reduce((sum, s) => sum + s.numTransactions, 0);
       const avgTps = Math.round(performance.reduce((sum, s) => sum + (s.numTransactions / s.samplePeriodSecs), 0) / performance.length);
       
-      setNetworkData({
+      const newData = {
         totalTxs,
         activeAddresses: Math.floor(Math.random() * 50000) + 100000,
         avgTps,
         validators: validators.length
-      });
+      };
+      
+      // Check for alerts before updating
+      if (isUpdate) {
+        checkForAlerts(newData, networkData);
+      }
+      
+      setPrevNetworkData(networkData);
+      setNetworkData(newData);
 
       // TPS History
       const tpsData = performance.map((s, i) => ({
@@ -119,28 +170,62 @@ export default function Analytics() {
                 <span className="font-bold"><span className="text-cyan-400">X1</span>Space</span>
               </Link>
             </div>
-            <div className="flex gap-2">
-              {['1h', '24h', '7d'].map(range => (
+            <div className="flex gap-3 items-center">
+              <div className="flex gap-2">
+                {['1h', '24h', '7d', '30d'].map(range => (
+                  <Button
+                    key={range}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setTimeRange(range)}
+                    className={`border-white/20 ${timeRange === range ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
+                  >
+                    {range}
+                  </Button>
+                ))}
+              </div>
+              <div className="border-l border-white/20 pl-3">
                 <Button
-                  key={range}
                   variant="outline"
                   size="sm"
-                  onClick={() => setTimeRange(range)}
-                  className={`border-white/20 ${timeRange === range ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
+                  onClick={() => setShowAlerts(!showAlerts)}
+                  className="border-white/20 text-gray-400"
                 >
-                  {range}
+                  {showAlerts ? 'Hide' : 'Show'} Alerts
                 </Button>
-              ))}
+              </div>
             </div>
           </div>
         </div>
       </header>
 
       <main className="max-w-[1800px] mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold mb-6 flex items-center gap-3">
-          <BarChart3 className="w-7 h-7 text-cyan-400" />
-          Network Analytics
-        </h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold flex items-center gap-3">
+            <BarChart3 className="w-7 h-7 text-cyan-400" />
+            Network Analytics
+            <Badge className="bg-emerald-500/20 text-emerald-400 border-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-2" />
+              Live
+            </Badge>
+          </h1>
+        </div>
+
+        {/* Alerts */}
+        {showAlerts && alerts.length > 0 && (
+          <div className="mb-6 space-y-2">
+            {alerts.map(alert => (
+              <div key={alert.id} className={`bg-${alert.severity === 'error' ? 'red' : 'yellow'}-500/10 border border-${alert.severity === 'error' ? 'red' : 'yellow'}-500/30 rounded-lg p-3 flex items-center gap-3`}>
+                <AlertCircle className={`w-5 h-5 text-${alert.severity === 'error' ? 'red' : 'yellow'}-400`} />
+                <div className="flex-1">
+                  <p className={`text-${alert.severity === 'error' ? 'red' : 'yellow'}-400 text-sm font-medium`}>{alert.message}</p>
+                  <p className="text-gray-500 text-xs">{new Date(alert.timestamp).toLocaleTimeString()}</p>
+                </div>
+                <button onClick={() => setAlerts(alerts.filter(a => a.id !== alert.id))} className="text-gray-500 hover:text-white">×</button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Key Metrics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">

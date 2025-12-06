@@ -13,6 +13,10 @@ export default function TokenExplorer() {
   const [validators, setValidators] = useState({ totalStake: 650000000 });
   const [allTokens, setAllTokens] = useState([]);
   const [watchlist, setWatchlist] = useState([]);
+  const [selectedToken, setSelectedToken] = useState(null);
+  const [tokenDetails, setTokenDetails] = useState(null);
+  const [tokenTransactions, setTokenTransactions] = useState([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   useEffect(() => {
     loadWatchlist();
@@ -94,7 +98,7 @@ export default function TokenExplorer() {
             const mint = acc.pubkey;
             const decimals = info.decimals || 9;
             const supply = Number(info.supply || 0) / Math.pow(10, decimals);
-            
+
             if (supply > 0) {
               mints.set(mint, {
                 mint,
@@ -102,11 +106,13 @@ export default function TokenExplorer() {
                 symbol: mint.substring(0, 4).toUpperCase(),
                 decimals,
                 totalSupply: supply,
-                price: Math.random() * 10,
-                marketCap: supply * (Math.random() * 10),
-                priceChange24h: (Math.random() - 0.5) * 20,
-                volume24h: Math.random() * 50000,
-                priceHistory: generatePriceHistory()
+                price: 0, // No price data available yet
+                marketCap: 0,
+                priceChange24h: 0,
+                volume24h: 0,
+                mintAuthority: info.mintAuthority || null,
+                freezeAuthority: info.freezeAuthority || null,
+                priceHistory: []
               });
             }
           }
@@ -120,12 +126,74 @@ export default function TokenExplorer() {
     }
   };
 
-  const generatePriceHistory = () => {
-    let price = Math.random() * 10 + 1;
-    return Array.from({ length: 30 }, (_, i) => {
-      price += (Math.random() - 0.5) * 0.5;
-      return { day: i, price: Math.max(0.1, price) };
-    });
+  const fetchTokenDetails = async (mint) => {
+    setLoadingDetails(true);
+    setSelectedToken(mint);
+    try {
+      // Fetch token account info
+      const accountInfo = await X1Rpc.getAccountInfo(mint);
+      if (accountInfo?.value) {
+        const parsed = accountInfo.value.data?.parsed?.info;
+        setTokenDetails({
+          mint,
+          decimals: parsed?.decimals || 9,
+          supply: Number(parsed?.supply || 0) / Math.pow(10, parsed?.decimals || 9),
+          mintAuthority: parsed?.mintAuthority || 'None',
+          freezeAuthority: parsed?.freezeAuthority || 'None',
+          isInitialized: parsed?.isInitialized || false,
+          supplyType: parsed?.mintAuthority ? 'Mintable' : 'Fixed Supply'
+        });
+      }
+
+      // Fetch token transactions
+      const signatures = await X1Rpc.getSignaturesForAddress(mint, { limit: 50 });
+      const txDetails = [];
+      
+      for (const sig of signatures.slice(0, 50)) {
+        try {
+          const tx = await X1Rpc.getTransaction(sig.signature);
+          if (tx) {
+            const message = tx.transaction?.message;
+            const meta = tx.meta;
+            const accountKeys = message?.accountKeys || [];
+            
+            // Determine transaction type and details
+            let type = 'transfer';
+            let amount = 0;
+            let from = accountKeys[0] || '';
+            let to = accountKeys[1] || '';
+            
+            // Parse pre/post token balances for amount
+            const preTokenBalances = meta?.preTokenBalances || [];
+            const postTokenBalances = meta?.postTokenBalances || [];
+            
+            if (preTokenBalances.length > 0 && postTokenBalances.length > 0) {
+              const preAmount = preTokenBalances[0]?.uiTokenAmount?.uiAmount || 0;
+              const postAmount = postTokenBalances[0]?.uiTokenAmount?.uiAmount || 0;
+              amount = Math.abs(postAmount - preAmount);
+            }
+            
+            txDetails.push({
+              signature: sig.signature,
+              blockTime: sig.blockTime,
+              type,
+              amount,
+              from,
+              to,
+              status: meta?.err ? 'failed' : 'success'
+            });
+          }
+        } catch (e) {
+          // Skip failed tx fetches
+        }
+      }
+      
+      setTokenTransactions(txDetails);
+    } catch (err) {
+      console.error('Failed to fetch token details:', err);
+    } finally {
+      setLoadingDetails(false);
+    }
   };
 
   const formatNum = (num) => {
@@ -135,7 +203,16 @@ export default function TokenExplorer() {
     return num.toFixed(2);
   };
 
-  const xntHistory = Array.from({ length: 30 }, (_, i) => ({ day: i, price: 1.00 + (Math.random() - 0.5) * 0.02 }));
+  const formatTime = (timestamp) => {
+    if (!timestamp) return 'Recently';
+    const diff = (Date.now() / 1000 - timestamp);
+    if (diff < 60) return `${Math.floor(diff)}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return new Date(timestamp * 1000).toLocaleDateString();
+  };
+
+  const xntHistory = Array.from({ length: 30 }, (_, i) => ({ day: i, price: 1.00 }));
 
   if (loading) {
     return (
@@ -247,23 +324,19 @@ export default function TokenExplorer() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right text-white font-mono">${token.price.toFixed(4)}</td>
-                    <td className={`px-4 py-3 text-right ${token.priceChange24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      <div className="flex items-center justify-end gap-1">
-                        {token.priceChange24h >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                        {Math.abs(token.priceChange24h).toFixed(2)}%
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-400">${formatNum(token.marketCap)}</td>
-                    <td className="px-4 py-3 text-right text-gray-400">${formatNum(token.volume24h)}</td>
+                    <td className="px-4 py-3 text-right text-gray-500">Not Listed</td>
+                    <td className="px-4 py-3 text-right text-gray-500">-</td>
+                    <td className="px-4 py-3 text-right text-gray-500">-</td>
+                    <td className="px-4 py-3 text-right text-gray-500">-</td>
                     <td className="px-4 py-3">
-                      <div className="h-10 w-20 mx-auto">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={token.priceHistory}>
-                            <Line type="monotone" dataKey="price" stroke={token.priceChange24h >= 0 ? '#10b981' : '#ef4444'} strokeWidth={1.5} dot={false} />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => fetchTokenDetails(token.mint)}
+                        className="border-white/20 text-cyan-400 hover:bg-cyan-500/10 text-xs"
+                      >
+                        View
+                      </Button>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button onClick={() => toggleWatchlist(token.mint)} className={watchlist.includes(token.mint) ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}>
@@ -276,6 +349,95 @@ export default function TokenExplorer() {
             </table>
           </div>
         </div>
+
+        {/* Token Details Modal */}
+        {selectedToken && (
+          <div className="bg-[#24384a] rounded-xl p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-medium text-lg">Token Details</h3>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedToken(null)} className="text-gray-400">Close</Button>
+            </div>
+            
+            {loadingDetails ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+              </div>
+            ) : tokenDetails ? (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                  <div className="bg-[#1d2d3a] rounded-lg p-3">
+                    <p className="text-gray-400 text-xs mb-1">Mint Address</p>
+                    <p className="text-cyan-400 font-mono text-xs break-all">{tokenDetails.mint}</p>
+                  </div>
+                  <div className="bg-[#1d2d3a] rounded-lg p-3">
+                    <p className="text-gray-400 text-xs mb-1">Total Supply</p>
+                    <p className="text-white font-bold">{formatNum(tokenDetails.supply)}</p>
+                  </div>
+                  <div className="bg-[#1d2d3a] rounded-lg p-3">
+                    <p className="text-gray-400 text-xs mb-1">Decimals</p>
+                    <p className="text-white font-bold">{tokenDetails.decimals}</p>
+                  </div>
+                  <div className="bg-[#1d2d3a] rounded-lg p-3">
+                    <p className="text-gray-400 text-xs mb-1">Mint Authority</p>
+                    <p className="text-white font-mono text-xs break-all">{tokenDetails.mintAuthority}</p>
+                  </div>
+                  <div className="bg-[#1d2d3a] rounded-lg p-3">
+                    <p className="text-gray-400 text-xs mb-1">Freeze Authority</p>
+                    <p className="text-white font-mono text-xs break-all">{tokenDetails.freezeAuthority}</p>
+                  </div>
+                  <div className="bg-[#1d2d3a] rounded-lg p-3">
+                    <p className="text-gray-400 text-xs mb-1">Supply Type</p>
+                    <Badge className="bg-purple-500/20 text-purple-400 border-0">{tokenDetails.supplyType}</Badge>
+                  </div>
+                </div>
+
+                <h4 className="text-white font-medium mb-3">Recent Transactions ({tokenTransactions.length})</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="text-left text-gray-400 text-xs px-2 py-2">Signature</th>
+                        <th className="text-left text-gray-400 text-xs px-2 py-2">Type</th>
+                        <th className="text-right text-gray-400 text-xs px-2 py-2">Amount</th>
+                        <th className="text-left text-gray-400 text-xs px-2 py-2">From</th>
+                        <th className="text-left text-gray-400 text-xs px-2 py-2">To</th>
+                        <th className="text-right text-gray-400 text-xs px-2 py-2">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tokenTransactions.map((tx, i) => (
+                        <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
+                          <td className="px-2 py-2">
+                            <Link to={createPageUrl('TransactionDetail') + `?sig=${tx.signature}`} className="text-cyan-400 hover:underline font-mono text-xs">
+                              {tx.signature.substring(0, 8)}...
+                            </Link>
+                          </td>
+                          <td className="px-2 py-2">
+                            <Badge className="bg-blue-500/20 text-blue-400 border-0 text-xs">{tx.type}</Badge>
+                          </td>
+                          <td className="px-2 py-2 text-right text-white font-mono text-xs">{tx.amount.toFixed(4)}</td>
+                          <td className="px-2 py-2">
+                            <Link to={createPageUrl('AddressLookup') + `?address=${tx.from}`} className="text-cyan-400 hover:underline font-mono text-xs">
+                              {tx.from.substring(0, 8)}...
+                            </Link>
+                          </td>
+                          <td className="px-2 py-2">
+                            <Link to={createPageUrl('AddressLookup') + `?address=${tx.to}`} className="text-emerald-400 hover:underline font-mono text-xs">
+                              {tx.to.substring(0, 8)}...
+                            </Link>
+                          </td>
+                          <td className="px-2 py-2 text-right text-gray-400 text-xs">{formatTime(tx.blockTime)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <p className="text-gray-400 text-center py-8">No details available</p>
+            )}
+          </div>
+        )}
 
         {/* All Tokens */}
         <div className="bg-[#24384a] rounded-xl overflow-hidden">
@@ -306,12 +468,22 @@ export default function TokenExplorer() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right text-white font-mono">${token.price.toFixed(4)}</td>
+                    <td className="px-4 py-3 text-right text-gray-500">Not Listed</td>
                     <td className="px-4 py-3 text-right text-gray-400">{formatNum(token.totalSupply)}</td>
                     <td className="px-4 py-3 text-center">
-                      <button onClick={() => toggleWatchlist(token.mint)} className={watchlist.includes(token.mint) ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}>
-                        <Star className="w-4 h-4" fill={watchlist.includes(token.mint) ? 'currentColor' : 'none'} />
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        <button onClick={() => toggleWatchlist(token.mint)} className={watchlist.includes(token.mint) ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}>
+                          <Star className="w-4 h-4" fill={watchlist.includes(token.mint) ? 'currentColor' : 'none'} />
+                        </button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => fetchTokenDetails(token.mint)}
+                          className="text-cyan-400 hover:bg-cyan-500/10 text-xs h-7"
+                        >
+                          Details
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
