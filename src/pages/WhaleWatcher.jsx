@@ -84,7 +84,7 @@ export default function WhaleWatcher() {
   }, [alertsEnabled, soundEnabled]);
 
   // Fetch whale transactions - scan recent blocks for large transfers
-  const fetchWhaleTransactions = useCallback(async () => {
+  const fetchWhaleTransactions = async () => {
     setLoading(true);
     try {
       const currentSlot = await X1Rpc.getSlot();
@@ -186,11 +186,12 @@ export default function WhaleWatcher() {
     } finally {
       setLoading(false);
     }
-  }, [minAmount, transactions, triggerAlert]);
+  };
 
   useEffect(() => {
     fetchWhaleTransactions();
-  }, [fetchWhaleTransactions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minAmount]);
 
   useEffect(() => {
     if (isLive) {

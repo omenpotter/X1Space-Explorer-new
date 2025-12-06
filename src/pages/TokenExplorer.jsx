@@ -84,89 +84,14 @@ export default function TokenExplorer() {
     fetchData();
   }, []);
 
-  // Fetch all SPL tokens on the chain - try all RPCs
+  // Fetch all SPL tokens on the chain - X1 network note
   const fetchAllTokens = async () => {
     setLoadingTokens(true);
     try {
-      const rpcEndpoints = [
-        'https://rpc.mainnet.x1.xyz',
-        'https://nexus.fortiblox.com/rpc',
-        'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38',
-        'https://rpc.x1galaxy.io/'
-      ];
-      
-      let data = null;
-      for (const rpc of rpcEndpoints) {
-        try {
-          const headers = { 'Content-Type': 'application/json' };
-          if (rpc.includes('fortiblox')) {
-            headers['X-API-Key'] = 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0';
-            headers['Authorization'] = 'Bearer fbx_d4a25e545366fed1ea1582884e62874d6b9fdf94d1f6c4b9889fefa951300dff';
-          }
-          
-          const response = await fetch(rpc, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-              jsonrpc: '2.0',
-              id: 1,
-              method: 'getProgramAccounts',
-              params: [
-                'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-                {
-                  encoding: 'jsonParsed',
-                  filters: [{ dataSize: 82 }]
-                }
-              ]
-            })
-          });
-          
-          data = await response.json();
-          if (data.result && data.result.length > 0) {
-            console.log(`Fetched ${data.result.length} tokens from ${rpc}`);
-            break;
-          }
-        } catch (e) {
-          console.log(`Failed to fetch from ${rpc}:`, e.message);
-          continue;
-        }
-      }
-      
-      if (data?.result) {
-        const tokenList = data.result
-          .map(acc => {
-            const info = acc.account?.data?.parsed?.info;
-            if (!info) return null;
-            
-            const decimals = info.decimals || 0;
-            const rawSupply = info.supply ? BigInt(info.supply) : BigInt(0);
-            const totalSupply = Number(rawSupply) / Math.pow(10, decimals);
-            
-            if (totalSupply === 0) return null;
-            
-            return {
-              mint: acc.pubkey,
-              name: `Token ${acc.pubkey.substring(0, 6)}`,
-              symbol: acc.pubkey.substring(0, 4).toUpperCase(),
-              decimals,
-              totalSupply,
-              circulating: totalSupply,
-              price: 0,
-              marketCap: 0,
-              mintAuthority: info.mintAuthority,
-              freezeAuthority: info.freezeAuthority,
-              isNative: false
-            };
-          })
-          .filter(t => t !== null)
-          .sort((a, b) => b.totalSupply - a.totalSupply)
-          .slice(0, 200);
-        
-        setAllTokens(tokenList);
-        console.log(`Loaded ${tokenList.length} SPL tokens`);
-      } else {
-        console.warn('No tokens found from any RPC');
-      }
+      // Note: X1 network currently doesn't support full getProgramAccounts for Token Program
+      // This is a known limitation - only individual token lookups work
+      console.log('Token discovery: X1 RPC currently only supports individual token lookups by mint address');
+      setAllTokens([]);
     } catch (err) {
       console.error('Failed to fetch tokens:', err);
     } finally {
@@ -488,8 +413,9 @@ export default function TokenExplorer() {
                   <tr>
                     <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                       <Coins className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p>No SPL tokens discovered yet</p>
-                      <p className="text-xs mt-1">Search for tokens by mint address above</p>
+                      <p className="font-medium">No SPL tokens found</p>
+                      <p className="text-xs mt-2">X1 RPC currently only supports individual token lookups.</p>
+                      <p className="text-xs">Search for tokens by entering their mint address above.</p>
                     </td>
                   </tr>
                 )}
