@@ -162,7 +162,8 @@ export default function TransactionFlowPage() {
         });
       });
       
-      console.log(`Loaded ${txDetails.length} transactions`);
+      console.log(`Transaction Flow: Loaded ${txDetails.length} transactions for ${address.substring(0, 8)}...`);
+      console.log('Sample transaction:', txDetails[0]);
       
       if (txDetails.length === 0) {
         setError(`Found ${signatures.length} signatures but couldn't fetch details from RPC.`);
@@ -196,7 +197,8 @@ export default function TransactionFlowPage() {
     let centerOutflow = 0;
     
     txs.forEach(tx => {
-      if (tx.type === 'vote') return; // Skip vote transactions for clarity
+      // Skip vote transactions for clarity
+      if (tx.type === 'vote' || !tx.amount || tx.amount === 0) return;
       
       // Determine flow direction
       const isOutgoing = tx.from === centerAddress;
@@ -240,11 +242,14 @@ export default function TransactionFlowPage() {
     centerNode.inflow = centerInflow;
     centerNode.outflow = centerOutflow;
     
-    setFlowData({
+    const flowResult = {
       nodes: Array.from(nodes.values()),
       edges,
       centerAddress
-    });
+    };
+    
+    console.log(`Flow built: ${flowResult.nodes.length} nodes (${flowResult.nodes.length - 1} connected), ${flowResult.edges.length} edges`);
+    setFlowData(flowResult);
   };
 
   useEffect(() => {

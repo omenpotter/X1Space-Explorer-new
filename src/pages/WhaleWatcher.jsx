@@ -130,8 +130,8 @@ export default function WhaleWatcher() {
               }
             }
             
-            // Check if qualifies as whale transaction
-            if (maxTransfer >= minAmount && fromIdx >= 0) {
+            // Check if qualifies as whale transaction (convert minAmount to same scale)
+            if (maxTransfer >= minAmount && maxTransfer > 0) {
               // Find recipient (who gained the most)
               if (toIdx < 0) {
                 let maxGain = 0;
@@ -186,7 +186,7 @@ export default function WhaleWatcher() {
       });
       
       setTransactions(whaleTxs);
-      console.log(`Loaded ${whaleTxs.length} whale transactions >= ${formatAmount(minAmount)} XNT`);
+      console.log(`Whale Watcher: Scanned 30 blocks, found ${whaleTxs.length} transfers >= ${formatAmount(minAmount)} XNT`);
     } catch (err) {
       console.error('Whale watcher error:', err);
       setTransactions([]);

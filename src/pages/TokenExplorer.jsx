@@ -40,7 +40,7 @@ export default function TokenExplorer() {
         const circulatingSupply = supplyData?.value?.circulating / 1e9 || 0;
         const nonCirculatingSupply = supplyData?.value?.nonCirculating / 1e9 || 0;
         
-        console.log('Supply from RPC:', { total: totalSupply, circulating: circulatingSupply, nonCirculating: nonCirculatingSupply });
+        console.log('XNT Supply from RPC:', { total: totalSupply, circulating: circulatingSupply, nonCirculating: nonCirculatingSupply, raw: supplyData?.value });
         
         setSupply({
           total: totalSupply,
