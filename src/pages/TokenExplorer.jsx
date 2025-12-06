@@ -649,12 +649,8 @@ export default function TokenExplorer() {
                       </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </main>
+                )}
+                )}
     </div>
   );
 }
