@@ -542,6 +542,9 @@ export async function getValidatorDetails() {
     const creditsThisEpoch = currentEpochCredits[1] - currentEpochCredits[2];
     const creditsPrevEpoch = prevEpochCredits[1] - prevEpochCredits[2];
     
+    // Calculate vote lag
+    const voteLag = currentSlot - v.lastVote;
+    
     // Use real skip rate from block production, fallback to 0
     const skipRate = skipRateMap[v.nodePubkey] !== undefined ? skipRateMap[v.nodePubkey] : 0;
     
