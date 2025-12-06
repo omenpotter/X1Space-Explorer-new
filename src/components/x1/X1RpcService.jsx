@@ -496,11 +496,12 @@ export async function getValidatorDetails() {
   // Fetch validator identities first for best name resolution
   await fetchAllValidatorIdentities().catch(() => {});
   
-  const [voteAccounts, clusterNodes, epochInfo, currentSlot] = await Promise.all([
+  const [voteAccounts, clusterNodes, epochInfo, currentSlot, blockProduction] = await Promise.all([
     getVoteAccounts(),
     getClusterNodes(),
     getEpochInfo(),
-    getSlot()
+    getSlot(),
+    getBlockProduction().catch(() => null)
   ]);
 
   // Create a map of node pubkeys to their info
@@ -512,7 +513,14 @@ export async function getValidatorDetails() {
   // Calculate total stake for percentage calculations
   const totalActiveStake = voteAccounts.current.reduce((sum, v) => sum + v.activatedStake, 0);
 
-
+  // Build skip rate map from block production data
+  const skipRateMap = {};
+  if (blockProduction?.value?.byIdentity) {
+    Object.entries(blockProduction.value.byIdentity).forEach(([identity, [leaderSlots, blocksProduced]]) => {
+      const skipRate = leaderSlots > 0 ? ((leaderSlots - blocksProduced) / leaderSlots) * 100 : 0;
+      skipRateMap[identity] = skipRate;
+    });
+  }
 
   // Combine vote accounts with node info
   const validators = voteAccounts.current.map((v) => {
@@ -534,12 +542,12 @@ export async function getValidatorDetails() {
     const creditsThisEpoch = currentEpochCredits[1] - currentEpochCredits[2];
     const creditsPrevEpoch = prevEpochCredits[1] - prevEpochCredits[2];
     
-    // Calculate skip rate (simplified - based on vote lag)
-    const voteLag = currentSlot - v.lastVote;
-    const skipRate = Math.min(100, (voteLag / 100) * 100).toFixed(2);
+    // Use real skip rate from block production, fallback to 0
+    const skipRate = skipRateMap[v.nodePubkey] !== undefined ? skipRateMap[v.nodePubkey] : 0;
     
-    // Uptime estimate based on vote consistency
-    const uptime = voteLag < 150 ? 99.9 : voteLag < 500 ? 99.0 : voteLag < 1000 ? 95.0 : 90.0;
+    // Calculate uptime from epoch credits
+    const expectedCredits = epochInfo.slotIndex;
+    const uptime = expectedCredits > 0 ? Math.min(99.9, (creditsThisEpoch / expectedCredits) * 100) : 99.9;
     
     return {
       votePubkey: v.votePubkey,
@@ -562,7 +570,7 @@ export async function getValidatorDetails() {
       website,
       icon,
       uptime,
-      skipRate: parseFloat(skipRate),
+      skipRate,
       featureSet: node.featureSet
     };
   });
@@ -571,6 +579,7 @@ export async function getValidatorDetails() {
   voteAccounts.delinquent.forEach(v => {
     const node = nodeMap[v.nodePubkey] || {};
     const validatorInfo = generateValidatorName(v.votePubkey, v.nodePubkey, v.activatedStake);
+    const skipRate = skipRateMap[v.nodePubkey] !== undefined ? skipRateMap[v.nodePubkey] : 100;
     
     validators.push({
       votePubkey: v.votePubkey,
@@ -590,7 +599,7 @@ export async function getValidatorDetails() {
       website: validatorInfo.website,
       icon: validatorInfo.icon,
       uptime: 0,
-      skipRate: 100
+      skipRate
     });
   });
 
