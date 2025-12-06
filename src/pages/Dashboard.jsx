@@ -229,8 +229,8 @@ export default function Dashboard() {
           <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
           <span className="text-gray-400 text-sm">Connecting...</span>
         </div>
+        <RPCDebugger />
       </div>
-      <RPCDebugger />
     );
   }
 
