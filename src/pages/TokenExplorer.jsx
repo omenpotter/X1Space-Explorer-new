@@ -160,6 +160,9 @@ export default function TokenExplorer() {
     setTokenHolders([]);
     
     try {
+      // Import X1Rpc
+      const X1Rpc = (await import('../components/x1/X1RpcService')).default;
+      
       // Fetch token account info
       const accountInfo = await X1Rpc.getAccountInfo(mint);
       if (accountInfo?.value) {
@@ -649,8 +652,13 @@ export default function TokenExplorer() {
                       </div>
                     </td>
                   </tr>
-                )}
-                )}
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
