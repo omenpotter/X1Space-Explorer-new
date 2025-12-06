@@ -28,21 +28,6 @@ export default function TokenExplorer() {
   useEffect(() => {
     loadWatchlist();
     fetchData();
-    
-    // Simulate real-time price updates every 5 seconds
-    const priceInterval = setInterval(() => {
-      setSimulatedPrices(prev => {
-        const updated = {};
-        Object.keys(prev).forEach(mint => {
-          const currentPrice = prev[mint];
-          const change = (Math.random() - 0.5) * 0.1; // ±5% max change
-          updated[mint] = Math.max(0.01, currentPrice * (1 + change));
-        });
-        return updated;
-      });
-    }, 5000);
-    
-    return () => clearInterval(priceInterval);
   }, []);
 
   const loadWatchlist = () => {
@@ -141,13 +126,6 @@ export default function TokenExplorer() {
         });
         const tokenList = Array.from(mints.values()).slice(0, 50);
         setAllTokens(tokenList);
-        
-        // Initialize simulated prices
-        const prices = {};
-        tokenList.forEach(t => {
-          prices[t.mint] = Math.random() * 5 + 0.5;
-        });
-        setSimulatedPrices(prices);
       }
     } catch (err) {
       console.error('Fetch error:', err);
@@ -349,14 +327,8 @@ export default function TokenExplorer() {
     );
   }
 
-  const topTokens = allTokens.slice(0, 10).map(t => ({
-    ...t,
-    price: simulatedPrices[t.mint] || 0,
-    priceChange24h: (Math.random() - 0.5) * 15,
-    marketCap: t.totalSupply * (simulatedPrices[t.mint] || 0)
-  })).sort((a, b) => b.marketCap - a.marketCap);
-  
-  const totalMarketCap = supply.circulating * 1.0 + topTokens.reduce((sum, t) => sum + t.marketCap, 0);
+  const topTokens = allTokens.slice(0, 10);
+  const totalMarketCap = supply.circulating * 1.0;
 
   return (
     <div className="min-h-screen bg-[#1d2d3a] text-white">
@@ -435,11 +407,8 @@ export default function TokenExplorer() {
               <thead>
                 <tr className="border-b border-white/5">
                   <th className="text-left text-gray-400 text-xs px-4 py-3">Token</th>
-                  <th className="text-right text-gray-400 text-xs px-4 py-3">Price</th>
-                  <th className="text-right text-gray-400 text-xs px-4 py-3">24h %</th>
-                  <th className="text-right text-gray-400 text-xs px-4 py-3">Market Cap</th>
-                  <th className="text-right text-gray-400 text-xs px-4 py-3">Volume (24h)</th>
-                  <th className="text-center text-gray-400 text-xs px-4 py-3">Chart</th>
+                  <th className="text-right text-gray-400 text-xs px-4 py-3">Supply</th>
+                  <th className="text-center text-gray-400 text-xs px-4 py-3">Status</th>
                   <th className="text-center text-gray-400 text-xs px-4 py-3"></th>
                 </tr>
               </thead>
@@ -457,21 +426,20 @@ export default function TokenExplorer() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right text-gray-500">Not Listed</td>
-                    <td className="px-4 py-3 text-right text-gray-500">-</td>
-                    <td className="px-4 py-3 text-right text-gray-500">-</td>
-                    <td className="px-4 py-3 text-right text-gray-500">-</td>
-                    <td className="px-4 py-3">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => fetchTokenDetails(token.mint)}
-                        className="border-white/20 text-cyan-400 hover:bg-cyan-500/10 text-xs"
-                      >
-                        View
-                      </Button>
+                    <td className="px-4 py-3 text-right text-gray-400">{formatNum(token.totalSupply)}</td>
+                    <td className="px-4 py-3 text-center">
+                      <Badge className="bg-gray-500/20 text-gray-400 border-0">Not Trading</Badge>
                     </td>
                     <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => fetchTokenDetails(token.mint)}
+                          className="border-white/20 text-cyan-400 hover:bg-cyan-500/10 text-xs"
+                        >
+                          View
+                        </Button>
                       <button onClick={() => toggleWatchlist(token.mint)} className={watchlist.includes(token.mint) ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}>
                         <Star className="w-4 h-4" fill={watchlist.includes(token.mint) ? 'currentColor' : 'none'} />
                       </button>
@@ -719,15 +687,13 @@ export default function TokenExplorer() {
                 <tr className="border-b border-white/5">
                   <th className="text-left text-gray-400 text-xs px-4 py-3">#</th>
                   <th className="text-left text-gray-400 text-xs px-4 py-3">Token</th>
-                  <th className="text-right text-gray-400 text-xs px-4 py-3">Price</th>
                   <th className="text-right text-gray-400 text-xs px-4 py-3">Supply</th>
+                  <th className="text-center text-gray-400 text-xs px-4 py-3">Status</th>
                   <th className="text-center text-gray-400 text-xs px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody>
-                {allTokens.map((token, i) => {
-                  const currentPrice = simulatedPrices[token.mint] || 0;
-                  return (
+                {allTokens.map((token, i) => (
                   <tr key={token.mint} className="border-b border-white/5 hover:bg-white/[0.02]">
                     <td className="px-4 py-3 text-gray-400">{i + 1}</td>
                     <td className="px-4 py-3">
@@ -739,14 +705,10 @@ export default function TokenExplorer() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <span className="text-white font-mono">${currentPrice.toFixed(4)}</span>
-                      <div className="flex items-center justify-end gap-1">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                        <span className="text-xs text-gray-500">Live</span>
-                      </div>
-                    </td>
                     <td className="px-4 py-3 text-right text-gray-400">{formatNum(token.totalSupply)}</td>
+                    <td className="px-4 py-3 text-center">
+                      <Badge className="bg-gray-500/20 text-gray-400 border-0">Not Trading</Badge>
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <button onClick={() => toggleWatchlist(token.mint)} className={watchlist.includes(token.mint) ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}>

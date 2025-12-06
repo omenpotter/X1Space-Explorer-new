@@ -161,7 +161,7 @@ export default function Analytics() {
       const topValidators = validators.slice(0, 10).map(v => ({
         name: v.name || v.votePubkey.substring(0, 8),
         uptime: v.uptime || 99,
-        skipRate: v.skipRate || 0,
+        skipRate: parseFloat(v.skipRate) || 0,
         stake: (v.activatedStake || 0) / 1000000
       }));
       setValidatorPerformance(topValidators);
