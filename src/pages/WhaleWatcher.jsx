@@ -114,10 +114,14 @@ export default function WhaleWatcher() {
             
             // Find ALL balance changes to detect transfers
             const balanceChanges = [];
-            for (let j = 0; j < preBalances.length; j++) {
+            for (let j = 0; j < Math.min(preBalances.length, accountKeys.length); j++) {
               const change = (postBalances[j] - preBalances[j]) / 1e9;
-              if (Math.abs(change) > 0) {
-                balanceChanges.push({ idx: j, change, address: accountKeys[j] });
+              if (Math.abs(change) > 0.00001) {
+                balanceChanges.push({ 
+                  idx: j, 
+                  change, 
+                  address: accountKeys[j] || 'unknown'
+                });
               }
             }
             
@@ -125,13 +129,13 @@ export default function WhaleWatcher() {
             balanceChanges.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
             
             // Find sender (negative change) and receiver (positive change)
-            const sender = balanceChanges.find(c => c.change < -0.0001); // Lost money
-            const receiver = balanceChanges.find(c => c.change > 0.0001); // Gained money
+            const sender = balanceChanges.find(c => c.change < -0.00001); // Lost money
+            const receiver = balanceChanges.find(c => c.change > 0.00001); // Gained money
             
-            if (sender && receiver) {
+            if (sender && receiver && sender.address && receiver.address) {
               const maxTransfer = Math.abs(sender.change);
-              const fromIdx = sender.idx;
-              const toIdx = receiver.idx;
+              const fromAddress = sender.address;
+              const toAddress = receiver.address;
               
               // Check if qualifies as whale transaction
               if (maxTransfer >= minAmount) {
@@ -148,14 +152,21 @@ export default function WhaleWatcher() {
                 whaleTxs.push({
                   id: tx.transaction.signatures[0],
                   signature: tx.transaction.signatures[0],
-                  from: accountKeys[fromIdx] || '',
-                  to: accountKeys[toIdx] || '',
+                  from: fromAddress,
+                  to: toAddress,
                   amount: maxTransfer,
                   type,
                   slot: currentSlot - i,
                   timestamp: block.blockTime ? block.blockTime * 1000 : Date.now(),
                   status: tx.meta.err ? 'failed' : 'success',
                   isNew: false
+                });
+                
+                console.log('Whale TX found:', { 
+                  amount: maxTransfer, 
+                  from: fromAddress.substring(0, 8), 
+                  to: toAddress.substring(0, 8),
+                  type 
                 });
               }
             }

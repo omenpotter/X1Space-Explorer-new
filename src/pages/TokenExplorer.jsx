@@ -61,6 +61,9 @@ export default function TokenExplorer() {
           rawData: supplyData 
         });
         
+        // Debug: Check if supply is loaded correctly
+        console.log('Final supply state:', { totalSupply, circulatingSupply, nonCirculatingSupply });
+        
         setSupply({
           total: totalSupply,
           circulating: circulatingSupply,
