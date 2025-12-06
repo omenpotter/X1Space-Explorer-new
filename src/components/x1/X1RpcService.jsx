@@ -231,7 +231,9 @@ export async function getClusterNodes() {
 
 // Get supply info (cached for 5 minutes)
 export async function getSupply() {
-  return await rpcCall('getSupply', [], 'supply', 'long');
+  const result = await rpcCall('getSupply', [{ excludeNonCirculatingAccountsList: true }], 'supply', 'long');
+  console.log('getSupply RAW response:', JSON.stringify(result, null, 2));
+  return result;
 }
 
 // Get transaction count

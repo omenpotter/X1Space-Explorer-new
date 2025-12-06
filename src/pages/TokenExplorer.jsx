@@ -36,11 +36,29 @@ export default function TokenExplorer() {
           X1Rpc.getVoteAccounts()
         ]);
         
-        const totalSupply = supplyData?.value?.total / 1e9 || 0;
-        const circulatingSupply = supplyData?.value?.circulating / 1e9 || 0;
-        const nonCirculatingSupply = supplyData?.value?.nonCirculating / 1e9 || 0;
+        // Handle different RPC response formats
+        let totalSupply = 0;
+        let circulatingSupply = 0;
+        let nonCirculatingSupply = 0;
         
-        console.log('XNT Supply from RPC:', { total: totalSupply, circulating: circulatingSupply, nonCirculating: nonCirculatingSupply, raw: supplyData?.value });
+        if (supplyData?.value) {
+          totalSupply = Number(supplyData.value.total || 0) / 1e9;
+          circulatingSupply = Number(supplyData.value.circulating || 0) / 1e9;
+          nonCirculatingSupply = Number(supplyData.value.nonCirculating || 0) / 1e9;
+        } else if (supplyData?.total) {
+          // Alternative format
+          totalSupply = Number(supplyData.total || 0) / 1e9;
+          circulatingSupply = Number(supplyData.circulating || 0) / 1e9;
+          nonCirculatingSupply = Number(supplyData.nonCirculating || 0) / 1e9;
+        }
+        
+        console.log('XNT Supply from RPC:', { 
+          total: totalSupply, 
+          circulating: circulatingSupply, 
+          nonCirculating: nonCirculatingSupply, 
+          rawValue: supplyData?.value,
+          rawData: supplyData 
+        });
         
         setSupply({
           total: totalSupply,

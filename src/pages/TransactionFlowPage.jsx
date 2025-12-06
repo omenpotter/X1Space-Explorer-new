@@ -101,50 +101,53 @@ export default function TransactionFlowPage() {
           }
         }
         
-        // Calculate amount and direction - find largest transfer
+        // Calculate amount and direction - analyze ALL balance changes
         let amount = 0, from = '', to = '';
-        let addressChange = 0;
         
-        // Find the address in account keys and its balance change
-        for (let i = 0; i < accountKeys.length; i++) {
-          if (accountKeys[i] === address) {
-            addressChange = (postBalances[i] - preBalances[i]) / 1e9;
-            break;
-          }
-        }
-        
-        // Find all balance changes and determine counterparty
-        const changes = [];
+        // Build array of all balance changes
+        const allChanges = [];
         for (let i = 0; i < accountKeys.length; i++) {
           const change = (postBalances[i] - preBalances[i]) / 1e9;
-          if (Math.abs(change) > 0.0001 && accountKeys[i] !== address) { // Min 0.0001 XNT
-            changes.push({ address: accountKeys[i], change, index: i });
+          if (Math.abs(change) > 0.00001) { // Ignore dust
+            allChanges.push({ 
+              address: accountKeys[i], 
+              change, 
+              index: i,
+              isSearchedAddress: accountKeys[i] === address
+            });
           }
         }
         
-        // Sort by absolute change to find the main counterparty
-        changes.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+        // Find the searched address change
+        const searchedChange = allChanges.find(c => c.isSearchedAddress);
         
-        if (addressChange > 0) {
-          // Address received
-          to = address;
-          amount = Math.abs(addressChange);
-          // Find who sent (negative change)
-          const sender = changes.find(c => c.change < 0);
-          from = sender ? sender.address : accountKeys[0];
-        } else if (addressChange < 0) {
-          // Address sent
-          from = address;
-          amount = Math.abs(addressChange);
-          // Find who received (positive change)
-          const receiver = changes.find(c => c.change > 0);
-          to = receiver ? receiver.address : accountKeys[1];
+        if (searchedChange) {
+          amount = Math.abs(searchedChange.change);
+          
+          if (searchedChange.change > 0) {
+            // Address received funds
+            to = address;
+            // Find sender (largest negative change)
+            const senders = allChanges.filter(c => !c.isSearchedAddress && c.change < 0).sort((a, b) => a.change - b.change);
+            from = senders.length > 0 ? senders[0].address : accountKeys[0] || '';
+          } else if (searchedChange.change < 0) {
+            // Address sent funds
+            from = address;
+            // Find receiver (largest positive change)
+            const receivers = allChanges.filter(c => !c.isSearchedAddress && c.change > 0).sort((a, b) => b.change - a.change);
+            to = receivers.length > 0 ? receivers[0].address : accountKeys[1] || '';
+          }
         } else {
-          // No direct balance change - might be a contract interaction
-          if (changes.length > 0) {
-            amount = Math.abs(changes[0].change);
-            from = changes[0].change < 0 ? changes[0].address : address;
-            to = changes[0].change > 0 ? changes[0].address : address;
+          // Address not in transaction accounts (might be program/contract)
+          if (allChanges.length >= 2) {
+            const negChanges = allChanges.filter(c => c.change < 0).sort((a, b) => a.change - b.change);
+            const posChanges = allChanges.filter(c => c.change > 0).sort((a, b) => b.change - a.change);
+            
+            if (negChanges.length > 0 && posChanges.length > 0) {
+              amount = Math.min(Math.abs(negChanges[0].change), Math.abs(posChanges[0].change));
+              from = negChanges[0].address;
+              to = posChanges[0].address;
+            }
           }
         }
         
@@ -197,8 +200,8 @@ export default function TransactionFlowPage() {
     let centerOutflow = 0;
     
     txs.forEach(tx => {
-      // Skip vote transactions for clarity
-      if (tx.type === 'vote' || !tx.amount || tx.amount === 0) return;
+      // Skip vote transactions and zero-amount transactions
+      if (tx.type === 'vote' || !tx.amount || tx.amount < 0.00001) return;
       
       // Determine flow direction
       const isOutgoing = tx.from === centerAddress;

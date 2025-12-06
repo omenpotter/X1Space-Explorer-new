@@ -111,60 +111,52 @@ export default function WhaleWatcher() {
             });
             if (isVote) return;
             
-            // Find largest balance change (excluding fee payer account which is idx 0)
-            let maxTransfer = 0;
-            let fromIdx = -1;
-            let toIdx = -1;
-            
+            // Find ALL balance changes to detect transfers
+            const balanceChanges = [];
             for (let j = 0; j < preBalances.length; j++) {
-              const balanceChange = (postBalances[j] - preBalances[j]) / 1e9;
-              const absChange = Math.abs(balanceChange);
-              
-              if (absChange > maxTransfer && absChange > 0.01) { // Min 0.01 XNT
-                maxTransfer = absChange;
-                if (balanceChange < 0) {
-                  fromIdx = j; // This account sent
-                } else {
-                  toIdx = j; // This account received
-                }
+              const change = (postBalances[j] - preBalances[j]) / 1e9;
+              if (Math.abs(change) > 0) {
+                balanceChanges.push({ idx: j, change, address: accountKeys[j] });
               }
             }
             
-            // Check if qualifies as whale transaction (convert minAmount to same scale)
-            if (maxTransfer >= minAmount && maxTransfer > 0) {
-              // Find recipient (who gained the most)
-              if (toIdx < 0) {
-                let maxGain = 0;
-                for (let j = 0; j < preBalances.length; j++) {
-                  const gain = (postBalances[j] - preBalances[j]) / 1e9;
-                  if (gain > maxGain && j !== fromIdx) {
-                    maxGain = gain;
-                    toIdx = j;
-                  }
+            // Sort by absolute value to find largest transfer
+            balanceChanges.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+            
+            // Find sender (negative change) and receiver (positive change)
+            const sender = balanceChanges.find(c => c.change < -0.0001); // Lost money
+            const receiver = balanceChanges.find(c => c.change > 0.0001); // Gained money
+            
+            if (sender && receiver) {
+              const maxTransfer = Math.abs(sender.change);
+              const fromIdx = sender.idx;
+              const toIdx = receiver.idx;
+              
+              // Check if qualifies as whale transaction
+              if (maxTransfer >= minAmount) {
+              
+                // Determine type
+                let type = 'transfer';
+                const hasStakeProgram = instructions.some(ix => 
+                  accountKeys[ix.programIdIndex] === 'Stake11111111111111111111111111111111111111'
+                );
+                if (hasStakeProgram) {
+                  type = sender.change < 0 ? 'stake' : 'unstake';
                 }
+                
+                whaleTxs.push({
+                  id: tx.transaction.signatures[0],
+                  signature: tx.transaction.signatures[0],
+                  from: accountKeys[fromIdx] || '',
+                  to: accountKeys[toIdx] || '',
+                  amount: maxTransfer,
+                  type,
+                  slot: currentSlot - i,
+                  timestamp: block.blockTime ? block.blockTime * 1000 : Date.now(),
+                  status: tx.meta.err ? 'failed' : 'success',
+                  isNew: false
+                });
               }
-              
-              // Determine type
-              let type = 'transfer';
-              const hasStakeProgram = instructions.some(ix => 
-                accountKeys[ix.programIdIndex] === 'Stake11111111111111111111111111111111111111'
-              );
-              if (hasStakeProgram) {
-                type = (postBalances[0] - preBalances[0]) < 0 ? 'stake' : 'unstake';
-              }
-              
-              whaleTxs.push({
-                id: tx.transaction.signatures[0],
-                signature: tx.transaction.signatures[0],
-                from: accountKeys[fromIdx] || accountKeys[0] || '',
-                to: accountKeys[toIdx] || accountKeys[1] || '',
-                amount: maxTransfer,
-                type,
-                slot: currentSlot - i,
-                timestamp: block.blockTime ? block.blockTime * 1000 : Date.now(),
-                status: tx.meta.err ? 'failed' : 'success',
-                isNew: false
-              });
             }
           });
           
