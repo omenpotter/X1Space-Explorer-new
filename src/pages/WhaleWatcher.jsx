@@ -9,12 +9,12 @@ import {
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import X1Rpc from '../components/x1/X1RpcService';
-import RPCDebugger from '../components/debug/RPCDebugger';
+
 
 export default function WhaleWatcher() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [minAmount, setMinAmount] = useState(10000); // Lower default threshold
+  const [minAmount, setMinAmount] = useState(1); // Start at 1 XNT
   const [alertsEnabled, setAlertsEnabled] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [isLive, setIsLive] = useState(true);
@@ -22,13 +22,18 @@ export default function WhaleWatcher() {
   const [alertHistory, setAlertHistory] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
   const [customThreshold, setCustomThreshold] = useState('');
+  const [filterAddress, setFilterAddress] = useState('');
+  const [sortField, setSortField] = useState('amount');
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   // Load settings from localStorage
   useEffect(() => {
     const saved = localStorage.getItem('x1_whale_settings');
     if (saved) {
       const settings = JSON.parse(saved);
-      setMinAmount(settings.minAmount || 100000);
+      setMinAmount(settings.minAmount || 1);
       setAlertsEnabled(settings.alertsEnabled || false);
       setSoundEnabled(settings.soundEnabled || false);
       setFilterType(settings.filterType || 'all');
@@ -178,7 +183,7 @@ export default function WhaleWatcher() {
         }
       }
       
-      whaleTxs.sort((a, b) => b.amount - a.amount);
+      console.log(`Found ${whaleTxs.length} whale transactions >= ${minAmount} XNT`);
       
       // Mark new ones
       const prevIds = new Set(transactions.map(t => t.id));
@@ -242,10 +247,50 @@ export default function WhaleWatcher() {
     }
   };
 
-  // Filter transactions
-  const filteredTxs = filterType === 'all' 
-    ? transactions 
-    : transactions.filter(tx => tx.type === filterType);
+  // Filter and sort transactions
+  let filteredTxs = transactions.filter(tx => {
+    // Filter by type
+    if (filterType !== 'all' && tx.type !== filterType) return false;
+    
+    // Filter by address
+    if (filterAddress && filterAddress.length >= 8) {
+      const addrLower = filterAddress.toLowerCase();
+      const fromMatch = tx.from?.toLowerCase().includes(addrLower);
+      const toMatch = tx.to?.toLowerCase().includes(addrLower);
+      if (!fromMatch && !toMatch) return false;
+    }
+    
+    // Filter by date range
+    if (dateFrom || dateTo) {
+      const txDate = new Date(tx.timestamp);
+      if (dateFrom && txDate < new Date(dateFrom)) return false;
+      if (dateTo && txDate > new Date(dateTo + 'T23:59:59')) return false;
+    }
+    
+    return true;
+  });
+  
+  // Sort transactions
+  filteredTxs = [...filteredTxs].sort((a, b) => {
+    let aVal, bVal;
+    switch (sortField) {
+      case 'amount':
+        aVal = a.amount;
+        bVal = b.amount;
+        break;
+      case 'timestamp':
+        aVal = a.timestamp;
+        bVal = b.timestamp;
+        break;
+      case 'slot':
+        aVal = a.slot;
+        bVal = b.slot;
+        break;
+      default:
+        return 0;
+    }
+    return sortOrder === 'desc' ? bVal - aVal : aVal - bVal;
+  });
 
   // Stats
   const totalVolume = filteredTxs.reduce((sum, tx) => sum + tx.amount, 0);
@@ -352,7 +397,7 @@ export default function WhaleWatcher() {
               <span className="text-gray-400 text-sm">Min Amount:</span>
             </div>
             <div className="flex gap-2">
-              {[10000, 50000, 100000, 500000].map((val) => (
+              {[1, 1000, 10000, 50000, 100000].map((val) => (
                 <Button 
                   key={val} 
                   variant="outline" 
@@ -398,6 +443,39 @@ export default function WhaleWatcher() {
               </Button>
             </div>
           </div>
+          
+          {/* Advanced Filters */}
+          <div className="mt-4 pt-4 border-t border-white/10">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-gray-400 text-xs mb-2 block">Filter by Address</label>
+                <Input 
+                  placeholder="Enter address..."
+                  value={filterAddress}
+                  onChange={(e) => setFilterAddress(e.target.value)}
+                  className="bg-[#1a2436] border-white/10 text-white text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs mb-2 block">From Date</label>
+                <Input 
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="bg-[#1a2436] border-white/10 text-white text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs mb-2 block">To Date</label>
+                <Input 
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="bg-[#1a2436] border-white/10 text-white text-sm"
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Transactions */}
@@ -418,11 +496,23 @@ export default function WhaleWatcher() {
                 <thead>
                   <tr className="border-b border-white/10">
                     <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Type</th>
-                    <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Amount</th>
-                    <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">From</th>
-                    <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">To</th>
-                    <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Slot</th>
-                    <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Time</th>
+                    <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">
+                      <button onClick={() => { setSortField('amount'); setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc'); }} className="flex items-center gap-1 hover:text-white">
+                        Amount {sortField === 'amount' && (sortOrder === 'desc' ? '↓' : '↑')}
+                      </button>
+                    </th>
+                    <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">From Address</th>
+                    <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">To Address</th>
+                    <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">
+                      <button onClick={() => { setSortField('slot'); setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc'); }} className="flex items-center gap-1 hover:text-white">
+                        Slot {sortField === 'slot' && (sortOrder === 'desc' ? '↓' : '↑')}
+                      </button>
+                    </th>
+                    <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">
+                      <button onClick={() => { setSortField('timestamp'); setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc'); }} className="flex items-center gap-1 hover:text-white ml-auto">
+                        Time {sortField === 'timestamp' && (sortOrder === 'desc' ? '↓' : '↑')}
+                      </button>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -445,20 +535,30 @@ export default function WhaleWatcher() {
                         <span className="text-gray-500 text-xs">≈ ${formatAmount(tx.amount)}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <Link 
-                          to={createPageUrl('AddressLookup') + `?address=${tx.from}`}
-                          className="text-cyan-400 hover:underline font-mono text-sm"
-                        >
-                          {tx.from?.substring(0, 8)}...{tx.from?.slice(-4)}
-                        </Link>
+                        {tx.from ? (
+                          <Link 
+                            to={createPageUrl('AddressLookup') + `?address=${tx.from}`}
+                            className="text-cyan-400 hover:underline font-mono text-sm block"
+                            title={tx.from}
+                          >
+                            {tx.from.substring(0, 12)}...{tx.from.slice(-6)}
+                          </Link>
+                        ) : (
+                          <span className="text-gray-500 text-sm">N/A</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
-                        <Link 
-                          to={createPageUrl('AddressLookup') + `?address=${tx.to}`}
-                          className="text-emerald-400 hover:underline font-mono text-sm"
-                        >
-                          {tx.to?.substring(0, 8)}...{tx.to?.slice(-4)}
-                        </Link>
+                        {tx.to ? (
+                          <Link 
+                            to={createPageUrl('AddressLookup') + `?address=${tx.to}`}
+                            className="text-emerald-400 hover:underline font-mono text-sm block"
+                            title={tx.to}
+                          >
+                            {tx.to.substring(0, 12)}...{tx.to.slice(-6)}
+                          </Link>
+                        ) : (
+                          <span className="text-gray-500 text-sm">N/A</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <Link 
@@ -516,7 +616,6 @@ export default function WhaleWatcher() {
           </div>
         )}
       </main>
-      <RPCDebugger />
     </div>
   );
 }

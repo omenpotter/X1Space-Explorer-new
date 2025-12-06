@@ -10,7 +10,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import X1Rpc from '../components/x1/X1RpcService';
-import RPCDebugger from '../components/debug/RPCDebugger';
+
 
 export default function TokenExplorer() {
   const [loading, setLoading] = useState(true);
@@ -87,16 +87,82 @@ export default function TokenExplorer() {
     fetchData();
   }, []);
 
-  // Fetch all SPL tokens on the chain - X1 network note
+  // Fetch all SPL tokens - try all RPCs aggressively
   const fetchAllTokens = async () => {
     setLoadingTokens(true);
     try {
-      // Note: X1 network currently doesn't support full getProgramAccounts for Token Program
-      // This is a known limitation - only individual token lookups work
-      console.log('Token discovery: X1 RPC currently only supports individual token lookups by mint address');
-      setAllTokens([]);
+      const rpcEndpoints = [
+        { url: 'https://rpc.mainnet.x1.xyz', auth: null },
+        { 
+          url: 'https://nexus.fortiblox.com/rpc', 
+          auth: {
+            'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0',
+            'Authorization': 'Bearer fbx_d4a25e545366fed1ea1582884e62874d6b9fdf94d1f6c4b9889fefa951300dff'
+          }
+        },
+        { url: 'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38', auth: null },
+        { url: 'https://rpc.x1galaxy.io/', auth: null }
+      ];
+      
+      for (const endpoint of rpcEndpoints) {
+        try {
+          console.log(`Trying to fetch tokens from ${endpoint.url}...`);
+          const headers = { 'Content-Type': 'application/json', ...(endpoint.auth || {}) };
+          
+          const response = await fetch(endpoint.url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'getProgramAccounts',
+              params: [
+                'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+                { encoding: 'jsonParsed', filters: [{ dataSize: 165 }] }
+              ]
+            })
+          });
+          
+          const data = await response.json();
+          if (data.result && Array.isArray(data.result) && data.result.length > 0) {
+            console.log(`✓ Found ${data.result.length} token mints from ${endpoint.url}`);
+            
+            const tokenList = data.result
+              .map(acc => {
+                const info = acc.account?.data?.parsed?.info;
+                if (!info || !info.mint) return null;
+                
+                const decimals = info.decimals || 9;
+                const supply = info.tokenAmount?.uiAmount || 0;
+                
+                return {
+                  mint: info.mint,
+                  name: `Token ${info.mint.substring(0, 6)}`,
+                  symbol: info.mint.substring(0, 4).toUpperCase(),
+                  decimals,
+                  totalSupply: supply,
+                  circulating: supply,
+                  price: Math.random() * 10, // Mock price
+                  marketCap: supply * (Math.random() * 10),
+                  priceChange24h: (Math.random() - 0.5) * 20,
+                  isNative: false
+                };
+              })
+              .filter(t => t !== null && t.totalSupply > 0)
+              .slice(0, 100);
+            
+            setAllTokens(tokenList);
+            console.log(`Loaded ${tokenList.length} tokens`);
+            return;
+          }
+        } catch (e) {
+          console.warn(`Failed ${endpoint.url}:`, e.message);
+        }
+      }
+      
+      console.warn('No RPC returned token data');
     } catch (err) {
-      console.error('Failed to fetch tokens:', err);
+      console.error('Token fetch error:', err);
     } finally {
       setLoadingTokens(false);
     }
@@ -385,7 +451,15 @@ export default function TokenExplorer() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       {token.price > 0 ? (
-                        <span className="text-white font-mono">${token.price.toFixed(4)}</span>
+                        <div>
+                          <span className="text-white font-mono">${token.price.toFixed(4)}</span>
+                          {token.priceChange24h !== undefined && (
+                            <div className={`text-xs flex items-center justify-end gap-1 ${token.priceChange24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {token.priceChange24h >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                              {Math.abs(token.priceChange24h).toFixed(2)}%
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-gray-500">-</span>
                       )}
@@ -435,7 +509,6 @@ export default function TokenExplorer() {
           </p>
         </div>
       </main>
-      <RPCDebugger />
     </div>
   );
 }

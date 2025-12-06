@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, Zap, AlertCircle, Globe, Calculator, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import RPCDebugger from '../components/debug/RPCDebugger';
+
 
 // Lazy load components
 
@@ -229,7 +229,6 @@ export default function Dashboard() {
           <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
           <span className="text-gray-400 text-sm">Connecting...</span>
         </div>
-        <RPCDebugger />
       </div>
     );
   }
@@ -417,17 +416,11 @@ export default function Dashboard() {
                   </span>
                 )}
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="bg-[#1d2d3a] rounded-lg p-3">
                   <p className="text-gray-400 text-xs mb-1">Current Slot</p>
                   <p className="text-white font-bold text-lg font-mono">
                     {dashboardData?.slot?.toLocaleString() || '-'}
-                  </p>
-                </div>
-                <div className="bg-[#1d2d3a] rounded-lg p-3">
-                  <p className="text-gray-400 text-xs mb-1">Block Height</p>
-                  <p className="text-white font-bold text-lg font-mono">
-                    {dashboardData?.blockHeight?.toLocaleString() || '-'}
                   </p>
                 </div>
                 <div className="bg-[#1d2d3a] rounded-lg p-3">
@@ -545,19 +538,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Version Info */}
-            <div className="bg-[#24384a] rounded-xl p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-400 text-xs">Network Version</p>
-                  <p className="text-white font-mono">{dashboardData?.version || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400 text-xs">RPC Endpoint</p>
-                  <p className="text-cyan-400 font-mono text-sm">rpc.mainnet.x1.xyz</p>
-                </div>
-              </div>
-            </div>
+
           </div>
         </div>
 
