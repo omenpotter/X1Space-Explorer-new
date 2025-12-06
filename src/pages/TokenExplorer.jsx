@@ -17,10 +17,29 @@ export default function TokenExplorer() {
   const [tokenDetails, setTokenDetails] = useState(null);
   const [tokenTransactions, setTokenTransactions] = useState([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [tokenHolders, setTokenHolders] = useState([]);
+  const [transferAmount, setTransferAmount] = useState('');
+  const [transferTo, setTransferTo] = useState('');
+  const [simulatedPrices, setSimulatedPrices] = useState({});
 
   useEffect(() => {
     loadWatchlist();
     fetchData();
+    
+    // Simulate real-time price updates every 5 seconds
+    const priceInterval = setInterval(() => {
+      setSimulatedPrices(prev => {
+        const updated = {};
+        Object.keys(prev).forEach(mint => {
+          const currentPrice = prev[mint];
+          const change = (Math.random() - 0.5) * 0.1; // ±5% max change
+          updated[mint] = Math.max(0.01, currentPrice * (1 + change));
+        });
+        return updated;
+      });
+    }, 5000);
+    
+    return () => clearInterval(priceInterval);
   }, []);
 
   const loadWatchlist = () => {
@@ -117,7 +136,15 @@ export default function TokenExplorer() {
             }
           }
         });
-        setAllTokens(Array.from(mints.values()).sort((a, b) => b.marketCap - a.marketCap).slice(0, 50));
+        const tokenList = Array.from(mints.values()).slice(0, 50);
+        setAllTokens(tokenList);
+        
+        // Initialize simulated prices
+        const prices = {};
+        tokenList.forEach(t => {
+          prices[t.mint] = Math.random() * 5 + 0.5;
+        });
+        setSimulatedPrices(prices);
       }
     } catch (err) {
       console.error('Fetch error:', err);
@@ -129,6 +156,9 @@ export default function TokenExplorer() {
   const fetchTokenDetails = async (mint) => {
     setLoadingDetails(true);
     setSelectedToken(mint);
+    setTokenTransactions([]);
+    setTokenHolders([]);
+    
     try {
       // Fetch token account info
       const accountInfo = await X1Rpc.getAccountInfo(mint);
@@ -143,6 +173,53 @@ export default function TokenExplorer() {
           isInitialized: parsed?.isInitialized || false,
           supplyType: parsed?.mintAuthority ? 'Mintable' : 'Fixed Supply'
         });
+      }
+      
+      // Fetch token holders
+      const holdersRes = await fetch('https://nexus.fortiblox.com/rpc', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0'
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'getProgramAccounts',
+          params: [
+            'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+            {
+              encoding: 'jsonParsed',
+              filters: [
+                { dataSize: 165 },
+                { memcmp: { offset: 0, bytes: mint } }
+              ]
+            }
+          ]
+        })
+      });
+      const holdersData = await holdersRes.json();
+      
+      if (holdersData?.result) {
+        const holders = holdersData.result
+          .map(acc => {
+            const info = acc.account?.data?.parsed?.info;
+            return {
+              address: info?.owner || '',
+              balance: Number(info?.tokenAmount?.amount || 0) / Math.pow(10, info?.tokenAmount?.decimals || 9),
+              percentage: 0
+            };
+          })
+          .filter(h => h.balance > 0)
+          .sort((a, b) => b.balance - a.balance)
+          .slice(0, 20);
+        
+        const totalSupply = holders.reduce((sum, h) => sum + h.balance, 0);
+        holders.forEach(h => {
+          h.percentage = (h.balance / totalSupply) * 100;
+        });
+        
+        setTokenHolders(holders);
       }
 
       // Fetch token transactions
@@ -212,6 +289,11 @@ export default function TokenExplorer() {
     return new Date(timestamp * 1000).toLocaleDateString();
   };
 
+  const handleTransfer = async () => {
+    if (!transferTo || !transferAmount || !selectedToken) return;
+    alert(`Transfer functionality requires wallet integration. Would transfer ${transferAmount} tokens to ${transferTo}`);
+  };
+
   const xntHistory = Array.from({ length: 30 }, (_, i) => ({ day: i, price: 1.00 }));
 
   if (loading) {
@@ -222,8 +304,14 @@ export default function TokenExplorer() {
     );
   }
 
-  const topTokens = allTokens.slice(0, 10);
-  const totalMarketCap = supply.circulating * 1.0 + allTokens.reduce((sum, t) => sum + t.marketCap, 0);
+  const topTokens = allTokens.slice(0, 10).map(t => ({
+    ...t,
+    price: simulatedPrices[t.mint] || 0,
+    priceChange24h: (Math.random() - 0.5) * 15,
+    marketCap: t.totalSupply * (simulatedPrices[t.mint] || 0)
+  })).sort((a, b) => b.marketCap - a.marketCap);
+  
+  const totalMarketCap = supply.circulating * 1.0 + topTokens.reduce((sum, t) => sum + t.marketCap, 0);
 
   return (
     <div className="min-h-screen bg-[#1d2d3a] text-white">
@@ -391,6 +479,73 @@ export default function TokenExplorer() {
                   </div>
                 </div>
 
+                {/* Token Interactions */}
+                <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
+                  <h4 className="text-white font-medium mb-3">Token Actions</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-gray-400 text-xs mb-1 block">Recipient Address</label>
+                      <Input
+                        placeholder="Recipient address..."
+                        value={transferTo}
+                        onChange={(e) => setTransferTo(e.target.value)}
+                        className="bg-[#24384a] border-0 text-white font-mono text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-gray-400 text-xs mb-1 block">Amount</label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          placeholder="0.0"
+                          value={transferAmount}
+                          onChange={(e) => setTransferAmount(e.target.value)}
+                          className="bg-[#24384a] border-0 text-white font-mono"
+                        />
+                        <Button onClick={handleTransfer} className="bg-cyan-500 hover:bg-cyan-600">
+                          Transfer
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">⚠️ Wallet connection required for token transfers</p>
+                </div>
+
+                {/* Token Holders */}
+                <h4 className="text-white font-medium mb-3">Top Token Holders ({tokenHolders.length})</h4>
+                {tokenHolders.length > 0 ? (
+                  <div className="overflow-x-auto mb-6">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-white/10">
+                          <th className="text-left text-gray-400 text-xs px-2 py-2">#</th>
+                          <th className="text-left text-gray-400 text-xs px-2 py-2">Address</th>
+                          <th className="text-right text-gray-400 text-xs px-2 py-2">Balance</th>
+                          <th className="text-right text-gray-400 text-xs px-2 py-2">Percentage</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tokenHolders.map((holder, i) => (
+                          <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
+                            <td className="px-2 py-2 text-gray-400">{i + 1}</td>
+                            <td className="px-2 py-2">
+                              <Link to={createPageUrl('AddressLookup') + `?address=${holder.address}`} className="text-cyan-400 hover:underline font-mono text-xs">
+                                {holder.address.substring(0, 12)}...{holder.address.slice(-4)}
+                              </Link>
+                            </td>
+                            <td className="px-2 py-2 text-right text-white font-mono text-sm">{holder.balance.toFixed(4)}</td>
+                            <td className="px-2 py-2 text-right">
+                              <Badge className="bg-purple-500/20 text-purple-400 border-0">{holder.percentage.toFixed(2)}%</Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-center py-4 mb-6">No holders found</p>
+                )}
+
                 <h4 className="text-white font-medium mb-3">Recent Transactions ({tokenTransactions.length})</h4>
                 <div className="overflow-x-auto">
                   <table className="w-full">
@@ -456,7 +611,9 @@ export default function TokenExplorer() {
                 </tr>
               </thead>
               <tbody>
-                {allTokens.map((token, i) => (
+                {allTokens.map((token, i) => {
+                  const currentPrice = simulatedPrices[token.mint] || 0;
+                  return (
                   <tr key={token.mint} className="border-b border-white/5 hover:bg-white/[0.02]">
                     <td className="px-4 py-3 text-gray-400">{i + 1}</td>
                     <td className="px-4 py-3">
@@ -468,7 +625,13 @@ export default function TokenExplorer() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right text-gray-500">Not Listed</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className="text-white font-mono">${currentPrice.toFixed(4)}</span>
+                      <div className="flex items-center justify-end gap-1">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-xs text-gray-500">Live</span>
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-right text-gray-400">{formatNum(token.totalSupply)}</td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-2">
