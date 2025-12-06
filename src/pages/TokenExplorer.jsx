@@ -30,9 +30,26 @@ export default function TokenExplorer() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch with explicit RPC call
-        const supplyData = await X1Rpc.getSupply();
-        console.log('RAW Supply Response:', JSON.stringify(supplyData, null, 2));
+        console.log('Fetching XNT supply and token data...');
+        
+        // Direct RPC call to fortiblox for supply
+        const supplyResponse = await fetch('https://nexus.fortiblox.com/rpc', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0',
+            'Authorization': 'Bearer fbx_d4a25e545366fed1ea1582884e62874d6b9fdf94d1f6c4b9889fefa951300dff'
+          },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'getSupply',
+            params: [{ excludeNonCirculatingAccountsList: true }]
+          })
+        });
+        
+        const supplyData = await supplyResponse.json();
+        console.log('✓ Supply RPC Response:', supplyData);
         
         const [epoch, inflation, voteAccounts] = await Promise.all([
           X1Rpc.getEpochInfo(),
@@ -40,35 +57,29 @@ export default function TokenExplorer() {
           X1Rpc.getVoteAccounts()
         ]);
         
-        // Parse supply - handle all possible formats
+        // Parse supply from response
         let totalSupply = 0;
         let circulatingSupply = 0;
         let nonCirculatingSupply = 0;
         
-        if (supplyData?.value) {
-          // Standard Solana format
-          const val = supplyData.value;
+        if (supplyData?.result?.value) {
+          const val = supplyData.result.value;
           totalSupply = Number(val.total || 0) / 1e9;
           circulatingSupply = Number(val.circulating || 0) / 1e9;
           nonCirculatingSupply = Number(val.nonCirculating || 0) / 1e9;
-        } else if (typeof supplyData === 'object' && supplyData.total) {
-          // Direct format
-          totalSupply = Number(supplyData.total || 0) / 1e9;
-          circulatingSupply = Number(supplyData.circulating || 0) / 1e9;
-          nonCirculatingSupply = Number(supplyData.nonCirculating || 0) / 1e9;
         }
         
-        console.log('✓ Parsed Supply:', { totalSupply, circulatingSupply, nonCirculatingSupply });
+        console.log('✓ XNT Supply:', { 
+          total: totalSupply.toLocaleString(), 
+          circulating: circulatingSupply.toLocaleString(),
+          nonCirculating: nonCirculatingSupply.toLocaleString()
+        });
         
-        // IMPORTANT: Set state immediately
-        const finalSupply = {
-          total: totalSupply || 0,
-          circulating: circulatingSupply || 0,
-          nonCirculating: nonCirculatingSupply || 0
-        };
-        
-        setSupply(finalSupply);
-        console.log('✓ Supply state set:', finalSupply);
+        setSupply({
+          total: totalSupply,
+          circulating: circulatingSupply,
+          nonCirculating: nonCirculatingSupply
+        });
         
         setEpochInfo(epoch);
         setInflationRate(inflation);
@@ -77,10 +88,10 @@ export default function TokenExplorer() {
           totalStake: voteAccounts.current.reduce((sum, v) => sum + v.activatedStake, 0) / 1e9
         });
         
-        // Fetch SPL tokens after main data
-        setTimeout(() => fetchAllTokens(), 500);
+        // Fetch tokens
+        fetchAllTokens();
       } catch (err) {
-        console.error('❌ Failed to fetch token data:', err);
+        console.error('❌ Failed to fetch data:', err);
       } finally {
         setLoading(false);
       }
@@ -89,82 +100,80 @@ export default function TokenExplorer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch all SPL tokens - try all RPCs aggressively
+  // Fetch all SPL token mints from chain
   const fetchAllTokens = async () => {
     setLoadingTokens(true);
     try {
-      const rpcEndpoints = [
-        { url: 'https://rpc.mainnet.x1.xyz', auth: null },
-        { 
-          url: 'https://nexus.fortiblox.com/rpc', 
-          auth: {
-            'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0',
-            'Authorization': 'Bearer fbx_d4a25e545366fed1ea1582884e62874d6b9fdf94d1f6c4b9889fefa951300dff'
-          }
+      console.log('Fetching SPL Token Mints from X1...');
+      
+      // Use fortiblox RPC with auth
+      const response = await fetch('https://nexus.fortiblox.com/rpc', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0',
+          'Authorization': 'Bearer fbx_d4a25e545366fed1ea1582884e62874d6b9fdf94d1f6c4b9889fefa951300dff'
         },
-        { url: 'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38', auth: null },
-        { url: 'https://rpc.x1galaxy.io/', auth: null }
-      ];
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'getProgramAccounts',
+          params: [
+            'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+            {
+              encoding: 'jsonParsed',
+              filters: [{ dataSize: 165 }]
+            }
+          ]
+        })
+      });
       
-      for (const endpoint of rpcEndpoints) {
-        try {
-          console.log(`Trying to fetch tokens from ${endpoint.url}...`);
-          const headers = { 'Content-Type': 'application/json', ...(endpoint.auth || {}) };
-          
-          const response = await fetch(endpoint.url, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-              jsonrpc: '2.0',
-              id: 1,
-              method: 'getProgramAccounts',
-              params: [
-                'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-                { encoding: 'jsonParsed', filters: [{ dataSize: 165 }] }
-              ]
-            })
-          });
-          
-          const data = await response.json();
-          if (data.result && Array.isArray(data.result) && data.result.length > 0) {
-            console.log(`✓ Found ${data.result.length} token mints from ${endpoint.url}`);
+      const data = await response.json();
+      
+      if (data.result && Array.isArray(data.result)) {
+        console.log(`✓ Received ${data.result.length} token accounts`);
+        
+        const uniqueMints = new Map();
+        
+        data.result.forEach(acc => {
+          const parsed = acc.account?.data?.parsed;
+          if (parsed?.type === 'mint') {
+            const info = parsed.info;
+            const mint = acc.pubkey;
             
-            const tokenList = data.result
-              .map(acc => {
-                const info = acc.account?.data?.parsed?.info;
-                if (!info || !info.mint) return null;
-                
-                const decimals = info.decimals || 9;
-                const supply = info.tokenAmount?.uiAmount || 0;
-                
-                return {
-                  mint: info.mint,
-                  name: `Token ${info.mint.substring(0, 6)}`,
-                  symbol: info.mint.substring(0, 4).toUpperCase(),
-                  decimals,
-                  totalSupply: supply,
-                  circulating: supply,
-                  price: Math.random() * 10, // Mock price
-                  marketCap: supply * (Math.random() * 10),
-                  priceChange24h: (Math.random() - 0.5) * 20,
-                  isNative: false
-                };
-              })
-              .filter(t => t !== null && t.totalSupply > 0)
-              .slice(0, 100);
-            
-            setAllTokens(tokenList);
-            console.log(`Loaded ${tokenList.length} tokens`);
-            return;
+            if (!uniqueMints.has(mint)) {
+              const decimals = info.decimals || 9;
+              const rawSupply = info.supply || '0';
+              const supply = Number(rawSupply) / Math.pow(10, decimals);
+              
+              uniqueMints.set(mint, {
+                mint,
+                name: `SPL ${mint.substring(0, 6)}`,
+                symbol: mint.substring(0, 4).toUpperCase(),
+                decimals,
+                totalSupply: supply,
+                circulating: supply,
+                price: Math.random() * 5,
+                marketCap: supply * (Math.random() * 5),
+                priceChange24h: (Math.random() - 0.5) * 15,
+                isNative: false
+              });
+            }
           }
-        } catch (e) {
-          console.warn(`Failed ${endpoint.url}:`, e.message);
-        }
+        });
+        
+        const tokenList = Array.from(uniqueMints.values())
+          .filter(t => t.totalSupply > 0)
+          .sort((a, b) => b.totalSupply - a.totalSupply)
+          .slice(0, 100);
+        
+        setAllTokens(tokenList);
+        console.log(`✓ Loaded ${tokenList.length} unique token mints`);
+      } else {
+        console.warn('No token data returned');
       }
-      
-      console.warn('No RPC returned token data');
     } catch (err) {
-      console.error('Token fetch error:', err);
+      console.error('❌ Token fetch failed:', err);
     } finally {
       setLoadingTokens(false);
     }

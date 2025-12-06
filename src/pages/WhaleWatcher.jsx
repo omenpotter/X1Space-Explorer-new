@@ -357,15 +357,27 @@ export default function WhaleWatcher() {
                 {alertsEnabled ? <Bell className="w-4 h-4 mr-2" /> : <BellOff className="w-4 h-4 mr-2" />}
                 Alerts
               </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setIsLive(!isLive)}
-                className={`border-white/20 ${isLive ? 'text-emerald-400' : 'text-gray-400'}`}
-              >
-                {isLive && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-2" />}
-                {isLive ? 'Live' : 'Paused'}
-              </Button>
+              {isLive ? (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setIsLive(false)}
+                  className="border-white/20 text-red-400 hover:bg-red-500/10"
+                >
+                  <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse mr-2" />
+                  Stop Search
+                </Button>
+              ) : (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setIsLive(true)}
+                  className="border-white/20 text-emerald-400 hover:bg-emerald-500/10"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 mr-2" />
+                  Start Search
+                </Button>
+              )}
             </div>
           </div>
         </div>
