@@ -21,6 +21,9 @@ export default function TokenExplorer() {
   const [transferAmount, setTransferAmount] = useState('');
   const [transferTo, setTransferTo] = useState('');
   const [simulatedPrices, setSimulatedPrices] = useState({});
+  const [tokenMetadata, setTokenMetadata] = useState(null);
+  const [approveAmount, setApproveAmount] = useState('');
+  const [approveSpender, setApproveSpender] = useState('');
 
   useEffect(() => {
     loadWatchlist();
@@ -158,10 +161,44 @@ export default function TokenExplorer() {
     setSelectedToken(mint);
     setTokenTransactions([]);
     setTokenHolders([]);
+    setTokenMetadata(null);
     
     try {
       // Import X1Rpc
       const X1Rpc = (await import('../components/x1/X1RpcService')).default;
+      
+      // Fetch token metadata from common standards (Metaplex)
+      try {
+        const metadataRes = await fetch('https://nexus.fortiblox.com/rpc', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0'
+          },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'getAccountInfo',
+            params: [mint, { encoding: 'jsonParsed' }]
+          })
+        });
+        const metadataData = await metadataRes.json();
+        if (metadataData?.result?.value?.data?.parsed?.info?.uri) {
+          const uri = metadataData.result.value.data.parsed.info.uri;
+          const metaRes = await fetch(uri);
+          const meta = await metaRes.json();
+          setTokenMetadata({
+            name: meta.name || null,
+            symbol: meta.symbol || null,
+            image: meta.image || null,
+            description: meta.description || null,
+            website: meta.external_url || null,
+            twitter: meta.twitter || null
+          });
+        }
+      } catch (e) {
+        // Metadata not available
+      }
       
       // Fetch token account info
       const accountInfo = await X1Rpc.getAccountInfo(mint);
@@ -295,6 +332,11 @@ export default function TokenExplorer() {
   const handleTransfer = async () => {
     if (!transferTo || !transferAmount || !selectedToken) return;
     alert(`Transfer functionality requires wallet integration. Would transfer ${transferAmount} tokens to ${transferTo}`);
+  };
+
+  const handleApprove = async () => {
+    if (!approveSpender || !approveAmount || !selectedToken) return;
+    alert(`Approve functionality requires wallet integration. Would approve ${approveAmount} tokens for spender ${approveSpender}`);
   };
 
   const xntHistory = Array.from({ length: 30 }, (_, i) => ({ day: i, price: 1.00 }));
@@ -455,6 +497,33 @@ export default function TokenExplorer() {
               </div>
             ) : tokenDetails ? (
               <>
+                {/* Token Metadata */}
+                {tokenMetadata && (
+                  <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-lg p-4 mb-6">
+                    <div className="flex items-center gap-4">
+                      {tokenMetadata.image && (
+                        <img src={tokenMetadata.image} alt={tokenMetadata.name} className="w-16 h-16 rounded-full" />
+                      )}
+                      <div className="flex-1">
+                        <h4 className="text-white font-bold text-lg">{tokenMetadata.name || 'Unknown Token'}</h4>
+                        <p className="text-gray-400 text-sm">{tokenMetadata.description || 'No description available'}</p>
+                        <div className="flex gap-3 mt-2">
+                          {tokenMetadata.website && (
+                            <a href={tokenMetadata.website} target="_blank" rel="noopener noreferrer" className="text-cyan-400 text-xs hover:underline">
+                              🌐 Website
+                            </a>
+                          )}
+                          {tokenMetadata.twitter && (
+                            <a href={tokenMetadata.twitter} target="_blank" rel="noopener noreferrer" className="text-cyan-400 text-xs hover:underline">
+                              🐦 Twitter
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
                   <div className="bg-[#1d2d3a] rounded-lg p-3">
                     <p className="text-gray-400 text-xs mb-1">Mint Address</p>
@@ -485,9 +554,9 @@ export default function TokenExplorer() {
                 {/* Token Interactions */}
                 <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
                   <h4 className="text-white font-medium mb-3">Token Actions</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <label className="text-gray-400 text-xs mb-1 block">Recipient Address</label>
+                      <label className="text-gray-400 text-xs mb-1 block">Transfer To</label>
                       <Input
                         placeholder="Recipient address..."
                         value={transferTo}
@@ -511,7 +580,49 @@ export default function TokenExplorer() {
                       </div>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">⚠️ Wallet connection required for token transfers</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-gray-400 text-xs mb-1 block">Approve Spender</label>
+                      <Input
+                        placeholder="Spender address..."
+                        value={approveSpender}
+                        onChange={(e) => setApproveSpender(e.target.value)}
+                        className="bg-[#24384a] border-0 text-white font-mono text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-gray-400 text-xs mb-1 block">Allowance</label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          placeholder="0.0"
+                          value={approveAmount}
+                          onChange={(e) => setApproveAmount(e.target.value)}
+                          className="bg-[#24384a] border-0 text-white font-mono"
+                        />
+                        <Button onClick={handleApprove} className="bg-purple-500 hover:bg-purple-600">
+                          Approve
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">⚠️ Wallet connection required for token interactions</p>
+                </div>
+
+                {/* Contract ABI */}
+                <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
+                  <h4 className="text-white font-medium mb-2">Contract Interface (SPL Token Standard)</h4>
+                  <div className="bg-[#0a0f1a] rounded p-3 overflow-x-auto">
+                    <pre className="text-xs text-gray-400 font-mono">
+{`interface SPLToken {
+  function transfer(address recipient, uint256 amount) public;
+  function approve(address spender, uint256 amount) public;
+  function transferFrom(address sender, address recipient, uint256 amount) public;
+  function balanceOf(address account) public view returns (uint256);
+  function allowance(address owner, address spender) public view returns (uint256);
+}`}
+                    </pre>
+                  </div>
                 </div>
 
                 {/* Token Holders */}

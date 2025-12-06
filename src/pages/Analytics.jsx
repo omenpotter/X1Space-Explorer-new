@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import React, { useState, useEffect, useMemo, memo } from 'react';
 import { ChevronLeft, TrendingUp, Activity, Users, Zap, BarChart3, Loader2, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -24,6 +25,14 @@ export default function Analytics() {
   const [gasUsage, setGasUsage] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [showAlerts, setShowAlerts] = useState(true);
+  const [alertThresholds, setAlertThresholds] = useState({
+    tpsSurge: 50, // % increase
+    tpsDrop: 30,  // % decrease
+    validatorDowntime: 95 // % uptime threshold
+  });
+  const [showSettings, setShowSettings] = useState(false);
+  const [compareData, setCompareData] = useState(null);
+  const [showComparison, setShowComparison] = useState(false);
 
   useEffect(() => {
     fetchAnalytics();
@@ -40,23 +49,25 @@ export default function Analytics() {
     const newAlerts = [];
     
     if (oldData) {
-      // TPS surge detection
-      if (newData.avgTps > oldData.avgTps * 1.5) {
+      const tpsChangePercent = ((newData.avgTps / oldData.avgTps - 1) * 100);
+      
+      // TPS surge detection (configurable)
+      if (tpsChangePercent > alertThresholds.tpsSurge) {
         newAlerts.push({
           id: Date.now(),
           type: 'surge',
-          message: `TPS surge detected: ${newData.avgTps} (up ${((newData.avgTps / oldData.avgTps - 1) * 100).toFixed(0)}%)`,
+          message: `⚡ TPS surge: ${newData.avgTps} (up ${tpsChangePercent.toFixed(0)}%)`,
           severity: 'warning',
           timestamp: Date.now()
         });
       }
       
-      // Transaction drop
-      if (newData.totalTxs < oldData.totalTxs * 0.7) {
+      // TPS drop detection (configurable)
+      if (tpsChangePercent < -alertThresholds.tpsDrop) {
         newAlerts.push({
           id: Date.now() + 1,
           type: 'drop',
-          message: `Transaction volume dropped significantly`,
+          message: `📉 TPS dropped: ${newData.avgTps} (down ${Math.abs(tpsChangePercent).toFixed(0)}%)`,
           severity: 'error',
           timestamp: Date.now()
         });
@@ -64,7 +75,32 @@ export default function Analytics() {
     }
     
     if (newAlerts.length > 0) {
-      setAlerts(prev => [...newAlerts, ...prev].slice(0, 10));
+      setAlerts(prev => [...newAlerts, ...prev].slice(0, 20));
+      
+      // Browser notification
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('X1 Network Alert', {
+          body: newAlerts[0].message,
+          icon: '/favicon.ico'
+        });
+      }
+    }
+  };
+
+  const loadComparisonData = async (range) => {
+    try {
+      const [performance] = await Promise.all([
+        X1Rpc.getRecentPerformanceSamples(60)
+      ]);
+      
+      const tpsData = performance.map((s, i) => ({
+        time: `${60 - i}m`,
+        tps: Math.round(s.numTransactions / s.samplePeriodSecs)
+      })).reverse();
+      
+      setCompareData({ range, tpsData, timestamp: Date.now() });
+    } catch (err) {
+      console.error('Comparison fetch error:', err);
     }
   };
 
@@ -184,7 +220,7 @@ export default function Analytics() {
                   </Button>
                 ))}
               </div>
-              <div className="border-l border-white/20 pl-3">
+              <div className="border-l border-white/20 pl-3 flex gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -192,6 +228,25 @@ export default function Analytics() {
                   className="border-white/20 text-gray-400"
                 >
                   {showAlerts ? 'Hide' : 'Show'} Alerts
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowSettings(!showSettings)}
+                  className="border-white/20 text-gray-400"
+                >
+                  Settings
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowComparison(!showComparison);
+                    if (!showComparison && !compareData) loadComparisonData('previous');
+                  }}
+                  className="border-white/20 text-cyan-400"
+                >
+                  Compare
                 </Button>
               </div>
             </div>
@@ -210,6 +265,52 @@ export default function Analytics() {
             </Badge>
           </h1>
         </div>
+
+        {/* Settings Panel */}
+        {showSettings && (
+          <div className="bg-[#24384a] rounded-xl p-6 mb-6">
+            <h3 className="text-white font-medium mb-4">Alert Thresholds</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-gray-400 text-xs mb-1 block">TPS Surge (% increase)</label>
+                <Input
+                  type="number"
+                  value={alertThresholds.tpsSurge}
+                  onChange={(e) => setAlertThresholds({...alertThresholds, tpsSurge: Number(e.target.value)})}
+                  className="bg-[#1d2d3a] border-0 text-white"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs mb-1 block">TPS Drop (% decrease)</label>
+                <Input
+                  type="number"
+                  value={alertThresholds.tpsDrop}
+                  onChange={(e) => setAlertThresholds({...alertThresholds, tpsDrop: Number(e.target.value)})}
+                  className="bg-[#1d2d3a] border-0 text-white"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs mb-1 block">Min Validator Uptime (%)</label>
+                <Input
+                  type="number"
+                  value={alertThresholds.validatorDowntime}
+                  onChange={(e) => setAlertThresholds({...alertThresholds, validatorDowntime: Number(e.target.value)})}
+                  className="bg-[#1d2d3a] border-0 text-white"
+                />
+              </div>
+            </div>
+            <Button
+              className="mt-4 bg-cyan-500 hover:bg-cyan-600"
+              size="sm"
+              onClick={() => {
+                localStorage.setItem('x1_alert_thresholds', JSON.stringify(alertThresholds));
+                setShowSettings(false);
+              }}
+            >
+              Save Settings
+            </Button>
+          </div>
+        )}
 
         {/* Alerts */}
         {showAlerts && alerts.length > 0 && (
@@ -263,16 +364,26 @@ export default function Analytics() {
           </div>
         </div>
 
-        {/* TPS History Chart */}
+        {/* TPS History Chart with Comparison */}
         <div className="bg-[#24384a] rounded-xl p-6 mb-6">
-          <h3 className="text-white font-medium mb-4">Transaction Performance</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-white font-medium">Transaction Performance</h3>
+            {showComparison && compareData && (
+              <Badge className="bg-purple-500/20 text-purple-400 border-0">
+                vs {compareData.range} period
+              </Badge>
+            )}
+          </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={tpsHistory}>
                 <XAxis dataKey="time" stroke="#6b7280" style={{ fontSize: '12px' }} />
                 <YAxis stroke="#6b7280" style={{ fontSize: '12px' }} />
                 <Tooltip contentStyle={{ backgroundColor: '#1d2d3a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} />
-                <Line type="monotone" dataKey="tps" stroke="#06b6d4" strokeWidth={2} dot={false} name="TPS" />
+                <Line type="monotone" dataKey="tps" stroke="#06b6d4" strokeWidth={2} dot={false} name="Current TPS" />
+                {showComparison && compareData && (
+                  <Line type="monotone" data={compareData.tpsData} dataKey="tps" stroke="#a855f7" strokeWidth={2} dot={false} name="Previous TPS" strokeDasharray="5 5" />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>
