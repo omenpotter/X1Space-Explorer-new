@@ -26,10 +26,11 @@ export default function Analytics() {
   const [alerts, setAlerts] = useState([]);
   const [showAlerts, setShowAlerts] = useState(true);
   const [alertThresholds, setAlertThresholds] = useState({
-    tpsSurge: 50, // % increase
+    tpsSurge: 100, // Absolute TPS increase
     tpsDrop: 30,  // % decrease
     validatorDowntime: 95 // % uptime threshold
   });
+  const [lastTpsAlert, setLastTpsAlert] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [compareData, setCompareData] = useState(null);
   const [showComparison, setShowComparison] = useState(false);
@@ -49,28 +50,28 @@ export default function Analytics() {
     const newAlerts = [];
     
     if (oldData) {
-      const tpsChangePercent = ((newData.avgTps / oldData.avgTps - 1) * 100);
+      const tpsChange = Math.abs(newData.avgTps - oldData.avgTps);
       
-      // TPS surge detection (configurable)
-      if (tpsChangePercent > alertThresholds.tpsSurge) {
-        newAlerts.push({
-          id: Date.now(),
-          type: 'surge',
-          message: `⚡ TPS surge: ${newData.avgTps} (up ${tpsChangePercent.toFixed(0)}%)`,
-          severity: 'warning',
-          timestamp: Date.now()
-        });
-      }
-      
-      // TPS drop detection (configurable)
-      if (tpsChangePercent < -alertThresholds.tpsDrop) {
-        newAlerts.push({
-          id: Date.now() + 1,
-          type: 'drop',
-          message: `📉 TPS dropped: ${newData.avgTps} (down ${Math.abs(tpsChangePercent).toFixed(0)}%)`,
-          severity: 'error',
-          timestamp: Date.now()
-        });
+      // TPS surge/drop detection - only if change >= threshold and hasn't alerted recently
+      if (tpsChange >= alertThresholds.tpsSurge && tpsChange !== lastTpsAlert) {
+        setLastTpsAlert(tpsChange);
+        if (newData.avgTps > oldData.avgTps) {
+          newAlerts.push({
+            id: Date.now(),
+            type: 'surge',
+            message: `⚡ TPS surge: ${newData.avgTps} (up ${tpsChange.toFixed(0)} TPS)`,
+            severity: 'warning',
+            timestamp: Date.now()
+          });
+        } else {
+          newAlerts.push({
+            id: Date.now(),
+            type: 'drop',
+            message: `📉 TPS dropped: ${newData.avgTps} (down ${tpsChange.toFixed(0)} TPS)`,
+            severity: 'error',
+            timestamp: Date.now()
+          });
+        }
       }
     }
     
@@ -166,11 +167,14 @@ export default function Analytics() {
       }));
       setValidatorPerformance(topValidators);
 
-      // Gas usage simulation
+      // Fee usage from recent blocks
+      const totalFees = blocks.reduce((sum, b) => sum + (b.rewards?.reduce((s, r) => s + (r.lamports || 0), 0) || 0), 0) / 1e9;
+      const avgFeePerTx = blocks.length > 0 ? totalFees / blocks.reduce((sum, b) => sum + b.txCount, 0) : 0;
+      
       const gasData = Array.from({ length: 24 }, (_, i) => ({
         hour: `${i}:00`,
-        avgFee: Math.random() * 0.00001 + 0.000005,
-        totalFees: Math.random() * 100 + 50
+        avgFee: avgFeePerTx,
+        totalFees: totalFees / 24
       }));
       setGasUsage(gasData);
 
@@ -272,7 +276,7 @@ export default function Analytics() {
             <h3 className="text-white font-medium mb-4">Alert Thresholds</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="text-gray-400 text-xs mb-1 block">TPS Surge (% increase)</label>
+                <label className="text-gray-400 text-xs mb-1 block">TPS Change Threshold (absolute TPS)</label>
                 <Input
                   type="number"
                   value={alertThresholds.tpsSurge}
