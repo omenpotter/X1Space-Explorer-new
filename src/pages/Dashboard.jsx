@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, Zap, AlertCircle, Globe, Calculator, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import RPCDebugger from '../components/debug/RPCDebugger';
 
 // Lazy load components
 
@@ -229,6 +230,7 @@ export default function Dashboard() {
           <span className="text-gray-400 text-sm">Connecting...</span>
         </div>
       </div>
+      <RPCDebugger />
     );
   }
 

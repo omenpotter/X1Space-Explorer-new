@@ -10,6 +10,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import X1Rpc from '../components/x1/X1RpcService';
+import RPCDebugger from '../components/debug/RPCDebugger';
 
 export default function TokenExplorer() {
   const [loading, setLoading] = useState(true);
@@ -505,6 +506,7 @@ export default function TokenExplorer() {
           </p>
         </div>
       </main>
+      <RPCDebugger />
     </div>
   );
 }

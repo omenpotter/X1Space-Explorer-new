@@ -9,6 +9,7 @@ import {
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import X1Rpc from '../components/x1/X1RpcService';
+import RPCDebugger from '../components/debug/RPCDebugger';
 
 export default function WhaleWatcher() {
   const [transactions, setTransactions] = useState([]);
@@ -503,6 +504,7 @@ export default function WhaleWatcher() {
           </div>
         )}
       </main>
+      <RPCDebugger />
     </div>
   );
 }
