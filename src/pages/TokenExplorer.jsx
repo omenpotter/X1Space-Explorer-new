@@ -438,13 +438,14 @@ export default function TokenExplorer() {
                           onClick={() => fetchTokenDetails(token.mint)}
                           className="border-white/20 text-cyan-400 hover:bg-cyan-500/10 text-xs"
                         >
-                          View
+                         View
                         </Button>
-                      <button onClick={() => toggleWatchlist(token.mint)} className={watchlist.includes(token.mint) ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}>
-                        <Star className="w-4 h-4" fill={watchlist.includes(token.mint) ? 'currentColor' : 'none'} />
-                      </button>
-                    </td>
-                  </tr>
+                        <button onClick={() => toggleWatchlist(token.mint)} className={watchlist.includes(token.mint) ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}>
+                         <Star className="w-4 h-4" fill={watchlist.includes(token.mint) ? 'currentColor' : 'none'} />
+                        </button>
+                        </div>
+                        </td>
+                        </tr>
                 ))}
               </tbody>
             </table>
@@ -725,8 +726,7 @@ export default function TokenExplorer() {
                       </div>
                     </td>
                   </tr>
-                  );
-                })}
+                ))}
               </tbody>
             </table>
           </div>
