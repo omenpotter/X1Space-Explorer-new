@@ -68,7 +68,7 @@ export default function Dashboard() {
     return aggregated;
   }, [dashboardData?.tpsHistory, tpsInterval]);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = React.useCallback(async () => {
     try {
       // Fetch dashboard data and blocks first (most important)
       const [data, blocks] = await Promise.all([

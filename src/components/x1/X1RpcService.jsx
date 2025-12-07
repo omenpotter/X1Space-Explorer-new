@@ -358,7 +358,7 @@ export async function getDashboardData() {
     version: version['solana-core'] || version.version
   };
   
-  // Cache dashboard data for 2 seconds - fast refresh for 3000+ TPS
+  // Cache dashboard data for 3 seconds
   setCache('dashboardData', result, 'short');
   return result;
 }
@@ -463,7 +463,7 @@ export async function getRecentBlocks(count = 10) {
   // Sort by slot descending
   blocks.sort((a, b) => b.slot - a.slot);
   
-  // Cache for 2 seconds (short) - slots move fast at 3000+ TPS
+  // Cache for 3 seconds
   setCache('recentBlocks', blocks, 'short');
   return blocks;
 }
