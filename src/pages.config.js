@@ -1,51 +1,53 @@
-import Dashboard from './pages/Dashboard';
-import Validators from './pages/Validators';
-import Blocks from './pages/Blocks';
-import Transactions from './pages/Transactions';
-import BlockDetail from './pages/BlockDetail';
-import Search from './pages/Search';
-import ValidatorCompare from './pages/ValidatorCompare';
-import ValidatorDetail from './pages/ValidatorDetail';
-import NetworkHealth from './pages/NetworkHealth';
-import StakingCalculator from './pages/StakingCalculator';
 import AddressLookup from './pages/AddressLookup';
-import Watchlist from './pages/Watchlist';
-import Leaderboard from './pages/Leaderboard';
-import TransactionDetail from './pages/TransactionDetail';
 import ApiDocs from './pages/ApiDocs';
-import TokenExplorer from './pages/TokenExplorer';
-import ValidatorAlerts from './pages/ValidatorAlerts';
+import BlockDetail from './pages/BlockDetail';
+import Blocks from './pages/Blocks';
+import CustomDashboard from './pages/CustomDashboard';
+import Dashboard from './pages/Dashboard';
+import Home from './pages/Home';
+import Leaderboard from './pages/Leaderboard';
+import NetworkHealth from './pages/NetworkHealth';
 import NetworkMap from './pages/NetworkMap';
 import PortfolioTracker from './pages/PortfolioTracker';
-import WhaleWatcher from './pages/WhaleWatcher';
+import Search from './pages/Search';
+import StakingCalculator from './pages/StakingCalculator';
+import TokenExplorer from './pages/TokenExplorer';
+import TransactionDetail from './pages/TransactionDetail';
 import TransactionFlowPage from './pages/TransactionFlowPage';
-import CustomDashboard from './pages/CustomDashboard';
+import Transactions from './pages/Transactions';
+import ValidatorAlerts from './pages/ValidatorAlerts';
+import ValidatorCompare from './pages/ValidatorCompare';
+import ValidatorDetail from './pages/ValidatorDetail';
+import Validators from './pages/Validators';
+import Watchlist from './pages/Watchlist';
+import WhaleWatcher from './pages/WhaleWatcher';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
-    "Dashboard": Dashboard,
-    "Validators": Validators,
-    "Blocks": Blocks,
-    "Transactions": Transactions,
-    "BlockDetail": BlockDetail,
-    "Search": Search,
-    "ValidatorCompare": ValidatorCompare,
-    "ValidatorDetail": ValidatorDetail,
-    "NetworkHealth": NetworkHealth,
-    "StakingCalculator": StakingCalculator,
     "AddressLookup": AddressLookup,
-    "Watchlist": Watchlist,
-    "Leaderboard": Leaderboard,
-    "TransactionDetail": TransactionDetail,
     "ApiDocs": ApiDocs,
-    "TokenExplorer": TokenExplorer,
-    "ValidatorAlerts": ValidatorAlerts,
+    "BlockDetail": BlockDetail,
+    "Blocks": Blocks,
+    "CustomDashboard": CustomDashboard,
+    "Dashboard": Dashboard,
+    "Home": Home,
+    "Leaderboard": Leaderboard,
+    "NetworkHealth": NetworkHealth,
     "NetworkMap": NetworkMap,
     "PortfolioTracker": PortfolioTracker,
-    "WhaleWatcher": WhaleWatcher,
+    "Search": Search,
+    "StakingCalculator": StakingCalculator,
+    "TokenExplorer": TokenExplorer,
+    "TransactionDetail": TransactionDetail,
     "TransactionFlowPage": TransactionFlowPage,
-    "CustomDashboard": CustomDashboard,
+    "Transactions": Transactions,
+    "ValidatorAlerts": ValidatorAlerts,
+    "ValidatorCompare": ValidatorCompare,
+    "ValidatorDetail": ValidatorDetail,
+    "Validators": Validators,
+    "Watchlist": Watchlist,
+    "WhaleWatcher": WhaleWatcher,
 }
 
 export const pagesConfig = {
