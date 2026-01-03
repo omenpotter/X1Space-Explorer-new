@@ -341,7 +341,7 @@ export default function NetworkMap() {
                 </tr>
               </thead>
               <tbody>
-                {nodeLocations.slice(0, 30).map((v, i) => (
+                {nodeLocations.map((v, i) => (
                   <tr key={v.votePubkey} className="border-b border-white/5 hover:bg-white/[0.02]">
                     <td className="px-4 py-3 text-gray-500">{i + 1}</td>
                     <td className="px-4 py-3">

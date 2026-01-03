@@ -46,20 +46,14 @@ export default function TokenExplorer() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch supply with fallback
-      const supplyRes = await fetch('https://nexus.fortiblox.com/rpc', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0',
-          'Authorization': 'Bearer fbx_d4a25e545366fed1ea1582884e62874d6b9fdf94d1f6c4b9889fefa951300dff'
-        },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getSupply', params: [] })
-      });
-      const supplyData = await supplyRes.json();
+      // Import X1Rpc for consistent supply data
+      const X1Rpc = (await import('../components/x1/X1RpcService')).default;
       
-      if (supplyData?.result?.value) {
-        const val = supplyData.result.value;
+      // Fetch supply using X1Rpc (same as dashboard)
+      const supplyData = await X1Rpc.getSupply();
+      
+      if (supplyData?.value) {
+        const val = supplyData.value;
         setSupply({
           total: Number(val.total) / 1e9,
           circulating: Number(val.circulating) / 1e9
@@ -81,25 +75,46 @@ export default function TokenExplorer() {
         setValidators({ totalStake });
       }
 
-      // Fetch tokens
-      const tokensRes = await fetch('https://nexus.fortiblox.com/rpc', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0'
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'getProgramAccounts',
-          params: ['TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', { encoding: 'jsonParsed' }]
-        })
-      });
-      const tokensData = await tokensRes.json();
+      // Fetch SPL tokens and Token-2022 tokens
+      const [splTokensRes, token2022Res] = await Promise.all([
+        fetch('https://nexus.fortiblox.com/rpc', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0'
+          },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'getProgramAccounts',
+            params: ['TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', { encoding: 'jsonParsed' }]
+          })
+        }),
+        fetch('https://nexus.fortiblox.com/rpc', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0'
+          },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 2,
+            method: 'getProgramAccounts',
+            params: ['TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb', { encoding: 'jsonParsed' }]
+          })
+        }).catch(() => ({ json: () => Promise.resolve({ result: [] }) }))
+      ]);
       
-      if (tokensData?.result) {
-        const mints = new Map();
-        tokensData.result.forEach(acc => {
+      const [splTokensData, token2022Data] = await Promise.all([
+        splTokensRes.json(),
+        token2022Res.json()
+      ]);
+      
+      const mints = new Map();
+      
+      // Process SPL tokens
+      if (splTokensData?.result) {
+        splTokensData.result.forEach(acc => {
           if (acc.account?.data?.parsed?.type === 'mint') {
             const info = acc.account.data.parsed.info;
             const mint = acc.pubkey;
@@ -113,7 +128,8 @@ export default function TokenExplorer() {
                 symbol: mint.substring(0, 4).toUpperCase(),
                 decimals,
                 totalSupply: supply,
-                price: 0, // No price data available yet
+                tokenType: 'SPL Token',
+                price: 0,
                 marketCap: 0,
                 priceChange24h: 0,
                 volume24h: 0,
@@ -124,9 +140,40 @@ export default function TokenExplorer() {
             }
           }
         });
-        const tokenList = Array.from(mints.values()).slice(0, 50);
-        setAllTokens(tokenList);
       }
+      
+      // Process Token-2022 tokens
+      if (token2022Data?.result) {
+        token2022Data.result.forEach(acc => {
+          if (acc.account?.data?.parsed?.type === 'mint') {
+            const info = acc.account.data.parsed.info;
+            const mint = acc.pubkey;
+            const decimals = info.decimals || 9;
+            const supply = Number(info.supply || 0) / Math.pow(10, decimals);
+
+            if (supply > 0 && !mints.has(mint)) {
+              mints.set(mint, {
+                mint,
+                name: `Token2022 ${mint.substring(0, 6)}`,
+                symbol: mint.substring(0, 4).toUpperCase(),
+                decimals,
+                totalSupply: supply,
+                tokenType: 'Token-2022',
+                price: 0,
+                marketCap: 0,
+                priceChange24h: 0,
+                volume24h: 0,
+                mintAuthority: info.mintAuthority || null,
+                freezeAuthority: info.freezeAuthority || null,
+                priceHistory: []
+              });
+            }
+          }
+        });
+      }
+      
+      const tokenList = Array.from(mints.values());
+      setAllTokens(tokenList);
     } catch (err) {
       console.error('Fetch error:', err);
     } finally {
