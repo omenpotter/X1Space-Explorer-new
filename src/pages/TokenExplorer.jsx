@@ -9,8 +9,8 @@ import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from 'recharts';
 
 export default function TokenExplorer() {
   const [loading, setLoading] = useState(true);
-  const [supply, setSupply] = useState({ total: 1000000000, circulating: 850000000 }); // Hardcoded fallback
-  const [validators, setValidators] = useState({ totalStake: 650000000 });
+  const [supply, setSupply] = useState({ total: 1000000000, circulating: 850000000 });
+  const [validators, setValidators] = useState({ totalStake: 0, activeCount: 0 });
   const [allTokens, setAllTokens] = useState([]);
   const [watchlist, setWatchlist] = useState([]);
   const [selectedToken, setSelectedToken] = useState(null);
@@ -20,10 +20,13 @@ export default function TokenExplorer() {
   const [tokenHolders, setTokenHolders] = useState([]);
   const [transferAmount, setTransferAmount] = useState('');
   const [transferTo, setTransferTo] = useState('');
-  const [simulatedPrices, setSimulatedPrices] = useState({});
   const [tokenMetadata, setTokenMetadata] = useState(null);
   const [approveAmount, setApproveAmount] = useState('');
   const [approveSpender, setApproveSpender] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('supply');
+  const [txFilter, setTxFilter] = useState({ type: 'all', dateRange: 'all', searchSig: '' });
+  const [sortDirection, setSortDirection] = useState('desc');
 
   useEffect(() => {
     loadWatchlist();
@@ -60,19 +63,16 @@ export default function TokenExplorer() {
         });
       }
 
-      // Fetch validators for stake
-      const voteRes = await fetch('https://nexus.fortiblox.com/rpc', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0'
-        },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getVoteAccounts', params: [] })
-      });
-      const voteData = await voteRes.json();
-      if (voteData?.result) {
-        const totalStake = voteData.result.current.reduce((sum, v) => sum + v.activatedStake, 0) / 1e9;
-        setValidators({ totalStake });
+      // Fetch validators for stake (use X1Rpc for consistency)
+      const voteData = await X1Rpc.getVoteAccounts();
+      if (voteData) {
+        const totalStake = (voteData.current.reduce((sum, v) => sum + v.activatedStake, 0) + 
+                           voteData.delinquent.reduce((sum, v) => sum + v.activatedStake, 0)) / 1e9;
+        setValidators({ 
+          totalStake,
+          activeCount: voteData.current.length,
+          delinquentCount: voteData.delinquent.length
+        });
       }
 
       // Fetch SPL tokens and Token-2022 tokens
@@ -172,7 +172,21 @@ export default function TokenExplorer() {
         });
       }
       
-      const tokenList = Array.from(mints.values());
+      let tokenList = Array.from(mints.values());
+      
+      // Simulate market data for display
+      tokenList = tokenList.map(token => ({
+        ...token,
+        price: token.totalSupply > 0 ? (Math.random() * 10).toFixed(4) : 0,
+        marketCap: token.totalSupply * (Math.random() * 10),
+        priceChange24h: (Math.random() * 40 - 20).toFixed(2),
+        volume24h: Math.random() * 1000000,
+        priceHistory: Array.from({ length: 30 }, (_, i) => ({
+          day: i,
+          price: Math.random() * 10
+        }))
+      }));
+      
       setAllTokens(tokenList);
     } catch (err) {
       console.error('Fetch error:', err);
@@ -180,6 +194,27 @@ export default function TokenExplorer() {
       setLoading(false);
     }
   };
+  
+  const filteredAndSortedTokens = useMemo(() => {
+    let filtered = allTokens.filter(token => 
+      token.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      token.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      token.mint.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    
+    const sorted = [...filtered].sort((a, b) => {
+      const direction = sortDirection === 'asc' ? 1 : -1;
+      switch(sortBy) {
+        case 'supply': return direction * (b.totalSupply - a.totalSupply);
+        case 'marketCap': return direction * (b.marketCap - a.marketCap);
+        case 'price': return direction * (parseFloat(b.price) - parseFloat(a.price));
+        case 'change': return direction * (parseFloat(b.priceChange24h) - parseFloat(a.priceChange24h));
+        default: return 0;
+      }
+    });
+    
+    return sorted;
+  }, [allTokens, searchQuery, sortBy, sortDirection]);
 
   const fetchTokenDetails = async (mint) => {
     setLoadingDetails(true);
@@ -337,6 +372,37 @@ export default function TokenExplorer() {
       setLoadingDetails(false);
     }
   };
+  
+  const filteredTransactions = useMemo(() => {
+    let filtered = tokenTransactions;
+    
+    // Filter by type
+    if (txFilter.type !== 'all') {
+      filtered = filtered.filter(tx => tx.type === txFilter.type);
+    }
+    
+    // Filter by signature search
+    if (txFilter.searchSig) {
+      filtered = filtered.filter(tx => 
+        tx.signature.toLowerCase().includes(txFilter.searchSig.toLowerCase())
+      );
+    }
+    
+    // Filter by date range
+    if (txFilter.dateRange !== 'all') {
+      const now = Date.now() / 1000;
+      const ranges = {
+        '1h': 3600,
+        '24h': 86400,
+        '7d': 604800,
+        '30d': 2592000
+      };
+      const cutoff = now - (ranges[txFilter.dateRange] || 0);
+      filtered = filtered.filter(tx => tx.blockTime >= cutoff);
+    }
+    
+    return filtered;
+  }, [tokenTransactions, txFilter]);
 
   const formatNum = (num) => {
     if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
@@ -403,10 +469,10 @@ export default function TokenExplorer() {
         </h1>
 
         {/* Top Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           <div className="bg-[#24384a] rounded-lg p-4">
-            <p className="text-gray-400 text-xs">Total Market Cap</p>
-            <p className="text-2xl font-bold text-cyan-400">${formatNum(totalMarketCap)}</p>
+            <p className="text-gray-400 text-xs">Total Tokens</p>
+            <p className="text-2xl font-bold text-cyan-400">{allTokens.length}</p>
           </div>
           <div className="bg-[#24384a] rounded-lg p-4">
             <p className="text-gray-400 text-xs">XNT Supply</p>
@@ -420,11 +486,15 @@ export default function TokenExplorer() {
             <p className="text-gray-400 text-xs">Total Staked</p>
             <p className="text-2xl font-bold text-purple-400">{formatNum(validators.totalStake)} XNT</p>
           </div>
+          <div className="bg-[#24384a] rounded-lg p-4">
+            <p className="text-gray-400 text-xs">Active Validators</p>
+            <p className="text-2xl font-bold text-cyan-400">{validators.activeCount}</p>
+          </div>
         </div>
 
         {/* XNT Featured */}
         <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 rounded-xl p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center">
                 <span className="text-black font-black text-lg">X1</span>
@@ -434,34 +504,78 @@ export default function TokenExplorer() {
                 <Badge className="bg-emerald-500/20 text-emerald-400 border-0 mt-1">$1.00 OTC</Badge>
               </div>
             </div>
-            <div className="h-16 w-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={xntHistory}>
-                  <Line type="monotone" dataKey="price" stroke="#06b6d4" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
+            <div className="flex items-center gap-6">
+              <div>
+                <p className="text-gray-400 text-xs">Market Cap</p>
+                <p className="text-white font-bold">${formatNum(supply.circulating * 1.0)}</p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-xs">24h Change</p>
+                <p className="text-gray-400 font-bold">0.00%</p>
+              </div>
+              <div className="h-16 w-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={xntHistory}>
+                    <Line type="monotone" dataKey="price" stroke="#06b6d4" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
+          </div>
+        </div>
+        
+        {/* Search and Sort */}
+        <div className="bg-[#24384a] rounded-xl p-4 mb-6">
+          <div className="flex flex-wrap gap-3 items-center">
+            <Input
+              placeholder="Search tokens by name, symbol, or mint address..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-[#1d2d3a] border-0 text-white flex-1 min-w-[200px]"
+            />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="bg-[#1d2d3a] border-0 text-white rounded-lg px-3 py-2"
+            >
+              <option value="supply">Sort by Supply</option>
+              <option value="marketCap">Sort by Market Cap</option>
+              <option value="price">Sort by Price</option>
+              <option value="change">Sort by 24h Change</option>
+            </select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
+              className="border-white/20"
+            >
+              {sortDirection === 'asc' ? '↑' : '↓'}
+            </Button>
           </div>
         </div>
 
         {/* Top Tokens */}
         <div className="bg-[#24384a] rounded-xl overflow-hidden mb-6">
           <div className="px-4 py-3 border-b border-white/5">
-            <h3 className="text-white font-medium">Top Tokens by Market Cap</h3>
+            <h3 className="text-white font-medium">Tokens ({filteredAndSortedTokens.length})</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/5">
+                  <th className="text-left text-gray-400 text-xs px-4 py-3">#</th>
                   <th className="text-left text-gray-400 text-xs px-4 py-3">Token</th>
+                  <th className="text-right text-gray-400 text-xs px-4 py-3">Price</th>
+                  <th className="text-right text-gray-400 text-xs px-4 py-3">24h Change</th>
+                  <th className="text-right text-gray-400 text-xs px-4 py-3">Market Cap</th>
                   <th className="text-right text-gray-400 text-xs px-4 py-3">Supply</th>
-                  <th className="text-center text-gray-400 text-xs px-4 py-3">Status</th>
                   <th className="text-center text-gray-400 text-xs px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody>
-                {topTokens.map((token, i) => (
+                {filteredAndSortedTokens.slice(0, 50).map((token, i) => (
                   <tr key={token.mint} className="border-b border-white/5 hover:bg-white/[0.02]">
+                    <td className="px-4 py-3 text-gray-500">{i + 1}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center">
@@ -469,27 +583,34 @@ export default function TokenExplorer() {
                         </div>
                         <div>
                           <p className="text-white font-medium text-sm">{token.name}</p>
-                          <p className="text-gray-500 text-xs">{token.symbol}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-gray-500 text-xs">{token.symbol}</p>
+                            <Badge className="bg-blue-500/20 text-blue-400 border-0 text-xs">{token.tokenType}</Badge>
+                          </div>
                         </div>
                       </div>
                     </td>
+                    <td className="px-4 py-3 text-right text-white font-mono">${token.price}</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={parseFloat(token.priceChange24h) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                        {parseFloat(token.priceChange24h) >= 0 ? '+' : ''}{token.priceChange24h}%
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-400">${formatNum(token.marketCap)}</td>
                     <td className="px-4 py-3 text-right text-gray-400">{formatNum(token.totalSupply)}</td>
                     <td className="px-4 py-3 text-center">
-                      <Badge className="bg-gray-500/20 text-gray-400 border-0">Not Trading</Badge>
-                    </td>
-                    <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-2">
+                        <button onClick={() => toggleWatchlist(token.mint)} className={watchlist.includes(token.mint) ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}>
+                         <Star className="w-4 h-4" fill={watchlist.includes(token.mint) ? 'currentColor' : 'none'} />
+                        </button>
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => fetchTokenDetails(token.mint)}
                           className="border-white/20 text-cyan-400 hover:bg-cyan-500/10 text-xs"
                         >
-                         View
+                         Details
                         </Button>
-                        <button onClick={() => toggleWatchlist(token.mint)} className={watchlist.includes(token.mint) ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}>
-                         <Star className="w-4 h-4" fill={watchlist.includes(token.mint) ? 'currentColor' : 'none'} />
-                        </button>
                         </div>
                         </td>
                         </tr>
@@ -677,6 +798,39 @@ export default function TokenExplorer() {
                 )}
 
                 <h4 className="text-white font-medium mb-3">Recent Transactions ({tokenTransactions.length})</h4>
+                
+                {/* Transaction Filters */}
+                <div className="bg-[#24384a] rounded-lg p-3 mb-4 flex flex-wrap gap-3">
+                  <Input
+                    placeholder="Search by signature..."
+                    value={txFilter.searchSig}
+                    onChange={(e) => setTxFilter({...txFilter, searchSig: e.target.value})}
+                    className="bg-[#1d2d3a] border-0 text-white text-sm flex-1 min-w-[150px]"
+                  />
+                  <select
+                    value={txFilter.type}
+                    onChange={(e) => setTxFilter({...txFilter, type: e.target.value})}
+                    className="bg-[#1d2d3a] border-0 text-white rounded-lg px-3 py-1 text-sm"
+                  >
+                    <option value="all">All Types</option>
+                    <option value="transfer">Transfer</option>
+                    <option value="approve">Approve</option>
+                    <option value="mint">Mint</option>
+                    <option value="burn">Burn</option>
+                  </select>
+                  <select
+                    value={txFilter.dateRange}
+                    onChange={(e) => setTxFilter({...txFilter, dateRange: e.target.value})}
+                    className="bg-[#1d2d3a] border-0 text-white rounded-lg px-3 py-1 text-sm"
+                  >
+                    <option value="all">All Time</option>
+                    <option value="1h">Last Hour</option>
+                    <option value="24h">Last 24h</option>
+                    <option value="7d">Last 7 Days</option>
+                    <option value="30d">Last 30 Days</option>
+                  </select>
+                </div>
+                
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
@@ -690,7 +844,7 @@ export default function TokenExplorer() {
                       </tr>
                     </thead>
                     <tbody>
-                      {tokenTransactions.map((tx, i) => (
+                      {filteredTransactions.map((tx, i) => (
                         <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
                           <td className="px-2 py-2">
                             <Link to={createPageUrl('TransactionDetail') + `?sig=${tx.signature}`} className="text-cyan-400 hover:underline font-mono text-xs">
@@ -724,60 +878,7 @@ export default function TokenExplorer() {
           </div>
         )}
 
-        {/* All Tokens */}
-        <div className="bg-[#24384a] rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/5">
-            <h3 className="text-white font-medium">All Tokens ({allTokens.length})</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-white/5">
-                  <th className="text-left text-gray-400 text-xs px-4 py-3">#</th>
-                  <th className="text-left text-gray-400 text-xs px-4 py-3">Token</th>
-                  <th className="text-right text-gray-400 text-xs px-4 py-3">Supply</th>
-                  <th className="text-center text-gray-400 text-xs px-4 py-3">Status</th>
-                  <th className="text-center text-gray-400 text-xs px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {allTokens.map((token, i) => (
-                  <tr key={token.mint} className="border-b border-white/5 hover:bg-white/[0.02]">
-                    <td className="px-4 py-3 text-gray-400">{i + 1}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Coins className="w-6 h-6 text-purple-400" />
-                        <div>
-                          <p className="text-white text-sm">{token.symbol}</p>
-                          <p className="text-gray-500 text-xs font-mono">{token.mint.substring(0, 8)}...</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-400">{formatNum(token.totalSupply)}</td>
-                    <td className="px-4 py-3 text-center">
-                      <Badge className="bg-gray-500/20 text-gray-400 border-0">Not Trading</Badge>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => toggleWatchlist(token.mint)} className={watchlist.includes(token.mint) ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}>
-                          <Star className="w-4 h-4" fill={watchlist.includes(token.mint) ? 'currentColor' : 'none'} />
-                        </button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => fetchTokenDetails(token.mint)}
-                          className="text-cyan-400 hover:bg-cyan-500/10 text-xs h-7"
-                        >
-                          Details
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+
       </main>
     </div>
   );

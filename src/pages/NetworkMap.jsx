@@ -89,6 +89,8 @@ export default function NetworkMap() {
     blocksProduced: 0,
     skipped: 0
   });
+  const [sortMetric, setSortMetric] = useState('stake');
+  const [sortDir, setSortDir] = useState('desc');
 
   const fetchData = async (isRefresh = false) => {
     try {
@@ -162,6 +164,31 @@ export default function NetworkMap() {
       regions[region] = (regions[region] || 0) + 1;
     });
     return regions;
+  }, [nodeLocations]);
+  
+  // Sort validators by metric
+  const sortedValidators = useMemo(() => {
+    const sorted = [...nodeLocations].sort((a, b) => {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      switch(sortMetric) {
+        case 'stake': return dir * (b.activatedStake - a.activatedStake);
+        case 'uptime': return dir * (b.uptime - a.uptime);
+        case 'skipRate': return dir * (a.skipRate - b.skipRate);
+        case 'commission': return dir * (a.commission - b.commission);
+        default: return 0;
+      }
+    });
+    return sorted;
+  }, [nodeLocations, sortMetric, sortDir]);
+  
+  // Calculate performance averages
+  const perfStats = useMemo(() => {
+    const active = nodeLocations.filter(v => !v.delinquent);
+    return {
+      avgUptime: active.length > 0 ? (active.reduce((sum, v) => sum + v.uptime, 0) / active.length).toFixed(2) : 0,
+      avgSkipRate: active.length > 0 ? (active.reduce((sum, v) => sum + v.skipRate, 0) / active.length).toFixed(2) : 0,
+      avgCommission: active.length > 0 ? (active.reduce((sum, v) => sum + v.commission, 0) / active.length).toFixed(2) : 0
+    };
   }, [nodeLocations]);
 
   const formatStake = (stake) => {
@@ -321,11 +348,51 @@ export default function NetworkMap() {
             ))}
           </div>
         </div>
+        
+        {/* Performance Metrics Overview */}
+        <div className="bg-[#0d1525] border border-white/10 rounded-lg p-4 mb-6">
+          <h3 className="text-gray-400 text-sm mb-4">NETWORK PERFORMANCE METRICS</h3>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <p className="text-gray-500 text-xs mb-1">Avg Uptime</p>
+              <p className="text-2xl font-bold text-emerald-400">{perfStats.avgUptime}%</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs mb-1">Avg Skip Rate</p>
+              <p className="text-2xl font-bold text-yellow-400">{perfStats.avgSkipRate}%</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs mb-1">Avg Commission</p>
+              <p className="text-2xl font-bold text-purple-400">{perfStats.avgCommission}%</p>
+            </div>
+          </div>
+        </div>
 
         {/* Validator Table */}
         <div className="bg-[#0d1525] border border-white/10 rounded-lg overflow-hidden">
-          <div className="p-4 border-b border-white/10">
-            <h3 className="text-white font-medium">All Validators</h3>
+          <div className="p-4 border-b border-white/10 flex items-center justify-between">
+            <h3 className="text-white font-medium">All Validators ({nodeLocations.length})</h3>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400 text-sm">Sort by:</span>
+              <select
+                value={sortMetric}
+                onChange={(e) => setSortMetric(e.target.value)}
+                className="bg-[#1a2436] border-0 text-white rounded-lg px-3 py-1 text-sm"
+              >
+                <option value="stake">Stake</option>
+                <option value="uptime">Uptime</option>
+                <option value="skipRate">Skip Rate</option>
+                <option value="commission">Commission</option>
+              </select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}
+                className="border-white/20 text-gray-400 h-8 w-8 p-0"
+              >
+                {sortDir === 'asc' ? '↑' : '↓'}
+              </Button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -335,13 +402,14 @@ export default function NetworkMap() {
                   <th className="text-left text-gray-400 font-medium px-4 py-3">Validator</th>
                   <th className="text-left text-gray-400 font-medium px-4 py-3">Location</th>
                   <th className="text-right text-gray-400 font-medium px-4 py-3">Stake</th>
+                  <th className="text-right text-gray-400 font-medium px-4 py-3">Uptime</th>
+                  <th className="text-right text-gray-400 font-medium px-4 py-3">Skip Rate</th>
                   <th className="text-center text-gray-400 font-medium px-4 py-3">Commission</th>
-                  <th className="text-left text-gray-400 font-medium px-4 py-3">Version</th>
                   <th className="text-center text-gray-400 font-medium px-4 py-3">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {nodeLocations.map((v, i) => (
+                {sortedValidators.map((v, i) => (
                   <tr key={v.votePubkey} className="border-b border-white/5 hover:bg-white/[0.02]">
                     <td className="px-4 py-3 text-gray-500">{i + 1}</td>
                     <td className="px-4 py-3">
@@ -361,8 +429,17 @@ export default function NetworkMap() {
                       <span className="text-white font-mono text-sm">{formatStake(v.activatedStake)}</span>
                       <span className="text-gray-500 text-xs ml-1">({v.stakePercent}%)</span>
                     </td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={`font-medium ${v.uptime >= 99 ? 'text-emerald-400' : v.uptime >= 95 ? 'text-yellow-400' : 'text-red-400'}`}>
+                        {v.uptime?.toFixed(2)}%
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={`font-medium ${v.skipRate < 1 ? 'text-emerald-400' : v.skipRate < 5 ? 'text-yellow-400' : 'text-red-400'}`}>
+                        {v.skipRate?.toFixed(2)}%
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-center text-white">{v.commission}%</td>
-                    <td className="px-4 py-3 text-gray-400 text-sm">{v.version}</td>
                     <td className="px-4 py-3 text-center">
                       {v.delinquent ? (
                         <Badge className="bg-red-500/20 text-red-400 border-0 text-xs">Delinquent</Badge>
