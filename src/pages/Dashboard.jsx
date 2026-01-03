@@ -99,7 +99,6 @@ export default function Dashboard() {
   }, []);
 
   const aggregatedBlocks = useMemo(() => {
-    
     // Calculate ratios from recent blocks data (actual on-chain tx types)
     let voteRatio = 0.70, transferRatio = 0.12, programRatio = 0.09, otherRatio = 0.09;
     if (recentBlocks.length > 0) {
@@ -185,7 +184,7 @@ export default function Dashboard() {
       }
     }
     
-    return aggregated;
+    return aggregated.length > 0 ? aggregated : [];
   }, [mempoolInterval, recentBlocks, performanceData]);
 
   useEffect(() => {
