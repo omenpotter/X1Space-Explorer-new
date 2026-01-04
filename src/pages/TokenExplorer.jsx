@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Coins, Search, Loader2, TrendingUp, TrendingDown, Star, ChevronLeft, RefreshCw } from 'lucide-react';
+import { Coins, Search, Loader2, TrendingUp, TrendingDown, Star, ChevronLeft, RefreshCw, Copy, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from 'recharts';
@@ -27,6 +27,8 @@ export default function TokenExplorer() {
   const [sortBy, setSortBy] = useState('supply');
   const [txFilter, setTxFilter] = useState({ type: 'all', dateRange: 'all', searchSig: '' });
   const [sortDirection, setSortDirection] = useState('desc');
+  const [displayLimit, setDisplayLimit] = useState(50);
+  const [copiedAddress, setCopiedAddress] = useState(null);
 
   useEffect(() => {
     loadWatchlist();
@@ -249,6 +251,26 @@ export default function TokenExplorer() {
     
     return sorted;
   }, [allTokens, searchQuery, sortBy, sortDirection]);
+  
+  const copyToClipboard = useCallback((address) => {
+    navigator.clipboard.writeText(address);
+    setCopiedAddress(address);
+    setTimeout(() => setCopiedAddress(null), 2000);
+  }, []);
+  
+  // Infinite scroll handler
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 500) {
+        if (displayLimit < filteredAndSortedTokens.length) {
+          setDisplayLimit(prev => Math.min(prev + 50, filteredAndSortedTokens.length));
+        }
+      }
+    };
+    
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [displayLimit, filteredAndSortedTokens.length]);
 
   const fetchTokenDetails = async (mint) => {
     setLoadingDetails(true);
@@ -607,18 +629,29 @@ export default function TokenExplorer() {
                 </tr>
               </thead>
               <tbody>
-                {filteredAndSortedTokens.slice(0, 50).map((token, i) => (
+                {filteredAndSortedTokens.slice(0, displayLimit).map((token, i) => (
                   <tr key={token.mint} className="border-b border-white/5 hover:bg-white/[0.02]">
                     <td className="px-4 py-3 text-gray-500">{i + 1}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center">
-                          <Coins className="w-4 h-4 text-purple-400" />
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-xs">
+                          {token.symbol.substring(0, 2)}
                         </div>
-                        <div>
+                        <div className="flex-1 min-w-0">
                           <p className="text-white font-medium text-sm">{token.name}</p>
                           <div className="flex items-center gap-2">
-                            <p className="text-gray-500 text-xs">{token.symbol}</p>
+                            <p className="text-gray-500 text-xs font-mono truncate">{token.mint.substring(0, 12)}...</p>
+                            <button
+                              onClick={() => copyToClipboard(token.mint)}
+                              className="text-gray-500 hover:text-cyan-400 transition-colors shrink-0"
+                              title="Copy mint address"
+                            >
+                              {copiedAddress === token.mint ? (
+                                <Check className="w-3 h-3 text-emerald-400" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
                             <Badge className="bg-blue-500/20 text-blue-400 border-0 text-xs">{token.tokenType}</Badge>
                           </div>
                         </div>
@@ -652,6 +685,11 @@ export default function TokenExplorer() {
               </tbody>
             </table>
           </div>
+          {displayLimit < filteredAndSortedTokens.length && (
+            <div className="p-4 text-center border-t border-white/5">
+              <p className="text-gray-400 text-sm">Showing {displayLimit} of {filteredAndSortedTokens.length} tokens - Scroll for more</p>
+            </div>
+          )}
         </div>
 
         {/* Token Details Modal */}

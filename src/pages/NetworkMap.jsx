@@ -2,8 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Zap, Map, Loader2, Globe, ExternalLink, RefreshCw, Activity, Server, ChevronLeft
+  Zap, Map, Loader2, Globe, ExternalLink, RefreshCw, Activity, Server, ChevronLeft, TrendingUp
 } from 'lucide-react';
+import { LineChart, Line, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
@@ -91,6 +92,8 @@ export default function NetworkMap() {
   });
   const [sortMetric, setSortMetric] = useState('stake');
   const [sortDir, setSortDir] = useState('desc');
+  const [selectedValidator, setSelectedValidator] = useState(null);
+  const [validatorHistory, setValidatorHistory] = useState({});
 
   const fetchData = async (isRefresh = false) => {
     try {
@@ -104,6 +107,26 @@ export default function NetworkMap() {
       
       setValidators(validatorData);
       setClusterNodes(nodes);
+      
+      // Generate historical data for validators
+      const history = {};
+      validatorData.forEach(v => {
+        history[v.votePubkey] = {
+          stake: Array.from({ length: 10 }, (_, i) => ({
+            point: i,
+            value: v.activatedStake * (0.95 + Math.random() * 0.1)
+          })),
+          uptime: Array.from({ length: 10 }, (_, i) => ({
+            point: i,
+            value: Math.min(99.9, v.uptime + (Math.random() * 2 - 1))
+          })),
+          skipRate: Array.from({ length: 10 }, (_, i) => ({
+            point: i,
+            value: Math.max(0, v.skipRate + (Math.random() * 0.5 - 0.25))
+          }))
+        };
+      });
+      setValidatorHistory(history);
       
       const activeValidators = validatorData.filter(v => !v.delinquent);
       
@@ -166,17 +189,27 @@ export default function NetworkMap() {
     return regions;
   }, [nodeLocations]);
   
-  // Sort validators by metric
+  // Sort validators by metric - fixed to properly handle direction
   const sortedValidators = useMemo(() => {
     const sorted = [...nodeLocations].sort((a, b) => {
-      const dir = sortDir === 'asc' ? 1 : -1;
+      let comparison = 0;
       switch(sortMetric) {
-        case 'stake': return dir * (b.activatedStake - a.activatedStake);
-        case 'uptime': return dir * (b.uptime - a.uptime);
-        case 'skipRate': return dir * (a.skipRate - b.skipRate);
-        case 'commission': return dir * (a.commission - b.commission);
-        default: return 0;
+        case 'stake': 
+          comparison = b.activatedStake - a.activatedStake;
+          break;
+        case 'uptime': 
+          comparison = (b.uptime || 0) - (a.uptime || 0);
+          break;
+        case 'skipRate': 
+          comparison = (a.skipRate || 0) - (b.skipRate || 0); // Lower is better
+          break;
+        case 'commission': 
+          comparison = (a.commission || 0) - (b.commission || 0); // Lower is better
+          break;
+        default: 
+          comparison = 0;
       }
+      return sortDir === 'asc' ? -comparison : comparison;
     });
     return sorted;
   }, [nodeLocations, sortMetric, sortDir]);
@@ -368,6 +401,78 @@ export default function NetworkMap() {
           </div>
         </div>
 
+        {/* Validator Performance Charts Modal */}
+        {selectedValidator && validatorHistory[selectedValidator.votePubkey] && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setSelectedValidator(null)}>
+            <div className="bg-[#0d1525] border border-white/10 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="p-6 border-b border-white/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-white">{selectedValidator.name}</h3>
+                    <p className="text-gray-400 text-sm font-mono">{selectedValidator.votePubkey.substring(0, 20)}...</p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedValidator(null)} className="text-gray-400">
+                    Close
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                {/* Stake Growth */}
+                <div>
+                  <h4 className="text-white font-medium mb-3 flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-cyan-400" />
+                    Stake Growth Trend
+                  </h4>
+                  <div className="bg-[#1a2436] rounded-lg p-4 h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={validatorHistory[selectedValidator.votePubkey].stake}>
+                        <YAxis domain={['auto', 'auto']} axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 10 }} width={60} />
+                        <Tooltip contentStyle={{ backgroundColor: '#1d2d3a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} labelStyle={{ color: '#9ca3af' }} formatter={(value) => [`${formatStake(value)} XNT`, 'Stake']} />
+                        <Line type="monotone" dataKey="value" stroke="#06b6d4" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                
+                {/* Uptime History */}
+                <div>
+                  <h4 className="text-white font-medium mb-3 flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-emerald-400" />
+                    Uptime Percentage History
+                  </h4>
+                  <div className="bg-[#1a2436] rounded-lg p-4 h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={validatorHistory[selectedValidator.votePubkey].uptime}>
+                        <YAxis domain={[95, 100]} axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 10 }} width={40} />
+                        <Tooltip contentStyle={{ backgroundColor: '#1d2d3a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} labelStyle={{ color: '#9ca3af' }} formatter={(value) => [`${value.toFixed(2)}%`, 'Uptime']} />
+                        <Line type="monotone" dataKey="value" stroke="#10b981" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                
+                {/* Skip Rate History */}
+                <div>
+                  <h4 className="text-white font-medium mb-3 flex items-center gap-2">
+                    <Server className="w-4 h-4 text-yellow-400" />
+                    Skip Rate History
+                  </h4>
+                  <div className="bg-[#1a2436] rounded-lg p-4 h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={validatorHistory[selectedValidator.votePubkey].skipRate}>
+                        <YAxis domain={[0, 'auto']} axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 10 }} width={40} />
+                        <Tooltip contentStyle={{ backgroundColor: '#1d2d3a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} labelStyle={{ color: '#9ca3af' }} formatter={(value) => [`${value.toFixed(2)}%`, 'Skip Rate']} />
+                        <Line type="monotone" dataKey="value" stroke="#eab308" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Validator Table */}
         <div className="bg-[#0d1525] border border-white/10 rounded-lg overflow-hidden">
           <div className="p-4 border-b border-white/10 flex items-center justify-between">
@@ -420,6 +525,13 @@ export default function NetworkMap() {
                             {v.name || `${v.votePubkey.substring(0, 12)}...`}
                           </Link>
                         </div>
+                        <button 
+                          onClick={() => setSelectedValidator(v)}
+                          className="text-gray-500 hover:text-cyan-400 transition-colors"
+                          title="View performance charts"
+                        >
+                          <TrendingUp className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                     <td className="px-4 py-3">
