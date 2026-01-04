@@ -75,103 +75,137 @@ export default function TokenExplorer() {
         });
       }
 
-      // Fetch SPL tokens and Token-2022 tokens
-      const [splTokensRes, token2022Res] = await Promise.all([
-        fetch('https://nexus.fortiblox.com/rpc', {
+      // Fetch tokens with better pagination and filtering
+      console.log('Fetching tokens from X1 blockchain...');
+      
+      const mints = new Map();
+      
+      // Fetch SPL Token mints only (filter by dataSize for mints)
+      const splTokensRes = await fetch('https://nexus.fortiblox.com/rpc', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0',
+          'Authorization': 'Bearer fbx_d4a25e545366fed1ea1582884e62874d6b9fdf94d1f6c4b9889fefa951300dff'
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'getProgramAccounts',
+          params: [
+            'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+            {
+              encoding: 'jsonParsed',
+              filters: [
+                { dataSize: 82 } // Mint account size
+              ]
+            }
+          ]
+        })
+      });
+      
+      const splTokensData = await splTokensRes.json();
+      console.log('SPL Tokens fetched:', splTokensData?.result?.length || 0);
+      
+      // Process SPL tokens
+      if (splTokensData?.result) {
+        splTokensData.result.forEach(acc => {
+          try {
+            const info = acc.account?.data?.parsed?.info;
+            if (info) {
+              const mint = acc.pubkey;
+              const decimals = info.decimals || 9;
+              const supply = Number(info.supply || 0) / Math.pow(10, decimals);
+
+              if (supply > 0 || info.mintAuthority) {
+                mints.set(mint, {
+                  mint,
+                  name: `Token ${mint.substring(0, 8)}`,
+                  symbol: mint.substring(0, 6).toUpperCase(),
+                  decimals,
+                  totalSupply: supply,
+                  tokenType: 'SPL Token',
+                  price: 0,
+                  marketCap: 0,
+                  priceChange24h: 0,
+                  volume24h: 0,
+                  mintAuthority: info.mintAuthority || null,
+                  freezeAuthority: info.freezeAuthority || null,
+                  priceHistory: []
+                });
+              }
+            }
+          } catch (e) {
+            console.error('Error processing token:', e);
+          }
+        });
+      }
+      
+      // Try to fetch Token-2022 tokens
+      try {
+        const token2022Res = await fetch('https://nexus.fortiblox.com/rpc', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0'
-          },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
-            method: 'getProgramAccounts',
-            params: ['TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', { encoding: 'jsonParsed' }]
-          })
-        }),
-        fetch('https://nexus.fortiblox.com/rpc', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0'
+            'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0',
+            'Authorization': 'Bearer fbx_d4a25e545366fed1ea1582884e62874d6b9fdf94d1f6c4b9889fefa951300dff'
           },
           body: JSON.stringify({
             jsonrpc: '2.0',
             id: 2,
             method: 'getProgramAccounts',
-            params: ['TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb', { encoding: 'jsonParsed' }]
+            params: [
+              'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb',
+              {
+                encoding: 'jsonParsed',
+                filters: [
+                  { dataSize: 82 }
+                ]
+              }
+            ]
           })
-        }).catch(() => ({ json: () => Promise.resolve({ result: [] }) }))
-      ]);
-      
-      const [splTokensData, token2022Data] = await Promise.all([
-        splTokensRes.json(),
-        token2022Res.json()
-      ]);
-      
-      const mints = new Map();
-      
-      // Process SPL tokens
-      if (splTokensData?.result) {
-        splTokensData.result.forEach(acc => {
-          if (acc.account?.data?.parsed?.type === 'mint') {
-            const info = acc.account.data.parsed.info;
-            const mint = acc.pubkey;
-            const decimals = info.decimals || 9;
-            const supply = Number(info.supply || 0) / Math.pow(10, decimals);
-
-            if (supply > 0) {
-              mints.set(mint, {
-                mint,
-                name: `SPL ${mint.substring(0, 6)}`,
-                symbol: mint.substring(0, 4).toUpperCase(),
-                decimals,
-                totalSupply: supply,
-                tokenType: 'SPL Token',
-                price: 0,
-                marketCap: 0,
-                priceChange24h: 0,
-                volume24h: 0,
-                mintAuthority: info.mintAuthority || null,
-                freezeAuthority: info.freezeAuthority || null,
-                priceHistory: []
-              });
-            }
-          }
         });
+        
+        const token2022Data = await token2022Res.json();
+        console.log('Token-2022 fetched:', token2022Data?.result?.length || 0);
+        
+        if (token2022Data?.result) {
+          token2022Data.result.forEach(acc => {
+            try {
+              const info = acc.account?.data?.parsed?.info;
+              if (info) {
+                const mint = acc.pubkey;
+                const decimals = info.decimals || 9;
+                const supply = Number(info.supply || 0) / Math.pow(10, decimals);
+
+                if ((supply > 0 || info.mintAuthority) && !mints.has(mint)) {
+                  mints.set(mint, {
+                    mint,
+                    name: `Token2022 ${mint.substring(0, 8)}`,
+                    symbol: mint.substring(0, 6).toUpperCase(),
+                    decimals,
+                    totalSupply: supply,
+                    tokenType: 'Token-2022',
+                    price: 0,
+                    marketCap: 0,
+                    priceChange24h: 0,
+                    volume24h: 0,
+                    mintAuthority: info.mintAuthority || null,
+                    freezeAuthority: info.freezeAuthority || null,
+                    priceHistory: []
+                  });
+                }
+              }
+            } catch (e) {
+              console.error('Error processing token2022:', e);
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('Token-2022 fetch failed:', e);
       }
       
-      // Process Token-2022 tokens
-      if (token2022Data?.result) {
-        token2022Data.result.forEach(acc => {
-          if (acc.account?.data?.parsed?.type === 'mint') {
-            const info = acc.account.data.parsed.info;
-            const mint = acc.pubkey;
-            const decimals = info.decimals || 9;
-            const supply = Number(info.supply || 0) / Math.pow(10, decimals);
-
-            if (supply > 0 && !mints.has(mint)) {
-              mints.set(mint, {
-                mint,
-                name: `Token2022 ${mint.substring(0, 6)}`,
-                symbol: mint.substring(0, 4).toUpperCase(),
-                decimals,
-                totalSupply: supply,
-                tokenType: 'Token-2022',
-                price: 0,
-                marketCap: 0,
-                priceChange24h: 0,
-                volume24h: 0,
-                mintAuthority: info.mintAuthority || null,
-                freezeAuthority: info.freezeAuthority || null,
-                priceHistory: []
-              });
-            }
-          }
-        });
-      }
-      
+      console.log('Total unique tokens found:', mints.size);
       let tokenList = Array.from(mints.values());
       
       // Simulate market data for display
