@@ -402,7 +402,7 @@ export default function NetworkMap() {
         </div>
 
         {/* Validator Performance Charts Modal */}
-        {selectedValidator && validatorHistory[selectedValidator.votePubkey] && (
+        {selectedValidator && validatorHistory[selectedValidator?.votePubkey] && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setSelectedValidator(null)}>
             <div className="bg-[#0d1525] border border-white/10 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="p-6 border-b border-white/10">
@@ -426,7 +426,7 @@ export default function NetworkMap() {
                   </h4>
                   <div className="bg-[#1a2436] rounded-lg p-4 h-48">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={validatorHistory[selectedValidator.votePubkey].stake}>
+                      <LineChart data={validatorHistory[selectedValidator.votePubkey]?.stake || []}>
                         <YAxis domain={['auto', 'auto']} axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 10 }} width={60} />
                         <Tooltip contentStyle={{ backgroundColor: '#1d2d3a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} labelStyle={{ color: '#9ca3af' }} formatter={(value) => [`${formatStake(value)} XNT`, 'Stake']} />
                         <Line type="monotone" dataKey="value" stroke="#06b6d4" strokeWidth={2} dot={false} />
@@ -443,7 +443,7 @@ export default function NetworkMap() {
                   </h4>
                   <div className="bg-[#1a2436] rounded-lg p-4 h-48">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={validatorHistory[selectedValidator.votePubkey].uptime}>
+                      <LineChart data={validatorHistory[selectedValidator.votePubkey]?.uptime || []}>
                         <YAxis domain={[95, 100]} axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 10 }} width={40} />
                         <Tooltip contentStyle={{ backgroundColor: '#1d2d3a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} labelStyle={{ color: '#9ca3af' }} formatter={(value) => [`${value.toFixed(2)}%`, 'Uptime']} />
                         <Line type="monotone" dataKey="value" stroke="#10b981" strokeWidth={2} dot={false} />
@@ -460,7 +460,7 @@ export default function NetworkMap() {
                   </h4>
                   <div className="bg-[#1a2436] rounded-lg p-4 h-48">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={validatorHistory[selectedValidator.votePubkey].skipRate}>
+                      <LineChart data={validatorHistory[selectedValidator.votePubkey]?.skipRate || []}>
                         <YAxis domain={[0, 'auto']} axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 10 }} width={40} />
                         <Tooltip contentStyle={{ backgroundColor: '#1d2d3a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} labelStyle={{ color: '#9ca3af' }} formatter={(value) => [`${value.toFixed(2)}%`, 'Skip Rate']} />
                         <Line type="monotone" dataKey="value" stroke="#eab308" strokeWidth={2} dot={false} />
