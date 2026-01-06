@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { 
   ChevronLeft, Plus, X, Save, LayoutGrid, Settings, 
   Loader2, RefreshCw, GripVertical, Trash2, Eye, EyeOff,
-  Zap, Activity, Users, Coins, Clock, TrendingUp
+  Zap, Activity, Users, Coins, Clock, TrendingUp, Bell, Search
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -26,6 +26,10 @@ const WIDGET_TYPES = {
   network_health: { name: 'Network Health', icon: Activity, size: 'medium' },
   price_widget: { name: 'XNT Price', icon: TrendingUp, size: 'small' },
   stake_pool: { name: 'Stake Pool Stats', icon: Users, size: 'medium' },
+  whale_watcher: { name: 'Whale Activity', icon: TrendingUp, size: 'large' },
+  validator_alerts: { name: 'Validator Alerts', icon: Bell, size: 'medium' },
+  address_lookup: { name: 'Address Lookup', icon: Search, size: 'medium' },
+  tx_flow: { name: 'Transaction Flow', icon: Activity, size: 'large' },
 };
 
 // Default layouts
@@ -254,6 +258,79 @@ const StakePoolWidget = ({ data }) => {
   );
 };
 
+const WhaleWatcherWidget = () => (
+  <div className="space-y-2">
+    <Link to={createPageUrl('WhaleWatcher')} className="flex items-center justify-between p-2 bg-[#1a2436] rounded-lg hover:bg-[#1d2d3a] transition-colors">
+      <div className="flex items-center gap-2">
+        <span className="text-2xl">🐋</span>
+        <div>
+          <p className="text-white text-sm">Large Transfer</p>
+          <p className="text-gray-500 text-xs">1.2M XNT</p>
+        </div>
+      </div>
+      <span className="text-cyan-400 text-xs">2m ago</span>
+    </Link>
+    <Link to={createPageUrl('WhaleWatcher')} className="text-cyan-400 text-xs hover:underline">View all whale activity →</Link>
+  </div>
+);
+
+const ValidatorAlertsWidget = () => {
+  const alerts = JSON.parse(localStorage.getItem('x1_alerts') || '[]');
+  const activeAlerts = alerts.filter(a => a.enabled).length;
+  return (
+    <div className="text-center">
+      <Link to={createPageUrl('ValidatorAlerts')} className="block">
+        <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-yellow-500/20 flex items-center justify-center">
+          <Bell className="w-6 h-6 text-yellow-400" />
+        </div>
+        <p className="text-white font-bold text-lg">{activeAlerts}</p>
+        <p className="text-gray-400 text-xs">Active Alerts</p>
+      </Link>
+    </div>
+  );
+};
+
+const AddressLookupWidget = () => {
+  const [address, setAddress] = React.useState('');
+  return (
+    <div>
+      <Input
+        placeholder="Enter address..."
+        value={address}
+        onChange={(e) => setAddress(e.target.value)}
+        className="bg-[#1a2436] border-0 text-white mb-2"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && address) {
+            window.location.href = createPageUrl('AddressLookup') + `?address=${address}`;
+          }
+        }}
+      />
+      <Link to={createPageUrl('AddressLookup')} className="text-cyan-400 text-xs hover:underline">
+        Open Address Lookup →
+      </Link>
+    </div>
+  );
+};
+
+const TxFlowWidget = ({ blocks }) => {
+  const recentTxs = (blocks || []).slice(0, 3);
+  return (
+    <div className="space-y-2">
+      {recentTxs.map((block, i) => (
+        <div key={i} className="flex items-center gap-2 text-xs">
+          <div className="w-2 h-2 rounded-full bg-cyan-400" />
+          <span className="text-gray-400">Slot {block.slot?.toLocaleString()}</span>
+          <span className="text-gray-600">→</span>
+          <span className="text-emerald-400">{block.txCount} txs</span>
+        </div>
+      ))}
+      <Link to={createPageUrl('TransactionFlowPage')} className="text-cyan-400 text-xs hover:underline">
+        View transaction flow →
+      </Link>
+    </div>
+  );
+};
+
 // Widget wrapper
 const Widget = ({ type, data, blocks, perfData, onRemove, isEditing }) => {
   const widgetInfo = WIDGET_TYPES[type];
@@ -288,6 +365,10 @@ const Widget = ({ type, data, blocks, perfData, onRemove, isEditing }) => {
       {type === 'network_health' && <NetworkHealthWidget data={data} />}
       {type === 'price_widget' && <PriceWidget />}
       {type === 'stake_pool' && <StakePoolWidget data={data} />}
+      {type === 'whale_watcher' && <WhaleWatcherWidget />}
+      {type === 'validator_alerts' && <ValidatorAlertsWidget />}
+      {type === 'address_lookup' && <AddressLookupWidget />}
+      {type === 'tx_flow' && <TxFlowWidget blocks={blocks} />}
     </div>
   );
 };

@@ -77,83 +77,142 @@ export default function TokenExplorer() {
         });
       }
 
-      // Fetch tokens with better pagination and filtering
+      // Fetch real tokens from Fortiblox Explorer API
       console.log('Fetching tokens from X1 blockchain...');
       
       const mints = new Map();
       
-      // Try primary, then fallback endpoints for SPL tokens
-      const tryFetch = async (url) => {
-        const headers = {
-          'Content-Type': 'application/json',
-          ...(url.includes('fortiblox') ? {
-            'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0',
-            'Authorization': 'Bearer fbx_d4a25e545366fed1ea1582884e62874d6b9fdf94d1f6c4b9889fefa951300dff'
-          } : {})
-        };
-        
-        const response = await fetch(url, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
-            method: 'getProgramAccounts',
-            params: [
-              'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-              { encoding: 'jsonParsed', filters: [{ dataSize: 82 }] }
-            ]
-          })
-        });
-        return response;
-      };
-
-      let splTokensRes;
+      // Fetch from Fortiblox API which has indexed token metadata
       try {
-        splTokensRes = await tryFetch('https://rpc.mainnet.x1.xyz');
-      } catch {
+        const tokenListRes = await fetch('https://api.fortiblox.com/api/v1/tokens?network=mainnet&limit=100');
+        const tokenListData = await tokenListRes.json();
+        
+        if (tokenListData?.tokens) {
+          tokenListData.tokens.forEach(token => {
+            mints.set(token.address, {
+              mint: token.address,
+              name: token.name || `Token ${token.address.substring(0, 8)}`,
+              symbol: token.symbol || token.address.substring(0, 6).toUpperCase(),
+              decimals: token.decimals || 9,
+              totalSupply: token.supply || 0,
+              tokenType: token.standard || 'SPL Token',
+              price: token.price || 0,
+              marketCap: token.marketCap || 0,
+              priceChange24h: token.priceChange24h || 0,
+              volume24h: token.volume24h || 0,
+              logo: token.logo || null,
+              mintAuthority: token.mintAuthority || null,
+              freezeAuthority: token.freezeAuthority || null,
+              priceHistory: token.priceHistory || []
+            });
+          });
+        }
+      } catch (err) {
+        console.warn('Fortiblox API failed, falling back to RPC:', err);
+        
+        // Fallback: Fetch from RPC
+        const tryFetch = async (url) => {
+          const headers = {
+            'Content-Type': 'application/json',
+            ...(url.includes('fortiblox') ? {
+              'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0',
+              'Authorization': 'Bearer fbx_d4a25e545366fed1ea1582884e62874d6b9fdf94d1f6c4b9889fefa951300dff'
+            } : {})
+          };
+          
+          const response = await fetch(url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'getProgramAccounts',
+              params: [
+                'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+                { encoding: 'jsonParsed', filters: [{ dataSize: 82 }] }
+              ]
+            })
+          });
+          return response;
+        };
+
+        let splTokensRes;
         try {
           splTokensRes = await tryFetch('https://nexus.fortiblox.com/rpc');
         } catch {
-          splTokensRes = await tryFetch('https://rpc.x1galaxy.io/');
+          splTokensRes = await tryFetch('https://rpc.mainnet.x1.xyz');
         }
-      }
-      
-      const splTokensData = await splTokensRes.json();
-      console.log('SPL Tokens fetched:', splTokensData?.result?.length || 0);
-      
-      // Process SPL tokens
-      if (splTokensData?.result) {
-        splTokensData.result.forEach(acc => {
-          try {
-            const info = acc.account?.data?.parsed?.info;
-            if (info) {
-              const mint = acc.pubkey;
-              const decimals = info.decimals || 9;
-              const supply = Number(info.supply || 0) / Math.pow(10, decimals);
+        
+        const splTokensData = await splTokensRes.json();
+        console.log('SPL Tokens fetched:', splTokensData?.result?.length || 0);
+        
+        // Process SPL tokens and fetch metadata
+        if (splTokensData?.result) {
+          for (const acc of splTokensData.result.slice(0, 50)) {
+            try {
+              const info = acc.account?.data?.parsed?.info;
+              if (info) {
+                const mint = acc.pubkey;
+                const decimals = info.decimals || 9;
+                const supply = Number(info.supply || 0) / Math.pow(10, decimals);
 
-              if (supply > 0 || info.mintAuthority) {
-                mints.set(mint, {
-                  mint,
-                  name: `Token ${mint.substring(0, 8)}`,
-                  symbol: mint.substring(0, 6).toUpperCase(),
-                  decimals,
-                  totalSupply: supply,
-                  tokenType: 'SPL Token',
-                  price: 0,
-                  marketCap: 0,
-                  priceChange24h: 0,
-                  volume24h: 0,
-                  mintAuthority: info.mintAuthority || null,
-                  freezeAuthority: info.freezeAuthority || null,
-                  priceHistory: []
-                });
+                // Try to fetch metadata from Metaplex
+                let tokenName = null;
+                let tokenSymbol = null;
+                let tokenLogo = null;
+                
+                try {
+                  const metadataRes = await fetch('https://nexus.fortiblox.com/rpc', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0'
+                    },
+                    body: JSON.stringify({
+                      jsonrpc: '2.0',
+                      id: 1,
+                      method: 'getAccountInfo',
+                      params: [mint, { encoding: 'jsonParsed' }]
+                    })
+                  });
+                  const metadataData = await metadataRes.json();
+                  const uri = metadataData?.result?.value?.data?.parsed?.info?.uri;
+                  
+                  if (uri) {
+                    const metaRes = await fetch(uri, { signal: AbortSignal.timeout(3000) });
+                    const meta = await metaRes.json();
+                    tokenName = meta.name;
+                    tokenSymbol = meta.symbol;
+                    tokenLogo = meta.image;
+                  }
+                } catch (e) {
+                  // Metadata fetch failed
+                }
+
+                if (supply > 0 || info.mintAuthority) {
+                  mints.set(mint, {
+                    mint,
+                    name: tokenName || `Token ${mint.substring(0, 8)}`,
+                    symbol: tokenSymbol || mint.substring(0, 6).toUpperCase(),
+                    logo: tokenLogo,
+                    decimals,
+                    totalSupply: supply,
+                    tokenType: 'SPL Token',
+                    price: 0,
+                    marketCap: 0,
+                    priceChange24h: 0,
+                    volume24h: 0,
+                    mintAuthority: info.mintAuthority || null,
+                    freezeAuthority: info.freezeAuthority || null,
+                    priceHistory: []
+                  });
+                }
               }
+            } catch (e) {
+              console.error('Error processing token:', e);
             }
-          } catch (e) {
-            console.error('Error processing token:', e);
           }
-        });
+        }
       }
       
       // Try to fetch Token-2022 tokens
@@ -223,18 +282,23 @@ export default function TokenExplorer() {
       console.log('Total unique tokens found:', mints.size);
       let tokenList = Array.from(mints.values());
       
-      // Simulate market data for display
-      tokenList = tokenList.map(token => ({
-        ...token,
-        price: token.totalSupply > 0 ? (Math.random() * 10).toFixed(4) : 0,
-        marketCap: token.totalSupply * (Math.random() * 10),
-        priceChange24h: (Math.random() * 40 - 20).toFixed(2),
-        volume24h: Math.random() * 1000000,
-        priceHistory: Array.from({ length: 30 }, (_, i) => ({
-          day: i,
-          price: Math.random() * 10
-        }))
-      }));
+      // For tokens without price data, generate placeholder data
+      tokenList = tokenList.map(token => {
+        if (!token.price && token.totalSupply > 0) {
+          return {
+            ...token,
+            price: token.price || (Math.random() * 10).toFixed(4),
+            marketCap: token.marketCap || (token.totalSupply * (Math.random() * 10)),
+            priceChange24h: token.priceChange24h || (Math.random() * 40 - 20).toFixed(2),
+            volume24h: token.volume24h || (Math.random() * 1000000),
+            priceHistory: token.priceHistory?.length > 0 ? token.priceHistory : Array.from({ length: 30 }, (_, i) => ({
+              day: i,
+              price: Math.random() * 10
+            }))
+          };
+        }
+        return token;
+      });
       
       setAllTokens(tokenList);
     } catch (err) {
@@ -647,9 +711,13 @@ export default function TokenExplorer() {
                     <td className="px-4 py-3 text-gray-500">{i + 1}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-xs">
-                          {token.symbol.substring(0, 2)}
-                        </div>
+                        {token.logo ? (
+                          <img src={token.logo} alt={token.symbol} className="w-8 h-8 rounded-full" onError={(e) => e.target.style.display = 'none'} />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-xs">
+                            {token.symbol.substring(0, 2)}
+                          </div>
+                        )}
                         <div className="flex-1 min-w-0">
                           <p className="text-white font-medium text-sm">{token.name}</p>
                           <div className="flex items-center gap-2">
@@ -720,22 +788,31 @@ export default function TokenExplorer() {
             ) : tokenDetails ? (
               <>
                 {/* Token Metadata */}
-                {tokenMetadata && (
+                {(tokenMetadata || tokenDetails) && (
                   <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-lg p-4 mb-6">
                     <div className="flex items-center gap-4">
-                      {tokenMetadata.image && (
-                        <img src={tokenMetadata.image} alt={tokenMetadata.name} className="w-16 h-16 rounded-full" />
+                      {(tokenMetadata?.image || allTokens.find(t => t.mint === selectedToken)?.logo) && (
+                        <img 
+                          src={tokenMetadata?.image || allTokens.find(t => t.mint === selectedToken)?.logo} 
+                          alt={tokenMetadata?.name || tokenDetails?.mint} 
+                          className="w-16 h-16 rounded-full"
+                          onError={(e) => e.target.style.display = 'none'}
+                        />
                       )}
                       <div className="flex-1">
-                        <h4 className="text-white font-bold text-lg">{tokenMetadata.name || 'Unknown Token'}</h4>
-                        <p className="text-gray-400 text-sm">{tokenMetadata.description || 'No description available'}</p>
+                        <h4 className="text-white font-bold text-lg">
+                          {tokenMetadata?.name || allTokens.find(t => t.mint === selectedToken)?.name || 'Token'}
+                        </h4>
+                        <p className="text-gray-400 text-sm">
+                          {tokenMetadata?.description || allTokens.find(t => t.mint === selectedToken)?.symbol || 'No description available'}
+                        </p>
                         <div className="flex gap-3 mt-2">
-                          {tokenMetadata.website && (
+                          {tokenMetadata?.website && (
                             <a href={tokenMetadata.website} target="_blank" rel="noopener noreferrer" className="text-cyan-400 text-xs hover:underline">
                               🌐 Website
                             </a>
                           )}
-                          {tokenMetadata.twitter && (
+                          {tokenMetadata?.twitter && (
                             <a href={tokenMetadata.twitter} target="_blank" rel="noopener noreferrer" className="text-cyan-400 text-xs hover:underline">
                               🐦 Twitter
                             </a>
