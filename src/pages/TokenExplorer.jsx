@@ -82,29 +82,42 @@ export default function TokenExplorer() {
       
       const mints = new Map();
       
-      // Fetch SPL Token mints only (filter by dataSize for mints)
-      const splTokensRes = await fetch('https://nexus.fortiblox.com/rpc', {
-        method: 'POST',
-        headers: {
+      // Try primary, then fallback endpoints for SPL tokens
+      const tryFetch = async (url) => {
+        const headers = {
           'Content-Type': 'application/json',
-          'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0',
-          'Authorization': 'Bearer fbx_d4a25e545366fed1ea1582884e62874d6b9fdf94d1f6c4b9889fefa951300dff'
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'getProgramAccounts',
-          params: [
-            'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-            {
-              encoding: 'jsonParsed',
-              filters: [
-                { dataSize: 82 } // Mint account size
-              ]
-            }
-          ]
-        })
-      });
+          ...(url.includes('fortiblox') ? {
+            'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0',
+            'Authorization': 'Bearer fbx_d4a25e545366fed1ea1582884e62874d6b9fdf94d1f6c4b9889fefa951300dff'
+          } : {})
+        };
+        
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'getProgramAccounts',
+            params: [
+              'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+              { encoding: 'jsonParsed', filters: [{ dataSize: 82 }] }
+            ]
+          })
+        });
+        return response;
+      };
+
+      let splTokensRes;
+      try {
+        splTokensRes = await tryFetch('https://rpc.mainnet.x1.xyz');
+      } catch {
+        try {
+          splTokensRes = await tryFetch('https://nexus.fortiblox.com/rpc');
+        } catch {
+          splTokensRes = await tryFetch('https://rpc.x1galaxy.io/');
+        }
+      }
       
       const splTokensData = await splTokensRes.json();
       console.log('SPL Tokens fetched:', splTokensData?.result?.length || 0);

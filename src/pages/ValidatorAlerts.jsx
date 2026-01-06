@@ -395,41 +395,50 @@ View details at X1.space
 
         {/* Notification Config */}
         <div className="bg-[#24384a] rounded-xl p-4 mb-6">
-          <h3 className="text-gray-400 text-sm mb-4">NOTIFICATION SETTINGS</h3>
+          <h3 className="text-gray-400 text-sm mb-4">NOTIFICATION SETUP GUIDES</h3>
           
-          {/* Email limitation notice */}
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-4">
-            <p className="text-yellow-400 text-sm">
-              ⚠️ <strong>Email Limitation:</strong> Email notifications currently only work for registered app users. 
-              For external notifications, please use a <strong>Webhook</strong> (Discord, Slack, Telegram bot, etc.)
-            </p>
+          {/* Discord Setup */}
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-3">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xl">💬</span>
+              <h4 className="text-white font-medium">Discord Setup</h4>
+            </div>
+            <ol className="text-sm text-gray-300 space-y-1 ml-6 list-decimal">
+              <li>Open Discord and go to your server</li>
+              <li>Right-click the channel → Edit Channel → Integrations</li>
+              <li>Click "Create Webhook" → Copy the Webhook URL</li>
+              <li>Paste the URL in the field below</li>
+            </ol>
+          </div>
+
+          {/* Telegram Setup */}
+          <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-4 mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xl">📱</span>
+              <h4 className="text-white font-medium">Telegram Setup</h4>
+            </div>
+            <ol className="text-sm text-gray-300 space-y-1 ml-6 list-decimal">
+              <li>Search for @BotFather in Telegram</li>
+              <li>Send /newbot and follow instructions to create your bot</li>
+              <li>Copy the bot token you receive</li>
+              <li>Start a chat with your bot, send any message</li>
+              <li>Visit: https://api.telegram.org/bot<b>YOUR_TOKEN</b>/getUpdates</li>
+              <li>Find your chat_id in the response</li>
+              <li>Use webhook URL: https://api.telegram.org/bot<b>YOUR_TOKEN</b>/sendMessage?chat_id=<b>YOUR_CHAT_ID</b></li>
+            </ol>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <div>
-              <label className="text-gray-500 text-xs mb-1 block">Webhook URL (Recommended)</label>
+              <label className="text-gray-500 text-xs mb-1 block">Webhook URL (Discord/Telegram/Slack)</label>
               <div className="flex gap-2">
                 <Input
-                  placeholder="https://discord.com/api/webhooks/..."
+                  placeholder="https://discord.com/api/webhooks/... or Telegram webhook"
                   value={webhookUrl}
                   onChange={(e) => setWebhookUrl(e.target.value)}
                   className="bg-[#1d2d3a] border-0 text-white flex-1"
                 />
                 <Button variant="ghost" size="icon" className="text-gray-400"><Globe className="w-4 h-4" /></Button>
-              </div>
-              <p className="text-gray-600 text-xs mt-1">Works with Discord, Slack, Telegram bots, etc.</p>
-            </div>
-            <div>
-              <label className="text-gray-500 text-xs mb-1 block">Email (App Users Only)</label>
-              <div className="flex gap-2">
-                <Input
-                  type="email"
-                  placeholder="your@email.com"
-                  value={emailAddress}
-                  onChange={(e) => setEmailAddress(e.target.value)}
-                  className="bg-[#1d2d3a] border-0 text-white flex-1"
-                />
-                <Button variant="ghost" size="icon" className="text-gray-400"><Mail className="w-4 h-4" /></Button>
               </div>
             </div>
           </div>

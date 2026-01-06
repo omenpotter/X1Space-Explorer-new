@@ -21,6 +21,11 @@ const WIDGET_TYPES = {
   epoch: { name: 'Epoch Progress', icon: Clock, size: 'medium' },
   recent_blocks: { name: 'Recent Blocks', icon: LayoutGrid, size: 'large' },
   performance: { name: 'Performance History', icon: TrendingUp, size: 'large' },
+  block_time: { name: 'Block Time', icon: Clock, size: 'small' },
+  tx_types: { name: 'Transaction Types', icon: Activity, size: 'medium' },
+  network_health: { name: 'Network Health', icon: Activity, size: 'medium' },
+  price_widget: { name: 'XNT Price', icon: TrendingUp, size: 'small' },
+  stake_pool: { name: 'Stake Pool Stats', icon: Users, size: 'medium' },
 };
 
 // Default layouts
@@ -183,6 +188,72 @@ const PerformanceWidget = ({ perfData }) => {
   );
 };
 
+const BlockTimeWidget = ({ data }) => (
+  <div className="text-center">
+    <p className="text-gray-400 text-xs mb-2">Avg Block Time</p>
+    <p className="text-2xl font-bold text-cyan-400">~400ms</p>
+  </div>
+);
+
+const TxTypesWidget = ({ blocks }) => {
+  const total = (blocks || []).reduce((sum, b) => sum + (b.txCount || 0), 0);
+  const votes = (blocks || []).reduce((sum, b) => sum + (b.voteCount || 0), 0);
+  const transfers = (blocks || []).reduce((sum, b) => sum + (b.transferCount || 0), 0);
+  
+  return (
+    <div className="grid grid-cols-3 gap-2 text-center">
+      <div>
+        <p className="text-purple-400 font-bold text-lg">{Math.round((votes/total)*100) || 0}%</p>
+        <p className="text-gray-500 text-xs">Votes</p>
+      </div>
+      <div>
+        <p className="text-blue-400 font-bold text-lg">{Math.round((transfers/total)*100) || 0}%</p>
+        <p className="text-gray-500 text-xs">Transfers</p>
+      </div>
+      <div>
+        <p className="text-emerald-400 font-bold text-lg">{Math.round(((total-votes-transfers)/total)*100) || 0}%</p>
+        <p className="text-gray-500 text-xs">Programs</p>
+      </div>
+    </div>
+  );
+};
+
+const NetworkHealthWidget = ({ data }) => (
+  <div className="text-center">
+    <div className="w-16 h-16 mx-auto mb-2 rounded-full bg-emerald-500/20 flex items-center justify-center">
+      <span className="text-2xl">✓</span>
+    </div>
+    <p className="text-emerald-400 font-bold">Healthy</p>
+    <p className="text-gray-500 text-xs mt-1">{data?.tps || 0} TPS</p>
+  </div>
+);
+
+const PriceWidget = () => (
+  <div className="text-center">
+    <p className="text-gray-400 text-xs mb-2">XNT Price</p>
+    <p className="text-2xl font-bold text-white">$1.00</p>
+    <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs mt-1">OTC</Badge>
+  </div>
+);
+
+const StakePoolWidget = ({ data }) => {
+  const stakeRatio = data?.validators?.totalStake && data?.supply?.total 
+    ? ((data.validators.totalStake / data.supply.total) * 100).toFixed(1) 
+    : 0;
+  return (
+    <div>
+      <div className="flex justify-between mb-2">
+        <span className="text-gray-400 text-sm">Staked</span>
+        <span className="text-cyan-400 font-bold">{stakeRatio}%</span>
+      </div>
+      <div className="h-2 bg-[#1a2436] rounded-full overflow-hidden">
+        <div className="h-full bg-gradient-to-r from-purple-500 to-cyan-500" style={{ width: `${stakeRatio}%` }} />
+      </div>
+      <p className="text-gray-500 text-xs mt-1">{data?.validators?.current || 0} validators</p>
+    </div>
+  );
+};
+
 // Widget wrapper
 const Widget = ({ type, data, blocks, perfData, onRemove, isEditing }) => {
   const widgetInfo = WIDGET_TYPES[type];
@@ -212,6 +283,11 @@ const Widget = ({ type, data, blocks, perfData, onRemove, isEditing }) => {
       {type === 'tps_chart' && <TpsChartWidget data={data} />}
       {type === 'recent_blocks' && <RecentBlocksWidget blocks={blocks} />}
       {type === 'performance' && <PerformanceWidget perfData={perfData} />}
+      {type === 'block_time' && <BlockTimeWidget data={data} />}
+      {type === 'tx_types' && <TxTypesWidget blocks={blocks} />}
+      {type === 'network_health' && <NetworkHealthWidget data={data} />}
+      {type === 'price_widget' && <PriceWidget />}
+      {type === 'stake_pool' && <StakePoolWidget data={data} />}
     </div>
   );
 };

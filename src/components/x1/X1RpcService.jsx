@@ -46,22 +46,27 @@ export async function testAllRPCs() {
 let currentEndpointIndex = 0;
 let lastSuccessfulEndpoint = 0;
 
-// Preconnect to RPC endpoints on module load
+// Preconnect and prefetch for ultra-fast loading
 if (typeof window !== 'undefined') {
+  // Preconnect for faster TCP/TLS handshake
   RPC_ENDPOINTS.forEach(endpoint => {
-    const link = document.createElement('link');
-    link.rel = 'preconnect';
-    link.href = new URL(endpoint).origin;
-    link.crossOrigin = 'anonymous';
-    document.head.appendChild(link);
+    try {
+      const link = document.createElement('link');
+      link.rel = 'preconnect';
+      link.href = new URL(endpoint).origin;
+      link.crossOrigin = 'anonymous';
+      document.head.appendChild(link);
+    } catch (e) {}
   });
   
   // DNS prefetch for faster resolution
   RPC_ENDPOINTS.forEach(endpoint => {
-    const link = document.createElement('link');
-    link.rel = 'dns-prefetch';
-    link.href = new URL(endpoint).origin;
-    document.head.appendChild(link);
+    try {
+      const link = document.createElement('link');
+      link.rel = 'dns-prefetch';
+      link.href = new URL(endpoint).origin;
+      document.head.appendChild(link);
+    } catch (e) {}
   });
 }
 

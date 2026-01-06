@@ -337,19 +337,19 @@ export default function NetworkMap() {
                 variant={viewMode === 'map' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setViewMode('map')}
-                className={viewMode === 'map' ? 'bg-cyan-500' : 'border-white/20'}
+                className={viewMode === 'map' ? 'bg-cyan-500 text-white' : 'border-white/20 text-white'}
               >
                 <Map className="w-4 h-4 mr-2" />
-                Geographic Map
+                <span className="text-white">Geographic Map</span>
               </Button>
               <Button
                 variant={viewMode === 'graph' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setViewMode('graph')}
-                className={viewMode === 'graph' ? 'bg-cyan-500' : 'border-white/20'}
+                className={viewMode === 'graph' ? 'bg-cyan-500 text-white' : 'border-white/20 text-white'}
               >
                 <Network className="w-4 h-4 mr-2" />
-                Force Graph
+                <span className="text-white">Force Graph</span>
               </Button>
             </div>
             
