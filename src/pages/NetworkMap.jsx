@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Zap, Map, Loader2, Globe, ExternalLink, RefreshCw, Activity, Server, ChevronLeft, TrendingUp
+  Zap, Map, Loader2, Globe, ExternalLink, RefreshCw, Activity, Server, ChevronLeft, TrendingUp, Filter, Network
 } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
 import { Link } from 'react-router-dom';
@@ -10,6 +10,8 @@ import { createPageUrl } from '@/utils';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import X1Rpc from '../components/x1/X1RpcService';
+import ValidatorGraph from '../components/x1/ValidatorGraph';
+import { Input } from "@/components/ui/input";
 
 // Known validator locations based on x1val.online data
 // Americas, Europe, Africa (Nairobi), Asia (Singapore)
@@ -94,6 +96,13 @@ export default function NetworkMap() {
   const [sortDir, setSortDir] = useState('desc');
   const [selectedValidator, setSelectedValidator] = useState(null);
   const [validatorHistory, setValidatorHistory] = useState({});
+  const [viewMode, setViewMode] = useState('map'); // 'map' or 'graph'
+  const [filters, setFilters] = useState({
+    region: 'all',
+    minStake: 0,
+    minUptime: 0,
+    status: 'all'
+  });
 
   const fetchData = async (isRefresh = false) => {
     try {
@@ -189,9 +198,21 @@ export default function NetworkMap() {
     return regions;
   }, [nodeLocations]);
   
+  // Apply filters
+  const filteredValidators = useMemo(() => {
+    return nodeLocations.filter(v => {
+      if (filters.region !== 'all' && v.location?.region !== filters.region) return false;
+      if (v.activatedStake < filters.minStake) return false;
+      if ((v.uptime || 0) < filters.minUptime) return false;
+      if (filters.status === 'active' && v.delinquent) return false;
+      if (filters.status === 'delinquent' && !v.delinquent) return false;
+      return true;
+    });
+  }, [nodeLocations, filters]);
+
   // Sort validators by metric - fixed to properly handle direction
   const sortedValidators = useMemo(() => {
-    const sorted = [...nodeLocations].sort((a, b) => {
+    const sorted = [...filteredValidators].sort((a, b) => {
       let comparison = 0;
       switch(sortMetric) {
         case 'stake': 
@@ -212,7 +233,7 @@ export default function NetworkMap() {
       return sortDir === 'asc' ? -comparison : comparison;
     });
     return sorted;
-  }, [nodeLocations, sortMetric, sortDir]);
+  }, [filteredValidators, sortMetric, sortDir]);
   
   // Calculate performance averages
   const perfStats = useMemo(() => {
@@ -308,8 +329,96 @@ export default function NetworkMap() {
           ))}
         </div>
 
-        {/* Map */}
-        <div className="bg-[#0d1525] border border-white/10 rounded-lg overflow-hidden mb-6" style={{ height: '500px' }}>
+        {/* View Mode Toggle & Filters */}
+        <div className="bg-[#0d1525] border border-white/10 rounded-lg p-4 mb-6">
+          <div className="flex flex-wrap items-center gap-4 justify-between">
+            <div className="flex items-center gap-2">
+              <Button
+                variant={viewMode === 'map' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('map')}
+                className={viewMode === 'map' ? 'bg-cyan-500' : 'border-white/20'}
+              >
+                <Map className="w-4 h-4 mr-2" />
+                Geographic Map
+              </Button>
+              <Button
+                variant={viewMode === 'graph' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('graph')}
+                className={viewMode === 'graph' ? 'bg-cyan-500' : 'border-white/20'}
+              >
+                <Network className="w-4 h-4 mr-2" />
+                Force Graph
+              </Button>
+            </div>
+            
+            <div className="flex items-center gap-3 flex-wrap">
+              <Filter className="w-4 h-4 text-gray-400" />
+              <select
+                value={filters.region}
+                onChange={(e) => setFilters({...filters, region: e.target.value})}
+                className="bg-[#1a2436] border-0 text-white rounded-lg px-3 py-1.5 text-sm"
+              >
+                <option value="all">All Regions</option>
+                {Object.keys(regionStats).map(region => (
+                  <option key={region} value={region}>{region}</option>
+                ))}
+              </select>
+              
+              <Input
+                type="number"
+                placeholder="Min Stake"
+                value={filters.minStake || ''}
+                onChange={(e) => setFilters({...filters, minStake: Number(e.target.value) || 0})}
+                className="bg-[#1a2436] border-0 text-white w-32 h-8 text-sm"
+              />
+              
+              <Input
+                type="number"
+                placeholder="Min Uptime %"
+                value={filters.minUptime || ''}
+                onChange={(e) => setFilters({...filters, minUptime: Number(e.target.value) || 0})}
+                className="bg-[#1a2436] border-0 text-white w-32 h-8 text-sm"
+              />
+              
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters({...filters, status: e.target.value})}
+                className="bg-[#1a2436] border-0 text-white rounded-lg px-3 py-1.5 text-sm"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active Only</option>
+                <option value="delinquent">Delinquent Only</option>
+              </select>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setFilters({ region: 'all', minStake: 0, minUptime: 0, status: 'all' })}
+                className="border-white/20 text-gray-400 text-xs"
+              >
+                Clear Filters
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Visualization */}
+        {viewMode === 'graph' ? (
+          <div className="bg-[#0d1525] border border-white/10 rounded-lg overflow-hidden mb-6">
+            <div className="p-4 border-b border-white/10">
+              <h3 className="text-white font-medium">Validator Network Graph</h3>
+              <p className="text-gray-400 text-xs mt-1">Interactive force-directed graph showing validator relationships and stake distribution. Click nodes for details.</p>
+            </div>
+            <ValidatorGraph 
+              validators={filteredValidators} 
+              onNodeClick={setSelectedValidator}
+              stakeThreshold={filters.minStake}
+            />
+          </div>
+        ) : (
+          <div className="bg-[#0d1525] border border-white/10 rounded-lg overflow-hidden mb-6" style={{ height: '500px' }}>
           <MapContainer 
             center={[30, 0]} 
             zoom={2} 
@@ -320,7 +429,7 @@ export default function NetworkMap() {
               attribution='&copy; <a href="https://carto.com/">CARTO</a>'
               url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
             />
-            {nodeLocations.map((node) => (
+            {filteredValidators.map((node) => (
               <CircleMarker
                 key={node.votePubkey}
                 center={[node.lat, node.lng]}
@@ -330,21 +439,33 @@ export default function NetworkMap() {
                 weight={2}
                 opacity={0.9}
                 fillOpacity={0.5}
+                eventHandlers={{
+                  click: () => setSelectedValidator(node),
+                }}
               >
                 <Popup>
-                  <div className="bg-[#0d1525] text-white p-3 rounded -m-3 min-w-[200px]">
+                  <div className="bg-[#0d1525] text-white p-3 rounded -m-3 min-w-[240px]">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-cyan-400 font-black">X1</span>
                       <span className="font-medium">{node.name || node.votePubkey.substring(0, 12) + '...'}</span>
                     </div>
                     <div className="space-y-1 text-sm">
-                      <p><span className="text-gray-400">Stake:</span> <span className="text-cyan-400">{formatStake(node.activatedStake)} XNT</span></p>
+                      <p><span className="text-gray-400">Stake:</span> <span className="text-cyan-400">{formatStake(node.activatedStake)} XNT ({node.stakePercent}%)</span></p>
+                      <p><span className="text-gray-400">Uptime:</span> <span className={node.uptime >= 99 ? 'text-emerald-400' : 'text-yellow-400'}>{node.uptime?.toFixed(2)}%</span></p>
+                      <p><span className="text-gray-400">Skip Rate:</span> <span className={node.skipRate < 1 ? 'text-emerald-400' : 'text-yellow-400'}>{node.skipRate?.toFixed(2)}%</span></p>
                       <p><span className="text-gray-400">Location:</span> {node.location?.city}, {node.location?.country}</p>
                       <p><span className="text-gray-400">Version:</span> {node.version}</p>
                       <p><span className="text-gray-400">Commission:</span> {node.commission}%</p>
                       <p className={node.delinquent ? 'text-red-400' : 'text-emerald-400'}>
                         {node.delinquent ? '⚠ Delinquent' : '✓ Active'}
                       </p>
+                      <button 
+                        onClick={() => setSelectedValidator(node)}
+                        className="mt-2 text-cyan-400 text-xs hover:underline flex items-center gap-1"
+                      >
+                        <TrendingUp className="w-3 h-3" />
+                        View Performance Charts
+                      </button>
                     </div>
                   </div>
                 </Popup>
@@ -352,6 +473,7 @@ export default function NetworkMap() {
             ))}
           </MapContainer>
         </div>
+        )}
 
         {/* Legend */}
         <div className="flex flex-wrap items-center gap-6 mb-6 text-sm">
@@ -476,7 +598,7 @@ export default function NetworkMap() {
         {/* Validator Table */}
         <div className="bg-[#0d1525] border border-white/10 rounded-lg overflow-hidden">
           <div className="p-4 border-b border-white/10 flex items-center justify-between">
-            <h3 className="text-white font-medium">All Validators ({nodeLocations.length})</h3>
+            <h3 className="text-white font-medium">Validators ({filteredValidators.length} / {nodeLocations.length})</h3>
             <div className="flex items-center gap-2">
               <span className="text-gray-400 text-sm">Sort by:</span>
               <select
