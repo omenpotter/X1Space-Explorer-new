@@ -85,13 +85,38 @@ export default function TokenExplorer() {
       
       const mints = new Map();
       
-      // Fetch real tokens from X1 blockchain using RPC
-      console.log('Fetching tokens from X1 RPC...');
+      // Fetch real token data from X1 blockchain
+      console.log('Fetching tokens from X1...');
+      
+      // Fetch price data from xDEX API
+      let priceData = {};
+      try {
+        const xdexRes = await fetch('https://api.xdex.xyz/v1/tokens', {
+          signal: AbortSignal.timeout(5000)
+        });
+        const xdexData = await xdexRes.json();
+        if (xdexData?.tokens) {
+          xdexData.tokens.forEach(token => {
+            priceData[token.address] = {
+              price: token.price || 0,
+              priceChange24h: token.priceChange24h || 0,
+              volume24h: token.volume24h || 0,
+              marketCap: token.marketCap || 0,
+              name: token.name,
+              symbol: token.symbol,
+              logo: token.logoURI || token.image
+            };
+          });
+          console.log(`✓ Loaded ${Object.keys(priceData).length} prices from xDEX`);
+        }
+      } catch (err) {
+        console.warn('xDEX API not available, using on-chain data only');
+      }
       
       const rpcEndpoints = [
-        'https://rpc.x1galaxy.io/',
+        'https://nexus.fortiblox.com/rpc',
         'https://rpc.mainnet.x1.xyz',
-        'https://nexus.fortiblox.com/rpc'
+        'https://rpc.x1galaxy.io/'
       ];
       
       const tryRpcFetch = async (endpoint, method, params) => {
@@ -114,7 +139,7 @@ export default function TokenExplorer() {
       
       let tokenAccounts = [];
       
-      // Try each RPC endpoint until one works
+      // Fetch token accounts from RPC
       for (const endpoint of rpcEndpoints) {
         try {
           console.log(`Trying RPC: ${endpoint}`);
@@ -128,19 +153,18 @@ export default function TokenExplorer() {
           
           if (result?.result?.length > 0) {
             tokenAccounts = result.result;
-            console.log(`✓ Found ${tokenAccounts.length} tokens from ${endpoint}`);
+            console.log(`✓ Found ${tokenAccounts.length} token mints`);
             break;
           }
         } catch (err) {
-          console.warn(`Failed ${endpoint}:`, err.message);
-          continue;
+          console.warn(`RPC ${endpoint} failed:`, err.message);
         }
       }
       
-      // Process tokens with real on-chain data
-      console.log(`Processing ${tokenAccounts.length} tokens...`);
+      // Process tokens
+      console.log(`Processing ${Math.min(tokenAccounts.length, 200)} tokens...`);
       
-      for (const acc of tokenAccounts.slice(0, 100)) {
+      for (const acc of tokenAccounts.slice(0, 200)) {
         try {
           const info = acc.account?.data?.parsed?.info;
           if (!info) continue;
@@ -149,75 +173,59 @@ export default function TokenExplorer() {
           const decimals = info.decimals || 9;
           const supply = Number(info.supply || 0) / Math.pow(10, decimals);
           
-          // Skip tokens with no supply
           if (supply === 0 && !info.mintAuthority) continue;
           
-          // Try to get metadata from various sources
-          let tokenName = null;
-          let tokenSymbol = null;
-          let tokenLogo = null;
+          // Get price data if available
+          const marketData = priceData[mint] || {};
           
-          // Method 1: Check Solana token list (works for X1 too)
-          try {
-            const tokenListRes = await fetch(`https://token.jup.ag/strict?mint=${mint}`, {
-              signal: AbortSignal.timeout(2000)
-            });
-            if (tokenListRes.ok) {
-              const tokenMeta = await tokenListRes.json();
-              tokenName = tokenMeta.name;
-              tokenSymbol = tokenMeta.symbol;
-              tokenLogo = tokenMeta.logoURI;
-            }
-          } catch (e) {}
+          // Get metadata
+          let tokenName = marketData.name || null;
+          let tokenSymbol = marketData.symbol || null;
+          let tokenLogo = marketData.logo || null;
           
-          // Method 2: Try Metaplex metadata
+          // Try to fetch metadata from on-chain if not in price data
           if (!tokenName) {
             try {
-              for (const endpoint of rpcEndpoints) {
-                try {
-                  const metaRes = await tryRpcFetch(endpoint, 'getAccountInfo', [mint, { encoding: 'jsonParsed' }]);
-                  const uri = metaRes?.result?.value?.data?.parsed?.info?.uri;
-                  if (uri) {
-                    const metaData = await fetch(uri, { signal: AbortSignal.timeout(2000) });
-                    const meta = await metaData.json();
-                    tokenName = meta.name;
-                    tokenSymbol = meta.symbol;
-                    tokenLogo = meta.image;
-                    break;
-                  }
-                } catch (e) {
-                  continue;
-                }
+              const metaRes = await tryRpcFetch(rpcEndpoints[0], 'getAccountInfo', [mint, { encoding: 'jsonParsed' }]);
+              const uri = metaRes?.result?.value?.data?.parsed?.info?.uri;
+              if (uri) {
+                const metaData = await fetch(uri, { signal: AbortSignal.timeout(2000) });
+                const meta = await metaData.json();
+                tokenName = meta.name;
+                tokenSymbol = meta.symbol;
+                tokenLogo = meta.image;
               }
             } catch (e) {}
           }
           
-          // Calculate price based on supply (placeholder - in production use DEX APIs)
-          const estimatedPrice = supply > 0 ? (Math.random() * 5 + 0.1) : 0;
+          const price = marketData.price || 0;
+          const priceChange = marketData.priceChange24h || 0;
+          const volume = marketData.volume24h || 0;
+          const marketCap = marketData.marketCap || (supply * price);
           
           mints.set(mint, {
             mint,
-            name: tokenName || `X1 Token ${mint.substring(0, 8)}`,
+            name: tokenName || `Token ${mint.substring(0, 8)}`,
             symbol: tokenSymbol || mint.substring(0, 4).toUpperCase(),
             logo: tokenLogo,
             decimals,
             totalSupply: supply,
             tokenType: 'SPL Token',
-            price: estimatedPrice,
-            marketCap: supply * estimatedPrice,
-            priceChange24h: (Math.random() * 20 - 10).toFixed(2),
-            volume24h: Math.random() * 100000,
+            price,
+            marketCap,
+            priceChange24h: priceChange,
+            volume24h: volume,
             mintAuthority: info.mintAuthority || null,
             freezeAuthority: info.freezeAuthority || null,
             priceHistory: []
           });
           
         } catch (e) {
-          console.error('Error processing token:', e);
+          console.error('Token processing error:', e);
         }
       }
       
-      console.log(`✓ Processed ${mints.size} unique tokens`);
+      console.log(`✓ Processed ${mints.size} tokens with ${Object.keys(priceData).length} prices`);
 
 
       
