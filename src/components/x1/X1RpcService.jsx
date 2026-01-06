@@ -147,7 +147,8 @@ export async function getEpochInfo() {
 
 // Get recent performance samples (TPS data)
 export async function getRecentPerformanceSamples(limit = 60) {
-  return await rpcCall('getRecentPerformanceSamples', [limit]);
+  const result = await rpcCall('getRecentPerformanceSamples', [limit]);
+  return result || [];
 }
 
 // Get block details
@@ -221,12 +222,14 @@ export async function getBlockProductionForEpoch(epoch, slotsPerEpoch = 216000) 
 
 // Get vote accounts (validators) - cached for 30 seconds
 export async function getVoteAccounts() {
-  return await rpcCall('getVoteAccounts', [], 'voteAccounts', 'medium');
+  const result = await rpcCall('getVoteAccounts', [], 'voteAccounts', 'medium');
+  return result || { current: [], delinquent: [] };
 }
 
 // Get cluster nodes - cached for 30 seconds
 export async function getClusterNodes() {
-  return await rpcCall('getClusterNodes', [], 'clusterNodes', 'medium');
+  const result = await rpcCall('getClusterNodes', [], 'clusterNodes', 'medium');
+  return result || [];
 }
 
 // Get supply info (cached for 5 minutes)
@@ -243,10 +246,16 @@ export async function getTransactionCount() {
 
 // Get signatures for address (recent transactions)
 export async function getSignaturesForAddress(address, options = {}) {
-  return await rpcCall('getSignaturesForAddress', [
-    address,
-    { limit: options.limit || 20, ...options }
-  ]);
+  try {
+    const result = await rpcCall('getSignaturesForAddress', [
+      address,
+      { limit: options.limit || 20, ...options }
+    ]);
+    return result || [];
+  } catch (e) {
+    console.error('getSignaturesForAddress error:', e);
+    return [];
+  }
 }
 
 // Get transaction details
@@ -351,9 +360,9 @@ export async function getDashboardData() {
       nonCirculating: supply.value.nonCirculating / 1e9
     },
     validators: {
-      current: voteAccounts.current.length,
-      delinquent: voteAccounts.delinquent.length,
-      totalStake: (voteAccounts.current.reduce((sum, v) => sum + v.activatedStake, 0) + voteAccounts.delinquent.reduce((sum, v) => sum + v.activatedStake, 0)) / 1e9
+      current: voteAccounts?.current?.length || 0,
+      delinquent: voteAccounts?.delinquent?.length || 0,
+      totalStake: ((voteAccounts?.current || []).reduce((sum, v) => sum + v.activatedStake, 0) + (voteAccounts?.delinquent || []).reduce((sum, v) => sum + v.activatedStake, 0)) / 1e9
     },
     version: version['solana-core'] || version.version
   };
@@ -506,12 +515,16 @@ export async function getValidatorDetails() {
 
   // Create a map of node pubkeys to their info
   const nodeMap = {};
-  clusterNodes.forEach(node => {
-    nodeMap[node.pubkey] = node;
-  });
+  if (Array.isArray(clusterNodes)) {
+    clusterNodes.forEach(node => {
+      nodeMap[node.pubkey] = node;
+    });
+  }
 
   // Calculate total stake for percentage calculations
-  const totalActiveStake = voteAccounts.current.reduce((sum, v) => sum + v.activatedStake, 0);
+  const totalActiveStake = Array.isArray(voteAccounts?.current) 
+    ? voteAccounts.current.reduce((sum, v) => sum + v.activatedStake, 0)
+    : 0;
 
   // Build skip rate map from block production data
   const skipRateMap = {};
@@ -523,7 +536,7 @@ export async function getValidatorDetails() {
   }
 
   // Combine vote accounts with node info
-  const validators = voteAccounts.current.map((v) => {
+  const validators = (voteAccounts?.current || []).map((v) => {
     const node = nodeMap[v.nodePubkey] || {};
     
     // Generate validator name based on stake amount
@@ -579,7 +592,7 @@ export async function getValidatorDetails() {
   });
 
   // Add delinquent validators
-  voteAccounts.delinquent.forEach(v => {
+  (voteAccounts?.delinquent || []).forEach(v => {
     const node = nodeMap[v.nodePubkey] || {};
     const validatorInfo = generateValidatorName(v.votePubkey, v.nodePubkey, v.activatedStake);
     const skipRate = skipRateMap[v.nodePubkey] !== undefined ? skipRateMap[v.nodePubkey] : 100;
