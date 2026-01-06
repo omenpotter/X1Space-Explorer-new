@@ -6,14 +6,15 @@ import { Search, Zap, AlertCircle, Globe, Calculator, Wallet } from 'lucide-reac
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
-
 // Lazy load components
+const ThemeToggle = lazy(() => import('../components/common/ThemeToggle'));
+const GlobalSearch = lazy(() => import('../components/common/GlobalSearch'));
 
 const MobileNav = lazy(() => import('../components/layout/MobileNav'));
 const MempoolViz = lazy(() => import('../components/x1/MempoolViz'));
-const MempoolLegend = lazy(() => import('../components/x1/MempoolViz').then(m => ({ default: m.MempoolLegend })));
 const QuickLinks = lazy(() => import('../components/dashboard/QuickLinks'));
 const RecentBlocksTable = lazy(() => import('@/components/dashboard/RecentBlocksTable'));
+const MempoolLegend = lazy(() => import('../components/x1/MempoolViz').then(m => ({ default: m.MempoolLegend })));
 
 // Lazy load recharts
 const LazyChart = lazy(() => import('recharts').then(m => ({
