@@ -14,16 +14,20 @@ export default function ValidatorGraph({ validators, onNodeClick, stakeThreshold
     // Filter by stake threshold
     const filtered = validators.filter(v => v.activatedStake >= stakeThreshold);
     
-    // Initialize nodes with physics properties
-    const initialNodes = filtered.map((v, i) => ({
-      ...v,
-      x: Math.random() * 800,
-      y: Math.random() * 600,
-      vx: 0,
-      vy: 0,
-      radius: Math.max(5, Math.min(30, v.activatedStake / 5000000)),
-      color: v.delinquent ? '#ef4444' : '#06b6d4'
-    }));
+    // Initialize nodes with physics properties in center with radial distribution
+    const initialNodes = filtered.map((v, i) => {
+      const angle = (i / filtered.length) * Math.PI * 2;
+      const radius = 200 + Math.random() * 100;
+      return {
+        ...v,
+        x: 600 + Math.cos(angle) * radius,
+        y: 300 + Math.sin(angle) * radius,
+        vx: 0,
+        vy: 0,
+        radius: Math.max(8, Math.min(25, Math.sqrt(v.activatedStake) / 400)),
+        color: v.delinquent ? '#ef4444' : '#06b6d4'
+      };
+    });
 
     setNodes(initialNodes);
   }, [validators, stakeThreshold]);
@@ -46,44 +50,50 @@ export default function ValidatorGraph({ validators, onNodeClick, stakeThreshold
           if (i === j) return;
           const dx = node.x - other.x;
           const dy = node.y - other.y;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          const force = 1000 / (dist * dist);
-          node.vx += (dx / dist) * force;
-          node.vy += (dy / dist) * force;
+          const dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+          const minDist = node.radius + other.radius + 20;
+          
+          if (dist < minDist) {
+            const force = ((minDist - dist) / dist) * 0.5;
+            node.vx += (dx / dist) * force;
+            node.vy += (dy / dist) * force;
+          }
         });
 
-        // Attraction to center (gravity)
+        // Attraction to center (gentle gravity)
         const centerX = width / 2;
         const centerY = height / 2;
         const dx = centerX - node.x;
         const dy = centerY - node.y;
-        node.vx += dx * 0.001;
-        node.vy += dy * 0.001;
+        const distToCenter = Math.sqrt(dx * dx + dy * dy);
+        node.vx += (dx / distToCenter) * 0.02;
+        node.vy += (dy / distToCenter) * 0.02;
 
         // Velocity damping
-        node.vx *= 0.9;
-        node.vy *= 0.9;
+        node.vx *= 0.85;
+        node.vy *= 0.85;
 
         // Update position
         node.x += node.vx;
         node.y += node.vy;
 
-        // Boundary bounce
-        if (node.x < node.radius) { node.x = node.radius; node.vx *= -0.5; }
-        if (node.x > width - node.radius) { node.x = width - node.radius; node.vx *= -0.5; }
-        if (node.y < node.radius) { node.y = node.radius; node.vy *= -0.5; }
-        if (node.y > height - node.radius) { node.y = height - node.radius; node.vy *= -0.5; }
+        // Boundary constraints
+        if (node.x < node.radius + 10) { node.x = node.radius + 10; node.vx = 0; }
+        if (node.x > width - node.radius - 10) { node.x = width - node.radius - 10; node.vx = 0; }
+        if (node.y < node.radius + 10) { node.y = node.radius + 10; node.vy = 0; }
+        if (node.y > height - node.radius - 10) { node.y = height - node.radius - 10; node.vy = 0; }
       });
 
-      // Draw connections to nearby nodes (stake relationships)
-      ctx.strokeStyle = 'rgba(6, 182, 212, 0.1)';
-      ctx.lineWidth = 1;
-      nodes.forEach((node, i) => {
-        nodes.slice(i + 1).forEach(other => {
+      // Draw connections to nearby nodes (only top stakers for clarity)
+      const topNodes = nodes.filter(n => n.activatedStake > 1000000).slice(0, 50);
+      ctx.strokeStyle = 'rgba(6, 182, 212, 0.15)';
+      topNodes.forEach((node, i) => {
+        topNodes.slice(i + 1, i + 5).forEach(other => {
           const dx = node.x - other.x;
           const dy = node.y - other.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 150) {
+          if (dist < 200) {
+            ctx.lineWidth = Math.max(0.5, (200 - dist) / 100);
             ctx.beginPath();
             ctx.moveTo(node.x, node.y);
             ctx.lineTo(other.x, other.y);
@@ -120,8 +130,10 @@ export default function ValidatorGraph({ validators, onNodeClick, stakeThreshold
   const handleMouseMove = (e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
 
     const hovered = nodes.find(node => {
       const dx = node.x - x;
@@ -136,8 +148,10 @@ export default function ValidatorGraph({ validators, onNodeClick, stakeThreshold
   const handleClick = (e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
 
     const clicked = nodes.find(node => {
       const dx = node.x - x;
