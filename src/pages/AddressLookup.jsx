@@ -301,7 +301,7 @@ export default function AddressLookup() {
                   </Button>
                 </Link>
               </div>
-              {result.recentTxs.length === 0 ? (
+              {!result.recentTxs || result.recentTxs.length === 0 ? (
                 <p className="text-gray-500 text-center py-8">No recent transactions found</p>
               ) : (
                 <div className="space-y-3">
