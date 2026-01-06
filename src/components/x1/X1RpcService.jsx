@@ -314,7 +314,7 @@ export async function getDashboardData() {
   // Check cache first - dashboard data cached for 2 seconds for fast slots
   const cached = getCached('dashboardData');
   if (cached) return cached;
-  
+
   // Fetch all data in parallel for maximum speed
   const [
     slot,
@@ -326,14 +326,14 @@ export async function getDashboardData() {
     voteAccounts,
     version
   ] = await Promise.all([
-    getSlot(),
-    getBlockHeight(),
-    getEpochInfo(),
-    getRecentPerformanceSamples(30),
-    getSupply(),
-    getTransactionCount(),
-    getVoteAccounts(),
-    getVersion()
+    getSlot().catch(() => 0),
+    getBlockHeight().catch(() => 0),
+    getEpochInfo().catch(() => null),
+    getRecentPerformanceSamples(30).catch(() => []),
+    getSupply().catch(() => ({ value: { total: 0, circulating: 0, nonCirculating: 0 } })),
+    getTransactionCount().catch(() => 0),
+    getVoteAccounts().catch(() => ({ current: [], delinquent: [] })),
+    getVersion().catch(() => ({ 'solana-core': 'unknown' }))
   ]);
 
   // Calculate TPS from performance samples
@@ -341,35 +341,39 @@ export async function getDashboardData() {
     ? Math.round(performanceSamples.reduce((sum, s) => sum + (s.numTransactions / s.samplePeriodSecs), 0) / performanceSamples.length)
     : 0;
 
-  // Calculate epoch progress
-  const epochProgress = ((epochInfo.slotIndex / epochInfo.slotsInEpoch) * 100).toFixed(1);
-  const slotsRemaining = epochInfo.slotsInEpoch - epochInfo.slotIndex;
+  // Calculate epoch progress with null checks
+  const epochProgress = epochInfo?.slotIndex && epochInfo?.slotsInEpoch 
+    ? ((epochInfo.slotIndex / epochInfo.slotsInEpoch) * 100).toFixed(1)
+    : '0.0';
+  const slotsRemaining = epochInfo?.slotsInEpoch && epochInfo?.slotIndex
+    ? epochInfo.slotsInEpoch - epochInfo.slotIndex
+    : 0;
   const timeRemaining = Math.round(slotsRemaining * 0.4); // ~400ms per slot
 
   const result = {
-    slot,
-    blockHeight,
-    epoch: epochInfo.epoch,
+    slot: slot || 0,
+    blockHeight: blockHeight || 0,
+    epoch: epochInfo?.epoch || 0,
     epochProgress: parseFloat(epochProgress),
     slotsRemaining,
     timeRemaining,
-    transactionCount,
+    transactionCount: transactionCount || 0,
     tps: avgTps,
     tpsHistory: performanceSamples.map((s, i) => ({
       time: `${performanceSamples.length - i}m`,
       tps: Math.round(s.numTransactions / s.samplePeriodSecs)
     })).reverse(),
     supply: {
-      total: supply.value.total / 1e9,
-      circulating: supply.value.circulating / 1e9,
-      nonCirculating: supply.value.nonCirculating / 1e9
+      total: (supply?.value?.total || 0) / 1e9,
+      circulating: (supply?.value?.circulating || 0) / 1e9,
+      nonCirculating: (supply?.value?.nonCirculating || 0) / 1e9
     },
     validators: {
       current: voteAccounts?.current?.length || 0,
       delinquent: voteAccounts?.delinquent?.length || 0,
       totalStake: ((voteAccounts?.current || []).reduce((sum, v) => sum + v.activatedStake, 0) + (voteAccounts?.delinquent || []).reduce((sum, v) => sum + v.activatedStake, 0)) / 1e9
     },
-    version: version['solana-core'] || version.version
+    version: version?.['solana-core'] || version?.version || 'unknown'
   };
   
   // Cache dashboard data for 3 seconds
