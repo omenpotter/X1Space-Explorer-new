@@ -88,29 +88,52 @@ export default function TokenExplorer() {
       // Fetch real token data from X1 blockchain
       console.log('Fetching tokens from X1...');
       
-      // Fetch price data from xDEX API
+      // Fetch live price data from xDEX app
       let priceData = {};
-      try {
-        const xdexRes = await fetch('https://api.xdex.xyz/v1/tokens', {
-          signal: AbortSignal.timeout(5000)
-        });
-        const xdexData = await xdexRes.json();
-        if (xdexData?.tokens) {
-          xdexData.tokens.forEach(token => {
-            priceData[token.address] = {
-              price: token.price || 0,
-              priceChange24h: token.priceChange24h || 0,
-              volume24h: token.volume24h || 0,
-              marketCap: token.marketCap || 0,
-              name: token.name,
-              symbol: token.symbol,
-              logo: token.logoURI || token.image
-            };
+      const xdexEndpoints = [
+        'https://app.xdex.xyz/api/tokens',
+        'https://api.xdex.xyz/tokens',
+        'https://xdex.xyz/api/v1/tokens'
+      ];
+      
+      for (const endpoint of xdexEndpoints) {
+        try {
+          console.log(`Fetching prices from ${endpoint}...`);
+          const xdexRes = await fetch(endpoint, {
+            signal: AbortSignal.timeout(8000),
+            headers: { 'Accept': 'application/json' }
           });
-          console.log(`✓ Loaded ${Object.keys(priceData).length} prices from xDEX`);
+          
+          if (!xdexRes.ok) continue;
+          
+          const xdexData = await xdexRes.json();
+          const tokenList = xdexData?.tokens || xdexData?.data || xdexData;
+          
+          if (Array.isArray(tokenList)) {
+            tokenList.forEach(token => {
+              const address = token.address || token.mint || token.mintAddress;
+              if (address) {
+                priceData[address] = {
+                  price: parseFloat(token.price || token.priceUsd || token.price_usd || 0),
+                  priceChange24h: parseFloat(token.priceChange24h || token.change24h || token.price_change_24h || 0),
+                  volume24h: parseFloat(token.volume24h || token.volumeUsd24h || token.volume_24h || 0),
+                  marketCap: parseFloat(token.marketCap || token.mcap || token.market_cap || 0),
+                  name: token.name || token.tokenName,
+                  symbol: token.symbol || token.ticker,
+                  logo: token.logoURI || token.logo || token.image || token.icon
+                };
+              }
+            });
+            console.log(`✓ Loaded ${Object.keys(priceData).length} token prices from xDEX`);
+            break;
+          }
+        } catch (err) {
+          console.warn(`Failed to fetch from ${endpoint}:`, err.message);
         }
-      } catch (err) {
-        console.warn('xDEX API not available, using on-chain data only');
+      }
+      
+      if (Object.keys(priceData).length === 0) {
+        console.warn('⚠️ No price data available from xDEX, using on-chain data only');
       }
       
       const rpcEndpoints = [
@@ -266,6 +289,21 @@ export default function TokenExplorer() {
   };
   
   const filteredAndSortedTokens = useMemo(() => {
+    // Reset to full list when search is empty
+    if (!searchQuery.trim()) {
+      const sorted = [...allTokens].sort((a, b) => {
+        const direction = sortDirection === 'asc' ? 1 : -1;
+        switch(sortBy) {
+          case 'supply': return direction * (b.totalSupply - a.totalSupply);
+          case 'marketCap': return direction * (b.marketCap - a.marketCap);
+          case 'price': return direction * (parseFloat(b.price) - parseFloat(a.price));
+          case 'change': return direction * (parseFloat(b.priceChange24h) - parseFloat(a.priceChange24h));
+          default: return 0;
+        }
+      });
+      return sorted;
+    }
+    
     let filtered = allTokens.filter(token => 
       token.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       token.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -365,53 +403,79 @@ export default function TokenExplorer() {
         });
       }
       
-      // Fetch token holders
-      const holdersRes = await fetch('https://nexus.fortiblox.com/rpc', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0'
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'getProgramAccounts',
-          params: [
-            'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-            {
-              encoding: 'jsonParsed',
-              filters: [
-                { dataSize: 165 },
-                { memcmp: { offset: 0, bytes: mint } }
-              ]
-            }
-          ]
-        })
-      });
-      const holdersData = await holdersRes.json();
+      // Fetch token holders using multiple RPC endpoints
+      const rpcEndpoints = [
+        'https://nexus.fortiblox.com/rpc',
+        'https://rpc.mainnet.x1.xyz',
+        'https://rpc.x1galaxy.io/'
+      ];
       
-      if (holdersData?.result) {
+      let holdersData = null;
+      for (const endpoint of rpcEndpoints) {
+        try {
+          const headers = {
+            'Content-Type': 'application/json',
+            ...(endpoint.includes('fortiblox') ? {
+              'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0'
+            } : {})
+          };
+          
+          const holdersRes = await fetch(endpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'getProgramAccounts',
+              params: [
+                'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+                {
+                  encoding: 'jsonParsed',
+                  filters: [
+                    { dataSize: 165 },
+                    { memcmp: { offset: 0, bytes: mint } }
+                  ]
+                }
+              ]
+            }),
+            signal: AbortSignal.timeout(10000)
+          });
+          
+          const data = await holdersRes.json();
+          if (data?.result && data.result.length > 0) {
+            holdersData = data;
+            console.log(`✓ Found ${data.result.length} holders for ${mint.substring(0, 8)}`);
+            break;
+          }
+        } catch (e) {
+          console.warn(`Holder fetch failed for ${endpoint}:`, e.message);
+          continue;
+        }
+      }
+      
+      if (holdersData?.result && holdersData.result.length > 0) {
         const holders = holdersData.result
           .map(acc => {
             const info = acc.account?.data?.parsed?.info;
+            const balance = Number(info?.tokenAmount?.amount || 0) / Math.pow(10, info?.tokenAmount?.decimals || 9);
             return {
               address: info?.owner || '',
-              balance: Number(info?.tokenAmount?.amount || 0) / Math.pow(10, info?.tokenAmount?.decimals || 9),
+              balance,
               percentage: 0
             };
           })
           .filter(h => h.balance > 0)
           .sort((a, b) => b.balance - a.balance)
-          .slice(0, 20);
+          .slice(0, 50);
         
-        const totalSupply = holders.reduce((sum, h) => sum + h.balance, 0);
+        const totalHeld = holders.reduce((sum, h) => sum + h.balance, 0);
         holders.forEach(h => {
-          h.percentage = (h.balance / totalSupply) * 100;
+          h.percentage = totalHeld > 0 ? (h.balance / totalHeld) * 100 : 0;
         });
         
         setTokenHolders(holders);
         
-        // Generate holder distribution chart data
+        // Generate holder distribution chart data (top 10 + others)
         const top10 = holders.slice(0, 10);
         const others = holders.slice(10).reduce((sum, h) => sum + h.percentage, 0);
         const chartData = [
@@ -423,6 +487,11 @@ export default function TokenExplorer() {
           ...(others > 0 ? [{ name: 'Others', value: others, address: null }] : [])
         ];
         setHolderChartData(chartData);
+        console.log(`✓ Processed ${holders.length} holders with distribution`);
+      } else {
+        console.warn('No holders found for this token');
+        setTokenHolders([]);
+        setHolderChartData([]);
       }
 
       // Fetch token transactions
