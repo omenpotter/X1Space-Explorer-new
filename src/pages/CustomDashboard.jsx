@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { 
   ChevronLeft, Plus, X, Save, LayoutGrid, Settings, 
   Loader2, RefreshCw, GripVertical, Trash2, Eye, EyeOff,
-  Zap, Activity, Users, Coins, Clock, TrendingUp
+  Zap, Activity, Users, Coins, Clock, TrendingUp, Bell
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
