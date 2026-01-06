@@ -253,6 +253,9 @@ export default function Dashboard() {
             </div>
             
             <nav className="flex items-center gap-1">
+              <Suspense fallback={<MiniFallback />}>
+                <ThemeToggle />
+              </Suspense>
               <Link to={createPageUrl('Dashboard')}>
                 <Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg">
                   <Zap className="w-5 h-5" />
