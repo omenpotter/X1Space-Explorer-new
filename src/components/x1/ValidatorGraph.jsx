@@ -14,34 +14,10 @@ export default function ValidatorGraph({ validators, onNodeClick, stakeThreshold
     // Filter by stake threshold
     const filtered = validators.filter(v => v.activatedStake >= stakeThreshold);
     
-    // Color palette for validators
-    const colors = [
-      '#06b6d4', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444',
-      '#ec4899', '#3b82f6', '#14b8a6', '#f97316', '#6366f1',
-      '#84cc16', '#eab308', '#22d3ee', '#a855f7', '#06b6d4'
-    ];
-    
     // Initialize nodes with physics properties in center with radial distribution
     const initialNodes = filtered.map((v, i) => {
       const angle = (i / filtered.length) * Math.PI * 2;
       const radius = 200 + Math.random() * 100;
-      
-      // Assign color based on stake tier for visual distinction
-      let color;
-      if (v.delinquent) {
-        color = '#ef4444'; // Red for delinquent
-      } else if (v.activatedStake > 10000000) {
-        color = '#8b5cf6'; // Purple for mega validators
-      } else if (v.activatedStake > 5000000) {
-        color = '#06b6d4'; // Cyan for large validators
-      } else if (v.activatedStake > 2000000) {
-        color = '#10b981'; // Green for medium validators
-      } else if (v.activatedStake > 500000) {
-        color = '#f59e0b'; // Amber for small validators
-      } else {
-        color = colors[i % colors.length]; // Varied colors for smallest
-      }
-      
       return {
         ...v,
         x: 600 + Math.cos(angle) * radius,
@@ -49,7 +25,7 @@ export default function ValidatorGraph({ validators, onNodeClick, stakeThreshold
         vx: 0,
         vy: 0,
         radius: Math.max(8, Math.min(25, Math.sqrt(v.activatedStake) / 400)),
-        color
+        color: v.delinquent ? '#ef4444' : '#06b6d4'
       };
     });
 
