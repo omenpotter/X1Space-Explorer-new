@@ -69,14 +69,11 @@ export default function Dashboard() {
 
   const fetchData = React.useCallback(async () => {
     try {
-      console.log('Fetching dashboard data...');
       // Fetch dashboard data and blocks first (most important)
       const [data, blocks] = await Promise.all([
-        X1Rpc.getDashboardData().catch(e => { console.error('getDashboardData error:', e); throw e; }),
-        X1Rpc.getRecentBlocks(10).catch(e => { console.error('getRecentBlocks error:', e); throw e; })
+        X1Rpc.getDashboardData(),
+        X1Rpc.getRecentBlocks(10)
       ]);
-      
-      console.log('Data fetched:', data, blocks);
       
       // Update UI immediately with critical data
       setDashboardData(data);
@@ -87,15 +84,15 @@ export default function Dashboard() {
       
       // Fetch secondary data in background (non-blocking)
       Promise.all([
-        X1Rpc.getPerformanceHistory(60).catch(e => { console.warn('Performance history error:', e); return []; }),
-        X1Rpc.getPendingTransactions().catch(e => { console.warn('Pending txs error:', e); return []; })
+        X1Rpc.getPerformanceHistory(60),
+        X1Rpc.getPendingTransactions().catch(() => [])
       ]).then(([perfHistory, pendingTxs]) => {
         setPerformanceData(perfHistory);
-        setPendingTxCount(pendingTxs?.length || 0);
-      }).catch(e => console.warn('Secondary data error:', e));
+        setPendingTxCount(pendingTxs.length);
+      });
     } catch (err) {
       console.error('Failed to fetch data:', err);
-      setError(err.message || 'Connection failed');
+      setError(err.message);
       setLoading(false);
     }
   }, []);
