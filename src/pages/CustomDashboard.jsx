@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { 
   ChevronLeft, Plus, X, Save, LayoutGrid, Settings, 
   Loader2, RefreshCw, GripVertical, Trash2, Eye, EyeOff,
-  Zap, Activity, Users, Coins, Clock, TrendingUp, Bell
+  Zap, Activity, Users, Coins, Clock, TrendingUp
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -26,11 +26,6 @@ const WIDGET_TYPES = {
   network_health: { name: 'Network Health', icon: Activity, size: 'medium' },
   price_widget: { name: 'XNT Price', icon: TrendingUp, size: 'small' },
   stake_pool: { name: 'Stake Pool Stats', icon: Users, size: 'medium' },
-  whale_watcher: { name: 'Whale Watcher', icon: TrendingUp, size: 'medium' },
-  tx_flow: { name: 'Transaction Flow', icon: Activity, size: 'medium' },
-  validator_alerts: { name: 'Validator Alerts', icon: Bell, size: 'medium' },
-  staking_calc: { name: 'Staking Calculator', icon: Coins, size: 'medium' },
-  address_lookup: { name: 'Address Lookup', icon: Settings, size: 'medium' },
 };
 
 // Default layouts
@@ -259,59 +254,6 @@ const StakePoolWidget = ({ data }) => {
   );
 };
 
-const WhaleWatcherWidget = () => (
-  <Link to={createPageUrl('WhaleWatcher')} className="block hover:opacity-80">
-    <div className="text-center">
-      <p className="text-gray-400 text-xs mb-2">Large Transfers</p>
-      <p className="text-2xl font-bold text-orange-400">12</p>
-      <p className="text-gray-500 text-xs mt-1">Last 24h</p>
-    </div>
-  </Link>
-);
-
-const TxFlowWidget = () => (
-  <Link to={createPageUrl('TransactionFlowPage')} className="block hover:opacity-80">
-    <div className="flex items-center justify-center h-full">
-      <div className="text-center">
-        <Activity className="w-8 h-8 text-cyan-400 mx-auto mb-2" />
-        <p className="text-white text-sm">View TX Flow</p>
-      </div>
-    </div>
-  </Link>
-);
-
-const ValidatorAlertsWidget = () => (
-  <Link to={createPageUrl('ValidatorAlerts')} className="block hover:opacity-80">
-    <div className="flex items-center justify-center h-full">
-      <div className="text-center">
-        <Bell className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
-        <p className="text-white text-sm">Setup Alerts</p>
-      </div>
-    </div>
-  </Link>
-);
-
-const StakingCalcWidget = () => (
-  <Link to={createPageUrl('StakingCalculator')} className="block hover:opacity-80">
-    <div className="text-center">
-      <p className="text-gray-400 text-xs mb-2">APY Calculator</p>
-      <p className="text-2xl font-bold text-emerald-400">~7.2%</p>
-      <p className="text-gray-500 text-xs mt-1">Est. APY</p>
-    </div>
-  </Link>
-);
-
-const AddressLookupWidget = () => (
-  <Link to={createPageUrl('AddressLookup')} className="block hover:opacity-80">
-    <div className="flex items-center justify-center h-full">
-      <div className="text-center">
-        <Settings className="w-8 h-8 text-cyan-400 mx-auto mb-2" />
-        <p className="text-white text-sm">Lookup Address</p>
-      </div>
-    </div>
-  </Link>
-);
-
 // Widget wrapper
 const Widget = ({ type, data, blocks, perfData, onRemove, isEditing }) => {
   const widgetInfo = WIDGET_TYPES[type];
@@ -346,11 +288,6 @@ const Widget = ({ type, data, blocks, perfData, onRemove, isEditing }) => {
       {type === 'network_health' && <NetworkHealthWidget data={data} />}
       {type === 'price_widget' && <PriceWidget />}
       {type === 'stake_pool' && <StakePoolWidget data={data} />}
-      {type === 'whale_watcher' && <WhaleWatcherWidget />}
-      {type === 'tx_flow' && <TxFlowWidget />}
-      {type === 'validator_alerts' && <ValidatorAlertsWidget />}
-      {type === 'staking_calc' && <StakingCalcWidget />}
-      {type === 'address_lookup' && <AddressLookupWidget />}
     </div>
   );
 };
