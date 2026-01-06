@@ -7,9 +7,6 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
 // Lazy load components
-const ThemeToggle = lazy(() => import('../components/common/ThemeToggle'));
-const GlobalSearch = lazy(() => import('../components/common/GlobalSearch'));
-
 const MobileNav = lazy(() => import('../components/layout/MobileNav'));
 const MempoolViz = lazy(() => import('../components/x1/MempoolViz'));
 const QuickLinks = lazy(() => import('../components/dashboard/QuickLinks'));
@@ -36,6 +33,7 @@ const MiniFallback = memo(() => <div className="w-5 h-5" />);
 
 // Import RPC service directly for faster initial load
 import X1Rpc from '../components/x1/X1RpcService';
+import ThemeToggle from '../components/common/ThemeToggle';
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -253,9 +251,7 @@ export default function Dashboard() {
             </div>
             
             <nav className="flex items-center gap-1">
-              <Suspense fallback={<MiniFallback />}>
-                <ThemeToggle />
-              </Suspense>
+              <ThemeToggle />
               <Link to={createPageUrl('Dashboard')}>
                 <Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg">
                   <Zap className="w-5 h-5" />
