@@ -46,28 +46,16 @@ export async function testAllRPCs() {
 let currentEndpointIndex = 0;
 let lastSuccessfulEndpoint = 0;
 
-// Preconnect and prefetch for ultra-fast loading
+// Preconnect optimized - only primary endpoint
 if (typeof window !== 'undefined') {
-  // Preconnect for faster TCP/TLS handshake
-  RPC_ENDPOINTS.forEach(endpoint => {
-    try {
-      const link = document.createElement('link');
-      link.rel = 'preconnect';
-      link.href = new URL(endpoint).origin;
-      link.crossOrigin = 'anonymous';
-      document.head.appendChild(link);
-    } catch (e) {}
-  });
-  
-  // DNS prefetch for faster resolution
-  RPC_ENDPOINTS.forEach(endpoint => {
-    try {
-      const link = document.createElement('link');
-      link.rel = 'dns-prefetch';
-      link.href = new URL(endpoint).origin;
-      document.head.appendChild(link);
-    } catch (e) {}
-  });
+  const primaryEndpoint = RPC_ENDPOINTS[0];
+  try {
+    const link = document.createElement('link');
+    link.rel = 'preconnect';
+    link.href = new URL(primaryEndpoint).origin;
+    link.crossOrigin = 'anonymous';
+    document.head.appendChild(link);
+  } catch (e) {}
 }
 
 // Helper to make RPC calls with fallback and caching - ULTRA OPTIMIZED
