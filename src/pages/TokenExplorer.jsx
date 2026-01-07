@@ -137,20 +137,16 @@ export default function TokenExplorer() {
       // Fetch prices for known tokens
       const prices = await fetchTokenPrices(Object.keys(knownTokens));
       
-      // Build token list from registry
+      // Build token list from registry - optimized
       Object.entries(knownTokens).forEach(([mint, tokenData]) => {
         const priceData = prices[mint] || {};
-        const basePrice = priceData.price || (Math.random() * 10 + 0.5);
+        const basePrice = priceData.price || 1.0;
         
-        // Generate realistic price history
-        const priceHistory = Array.from({ length: 90 }, (_, i) => {
-          const variance = (Math.random() - 0.5) * 0.08;
-          const trend = Math.sin(i / 15) * 0.04;
-          return {
-            timestamp: Date.now() - (90 - i) * 86400000,
-            price: Math.max(0.001, basePrice * (1 + variance + trend))
-          };
-        });
+        // Simplified price history for faster loading
+        const priceHistory = Array.from({ length: 30 }, (_, i) => ({
+          timestamp: Date.now() - (30 - i) * 86400000,
+          price: basePrice * (1 + (Math.random() - 0.5) * 0.1)
+        }));
         
         tokenList.push({
           mint,
@@ -158,12 +154,12 @@ export default function TokenExplorer() {
           symbol: tokenData.symbol,
           logo: tokenData.logo,
           decimals: tokenData.decimals || 9,
-          totalSupply: 1000000000, // Default supply
+          totalSupply: 1000000000,
           tokenType: 'SPL Token',
           price: basePrice.toFixed(4),
           marketCap: priceData.marketCap || (1000000000 * basePrice),
-          priceChange24h: priceData.priceChange24h || ((Math.random() - 0.5) * 10).toFixed(2),
-          volume24h: priceData.volume24h || (Math.random() * 1000000 + 50000),
+          priceChange24h: priceData.priceChange24h?.toFixed(2) || '0.00',
+          volume24h: priceData.volume24h || 1000000,
           mintAuthority: tokenData.verified ? null : mint,
           freezeAuthority: null,
           website: tokenData.website,
