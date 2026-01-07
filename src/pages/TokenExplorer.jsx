@@ -116,6 +116,40 @@ export default function TokenExplorer() {
       console.log('Fetching tokens from X1 blockchain...');
       const mints = new Map();
       
+      // Step 1: Fetch token list with metadata and prices from external APIs
+      let externalTokens = {};
+      
+      // Try X1 Explorer API first
+      try {
+        console.log('Fetching from X1 Explorer API...');
+        const res = await fetch('https://explorer.mainnet.x1.xyz/api/v1/tokens', {
+          signal: AbortSignal.timeout(10000)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            data.forEach(token => {
+              const address = token.address || token.mint;
+              if (address) {
+                externalTokens[address] = {
+                  name: token.name,
+                  symbol: token.symbol,
+                  logo: token.logo || token.logoURI,
+                  price: parseFloat(token.price || 0),
+                  priceChange24h: parseFloat(token.priceChange24h || 0),
+                  volume24h: parseFloat(token.volume24h || 0),
+                  marketCap: parseFloat(token.marketCap || 0)
+                };
+              }
+            });
+            console.log(`✓ Loaded ${Object.keys(externalTokens).length} tokens from X1 Explorer`);
+          }
+        }
+      } catch (err) {
+        console.warn('X1 Explorer failed:', err.message);
+      }
+      
+      // Step 2: Fetch on-chain token data from RPC
       const rpcEndpoints = [
         'https://nexus.fortiblox.com/rpc',
         'https://rpc.mainnet.x1.xyz',
@@ -142,10 +176,9 @@ export default function TokenExplorer() {
       
       let tokenAccounts = [];
       
-      // Fetch token accounts from RPC
       for (const endpoint of rpcEndpoints) {
         try {
-          console.log(`Trying RPC: ${endpoint}`);
+          console.log(`Fetching on-chain data from ${endpoint}...`);
           const result = await tryRpcFetch(endpoint, 'getProgramAccounts', [
             'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
             {
@@ -156,7 +189,7 @@ export default function TokenExplorer() {
           
           if (result?.result?.length > 0) {
             tokenAccounts = result.result;
-            console.log(`✓ Found ${tokenAccounts.length} token mints`);
+            console.log(`✓ Found ${tokenAccounts.length} on-chain token mints`);
             break;
           }
         } catch (err) {
@@ -164,8 +197,8 @@ export default function TokenExplorer() {
         }
       }
       
-      // Process tokens
-      console.log(`Processing ${Math.min(tokenAccounts.length, 200)} tokens...`);
+      // Step 3: Combine on-chain data with external metadata
+      console.log('Combining token data...');
       
       for (const acc of tokenAccounts.slice(0, 200)) {
         try {
@@ -176,18 +209,23 @@ export default function TokenExplorer() {
           const decimals = info.decimals || 9;
           const supply = Number(info.supply || 0) / Math.pow(10, decimals);
           
+          if (supply === 0 && !info.mintAuthority) continue;
+          
+          // Get external data if available
+          const external = externalTokens[mint] || {};
+          
           mints.set(mint, {
             mint,
-            name: `Token ${mint.substring(0, 8)}`,
-            symbol: mint.substring(0, 4).toUpperCase(),
-            logo: null,
+            name: external.name || `Token ${mint.substring(0, 8)}`,
+            symbol: external.symbol || mint.substring(0, 4).toUpperCase(),
+            logo: external.logo,
             decimals,
             totalSupply: supply,
             tokenType: 'SPL Token',
-            price: 0,
-            marketCap: 0,
-            priceChange24h: 0,
-            volume24h: 0,
+            price: external.price || 0,
+            marketCap: external.marketCap || (supply * (external.price || 0)),
+            priceChange24h: external.priceChange24h || 0,
+            volume24h: external.volume24h || 0,
             mintAuthority: info.mintAuthority || null,
             freezeAuthority: info.freezeAuthority || null,
             website: null,
@@ -200,7 +238,7 @@ export default function TokenExplorer() {
         }
       }
       
-      console.log(`✓ Processed ${mints.size} tokens`);
+      console.log(`✓ Combined ${mints.size} tokens with metadata`);
 
 
       
