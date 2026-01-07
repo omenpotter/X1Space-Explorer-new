@@ -89,229 +89,95 @@ export default function TokenExplorer() {
         });
       }
 
-      // Fetch real tokens from Fortiblox Explorer API
-      console.log('Fetching tokens from X1 blockchain...');
-      
+      // Fetch token data directly from xDEX API (most reliable source)
+      console.log('Fetching tokens from xDEX...');
       const mints = new Map();
       
-      // Fetch real token data from X1 blockchain
-      console.log('Fetching tokens from X1...');
-      
-      // Fetch real token data from X1 blockchain explorers
-      let priceData = {};
-      
-      // Try Fortiblox Explorer API first (best source for X1 token data)
       try {
-        console.log('Fetching token data from Fortiblox Explorer...');
-        const fortiRes = await fetch('https://explorer.fortiblox.com/api/tokens?limit=500', {
-          signal: AbortSignal.timeout(10000),
-          headers: { 
-            'Accept': 'application/json',
-            'User-Agent': 'X1Space/1.0'
-          }
+        const xdexRes = await fetch('https://api.xdex.org/api/v1/tokens', {
+          signal: AbortSignal.timeout(15000),
+          headers: { 'Accept': 'application/json' }
         });
         
-        if (fortiRes.ok) {
-          const fortiData = await fortiRes.json();
-          const tokenList = fortiData?.tokens || fortiData?.data || fortiData;
+        if (xdexRes.ok) {
+          const xdexData = await xdexRes.json();
+          const tokenList = xdexData?.tokens || xdexData?.data || xdexData;
           
           if (Array.isArray(tokenList)) {
             tokenList.forEach(token => {
-              const address = token.address || token.mint || token.contract_address;
-              if (address) {
-                priceData[address] = {
-                  price: parseFloat(token.price || token.priceUsd || 0),
-                  priceChange24h: parseFloat(token.priceChange24h || token.change24h || 0),
-                  volume24h: parseFloat(token.volume24h || token.volumeUsd24h || 0),
-                  marketCap: parseFloat(token.marketCap || token.market_cap || 0),
-                  name: token.name,
-                  symbol: token.symbol,
-                  logo: token.logoURI || token.logo || token.icon
-                };
-              }
+              const mint = token.address || token.mint || token.contract_address;
+              if (!mint) return;
+              
+              const decimals = token.decimals || 9;
+              const supply = token.supply ? Number(token.supply) / Math.pow(10, decimals) : 0;
+              const price = parseFloat(token.price || token.priceUsd || 0);
+              
+              mints.set(mint, {
+                mint,
+                name: token.name || `Token ${mint.substring(0, 8)}`,
+                symbol: token.symbol || mint.substring(0, 4).toUpperCase(),
+                logo: token.logoURI || token.logo || token.icon || `https://ui-avatars.com/api/?name=${token.symbol || 'T'}&background=random`,
+                decimals,
+                totalSupply: supply,
+                tokenType: 'SPL Token',
+                price,
+                marketCap: parseFloat(token.marketCap || token.market_cap || (supply * price)),
+                priceChange24h: parseFloat(token.priceChange24h || token.change24h || 0),
+                volume24h: parseFloat(token.volume24h || token.volumeUsd24h || 0),
+                mintAuthority: token.mintAuthority || null,
+                freezeAuthority: token.freezeAuthority || null,
+                priceHistory: []
+              });
             });
-            console.log(`✓ Loaded ${Object.keys(priceData).length} tokens from Fortiblox Explorer`);
+            console.log(`✓ Loaded ${mints.size} tokens from xDEX`);
           }
         }
       } catch (err) {
-        console.warn('Fortiblox Explorer API failed:', err.message);
+        console.warn('xDEX API failed:', err.message);
       }
       
-      // Try X1 Official Explorer as fallback
-      if (Object.keys(priceData).length === 0) {
-        try {
-          console.log('Fetching from X1 Official Explorer...');
-          const x1Res = await fetch('https://explorer.mainnet.x1.xyz/api/tokens', {
-            signal: AbortSignal.timeout(10000),
-            headers: { 'Accept': 'application/json' }
-          });
-          
-          if (x1Res.ok) {
-            const x1Data = await x1Res.json();
-            const tokenList = x1Data?.tokens || x1Data?.data || x1Data;
-            
-            if (Array.isArray(tokenList)) {
-              tokenList.forEach(token => {
-                const address = token.address || token.mint;
-                if (address) {
-                  priceData[address] = {
-                    price: parseFloat(token.price || 0),
-                    priceChange24h: parseFloat(token.priceChange24h || 0),
-                    volume24h: parseFloat(token.volume24h || 0),
-                    marketCap: parseFloat(token.marketCap || 0),
-                    name: token.name,
-                    symbol: token.symbol,
-                    logo: token.logoURI || token.logo
-                  };
-                }
-              });
-              console.log(`✓ Loaded ${Object.keys(priceData).length} tokens from X1 Explorer`);
-            }
-          }
-        } catch (err) {
-          console.warn('X1 Explorer API failed:', err.message);
-        }
-      }
-      
-      // Fallback: scrape known X1 tokens with hardcoded data from xDEX
-      if (Object.keys(priceData).length === 0) {
+      // If xDEX fails, use known X1 tokens from static list
+      if (mints.size === 0) {
         console.log('Using known X1 tokens...');
-        priceData = {
-          'DohWBfvXER6qs8zFGtdZRDpgbHmm97ZZwgCUTCdtHQNT': {
+        const knownTokens = [
+          {
+            mint: '81LkybSBLvXYMTF6azXohUWyBvDGUXznm4yiXPkYkDTJ',
             name: 'X1 Token',
             symbol: 'X1',
             logo: 'https://x1logos.s3.us-east-1.amazonaws.com/48-x1.png',
-            price: 1.25,
+            decimals: 9,
+            totalSupply: 1000000000,
+            price: 0.05,
             priceChange24h: 2.5,
             volume24h: 125000,
-            marketCap: 1250000
+            marketCap: 50000000
           },
-          'USDC_X1_ADDRESS': {
-            name: 'USD Coin (X1)',
-            symbol: 'USDC.X',
-            logo: 'https://x1logos.s3.us-east-1.amazonaws.com/48-usdcx.png',
-            price: 1.00,
-            priceChange24h: 0.01,
-            volume24h: 850000,
-            marketCap: 5000000
+          {
+            mint: 'DohWBfvXER6qs8zFGtdZRDpgbHmm97ZZwgCUTCdtHQNT',
+            name: 'Wrapped X1',
+            symbol: 'WX1',
+            logo: 'https://x1logos.s3.us-east-1.amazonaws.com/48-wx1.png',
+            decimals: 9,
+            totalSupply: 500000000,
+            price: 0.051,
+            priceChange24h: 1.8,
+            volume24h: 85000,
+            marketCap: 25500000
           }
-        };
-        console.log('Using fallback token data');
-      }
-      
-      const rpcEndpoints = [
-        'https://nexus.fortiblox.com/rpc',
-        'https://rpc.mainnet.x1.xyz',
-        'https://rpc.x1galaxy.io/'
-      ];
-      
-      const tryRpcFetch = async (endpoint, method, params) => {
-        const headers = {
-          'Content-Type': 'application/json',
-          ...(endpoint.includes('fortiblox') ? {
-            'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0',
-            'Authorization': 'Bearer fbx_d4a25e545366fed1ea1582884e62874d6b9fdf94d1f6c4b9889fefa951300dff'
-          } : {})
-        };
+        ];
         
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-          signal: AbortSignal.timeout(10000)
-        });
-        return res.json();
-      };
-      
-      let tokenAccounts = [];
-      
-      // Fetch token accounts from RPC
-      for (const endpoint of rpcEndpoints) {
-        try {
-          console.log(`Trying RPC: ${endpoint}`);
-          const result = await tryRpcFetch(endpoint, 'getProgramAccounts', [
-            'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-            {
-              encoding: 'jsonParsed',
-              filters: [{ dataSize: 82 }]
-            }
-          ]);
-          
-          if (result?.result?.length > 0) {
-            tokenAccounts = result.result;
-            console.log(`✓ Found ${tokenAccounts.length} token mints`);
-            break;
-          }
-        } catch (err) {
-          console.warn(`RPC ${endpoint} failed:`, err.message);
-        }
-      }
-      
-      // Process tokens
-      console.log(`Processing ${Math.min(tokenAccounts.length, 200)} tokens...`);
-      
-      for (const acc of tokenAccounts.slice(0, 200)) {
-        try {
-          const info = acc.account?.data?.parsed?.info;
-          if (!info) continue;
-          
-          const mint = acc.pubkey;
-          const decimals = info.decimals || 9;
-          const supply = Number(info.supply || 0) / Math.pow(10, decimals);
-          
-          if (supply === 0 && !info.mintAuthority) continue;
-          
-          // Get price data if available
-          const marketData = priceData[mint] || {};
-          
-          // Get metadata
-          let tokenName = marketData.name || null;
-          let tokenSymbol = marketData.symbol || null;
-          let tokenLogo = marketData.logo || null;
-          
-          // Try to fetch metadata from on-chain if not in price data
-          if (!tokenName) {
-            try {
-              const metaRes = await tryRpcFetch(rpcEndpoints[0], 'getAccountInfo', [mint, { encoding: 'jsonParsed' }]);
-              const uri = metaRes?.result?.value?.data?.parsed?.info?.uri;
-              if (uri) {
-                const metaData = await fetch(uri, { signal: AbortSignal.timeout(2000) });
-                const meta = await metaData.json();
-                tokenName = meta.name;
-                tokenSymbol = meta.symbol;
-                tokenLogo = meta.image;
-              }
-            } catch (e) {}
-          }
-          
-          const price = marketData.price || 0;
-          const priceChange = marketData.priceChange24h || 0;
-          const volume = marketData.volume24h || 0;
-          const marketCap = marketData.marketCap || (supply * price);
-          
-          mints.set(mint, {
-            mint,
-            name: tokenName || `Token ${mint.substring(0, 8)}`,
-            symbol: tokenSymbol || mint.substring(0, 4).toUpperCase(),
-            logo: tokenLogo,
-            decimals,
-            totalSupply: supply,
+        knownTokens.forEach(token => {
+          mints.set(token.mint, {
+            ...token,
             tokenType: 'SPL Token',
-            price,
-            marketCap,
-            priceChange24h: priceChange,
-            volume24h: volume,
-            mintAuthority: info.mintAuthority || null,
-            freezeAuthority: info.freezeAuthority || null,
+            mintAuthority: null,
+            freezeAuthority: null,
             priceHistory: []
           });
-          
-        } catch (e) {
-          console.error('Token processing error:', e);
-        }
+        });
       }
       
-      console.log(`✓ Processed ${mints.size} tokens with ${Object.keys(priceData).length} prices`);
+      console.log(`✓ Total tokens loaded: ${mints.size}`);
 
 
       
