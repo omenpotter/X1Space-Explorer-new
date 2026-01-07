@@ -116,7 +116,6 @@ export default function TokenExplorer() {
       console.log('Fetching tokens from X1 blockchain...');
       const mints = new Map();
       
-      // Fetch token mints directly from RPC
       const rpcEndpoints = [
         'https://nexus.fortiblox.com/rpc',
         'https://rpc.mainnet.x1.xyz',
@@ -127,24 +126,26 @@ export default function TokenExplorer() {
         const headers = {
           'Content-Type': 'application/json',
           ...(endpoint.includes('fortiblox') ? {
-            'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0'
+            'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0',
+            'Authorization': 'Bearer fbx_d4a25e545366fed1ea1582884e62874d6b9fdf94d1f6c4b9889fefa951300dff'
           } : {})
         };
+        
         const res = await fetch(endpoint, {
           method: 'POST',
           headers,
           body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-          signal: AbortSignal.timeout(15000)
+          signal: AbortSignal.timeout(10000)
         });
         return res.json();
       };
       
-      let tokenMints = [];
+      let tokenAccounts = [];
       
-      // Get all token mints
+      // Fetch token accounts from RPC
       for (const endpoint of rpcEndpoints) {
         try {
-          console.log(`Fetching token mints from ${endpoint}...`);
+          console.log(`Trying RPC: ${endpoint}`);
           const result = await tryRpcFetch(endpoint, 'getProgramAccounts', [
             'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
             {
@@ -154,8 +155,8 @@ export default function TokenExplorer() {
           ]);
           
           if (result?.result?.length > 0) {
-            tokenMints = result.result;
-            console.log(`✓ Found ${tokenMints.length} token mints`);
+            tokenAccounts = result.result;
+            console.log(`✓ Found ${tokenAccounts.length} token mints`);
             break;
           }
         } catch (err) {
@@ -163,60 +164,23 @@ export default function TokenExplorer() {
         }
       }
       
-      // Process each token mint
-      const processToken = async (acc) => {
+      // Process tokens
+      console.log(`Processing ${Math.min(tokenAccounts.length, 200)} tokens...`);
+      
+      for (const acc of tokenAccounts.slice(0, 200)) {
         try {
           const info = acc.account?.data?.parsed?.info;
-          if (!info) return null;
+          if (!info) continue;
           
           const mint = acc.pubkey;
           const decimals = info.decimals || 9;
           const supply = Number(info.supply || 0) / Math.pow(10, decimals);
           
-          if (supply === 0 && !info.mintAuthority) return null;
-          
-          // Derive Metaplex metadata PDA
-          const metadataPda = await deriveMetadataPDA(mint);
-          
-          let tokenName = null;
-          let tokenSymbol = null;
-          let tokenLogo = null;
-          let website = null;
-          let twitter = null;
-          
-          // Try to fetch Metaplex metadata
-          try {
-            const metadataRes = await tryRpcFetch(rpcEndpoints[0], 'getAccountInfo', [
-              metadataPda,
-              { encoding: 'base64' }
-            ]);
-            
-            if (metadataRes?.result?.value?.data) {
-              const metadataAccount = metadataRes.result.value.data;
-              const parsed = parseMetaplexMetadata(metadataAccount);
-              if (parsed) {
-                tokenName = parsed.name;
-                tokenSymbol = parsed.symbol;
-                
-                // Fetch off-chain metadata if URI exists
-                if (parsed.uri) {
-                  try {
-                    const uriRes = await fetch(parsed.uri, { signal: AbortSignal.timeout(3000) });
-                    const uriData = await uriRes.json();
-                    tokenLogo = uriData.image;
-                    website = uriData.external_url;
-                    twitter = uriData.twitter || uriData.extensions?.twitter;
-                  } catch (e) {}
-                }
-              }
-            }
-          } catch (e) {}
-          
-          return {
+          mints.set(mint, {
             mint,
-            name: tokenName || `Token ${mint.substring(0, 8)}`,
-            symbol: tokenSymbol || mint.substring(0, 4).toUpperCase(),
-            logo: tokenLogo,
+            name: `Token ${mint.substring(0, 8)}`,
+            symbol: mint.substring(0, 4).toUpperCase(),
+            logo: null,
             decimals,
             totalSupply: supply,
             tokenType: 'SPL Token',
@@ -226,28 +190,17 @@ export default function TokenExplorer() {
             volume24h: 0,
             mintAuthority: info.mintAuthority || null,
             freezeAuthority: info.freezeAuthority || null,
-            website,
-            twitter,
+            website: null,
+            twitter: null,
             priceHistory: []
-          };
+          });
+          
         } catch (e) {
-          return null;
+          console.error('Token processing error:', e);
         }
-      };
-      
-      // Process tokens in batches
-      console.log('Processing token metadata...');
-      const batchSize = 50;
-      for (let i = 0; i < Math.min(tokenMints.length, 500); i += batchSize) {
-        const batch = tokenMints.slice(i, i + batchSize);
-        const results = await Promise.all(batch.map(processToken));
-        results.forEach(token => {
-          if (token) mints.set(token.mint, token);
-        });
-        console.log(`Processed ${i + batch.length} tokens...`);
       }
       
-      console.log(`✓ Total tokens processed: ${mints.size}`);
+      console.log(`✓ Processed ${mints.size} tokens`);
 
 
       
