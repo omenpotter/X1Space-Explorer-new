@@ -6,6 +6,8 @@ import { Coins, Search, Loader2, TrendingUp, TrendingDown, Star, ChevronLeft, Re
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip, XAxis, PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area } from 'recharts';
+import { startTokenScanner, stopTokenScanner, getDiscoveredTokens } from '../components/x1/TokenDiscovery';
+import { startPriceFeed, stopPriceFeed, subscribeToPriceUpdates, unsubscribeFromPriceUpdates } from '../components/x1/PriceFeed';
 
 // Helper to derive Metaplex metadata PDA
 const deriveMetadataPDA = async (mint) => {
@@ -76,9 +78,6 @@ export default function TokenExplorer() {
     fetchData();
     
     // Start background services
-    const { startTokenScanner } = require('../components/x1/TokenDiscovery');
-    const { startPriceFeed, subscribeToPriceUpdates } = require('../components/x1/PriceFeed');
-    
     startTokenScanner();
     startPriceFeed();
     
@@ -97,11 +96,11 @@ export default function TokenExplorer() {
         }
         return token;
       }));
+      setLivePriceIndicator(true);
+      setTimeout(() => setLivePriceIndicator(false), 2000);
     });
     
     return () => {
-      const { stopTokenScanner } = require('../components/x1/TokenDiscovery');
-      const { stopPriceFeed, unsubscribeFromPriceUpdates } = require('../components/x1/PriceFeed');
       stopTokenScanner();
       stopPriceFeed();
       unsubscribeFromPriceUpdates();
@@ -125,8 +124,7 @@ export default function TokenExplorer() {
     setLoading(true);
     try {
       // Check cache first
-      const { getCachedTokens, setCachedTokens, fetchTokenList, fetchTokenPrices } = await import('../components/x1/TokenRegistry');
-      const { getDiscoveredTokens } = await import('../components/x1/TokenDiscovery');
+      const { getCachedTokens, setCachedTokens, fetchTokenList } = await import('../components/x1/TokenRegistry');
       const { fetchRealtimePrices } = await import('../components/x1/PriceFeed');
       
       const cached = getCachedTokens();
