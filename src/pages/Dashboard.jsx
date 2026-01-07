@@ -253,14 +253,14 @@ export default function Dashboard() {
             </div>
             
             <nav className="flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}>
-                <Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg">
+              <Link to={createPageUrl('Dashboard')} aria-label="Dashboard">
+                <Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg" aria-label="Dashboard">
                   <Zap className="w-5 h-5" />
                 </Button>
               </Link>
-              <Link to={createPageUrl('Blocks')}>
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <Link to={createPageUrl('Blocks')} aria-label="Blocks">
+                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" aria-label="Blocks">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                     <rect x="3" y="3" width="7" height="7" />
                     <rect x="14" y="3" width="7" height="7" />
                     <rect x="3" y="14" width="7" height="7" />
@@ -268,9 +268,9 @@ export default function Dashboard() {
                   </svg>
                 </Button>
               </Link>
-              <Link to={createPageUrl('Validators')}>
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <Link to={createPageUrl('Validators')} aria-label="Validators">
+                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" aria-label="Validators">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                     <path d="M3 3v18h18" />
                     <path d="M18 17V9" />
                     <path d="M13 17V5" />
@@ -278,32 +278,32 @@ export default function Dashboard() {
                   </svg>
                 </Button>
               </Link>
-              <Link to={createPageUrl('Transactions')}>
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <Link to={createPageUrl('Transactions')} aria-label="Transactions">
+                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" aria-label="Transactions">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                     <polyline points="14 2 14 8 20 8" />
                   </svg>
                 </Button>
               </Link>
-              <Link to={createPageUrl('NetworkHealth')}>
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg">
+              <Link to={createPageUrl('NetworkHealth')} aria-label="Network Health">
+                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" aria-label="Network Health">
                   <Globe className="w-5 h-5" />
                 </Button>
               </Link>
-              <Link to={createPageUrl('StakingCalculator')}>
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg">
+              <Link to={createPageUrl('StakingCalculator')} aria-label="Staking Calculator">
+                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" aria-label="Staking Calculator">
                   <Calculator className="w-5 h-5" />
                 </Button>
               </Link>
-              <Link to={createPageUrl('AddressLookup')}>
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg">
+              <Link to={createPageUrl('AddressLookup')} aria-label="Address Lookup">
+                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" aria-label="Address Lookup">
                   <Wallet className="w-5 h-5" />
                 </Button>
               </Link>
-              <Link to={createPageUrl('CustomDashboard')}>
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" title="Custom Dashboard">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <Link to={createPageUrl('CustomDashboard')} aria-label="Custom Dashboard">
+                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" aria-label="Custom Dashboard">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                     <rect x="3" y="3" width="7" height="9" rx="1" />
                     <rect x="14" y="3" width="7" height="5" rx="1" />
                     <rect x="14" y="12" width="7" height="9" rx="1" />
@@ -312,9 +312,9 @@ export default function Dashboard() {
                 </Button>
               </Link>
 
-              <Link to={createPageUrl('TokenExplorer')}>
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <Link to={createPageUrl('TokenExplorer')} aria-label="Token Explorer">
+                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" aria-label="Token Explorer">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                     <circle cx="12" cy="12" r="8" />
                     <path d="M12 2v20M2 12h20" />
                   </svg>
@@ -323,11 +323,11 @@ export default function Dashboard() {
             </nav>
 
             <div className="hidden md:flex items-center gap-3 mr-4">
-              <a href="https://x.com/rkbehelvi" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition-colors">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+              <a href="https://x.com/rkbehelvi" target="_blank" rel="noopener noreferrer" className="text-gray-300 hover:text-white transition-colors" aria-label="Follow us on X (Twitter)">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
               </a>
-              <a href="https://t.me/+HtiLywX2Dug3MjJk" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-cyan-400 transition-colors">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
+              <a href="https://t.me/+HtiLywX2Dug3MjJk" target="_blank" rel="noopener noreferrer" className="text-gray-300 hover:text-cyan-400 transition-colors" aria-label="Join us on Telegram">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
               </a>
             </div>
 
@@ -418,7 +418,7 @@ export default function Dashboard() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-gray-400 text-sm">LIVE NETWORK STATS</h3>
                 {lastUpdate && (
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-gray-600">
                     Updated {lastUpdate.toLocaleTimeString()}
                   </span>
                 )}
