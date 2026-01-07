@@ -6,12 +6,11 @@ import { queryClientInstance } from '@/lib/query-client'
 import VisualEditAgent from '@/lib/VisualEditAgent'
 import NavigationTracker from '@/lib/NavigationTracker'
 import { pagesConfig } from './pages.config'
-import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import { Analytics, analytics } from "@vercel/analytics/react";
-import { useEffect } from 'react';
+import { Analytics } from "@vercel/analytics/react"; // ✅ Only Analytics
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -65,17 +64,6 @@ const AuthenticatedApp = () => {
   );
 };
 
-// SPA Route Analytics component
-const RouteAnalytics = () => {
-  const location = useLocation();
-
-  useEffect(() => {
-    analytics.page(); // Track every route change
-  }, [location]);
-
-  return null;
-};
-
 // Main App
 function App() {
   return (
@@ -83,12 +71,12 @@ function App() {
       <QueryClientProvider client={queryClientInstance}>
         <Router>
           <NavigationTracker />
-          <RouteAnalytics /> {/* Tracks all page views */}
           <AuthenticatedApp />
         </Router>
         <Toaster />
         <VisualEditAgent />
-        <Analytics /> {/* Vercel Analytics */}
+        {/* Vercel Analytics */}
+        <Analytics />
       </QueryClientProvider>
     </AuthProvider>
   )
