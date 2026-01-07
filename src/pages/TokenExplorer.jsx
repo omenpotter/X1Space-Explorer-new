@@ -182,38 +182,6 @@ export default function TokenExplorer() {
         validators: { totalStake: (voteData.current.reduce((sum, v) => sum + v.activatedStake, 0) + voteData.delinquent.reduce((sum, v) => sum + v.activatedStake, 0)) / 1e9, activeCount: voteData.current.length },
         tokens: tokenList
       });
-
-
-      
-      console.log('Total unique tokens found:', mints.size);
-      let tokenList = Array.from(mints.values());
-      
-      // Generate price history and ensure all tokens have market data
-      tokenList = tokenList.map(token => {
-        const basePrice = token.price || (token.totalSupply > 0 ? (Math.random() * 5 + 0.1).toFixed(4) : 0);
-        const priceNum = parseFloat(basePrice);
-        
-        // Generate realistic price history
-        const priceHistory = Array.from({ length: 90 }, (_, i) => {
-          const variance = (Math.random() - 0.5) * 0.1;
-          const trend = Math.sin(i / 10) * 0.05;
-          return {
-            timestamp: Date.now() - (90 - i) * 86400000,
-            price: Math.max(0.001, priceNum * (1 + variance + trend))
-          };
-        });
-        
-        return {
-          ...token,
-          price: basePrice,
-          marketCap: token.marketCap || (token.totalSupply * priceNum),
-          priceChange24h: token.priceChange24h || (Math.random() * 20 - 10).toFixed(2),
-          volume24h: token.volume24h || (Math.random() * 500000 + 10000),
-          priceHistory
-        };
-      });
-      
-      setAllTokens(tokenList);
     } catch (err) {
       console.error('Fetch error:', err);
     } finally {
