@@ -67,10 +67,45 @@ export default function TokenExplorer() {
   });
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const searchDebounceRef = useRef(null);
+  const [discoveredTokens, setDiscoveredTokens] = useState([]);
+  const [showDiscovered, setShowDiscovered] = useState(false);
+  const [livePriceIndicator, setLivePriceIndicator] = useState(false);
 
   useEffect(() => {
     loadWatchlist();
     fetchData();
+    
+    // Start background services
+    const { startTokenScanner } = require('../components/x1/TokenDiscovery');
+    const { startPriceFeed, subscribeToPriceUpdates } = require('../components/x1/PriceFeed');
+    
+    startTokenScanner();
+    startPriceFeed();
+    
+    // Subscribe to live price updates
+    subscribeToPriceUpdates((newPrices) => {
+      setAllTokens(prev => prev.map(token => {
+        const priceData = newPrices[token.mint] || newPrices[token.symbol];
+        if (priceData) {
+          return {
+            ...token,
+            price: priceData.price.toFixed(4),
+            priceChange24h: priceData.priceChange24h?.toFixed(2) || token.priceChange24h,
+            volume24h: priceData.volume24h || token.volume24h,
+            marketCap: priceData.marketCap || token.marketCap
+          };
+        }
+        return token;
+      }));
+    });
+    
+    return () => {
+      const { stopTokenScanner } = require('../components/x1/TokenDiscovery');
+      const { stopPriceFeed, unsubscribeFromPriceUpdates } = require('../components/x1/PriceFeed');
+      stopTokenScanner();
+      stopPriceFeed();
+      unsubscribeFromPriceUpdates();
+    };
   }, []);
 
   const loadWatchlist = () => {
@@ -91,6 +126,9 @@ export default function TokenExplorer() {
     try {
       // Check cache first
       const { getCachedTokens, setCachedTokens, fetchTokenList, fetchTokenPrices } = await import('../components/x1/TokenRegistry');
+      const { getDiscoveredTokens } = await import('../components/x1/TokenDiscovery');
+      const { fetchRealtimePrices } = await import('../components/x1/PriceFeed');
+      
       const cached = getCachedTokens();
       
       if (cached) {
@@ -98,6 +136,11 @@ export default function TokenExplorer() {
         setSupply(cached.supply);
         setValidators(cached.validators);
         setAllTokens(cached.tokens);
+        
+        // Load discovered tokens in background
+        const discovered = getDiscoveredTokens();
+        setDiscoveredTokens(discovered);
+        
         setLoading(false);
         return;
       }
@@ -134,8 +177,10 @@ export default function TokenExplorer() {
       console.log('Building token list...');
       const tokenList = [];
       
-      // Fetch prices for known tokens
-      const prices = await fetchTokenPrices(Object.keys(knownTokens));
+      // Fetch real-time prices
+      const prices = await fetchRealtimePrices();
+      setLivePriceIndicator(true);
+      setTimeout(() => setLivePriceIndicator(false), 2000);
       
       // Build token list from registry - optimized
       Object.entries(knownTokens).forEach(([mint, tokenData]) => {
@@ -169,8 +214,13 @@ export default function TokenExplorer() {
         });
       });
       
-      console.log(`✓ Loaded ${tokenList.length} tokens`);
+      console.log(`✓ Loaded ${tokenList.length} verified tokens`);
       setAllTokens(tokenList);
+      
+      // Load discovered tokens
+      const discovered = getDiscoveredTokens();
+      setDiscoveredTokens(discovered);
+      console.log(`✓ Found ${discovered.length} discovered tokens`);
       
       // Cache the results
       setCachedTokens({
@@ -569,10 +619,35 @@ export default function TokenExplorer() {
       </header>
 
       <main className="max-w-[1800px] mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold mb-6 flex items-center gap-3">
-          <Coins className="w-7 h-7 text-cyan-400" />
-          Token Explorer
-        </h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold flex items-center gap-3">
+            <Coins className="w-7 h-7 text-cyan-400" />
+            Token Explorer
+            {livePriceIndicator && (
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs animate-pulse">
+                Live Prices Updated
+              </Badge>
+            )}
+          </h1>
+          <div className="flex gap-2">
+            <Button
+              variant={!showDiscovered ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowDiscovered(false)}
+              className={!showDiscovered ? "bg-cyan-500" : "border-white/20"}
+            >
+              Verified ({allTokens.length})
+            </Button>
+            <Button
+              variant={showDiscovered ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowDiscovered(true)}
+              className={showDiscovered ? "bg-cyan-500" : "border-white/20"}
+            >
+              Discovered ({discoveredTokens.length})
+            </Button>
+          </div>
+        </div>
 
         {/* Top Stats */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
@@ -739,8 +814,15 @@ export default function TokenExplorer() {
 
         {/* Top Tokens */}
         <div className="bg-[#24384a] rounded-xl overflow-hidden mb-6">
-          <div className="px-4 py-3 border-b border-white/5">
-            <h3 className="text-white font-medium">Tokens ({filteredAndSortedTokens.length})</h3>
+          <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+            <h3 className="text-white font-medium">
+              {showDiscovered ? 'Discovered Tokens (Unverified)' : 'Verified Tokens'} ({showDiscovered ? discoveredTokens.length : filteredAndSortedTokens.length})
+            </h3>
+            {showDiscovered && (
+              <Badge className="bg-yellow-500/20 text-yellow-400 border-0 text-xs">
+                ⚠️ Unverified - DYOR
+              </Badge>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -757,7 +839,7 @@ export default function TokenExplorer() {
                 </tr>
               </thead>
               <tbody>
-                {filteredAndSortedTokens.slice(0, displayLimit).map((token, i) => (
+                {(showDiscovered ? discoveredTokens : filteredAndSortedTokens).slice(0, displayLimit).map((token, i) => (
                   <tr key={token.mint} className="border-b border-white/5 hover:bg-white/[0.02]">
                     <td className="px-4 py-3 text-gray-500">{i + 1}</td>
                     <td className="px-4 py-3">
@@ -784,7 +866,13 @@ export default function TokenExplorer() {
                                 <Copy className="w-3 h-3" />
                               )}
                             </button>
-                            <Badge className="bg-blue-500/20 text-blue-400 border-0 text-xs">{token.tokenType}</Badge>
+                            <Badge className="bg-blue-500/20 text-blue-400 border-0 text-xs">{token.tokenType || 'SPL Token'}</Badge>
+                            {showDiscovered && (
+                              <Badge className="bg-yellow-500/20 text-yellow-400 border-0 text-xs">Unverified</Badge>
+                            )}
+                            {token.verified && (
+                              <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">✓ Verified</Badge>
+                            )}
                           </div>
                         </div>
                       </div>
