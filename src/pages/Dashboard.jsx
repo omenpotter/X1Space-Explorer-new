@@ -74,18 +74,8 @@ export default function Dashboard() {
       // Fetch only most critical data first
       const data = await X1Rpc.getDashboardData();
       
-      // Only update if data meaningfully changed (prevent flickering)
-      setDashboardData(prev => {
-        if (!prev) return data;
-        
-        // Only update if slot changed or key values differ
-        const hasChanged = prev.slot !== data.slot || 
-                          prev.tps !== data.tps ||
-                          (prev.supply.total === 0 && data.supply.total > 0) ||
-                          (prev.transactionCount === 0 && data.transactionCount > 0);
-        
-        return hasChanged ? data : prev;
-      });
+      // Update UI immediately - show dashboard ASAP
+      setDashboardData(data);
       setLastUpdate(new Date());
       setLoading(false);
       setError(null);
@@ -96,8 +86,8 @@ export default function Dashboard() {
         X1Rpc.getPerformanceHistory(60).catch(() => []),
         X1Rpc.getPendingTransactions().catch(() => [])
       ]).then(([blocks, perfHistory, pendingTxs]) => {
-        setRecentBlocks(prev => blocks.length > 0 ? blocks : prev);
-        setPerformanceData(prev => perfHistory.length > 0 ? perfHistory : prev);
+        setRecentBlocks(blocks);
+        setPerformanceData(perfHistory);
         setPendingTxCount(pendingTxs.length);
       }).catch(() => {});
     } catch (err) {
