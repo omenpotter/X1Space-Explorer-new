@@ -191,11 +191,9 @@ export async function getStakeAccounts(address) {
   ]);
 }
 
-// Get inflation reward for epoch - returns actual on-chain rewards data
+// Get inflation reward for epoch
 export async function getInflationReward(addresses, epoch) {
-  const result = await rpcCall('getInflationReward', [addresses, { epoch }]);
-  // Result format: [{ amount: lamports, postBalance: lamports, effectiveSlot: number, commission: number }]
-  return result;
+  return await rpcCall('getInflationReward', [addresses, { epoch }]);
 }
 
 // Get multiple accounts

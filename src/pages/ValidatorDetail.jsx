@@ -30,8 +30,6 @@ export default function ValidatorDetail() {
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(null);
   const [timeRange, setTimeRange] = useState('7d');
-  const [rewardHistory, setRewardHistory] = useState([]);
-  const [activeTab, setActiveTab] = useState('overview');
 
   const urlParams = new URLSearchParams(window.location.search);
   const votePubkey = urlParams.get('id');
@@ -51,44 +49,6 @@ export default function ValidatorDetail() {
         if (found) {
           setValidator(found);
           setError(null);
-          
-          // Fetch actual on-chain inflation rewards
-          const epochInfo = await X1Rpc.getEpochInfo();
-          const currentEpoch = epochInfo.epoch;
-          
-          console.log(`Fetching rewards for validator ${found.votePubkey.slice(0, 8)} from epoch ${currentEpoch - 30} to ${currentEpoch - 1}`);
-          
-          const fetchPromises = [];
-          for (let i = 1; i <= 30; i++) {
-            const epoch = currentEpoch - i;
-            if (epoch < 0) break;
-            
-            fetchPromises.push(
-              X1Rpc.getInflationReward([found.votePubkey], epoch)
-                .then(rewards => ({ epoch, rewards }))
-                .catch(() => ({ epoch, rewards: null }))
-            );
-          }
-          
-          const results = await Promise.all(fetchPromises);
-          const history = [];
-          
-          for (const { epoch, rewards } of results.reverse()) {
-            if (rewards && rewards[0] && rewards[0].amount) {
-              const rewardLamports = rewards[0].amount;
-              const rewardXNT = rewardLamports / 1e9;
-              
-              history.push({
-                epoch,
-                rewards: rewardXNT,
-                postBalance: (rewards[0].postBalance || 0) / 1e9,
-                commission: rewards[0].commission !== undefined ? rewards[0].commission : found.commission
-              });
-            }
-          }
-          
-          console.log(`✓ Loaded ${history.length} epochs of reward history`);
-          setRewardHistory(history);
         } else {
           setError('Validator not found');
         }
@@ -352,46 +312,8 @@ export default function ValidatorDetail() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="bg-[#24384a] rounded-xl overflow-hidden mb-6">
-          <div className="flex border-b border-white/5">
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`px-6 py-3 text-sm font-medium transition-colors ${
-                activeTab === 'overview'
-                  ? 'text-cyan-400 border-b-2 border-cyan-400'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Performance
-            </button>
-            <button
-              onClick={() => setActiveTab('rewards')}
-              className={`px-6 py-3 text-sm font-medium transition-colors ${
-                activeTab === 'rewards'
-                  ? 'text-cyan-400 border-b-2 border-cyan-400'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Rewards History
-            </button>
-            <button
-              onClick={() => setActiveTab('calculator')}
-              className={`px-6 py-3 text-sm font-medium transition-colors ${
-                activeTab === 'calculator'
-                  ? 'text-cyan-400 border-b-2 border-cyan-400'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Staking Calculator
-            </button>
-          </div>
-
-          <div className="p-6">
-            {activeTab === 'overview' && (
-              <>
-                {/* Performance Charts Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Performance Charts Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <PerformanceChart 
             data={uptimeData} 
             dataKey="value" 
@@ -426,18 +348,6 @@ export default function ValidatorDetail() {
             unit=""
             height={180} 
           />
-                </div>
-              </>
-            )}
-
-            {activeTab === 'rewards' && (
-              <RewardsChart rewardHistory={rewardHistory} validator={validator} />
-            )}
-
-            {activeTab === 'calculator' && (
-              <StakingCalculator validator={validator} />
-            )}
-          </div>
         </div>
 
         {/* Epoch Credits Details */}

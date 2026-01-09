@@ -41,30 +41,8 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [dashboardData, setDashboardData] = useState(() => {
-    // Load from sessionStorage to prevent data loss on refresh
-    const cached = sessionStorage.getItem('x1-dashboard-data');
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  });
-  const [recentBlocks, setRecentBlocks] = useState(() => {
-    // Load from sessionStorage
-    const cached = sessionStorage.getItem('x1-recent-blocks');
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
+  const [dashboardData, setDashboardData] = useState(null);
+  const [recentBlocks, setRecentBlocks] = useState([]);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [tpsInterval, setTpsInterval] = useState('1m');
   const [mempoolInterval, setMempoolInterval] = useState('1m');
@@ -95,48 +73,28 @@ export default function Dashboard() {
     try {
       // Fetch dashboard data and blocks first (most important)
       const [data, blocks] = await Promise.all([
-        X1Rpc.getDashboardData().catch(err => {
-          console.error('Dashboard data error:', err);
-          return null; // Return null, don't replace existing
-        }),
-        X1Rpc.getRecentBlocks(10).catch(err => {
-          console.error('Recent blocks error:', err);
-          return null; // Return null, don't replace existing
-        })
+        X1Rpc.getDashboardData(),
+        X1Rpc.getRecentBlocks(10)
       ]);
       
-      // CRITICAL: Only update if we got valid data, otherwise keep existing
-      if (data && Object.keys(data).length > 0 && data.slot && data.tps !== undefined) {
-        setDashboardData(data);
-        sessionStorage.setItem('x1-dashboard-data', JSON.stringify(data));
-        setError(null);
-      }
-      if (blocks && Array.isArray(blocks) && blocks.length > 0) {
-        setRecentBlocks(blocks);
-        sessionStorage.setItem('x1-recent-blocks', JSON.stringify(blocks));
-      }
-      
+      // Update UI immediately with critical data
+      setDashboardData(data);
+      setRecentBlocks(blocks);
       setLastUpdate(new Date());
       setLoading(false);
+      setError(null);
       
       // Fetch secondary data in background (non-blocking)
       Promise.all([
-        X1Rpc.getPerformanceHistory(60).catch(() => null),
+        X1Rpc.getPerformanceHistory(60),
         X1Rpc.getPendingTransactions().catch(() => [])
       ]).then(([perfHistory, pendingTxs]) => {
-        if (perfHistory && perfHistory.length > 0) {
-          setPerformanceData(perfHistory);
-        }
-        if (Array.isArray(pendingTxs)) {
-          setPendingTxCount(pendingTxs.length);
-        }
-      }).catch(err => {
-        console.warn('Secondary data fetch failed:', err);
+        setPerformanceData(perfHistory);
+        setPendingTxCount(pendingTxs.length);
       });
     } catch (err) {
       console.error('Failed to fetch data:', err);
-      // NEVER clear existing data on error
-      setError(null); // Don't show error if we have cached data
+      setError(err.message);
       setLoading(false);
     }
   }, []);
@@ -257,13 +215,24 @@ export default function Dashboard() {
     return h > 0 ? `~${h}h ${m}m` : `~${m}m`;
   };
 
-  // Show skeleton UI while loading instead of full-screen loader
-  const showSkeleton = loading && !dashboardData;
+  if (loading && !dashboardData) {
+    return (
+      <div className="min-h-screen bg-[#1d2d3a] text-white flex flex-col items-center justify-center">
+        <div className="flex gap-2 mb-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
+            <span className="text-black font-black text-3xl">X1</span>
+          </div>
+        </div>
+        <h1 className="text-2xl font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></h1>
+        <div className="mt-4 flex items-center gap-2">
+          <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
+          <span className="text-gray-400 text-sm">Connecting...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <>
-      <title>X1 Blockchain Explorer | Real-time Network Stats & Analytics</title>
-      <meta name="description" content="X1Space - Real-time X1 blockchain explorer with live network stats, validators, transactions, and token analytics. Track TPS, blocks, and validator performance." />
     <div className="min-h-screen bg-[#1d2d3a] text-white">
       {/* Header */}
       <header className="bg-[#1d2d3a] border-b border-white/5">
@@ -418,9 +387,9 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <Suspense fallback={<div className="h-4" aria-hidden="true" />}>
-                          <MempoolLegend />
-                        </Suspense>
+                <Suspense fallback={<div className="h-4" />}>
+                  <MempoolLegend />
+                </Suspense>
                 <div className="flex items-center gap-2 ml-4">
                   <span className="text-emerald-400 text-sm font-medium">XNT $1.00</span>
                   <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">OTC</Badge>
@@ -458,19 +427,19 @@ export default function Dashboard() {
                 <div className="bg-[#1d2d3a] rounded-lg p-3">
                   <p className="text-gray-400 text-xs mb-1">Current Slot</p>
                   <p className="text-white font-bold text-lg font-mono">
-                    {dashboardData?.slot?.toLocaleString() || '0'}
+                    {dashboardData?.slot?.toLocaleString() || '-'}
                   </p>
                 </div>
                 <div className="bg-[#1d2d3a] rounded-lg p-3">
                   <p className="text-gray-400 text-xs mb-1">TPS</p>
                   <p className="text-cyan-400 font-bold text-lg">
-                    {dashboardData?.tps?.toLocaleString() || '0'}
+                    {dashboardData?.tps?.toLocaleString() || '-'}
                   </p>
                 </div>
                 <div className="bg-[#1d2d3a] rounded-lg p-3">
                   <p className="text-gray-400 text-xs mb-1">Total TXs</p>
                   <p className="text-white font-bold text-lg">
-                    {formatNumber(dashboardData?.transactionCount || 0)}
+                    {formatNumber(dashboardData?.transactionCount)}
                   </p>
                 </div>
               </div>
@@ -502,19 +471,19 @@ export default function Dashboard() {
                 <div>
                   <p className="text-gray-400 text-xs mb-1">Active</p>
                   <p className="text-emerald-400 font-bold text-xl">
-                    {dashboardData?.validators?.current || '0'}
+                    {dashboardData?.validators?.current || '-'}
                   </p>
                 </div>
                 <div>
                   <p className="text-gray-400 text-xs mb-1">Delinquent</p>
                   <p className="text-red-400 font-bold text-xl">
-                    {dashboardData?.validators?.delinquent || '0'}
+                    {dashboardData?.validators?.delinquent || '-'}
                   </p>
                 </div>
                 <div>
                   <p className="text-gray-400 text-xs mb-1">Total Stake</p>
                   <p className="text-white font-bold text-xl">
-                    {formatNumber(dashboardData?.validators?.totalStake || 0)}
+                    {formatNumber(dashboardData?.validators?.totalStake)}
                   </p>
                 </div>
               </div>
@@ -525,7 +494,7 @@ export default function Dashboard() {
           <div className="space-y-4">
             {/* Epoch Progress */}
             <div className="bg-[#24384a] rounded-xl p-4">
-              <h3 className="text-gray-400 text-sm mb-3">EPOCH {dashboardData?.epoch || '0'} PROGRESS</h3>
+              <h3 className="text-gray-400 text-sm mb-3">EPOCH {dashboardData?.epoch || '-'} PROGRESS</h3>
               <div className="flex items-center gap-4">
                 <div className="flex-1">
                   <div className="h-3 bg-[#1d2d3a] rounded-full overflow-hidden">
@@ -586,7 +555,6 @@ export default function Dashboard() {
           <RecentBlocksTable blocks={recentBlocks} />
         </Suspense>
       </main>
-      </div>
-      </>
-      );
-      }
+    </div>
+  );
+}
