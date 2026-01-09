@@ -348,30 +348,33 @@ export async function getDashboardData() {
     : 0;
   const timeRemaining = Math.round(slotsRemaining * 0.4); // ~400ms per slot
 
+  // Get previous cached values to preserve non-flickering data
+  const prevCached = getCached('dashboardData');
+  
   const result = {
     slot: slot || 0,
-    blockHeight: 0, // Will be populated later
+    blockHeight: prevCached?.blockHeight || 0,
     epoch: epochInfo?.epoch || 0,
     epochProgress: parseFloat(epochProgress),
     slotsRemaining,
     timeRemaining,
-    transactionCount: 0, // Will be populated later
+    transactionCount: prevCached?.transactionCount || 0,
     tps: avgTps,
     tpsHistory: performanceSamples.map((s, i) => ({
       time: `${performanceSamples.length - i}m`,
       tps: Math.round(s.numTransactions / s.samplePeriodSecs)
     })).reverse(),
-    supply: {
+    supply: prevCached?.supply || {
       total: 0,
       circulating: 0,
       nonCirculating: 0
-    }, // Will be populated later
+    },
     validators: {
       current: voteAccounts?.current?.length || 0,
       delinquent: voteAccounts?.delinquent?.length || 0,
       totalStake: ((voteAccounts?.current || []).reduce((sum, v) => sum + v.activatedStake, 0) + (voteAccounts?.delinquent || []).reduce((sum, v) => sum + v.activatedStake, 0)) / 1e9
     },
-    version: 'loading'
+    version: prevCached?.version || 'loading'
   };
   
   // Cache dashboard data for 3 seconds
