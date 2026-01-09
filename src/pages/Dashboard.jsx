@@ -71,27 +71,25 @@ export default function Dashboard() {
 
   const fetchData = React.useCallback(async () => {
     try {
-      // Fetch dashboard data and blocks first (most important)
-      const [data, blocks] = await Promise.all([
-        X1Rpc.getDashboardData(),
-        X1Rpc.getRecentBlocks(10)
-      ]);
+      // Fetch only most critical data first
+      const data = await X1Rpc.getDashboardData();
       
-      // Update UI immediately with critical data
+      // Update UI immediately - show dashboard ASAP
       setDashboardData(data);
-      setRecentBlocks(blocks);
       setLastUpdate(new Date());
       setLoading(false);
       setError(null);
       
-      // Fetch secondary data in background (non-blocking)
+      // Fetch everything else in background (non-blocking)
       Promise.all([
-        X1Rpc.getPerformanceHistory(60),
+        X1Rpc.getRecentBlocks(10).catch(() => []),
+        X1Rpc.getPerformanceHistory(60).catch(() => []),
         X1Rpc.getPendingTransactions().catch(() => [])
-      ]).then(([perfHistory, pendingTxs]) => {
+      ]).then(([blocks, perfHistory, pendingTxs]) => {
+        setRecentBlocks(blocks);
         setPerformanceData(perfHistory);
         setPendingTxCount(pendingTxs.length);
-      });
+      }).catch(() => {});
     } catch (err) {
       console.error('Failed to fetch data:', err);
       setError(err.message);
@@ -215,22 +213,8 @@ export default function Dashboard() {
     return h > 0 ? `~${h}h ${m}m` : `~${m}m`;
   };
 
-  if (loading && !dashboardData) {
-    return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex flex-col items-center justify-center">
-        <div className="flex gap-2 mb-4">
-          <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
-            <span className="text-black font-black text-3xl">X1</span>
-          </div>
-        </div>
-        <h1 className="text-2xl font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></h1>
-        <div className="mt-4 flex items-center gap-2">
-          <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
-          <span className="text-gray-400 text-sm">Connecting...</span>
-        </div>
-      </div>
-    );
-  }
+  // Show skeleton instead of blocking loading screen for faster perceived load
+  const showSkeleton = loading && !dashboardData;
 
   return (
     <div className="min-h-screen bg-[#1d2d3a] text-white">
@@ -368,49 +352,66 @@ export default function Dashboard() {
 
       <main className="max-w-[1800px] mx-auto px-4 py-6">
         {/* Block Visualization */}
-        <div className="flex flex-col gap-4 mb-8">
-          {/* X1 View Box */}
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <span className="text-white font-medium">X1 View</span>
-                <div className="flex gap-1 bg-[#1d2d3a] rounded-lg p-1">
-                  {['1m', '10m'].map((interval) => (
-                    <button
-                      key={interval}
-                      onClick={() => setMempoolInterval(interval)}
-                      className={`px-3 py-1.5 text-xs rounded ${mempoolInterval === interval ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
-                    >
-                      {interval}
-                    </button>
-                  ))}
+        {!showSkeleton && (
+          <div className="flex flex-col gap-4 mb-8">
+            {/* X1 View Box */}
+            <div className="bg-[#24384a] rounded-xl p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-white font-medium">X1 View</span>
+                  <div className="flex gap-1 bg-[#1d2d3a] rounded-lg p-1">
+                    {['1m', '10m'].map((interval) => (
+                      <button
+                        key={interval}
+                        onClick={() => setMempoolInterval(interval)}
+                        className={`px-3 py-1.5 text-xs rounded ${mempoolInterval === interval ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
+                      >
+                        {interval}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Suspense fallback={<div className="h-4" />}>
+                    <MempoolLegend />
+                  </Suspense>
+                  <div className="flex items-center gap-2 ml-4">
+                    <span className="text-emerald-400 text-sm font-medium">XNT $1.00</span>
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">OTC</Badge>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Suspense fallback={<div className="h-4" />}>
-                  <MempoolLegend />
-                </Suspense>
-                <div className="flex items-center gap-2 ml-4">
-                  <span className="text-emerald-400 text-sm font-medium">XNT $1.00</span>
-                  <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">OTC</Badge>
-                </div>
-              </div>
+              <Suspense fallback={<div className="flex gap-2">{Array(10).fill(0).map((_, i) => <div key={i} className="w-[100px] h-[140px] bg-slate-800/50 rounded-lg animate-pulse" />)}</div>}>
+                <MempoolViz 
+                  mempoolInterval={mempoolInterval}
+                  recentBlocks={recentBlocks}
+                  aggregatedBlocks={aggregatedBlocks}
+                  dashboardSlot={dashboardData?.slot}
+                  showPending={true}
+                  pendingCount={pendingTxCount}
+                />
+              </Suspense>
             </div>
-            <Suspense fallback={<div className="flex gap-2">{Array(10).fill(0).map((_, i) => <div key={i} className="w-[100px] h-[140px] bg-slate-800/50 rounded-lg animate-pulse" />)}</div>}>
-              <MempoolViz 
-                mempoolInterval={mempoolInterval}
-                recentBlocks={recentBlocks}
-                aggregatedBlocks={aggregatedBlocks}
-                dashboardSlot={dashboardData?.slot}
-                showPending={true}
-                pendingCount={pendingTxCount}
-              />
-            </Suspense>
           </div>
-        </div>
+        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {showSkeleton ? (
+            <>
+              {/* Skeleton loaders for fast perceived load */}
+              <div className="space-y-4">
+                <div className="bg-[#24384a] rounded-xl p-4 h-32 animate-pulse" />
+                <div className="bg-[#24384a] rounded-xl p-4 h-32 animate-pulse" />
+                <div className="bg-[#24384a] rounded-xl p-4 h-32 animate-pulse" />
+              </div>
+              <div className="space-y-4">
+                <div className="bg-[#24384a] rounded-xl p-4 h-32 animate-pulse" />
+                <div className="bg-[#24384a] rounded-xl p-4 h-48 animate-pulse" />
+              </div>
+            </>
+          ) : (
+            <>
           {/* Left Column */}
           <div className="space-y-4">
             {/* Live Network Stats */}
@@ -547,13 +548,16 @@ export default function Dashboard() {
 
 
           </div>
+          )}
         </div>
 
         {/* Quick Links and Recent Blocks - Lazy loaded */}
+        {!showSkeleton && (
         <Suspense fallback={<div className="mt-8 h-32 bg-slate-800/20 rounded-xl animate-pulse" />}>
           <QuickLinks />
           <RecentBlocksTable blocks={recentBlocks} />
         </Suspense>
+        )}
       </main>
     </div>
   );

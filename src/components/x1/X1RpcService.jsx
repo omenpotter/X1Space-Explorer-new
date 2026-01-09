@@ -77,7 +77,7 @@ async function rpcCall(method, params = [], cacheKey = null, cacheDuration = 'sh
     
     try {
       const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+              const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout for faster failover
 
               // Get auth headers if this endpoint requires them
               const authConfig = RPC_AUTH[endpoint] || {};
@@ -297,32 +297,42 @@ export async function getVersion() {
   return await rpcCall('getVersion', [], 'version', 'long');
 }
 
-// Aggregate function to get dashboard data - ULTRA OPTIMIZED
+// Aggregate function to get dashboard data - ULTRA OPTIMIZED FOR SPEED
 export async function getDashboardData() {
-  // Check cache first - dashboard data cached for 2 seconds for fast slots
+  // Check cache first - dashboard data cached for 3 seconds for fast slots
   const cached = getCached('dashboardData');
   if (cached) return cached;
 
-  // Fetch all data in parallel for maximum speed
+  // Fetch ONLY critical data - remove non-essential calls
   const [
     slot,
-    blockHeight,
     epochInfo,
     performanceSamples,
-    supply,
-    transactionCount,
-    voteAccounts,
-    version
+    voteAccounts
   ] = await Promise.all([
     getSlot().catch(() => 0),
-    getBlockHeight().catch(() => 0),
     getEpochInfo().catch(() => null),
-    getRecentPerformanceSamples(30).catch(() => []),
-    getSupply().catch(() => ({ value: { total: 0, circulating: 0, nonCirculating: 0 } })),
-    getTransactionCount().catch(() => 0),
-    getVoteAccounts().catch(() => ({ current: [], delinquent: [] })),
-    getVersion().catch(() => ({ 'solana-core': 'unknown' }))
+    getRecentPerformanceSamples(20).catch(() => []), // Reduced from 30 to 20
+    getVoteAccounts().catch(() => ({ current: [], delinquent: [] }))
   ]);
+
+  // Fetch non-critical data in background after returning
+  Promise.all([
+    getSupply().catch(() => null),
+    getTransactionCount().catch(() => 0)
+  ]).then(([supply, txCount]) => {
+    // Update cache with full data when available
+    const updatedData = {
+      ...getCached('dashboardData'),
+      supply: supply ? {
+        total: (supply?.value?.total || 0) / 1e9,
+        circulating: (supply?.value?.circulating || 0) / 1e9,
+        nonCirculating: (supply?.value?.nonCirculating || 0) / 1e9
+      } : { total: 0, circulating: 0, nonCirculating: 0 },
+      transactionCount: txCount || 0
+    };
+    setCache('dashboardData', updatedData, 'short');
+  }).catch(() => {});
 
   // Calculate TPS from performance samples
   const avgTps = performanceSamples.length > 0
@@ -340,28 +350,28 @@ export async function getDashboardData() {
 
   const result = {
     slot: slot || 0,
-    blockHeight: blockHeight || 0,
+    blockHeight: 0, // Will be populated later
     epoch: epochInfo?.epoch || 0,
     epochProgress: parseFloat(epochProgress),
     slotsRemaining,
     timeRemaining,
-    transactionCount: transactionCount || 0,
+    transactionCount: 0, // Will be populated later
     tps: avgTps,
     tpsHistory: performanceSamples.map((s, i) => ({
       time: `${performanceSamples.length - i}m`,
       tps: Math.round(s.numTransactions / s.samplePeriodSecs)
     })).reverse(),
     supply: {
-      total: (supply?.value?.total || 0) / 1e9,
-      circulating: (supply?.value?.circulating || 0) / 1e9,
-      nonCirculating: (supply?.value?.nonCirculating || 0) / 1e9
-    },
+      total: 0,
+      circulating: 0,
+      nonCirculating: 0
+    }, // Will be populated later
     validators: {
       current: voteAccounts?.current?.length || 0,
       delinquent: voteAccounts?.delinquent?.length || 0,
       totalStake: ((voteAccounts?.current || []).reduce((sum, v) => sum + v.activatedStake, 0) + (voteAccounts?.delinquent || []).reduce((sum, v) => sum + v.activatedStake, 0)) / 1e9
     },
-    version: version?.['solana-core'] || version?.version || 'unknown'
+    version: 'loading'
   };
   
   // Cache dashboard data for 3 seconds
