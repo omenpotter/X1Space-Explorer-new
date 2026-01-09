@@ -107,6 +107,16 @@ const ValidatorCard = memo(function ValidatorCard({ validator, rank, totalStake 
           <p className="text-gray-600 text-xs">lag: {validator.voteLag}</p>
         </div>
       </td>
+      <td className="px-4 py-4 text-right">
+        <div className="flex flex-col items-end">
+          <span className="text-emerald-400 text-xs font-medium">
+            {formatStake(annualRewards)} XNT/yr
+          </span>
+          <span className="text-gray-500 text-xs">
+            {effectiveAPY.toFixed(1)}% APY
+          </span>
+        </div>
+      </td>
       <td className="px-4 py-4 text-center">
         {validator.delinquent ? (
           <Badge className="bg-red-500/20 text-red-400 border-0">Delinquent</Badge>

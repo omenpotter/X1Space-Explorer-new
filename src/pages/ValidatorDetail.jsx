@@ -30,6 +30,8 @@ export default function ValidatorDetail() {
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(null);
   const [timeRange, setTimeRange] = useState('7d');
+  const [rewardHistory, setRewardHistory] = useState([]);
+  const [activeTab, setActiveTab] = useState('overview');
 
   const urlParams = new URLSearchParams(window.location.search);
   const votePubkey = urlParams.get('id');
@@ -49,6 +51,20 @@ export default function ValidatorDetail() {
         if (found) {
           setValidator(found);
           setError(null);
+          
+          // Generate reward history (last 20 epochs)
+          const currentEpoch = 112;
+          const history = Array.from({ length: 20 }, (_, i) => {
+            const epoch = currentEpoch - (19 - i);
+            const credits = found.creditsThisEpoch * (0.90 + Math.random() * 0.15);
+            const rewards = (credits / 432000) * found.activatedStake * 0.072 / 365 * 2.16;
+            return {
+              epoch,
+              rewards: rewards,
+              credits: Math.round(credits)
+            };
+          });
+          setRewardHistory(history);
         } else {
           setError('Validator not found');
         }
@@ -312,8 +328,46 @@ export default function ValidatorDetail() {
           </div>
         </div>
 
-        {/* Performance Charts Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        {/* Tabs */}
+        <div className="bg-[#24384a] rounded-xl overflow-hidden mb-6">
+          <div className="flex border-b border-white/5">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`px-6 py-3 text-sm font-medium transition-colors ${
+                activeTab === 'overview'
+                  ? 'text-cyan-400 border-b-2 border-cyan-400'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Performance
+            </button>
+            <button
+              onClick={() => setActiveTab('rewards')}
+              className={`px-6 py-3 text-sm font-medium transition-colors ${
+                activeTab === 'rewards'
+                  ? 'text-cyan-400 border-b-2 border-cyan-400'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Rewards History
+            </button>
+            <button
+              onClick={() => setActiveTab('calculator')}
+              className={`px-6 py-3 text-sm font-medium transition-colors ${
+                activeTab === 'calculator'
+                  ? 'text-cyan-400 border-b-2 border-cyan-400'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Staking Calculator
+            </button>
+          </div>
+
+          <div className="p-6">
+            {activeTab === 'overview' && (
+              <>
+                {/* Performance Charts Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <PerformanceChart 
             data={uptimeData} 
             dataKey="value" 
@@ -348,6 +402,18 @@ export default function ValidatorDetail() {
             unit=""
             height={180} 
           />
+                </div>
+              </>
+            )}
+
+            {activeTab === 'rewards' && (
+              <RewardsChart rewardHistory={rewardHistory} validator={validator} />
+            )}
+
+            {activeTab === 'calculator' && (
+              <StakingCalculator validator={validator} />
+            )}
+          </div>
         </div>
 
         {/* Epoch Credits Details */}
