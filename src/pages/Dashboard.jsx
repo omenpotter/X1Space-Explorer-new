@@ -548,15 +548,16 @@ export default function Dashboard() {
 
 
           </div>
+            </>
           )}
         </div>
 
         {/* Quick Links and Recent Blocks - Lazy loaded */}
         {!showSkeleton && (
-        <Suspense fallback={<div className="mt-8 h-32 bg-slate-800/20 rounded-xl animate-pulse" />}>
-          <QuickLinks />
-          <RecentBlocksTable blocks={recentBlocks} />
-        </Suspense>
+          <Suspense fallback={<div className="mt-8 h-32 bg-slate-800/20 rounded-xl animate-pulse" />}>
+            <QuickLinks />
+            <RecentBlocksTable blocks={recentBlocks} />
+          </Suspense>
         )}
       </main>
     </div>
