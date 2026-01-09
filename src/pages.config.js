@@ -19,8 +19,8 @@ import ValidatorCompare from './pages/ValidatorCompare';
 import Watchlist from './pages/Watchlist';
 import WhaleWatcher from './pages/WhaleWatcher';
 import ValidatorDetail from './pages/ValidatorDetail';
-import Dashboard from './pages/Dashboard';
 import Validators from './pages/Validators';
+import Dashboard from './pages/Dashboard';
 import __Layout from './Layout.jsx';
 
 
@@ -46,8 +46,8 @@ export const PAGES = {
     "Watchlist": Watchlist,
     "WhaleWatcher": WhaleWatcher,
     "ValidatorDetail": ValidatorDetail,
-    "Dashboard": Dashboard,
     "Validators": Validators,
+    "Dashboard": Dashboard,
 }
 
 export const pagesConfig = {
