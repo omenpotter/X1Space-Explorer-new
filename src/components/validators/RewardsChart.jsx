@@ -13,21 +13,28 @@ export default function RewardsChart({ rewardHistory, validator }) {
 
   const totalRewards = rewardHistory.reduce((sum, r) => sum + r.rewards, 0);
   const avgRewards = totalRewards / rewardHistory.length;
+  const lastEpochReward = rewardHistory[rewardHistory.length - 1]?.rewards || 0;
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-[#1d2d3a] rounded-lg p-3">
-          <p className="text-gray-400 text-xs mb-1">Total Rewards ({rewardHistory.length} epochs)</p>
+          <p className="text-gray-400 text-xs mb-1">Total Rewards</p>
           <p className="text-emerald-400 font-bold text-lg">{totalRewards.toFixed(2)} XNT</p>
+          <p className="text-gray-500 text-xs">{rewardHistory.length} epochs</p>
         </div>
         <div className="bg-[#1d2d3a] rounded-lg p-3">
-          <p className="text-gray-400 text-xs mb-1">Avg per Epoch</p>
+          <p className="text-gray-400 text-xs mb-1">Average Reward</p>
           <p className="text-cyan-400 font-bold text-lg">{avgRewards.toFixed(2)} XNT</p>
+          <p className="text-gray-500 text-xs">per epoch</p>
         </div>
         <div className="bg-[#1d2d3a] rounded-lg p-3">
-          <p className="text-gray-400 text-xs mb-1">Est. APY</p>
-          <p className="text-yellow-400 font-bold text-lg">7.2%</p>
+          <p className="text-gray-400 text-xs mb-1">Last Epoch</p>
+          <p className="text-yellow-400 font-bold text-lg">{lastEpochReward.toFixed(2)} XNT</p>
+        </div>
+        <div className="bg-[#1d2d3a] rounded-lg p-3">
+          <p className="text-gray-400 text-xs mb-1">Commission</p>
+          <p className="text-white font-bold text-lg">{validator?.commission || 0}%</p>
         </div>
       </div>
 

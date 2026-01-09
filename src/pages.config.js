@@ -18,10 +18,10 @@ import Transactions from './pages/Transactions';
 import ValidatorAlerts from './pages/ValidatorAlerts';
 import ValidatorCompare from './pages/ValidatorCompare';
 import ValidatorDetail from './pages/ValidatorDetail';
+import ValidatorRewards from './pages/ValidatorRewards';
 import Validators from './pages/Validators';
 import Watchlist from './pages/Watchlist';
 import WhaleWatcher from './pages/WhaleWatcher';
-import ValidatorRewards from './pages/ValidatorRewards';
 import __Layout from './Layout.jsx';
 
 
@@ -46,10 +46,10 @@ export const PAGES = {
     "ValidatorAlerts": ValidatorAlerts,
     "ValidatorCompare": ValidatorCompare,
     "ValidatorDetail": ValidatorDetail,
+    "ValidatorRewards": ValidatorRewards,
     "Validators": Validators,
     "Watchlist": Watchlist,
     "WhaleWatcher": WhaleWatcher,
-    "ValidatorRewards": ValidatorRewards,
 }
 
 export const pagesConfig = {

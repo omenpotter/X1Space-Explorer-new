@@ -73,31 +73,49 @@ export default function Dashboard() {
     try {
       // Fetch dashboard data and blocks first (most important)
       const [data, blocks] = await Promise.all([
-        X1Rpc.getDashboardData(),
-        X1Rpc.getRecentBlocks(10)
+        X1Rpc.getDashboardData().catch(err => {
+          console.error('Dashboard data error:', err);
+          return dashboardData; // Keep existing data on error
+        }),
+        X1Rpc.getRecentBlocks(10).catch(err => {
+          console.error('Recent blocks error:', err);
+          return recentBlocks; // Keep existing data on error
+        })
       ]);
       
-      // Update UI immediately with critical data
-      setDashboardData(data);
-      setRecentBlocks(blocks);
+      // Only update if we got valid data
+      if (data && Object.keys(data).length > 0) {
+        setDashboardData(data);
+        setError(null);
+      }
+      if (blocks && blocks.length > 0) {
+        setRecentBlocks(blocks);
+      }
+      
       setLastUpdate(new Date());
       setLoading(false);
-      setError(null);
       
       // Fetch secondary data in background (non-blocking)
       Promise.all([
-        X1Rpc.getPerformanceHistory(60),
+        X1Rpc.getPerformanceHistory(60).catch(() => performanceData),
         X1Rpc.getPendingTransactions().catch(() => [])
       ]).then(([perfHistory, pendingTxs]) => {
-        setPerformanceData(perfHistory);
+        if (perfHistory && perfHistory.length > 0) {
+          setPerformanceData(perfHistory);
+        }
         setPendingTxCount(pendingTxs.length);
+      }).catch(err => {
+        console.warn('Secondary data fetch failed:', err);
       });
     } catch (err) {
       console.error('Failed to fetch data:', err);
-      setError(err.message);
-      setLoading(false);
+      // Don't clear existing data on error
+      if (!dashboardData) {
+        setError(err.message);
+        setLoading(false);
+      }
     }
-  }, []);
+  }, [dashboardData, recentBlocks, performanceData]);
 
   const aggregatedBlocks = useMemo(() => {
     // Calculate ratios from recent blocks data (actual on-chain tx types)
@@ -416,19 +434,19 @@ export default function Dashboard() {
                 <div className="bg-[#1d2d3a] rounded-lg p-3">
                   <p className="text-gray-400 text-xs mb-1">Current Slot</p>
                   <p className="text-white font-bold text-lg font-mono">
-                    {dashboardData?.slot?.toLocaleString() || '-'}
+                    {dashboardData?.slot?.toLocaleString() || '0'}
                   </p>
                 </div>
                 <div className="bg-[#1d2d3a] rounded-lg p-3">
                   <p className="text-gray-400 text-xs mb-1">TPS</p>
                   <p className="text-cyan-400 font-bold text-lg">
-                    {dashboardData?.tps?.toLocaleString() || '-'}
+                    {dashboardData?.tps?.toLocaleString() || '0'}
                   </p>
                 </div>
                 <div className="bg-[#1d2d3a] rounded-lg p-3">
                   <p className="text-gray-400 text-xs mb-1">Total TXs</p>
                   <p className="text-white font-bold text-lg">
-                    {formatNumber(dashboardData?.transactionCount)}
+                    {formatNumber(dashboardData?.transactionCount || 0)}
                   </p>
                 </div>
               </div>
@@ -460,19 +478,19 @@ export default function Dashboard() {
                 <div>
                   <p className="text-gray-400 text-xs mb-1">Active</p>
                   <p className="text-emerald-400 font-bold text-xl">
-                    {dashboardData?.validators?.current || '-'}
+                    {dashboardData?.validators?.current || '0'}
                   </p>
                 </div>
                 <div>
                   <p className="text-gray-400 text-xs mb-1">Delinquent</p>
                   <p className="text-red-400 font-bold text-xl">
-                    {dashboardData?.validators?.delinquent || '-'}
+                    {dashboardData?.validators?.delinquent || '0'}
                   </p>
                 </div>
                 <div>
                   <p className="text-gray-400 text-xs mb-1">Total Stake</p>
                   <p className="text-white font-bold text-xl">
-                    {formatNumber(dashboardData?.validators?.totalStake)}
+                    {formatNumber(dashboardData?.validators?.totalStake || 0)}
                   </p>
                 </div>
               </div>
@@ -483,7 +501,7 @@ export default function Dashboard() {
           <div className="space-y-4">
             {/* Epoch Progress */}
             <div className="bg-[#24384a] rounded-xl p-4">
-              <h3 className="text-gray-400 text-sm mb-3">EPOCH {dashboardData?.epoch || '-'} PROGRESS</h3>
+              <h3 className="text-gray-400 text-sm mb-3">EPOCH {dashboardData?.epoch || '0'} PROGRESS</h3>
               <div className="flex items-center gap-4">
                 <div className="flex-1">
                   <div className="h-3 bg-[#1d2d3a] rounded-full overflow-hidden">
