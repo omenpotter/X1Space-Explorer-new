@@ -44,39 +44,61 @@ export default function ValidatorRewards() {
         let totalRewards = 0;
         
         // Fetch rewards for last 97 epochs to match x1rewards.xyz data
-        const fetchPromises = [];
-        for (let i = 1; i <= 97; i++) {
-          const epoch = currentEpoch - i;
-          if (epoch < 0) break;
+        // Batch requests in groups of 10 for better performance
+        for (let batchStart = 1; batchStart <= 97; batchStart += 10) {
+          const batchEnd = Math.min(batchStart + 9, 97);
+          const batchPromises = [];
           
-          fetchPromises.push(
-            X1Rpc.getInflationReward([voteAddress.trim()], epoch)
-              .then(rewards => ({ epoch, rewards }))
-              .catch(() => ({ epoch, rewards: null }))
-          );
-        }
-        
-        const results = await Promise.all(fetchPromises);
-        
-        for (const { epoch, rewards } of results.reverse()) {
-          if (rewards && rewards[0]) {
-            // Handle both lamports (number) and null amounts
-            const rewardLamports = rewards[0].amount || 0;
-            const rewardXNT = rewardLamports / 1e9;
+          for (let i = batchStart; i <= batchEnd; i++) {
+            const epoch = currentEpoch - i;
+            if (epoch < 0) break;
             
-            // Only add if there's actual reward data
-            if (rewardXNT > 0) {
-              totalRewards += rewardXNT;
-              
+            batchPromises.push(
+              X1Rpc.getInflationReward([voteAddress.trim()], epoch)
+                .then(rewards => {
+                  // RPC returns array with one entry per address
+                  if (rewards && Array.isArray(rewards) && rewards[0]) {
+                    const reward = rewards[0];
+                    // amount is in lamports, can be null if no rewards that epoch
+                    if (reward.amount !== null && reward.amount !== undefined) {
+                      const rewardXNT = reward.amount / 1e9;
+                      const postBalance = (reward.postBalance || 0) / 1e9;
+                      const commission = reward.commission !== undefined ? reward.commission : found.commission;
+                      
+                      return { epoch, rewards: rewardXNT, postBalance, commission, valid: true };
+                    }
+                  }
+                  return { epoch, rewards: 0, valid: false };
+                })
+                .catch(err => {
+                  console.warn(`Failed to fetch epoch ${epoch}:`, err.message);
+                  return { epoch, rewards: 0, valid: false };
+                })
+            );
+          }
+          
+          const batchResults = await Promise.all(batchPromises);
+          
+          for (const result of batchResults) {
+            if (result.valid && result.rewards > 0) {
+              totalRewards += result.rewards;
               rewardHistory.push({
-                epoch,
-                rewards: rewardXNT,
-                postBalance: (rewards[0].postBalance || 0) / 1e9,
-                commission: rewards[0].commission !== undefined ? rewards[0].commission : found.commission
+                epoch: result.epoch,
+                rewards: result.rewards,
+                postBalance: result.postBalance,
+                commission: result.commission
               });
             }
           }
+          
+          // Small delay between batches to avoid rate limiting
+          if (batchEnd < 97) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
         }
+        
+        // Sort by epoch ascending
+        rewardHistory.sort((a, b) => a.epoch - b.epoch);
         
         console.log(`✓ Fetched ${rewardHistory.length} epochs of reward data. Total: ${totalRewards.toFixed(2)} XNT`);
         
@@ -245,7 +267,7 @@ export default function ValidatorRewards() {
               <Button
                 variant={calculatorMode === 'rewards' ? 'default' : 'outline'}
                 onClick={() => setCalculatorMode('rewards')}
-                className={calculatorMode === 'rewards' ? 'bg-cyan-500' : 'border-white/20'}
+                className={calculatorMode === 'rewards' ? 'bg-cyan-500 hover:bg-cyan-600' : 'border-white/20'}
               >
                 <DollarSign className="w-4 h-4 mr-2" />
                 Rewards

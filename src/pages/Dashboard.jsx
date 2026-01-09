@@ -97,24 +97,22 @@ export default function Dashboard() {
       const [data, blocks] = await Promise.all([
         X1Rpc.getDashboardData().catch(err => {
           console.error('Dashboard data error:', err);
-          return dashboardData; // Keep existing data on error
+          return null; // Return null, don't replace existing
         }),
         X1Rpc.getRecentBlocks(10).catch(err => {
           console.error('Recent blocks error:', err);
-          return recentBlocks; // Keep existing data on error
+          return null; // Return null, don't replace existing
         })
       ]);
       
-      // Only update if we got valid data
-      if (data && Object.keys(data).length > 0) {
+      // CRITICAL: Only update if we got valid data, otherwise keep existing
+      if (data && Object.keys(data).length > 0 && data.slot && data.tps !== undefined) {
         setDashboardData(data);
-        // Persist to sessionStorage
         sessionStorage.setItem('x1-dashboard-data', JSON.stringify(data));
         setError(null);
       }
-      if (blocks && blocks.length > 0) {
+      if (blocks && Array.isArray(blocks) && blocks.length > 0) {
         setRecentBlocks(blocks);
-        // Persist to sessionStorage
         sessionStorage.setItem('x1-recent-blocks', JSON.stringify(blocks));
       }
       
@@ -123,25 +121,25 @@ export default function Dashboard() {
       
       // Fetch secondary data in background (non-blocking)
       Promise.all([
-        X1Rpc.getPerformanceHistory(60).catch(() => performanceData),
+        X1Rpc.getPerformanceHistory(60).catch(() => null),
         X1Rpc.getPendingTransactions().catch(() => [])
       ]).then(([perfHistory, pendingTxs]) => {
         if (perfHistory && perfHistory.length > 0) {
           setPerformanceData(perfHistory);
         }
-        setPendingTxCount(pendingTxs.length);
+        if (Array.isArray(pendingTxs)) {
+          setPendingTxCount(pendingTxs.length);
+        }
       }).catch(err => {
         console.warn('Secondary data fetch failed:', err);
       });
     } catch (err) {
       console.error('Failed to fetch data:', err);
-      // Don't clear existing data on error
-      if (!dashboardData) {
-        setError(err.message);
-        setLoading(false);
-      }
+      // NEVER clear existing data on error
+      setError(null); // Don't show error if we have cached data
+      setLoading(false);
     }
-  }, [dashboardData, recentBlocks, performanceData]);
+  }, []);
 
   const aggregatedBlocks = useMemo(() => {
     // Calculate ratios from recent blocks data (actual on-chain tx types)
