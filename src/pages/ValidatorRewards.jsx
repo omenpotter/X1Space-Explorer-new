@@ -34,46 +34,40 @@ export default function ValidatorRewards() {
       if (found) {
         setValidator(found);
         
-        // Fetch real inflation rewards from vote account
-        try {
-          const epochInfo = await X1Rpc.getEpochInfo();
-          const currentEpoch = epochInfo.epoch;
+        // Fetch actual on-chain rewards
+        const epochInfo = await X1Rpc.getEpochInfo();
+        const currentEpoch = epochInfo.epoch;
+        
+        // Fetch inflation rewards for multiple epochs
+        const rewardHistory = [];
+        let totalRewards = 0;
+        
+        // Get rewards for last 30 epochs
+        for (let i = 0; i < 30; i++) {
+          const epoch = currentEpoch - 1 - i;
+          if (epoch < 0) break;
           
-          // Get inflation rewards for last 30 epochs
-          const epochs = Array.from({ length: 30 }, (_, i) => currentEpoch - i);
-          const inflationRewards = await X1Rpc.getInflationReward([voteAddress.trim()], currentEpoch - 1);
-          
-          // Build reward history from actual blockchain data
-          const rewardHistory = [];
-          let totalRewards = 0;
-          
-          // Use actual epoch credits to calculate rewards
-          for (let i = 0; i < Math.min(30, epochs.length); i++) {
-            const epoch = epochs[epochs.length - 1 - i];
-            
-            // Calculate rewards based on stake and commission
-            // Self-stake rewards (no commission) + Commission from delegated stake
-            const selfStakeRatio = 0.086; // ~8.6% average self-stake ratio from example
-            const selfStakeAmount = found.activatedStake * selfStakeRatio;
-            const delegatedStake = found.activatedStake * (1 - selfStakeRatio);
-            
-            // Epoch rewards calculation (based on X1 network parameters)
-            const epochRewardRate = 0.000038; // ~0.0038% per epoch
-            const selfStakeReward = selfStakeAmount * epochRewardRate;
-            const voteReward = delegatedStake * epochRewardRate * (found.commission / 100);
-            const totalEpochReward = selfStakeReward + voteReward;
-            
-            totalRewards += totalEpochReward;
-            
-            rewardHistory.push({
-              epoch,
-              rewards: totalEpochReward,
-              selfStakeReward,
-              voteReward,
-              credits: found.creditsThisEpoch
-            });
+          try {
+            const rewards = await X1Rpc.getInflationReward([voteAddress.trim()], epoch);
+            if (rewards && rewards[0]) {
+              const lamports = rewards[0].amount || 0;
+              const rewardXNT = lamports / 1e9;
+              totalRewards += rewardXNT;
+              
+              rewardHistory.unshift({
+                epoch,
+                rewards: rewardXNT,
+                postBalance: (rewards[0].postBalance || 0) / 1e9,
+                commission: rewards[0].commission || found.commission
+              });
+            }
+          } catch (err) {
+            console.warn(`Could not fetch rewards for epoch ${epoch}:`, err);
           }
-          
+        }
+        
+        // If we got actual data, use it
+        if (rewardHistory.length > 0) {
           setRewardData({
             totalRewards,
             lastEpochRewards: rewardHistory[rewardHistory.length - 1]?.rewards || 0,
@@ -81,21 +75,15 @@ export default function ValidatorRewards() {
             history: rewardHistory,
             estimatedAPY: 7.2
           });
-        } catch (rewardErr) {
-          console.warn('Could not fetch inflation rewards, using estimates:', rewardErr);
-          // Fallback to basic calculation
-          const avgEpochReward = 8.7; // Based on actual data from x1rewards
-          const rewardHistory = Array.from({ length: 30 }, (_, i) => ({
-            epoch: 112 - (29 - i),
-            rewards: avgEpochReward * (0.95 + Math.random() * 0.1),
-            credits: found.creditsThisEpoch
-          }));
-          
+        } else {
+          // Fallback: fetch vote account balance history
+          const signatures = await X1Rpc.getSignaturesForAddress(voteAddress.trim(), { limit: 50 });
+          console.log('Vote account has', signatures.length, 'transactions');
           setRewardData({
-            totalRewards: rewardHistory.reduce((sum, r) => sum + r.rewards, 0),
-            lastEpochRewards: rewardHistory[rewardHistory.length - 1]?.rewards || 0,
-            avgPerEpoch: avgEpochReward,
-            history: rewardHistory,
+            totalRewards: 0,
+            lastEpochRewards: 0,
+            avgPerEpoch: 0,
+            history: [],
             estimatedAPY: 7.2
           });
         }

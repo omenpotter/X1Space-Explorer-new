@@ -52,34 +52,34 @@ export default function ValidatorDetail() {
           setValidator(found);
           setError(null);
           
-          // Generate reward history based on real data pattern
+          // Fetch actual on-chain rewards
           const epochInfo = await X1Rpc.getEpochInfo();
           const currentEpoch = epochInfo.epoch;
           
-          // Calculate realistic rewards based on stake and commission
-          const selfStakeRatio = 0.086; // ~8.6% self-stake ratio
-          const selfStakeAmount = found.activatedStake * selfStakeRatio;
-          const delegatedStake = found.activatedStake * (1 - selfStakeRatio);
-          const epochRewardRate = 0.000038; // Per epoch reward rate
+          const history = [];
+          for (let i = 0; i < 30; i++) {
+            const epoch = currentEpoch - 1 - i;
+            if (epoch < 0) break;
+            
+            try {
+              const rewards = await X1Rpc.getInflationReward([found.votePubkey], epoch);
+              if (rewards && rewards[0]) {
+                const lamports = rewards[0].amount || 0;
+                const rewardXNT = lamports / 1e9;
+                
+                history.unshift({
+                  epoch,
+                  rewards: rewardXNT,
+                  postBalance: (rewards[0].postBalance || 0) / 1e9,
+                  commission: rewards[0].commission || found.commission
+                });
+              }
+            } catch (err) {
+              console.warn(`Could not fetch rewards for epoch ${epoch}`);
+            }
+          }
           
-          const history = Array.from({ length: 30 }, (_, i) => {
-            const epoch = currentEpoch - (29 - i);
-            const selfStakeReward = selfStakeAmount * epochRewardRate;
-            const voteReward = delegatedStake * epochRewardRate * (found.commission / 100);
-            const totalReward = selfStakeReward + voteReward;
-            
-            // Add small variance
-            const variance = 0.95 + Math.random() * 0.1;
-            
-            return {
-              epoch,
-              rewards: totalReward * variance,
-              selfStakeReward: selfStakeReward * variance,
-              voteReward: voteReward * variance,
-              credits: found.creditsThisEpoch
-            };
-          });
-          setRewardHistory(history);
+          setRewardHistory(history.length > 0 ? history : []);
         } else {
           setError('Validator not found');
         }
