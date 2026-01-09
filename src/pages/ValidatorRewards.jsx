@@ -248,7 +248,7 @@ export default function ValidatorRewards() {
               <Button
                 variant={calculatorMode === 'compound' ? 'default' : 'outline'}
                 onClick={() => setCalculatorMode('compound')}
-                className={calculatorMode === 'compound' ? 'bg-cyan-500' : 'border-white/20'}
+                className={calculatorMode === 'compound' ? 'bg-cyan-500 hover:bg-cyan-600' : 'border-white/20'}
               >
                 <TrendingUp className="w-4 h-4 mr-2" />
                 Compound
