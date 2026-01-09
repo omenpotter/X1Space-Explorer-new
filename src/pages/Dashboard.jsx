@@ -77,7 +77,7 @@ export default function Dashboard() {
       // Update UI immediately - show dashboard ASAP
       setDashboardData(data);
       setLastUpdate(new Date());
-      if (loading) setLoading(false); // Only set loading to false once
+      setLoading(false);
       setError(null);
       
       // Fetch everything else in background (non-blocking)
@@ -97,7 +97,7 @@ export default function Dashboard() {
         setLoading(false);
       }
     }
-  }, [loading, dashboardData]);
+  }, [dashboardData]);
 
   const aggregatedBlocks = useMemo(() => {
     // Calculate ratios from recent blocks data (actual on-chain tx types)
@@ -215,8 +215,8 @@ export default function Dashboard() {
     return h > 0 ? `~${h}h ${m}m` : `~${m}m`;
   };
 
-  // Only show initial loading state, don't hide content on subsequent updates
-  const isInitialLoad = loading && !dashboardData;
+  // Show content immediately once we have any data, never hide it again
+  const hasData = !!dashboardData;
 
   return (
     <div className="min-h-screen bg-[#1d2d3a] text-white">
@@ -353,8 +353,8 @@ export default function Dashboard() {
       )}
 
       <main className="max-w-[1800px] mx-auto px-4 py-6">
-        {/* Block Visualization */}
-        {!isInitialLoad && (
+        {/* Block Visualization - always show once we have data */}
+        {hasData && (
           <div className="flex flex-col gap-4 mb-8">
             {/* X1 View Box */}
             <div className="bg-[#24384a] rounded-xl p-4">
@@ -399,7 +399,7 @@ export default function Dashboard() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {isInitialLoad ? (
+          {!hasData ? (
             <>
               {/* Skeleton loaders for initial load only */}
               <div className="space-y-4">
@@ -555,7 +555,7 @@ export default function Dashboard() {
         </div>
 
         {/* Quick Links and Recent Blocks - Lazy loaded */}
-        {!isInitialLoad && (
+        {hasData && (
           <Suspense fallback={<div className="mt-8 h-32 bg-slate-800/20 rounded-xl animate-pulse" />}>
             <QuickLinks />
             <RecentBlocksTable blocks={recentBlocks} />
