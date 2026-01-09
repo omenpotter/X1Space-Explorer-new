@@ -46,10 +46,10 @@ export default function Dashboard() {
   const [mempoolInterval, setMempoolInterval] = useState('1m');
   
   // Use refs for data to prevent object replacement and remounts
-  const dashboardRef = useRef(null);
-  const recentBlocksRef = useRef([]);
-  const performanceDataRef = useRef([]);
-  const pendingTxCountRef = useRef(0);
+  const dashboardRef = React.useRef(null);
+  const recentBlocksRef = React.useRef([]);
+  const performanceDataRef = React.useRef([]);
+  const pendingTxCountRef = React.useRef(0);
   const [, forceRender] = useState(0);
 
   // Read from ref for stable memoization
@@ -232,7 +232,7 @@ export default function Dashboard() {
     return aggregated.length > 0 ? aggregated : [];
   }, [mempoolInterval, recentBlocks, performanceData]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     // Single stable interval - created exactly once
     initDashboard();
     const interval = setInterval(pollDashboard, 3000);
@@ -414,40 +414,39 @@ export default function Dashboard() {
       <main className="max-w-[1800px] mx-auto px-4 py-6">
         {/* Block Visualization - permanently mounted */}
         <div className="flex flex-col gap-4 mb-8">
-            {/* X1 View Box */}
-            <div className="bg-[#24384a] rounded-xl p-4">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-white font-medium">X1 View</span>
-                  <div className="flex gap-1 bg-[#1d2d3a] rounded-lg p-1">
-                    {['1m', '10m'].map((interval) => (
-                      <button
-                        key={interval}
-                        onClick={() => setMempoolInterval(interval)}
-                        className={`px-3 py-1.5 text-xs rounded ${mempoolInterval === interval ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
-                      >
-                        {interval}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <MempoolLegend />
-                  <div className="flex items-center gap-2 ml-4">
-                    <span className="text-emerald-400 text-sm font-medium">XNT $1.00</span>
-                    <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">OTC</Badge>
-                  </div>
+          {/* X1 View Box */}
+          <div className="bg-[#24384a] rounded-xl p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <span className="text-white font-medium">X1 View</span>
+                <div className="flex gap-1 bg-[#1d2d3a] rounded-lg p-1">
+                  {['1m', '10m'].map((interval) => (
+                    <button
+                      key={interval}
+                      onClick={() => setMempoolInterval(interval)}
+                      className={`px-3 py-1.5 text-xs rounded ${mempoolInterval === interval ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
+                      {interval}
+                    </button>
+                  ))}
                 </div>
               </div>
-              <MempoolViz 
-                mempoolInterval={mempoolInterval}
-                recentBlocks={recentBlocks}
-                aggregatedBlocks={aggregatedBlocks}
-                dashboardSlot={dashboardData?.slot}
-                showPending={true}
-                pendingCount={pendingTxCount}
-              />
+              <div className="flex items-center gap-3">
+                <MempoolLegend />
+                <div className="flex items-center gap-2 ml-4">
+                  <span className="text-emerald-400 text-sm font-medium">XNT $1.00</span>
+                  <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">OTC</Badge>
+                </div>
+              </div>
             </div>
+            <MempoolViz 
+              mempoolInterval={mempoolInterval}
+              recentBlocks={recentBlocks}
+              aggregatedBlocks={aggregatedBlocks}
+              dashboardSlot={dashboardData?.slot}
+              showPending={true}
+              pendingCount={pendingTxCount}
+            />
           </div>
         </div>
 
