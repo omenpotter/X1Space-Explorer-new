@@ -11,10 +11,11 @@ const ThemeToggle = lazy(() => import('../components/common/ThemeToggle'));
 const GlobalSearch = lazy(() => import('../components/common/GlobalSearch'));
 
 const MobileNav = lazy(() => import('../components/layout/MobileNav'));
-const MempoolViz = lazy(() => import('../components/x1/MempoolViz'));
+// Import directly to avoid Suspense remounting during live updates
+import MempoolViz from '../components/x1/MempoolViz';
 const QuickLinks = lazy(() => import('../components/dashboard/QuickLinks'));
 const RecentBlocksTable = lazy(() => import('@/components/dashboard/RecentBlocksTable'));
-const MempoolLegend = lazy(() => import('../components/x1/MempoolViz').then(m => ({ default: m.MempoolLegend })));
+import { MempoolLegend } from '../components/x1/MempoolViz';
 
 // Lazy load recharts
 const LazyChart = lazy(() => import('recharts').then(m => ({
@@ -71,16 +72,30 @@ export default function Dashboard() {
 
   const fetchData = React.useCallback(async () => {
     try {
-      // Fetch only most critical data first
       const data = await X1Rpc.getDashboardData();
       
-      // Update UI immediately - show dashboard ASAP
-      setDashboardData(data);
+      // CRITICAL: Patch state instead of replacing to prevent remounts
+      setDashboardData(prev => {
+        if (!prev) return data; // Initial load
+        // Live update - only patch changed fields
+        return {
+          ...prev,
+          slot: data.slot,
+          tps: data.tps,
+          epochProgress: data.epochProgress,
+          slotsRemaining: data.slotsRemaining,
+          timeRemaining: data.timeRemaining,
+          tpsHistory: data.tpsHistory,
+          transactionCount: data.transactionCount,
+          supply: data.supply
+        };
+      });
+      
       setLastUpdate(new Date());
       setLoading(false);
       setError(null);
       
-      // Fetch everything else in background (non-blocking)
+      // Fetch secondary data in background
       Promise.all([
         X1Rpc.getRecentBlocks(10).catch(() => []),
         X1Rpc.getPerformanceHistory(60).catch(() => []),
@@ -92,12 +107,10 @@ export default function Dashboard() {
       }).catch(() => {});
     } catch (err) {
       console.error('Failed to fetch data:', err);
-      if (!dashboardData) {
-        setError(err.message);
-        setLoading(false);
-      }
+      setError(err.message);
+      setLoading(false);
     }
-  }, [dashboardData]);
+  }, []); // NO DEPENDENCIES - stable reference
 
   const aggregatedBlocks = useMemo(() => {
     // Calculate ratios from recent blocks data (actual on-chain tx types)
@@ -189,12 +202,11 @@ export default function Dashboard() {
   }, [mempoolInterval, recentBlocks, performanceData]);
 
   useEffect(() => {
-    // Fetch immediately on mount for fast initial load
+    // Single stable interval - created once on mount
     fetchData();
-    // Refresh every 3 seconds for live slot updates at 3000+ TPS
     const interval = setInterval(fetchData, 3000);
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, []); // NO DEPENDENCIES - never recreates interval
 
   const handleSearch = () => {
     if (searchQuery) {
@@ -374,25 +386,21 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Suspense fallback={<div className="h-4" />}>
-                    <MempoolLegend />
-                  </Suspense>
+                  <MempoolLegend />
                   <div className="flex items-center gap-2 ml-4">
                     <span className="text-emerald-400 text-sm font-medium">XNT $1.00</span>
                     <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">OTC</Badge>
                   </div>
                 </div>
               </div>
-              <Suspense fallback={<div className="flex gap-2">{Array(10).fill(0).map((_, i) => <div key={i} className="w-[100px] h-[140px] bg-slate-800/50 rounded-lg animate-pulse" />)}</div>}>
-                <MempoolViz 
-                  mempoolInterval={mempoolInterval}
-                  recentBlocks={recentBlocks}
-                  aggregatedBlocks={aggregatedBlocks}
-                  dashboardSlot={dashboardData?.slot}
-                  showPending={true}
-                  pendingCount={pendingTxCount}
-                />
-              </Suspense>
+              <MempoolViz 
+                mempoolInterval={mempoolInterval}
+                recentBlocks={recentBlocks}
+                aggregatedBlocks={aggregatedBlocks}
+                dashboardSlot={dashboardData?.slot}
+                showPending={true}
+                pendingCount={pendingTxCount}
+              />
             </div>
           </div>
         )}
@@ -536,14 +544,10 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="h-[200px]">
-                {aggregatedTpsData.length > 0 ? (
+                {aggregatedTpsData.length > 0 && (
                   <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500">Loading chart...</div>}>
                     <LazyChart data={aggregatedTpsData} tpsInterval={tpsInterval} />
                   </Suspense>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-gray-500">
-                    Loading TPS data...
-                  </div>
                 )}
               </div>
             </div>

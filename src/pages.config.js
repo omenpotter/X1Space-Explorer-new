@@ -3,6 +3,7 @@ import ApiDocs from './pages/ApiDocs';
 import BlockDetail from './pages/BlockDetail';
 import Blocks from './pages/Blocks';
 import CustomDashboard from './pages/CustomDashboard';
+import Dashboard from './pages/Dashboard';
 import Home from './pages/Home';
 import Leaderboard from './pages/Leaderboard';
 import NetworkHealth from './pages/NetworkHealth';
@@ -16,11 +17,10 @@ import TransactionFlowPage from './pages/TransactionFlowPage';
 import Transactions from './pages/Transactions';
 import ValidatorAlerts from './pages/ValidatorAlerts';
 import ValidatorCompare from './pages/ValidatorCompare';
-import Watchlist from './pages/Watchlist';
-import WhaleWatcher from './pages/WhaleWatcher';
 import ValidatorDetail from './pages/ValidatorDetail';
 import Validators from './pages/Validators';
-import Dashboard from './pages/Dashboard';
+import Watchlist from './pages/Watchlist';
+import WhaleWatcher from './pages/WhaleWatcher';
 import __Layout from './Layout.jsx';
 
 
@@ -30,6 +30,7 @@ export const PAGES = {
     "BlockDetail": BlockDetail,
     "Blocks": Blocks,
     "CustomDashboard": CustomDashboard,
+    "Dashboard": Dashboard,
     "Home": Home,
     "Leaderboard": Leaderboard,
     "NetworkHealth": NetworkHealth,
@@ -43,11 +44,10 @@ export const PAGES = {
     "Transactions": Transactions,
     "ValidatorAlerts": ValidatorAlerts,
     "ValidatorCompare": ValidatorCompare,
-    "Watchlist": Watchlist,
-    "WhaleWatcher": WhaleWatcher,
     "ValidatorDetail": ValidatorDetail,
     "Validators": Validators,
-    "Dashboard": Dashboard,
+    "Watchlist": Watchlist,
+    "WhaleWatcher": WhaleWatcher,
 }
 
 export const pagesConfig = {
