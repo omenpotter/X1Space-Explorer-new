@@ -38,7 +38,21 @@ const ValidatorCard = memo(function ValidatorCard({ validator, rank, totalStake 
       <td className="px-4 py-4 text-gray-500 text-sm font-mono">{rank}</td>
       <td className="px-4 py-4">
         <Link to={createPageUrl('ValidatorDetail') + `?id=${validator.votePubkey}`} className="flex items-center gap-3 group">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-500/30 flex items-center justify-center text-sm shrink-0">
+          {validator.iconUrl ? (
+            <img
+              src={validator.iconUrl}
+              alt={validator.name}
+              className="w-10 h-10 rounded-full object-cover shrink-0"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                e.target.nextSibling.style.display = 'flex';
+              }}
+            />
+          ) : null}
+          <div 
+            className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-500/30 flex items-center justify-center text-sm shrink-0"
+            style={{ display: validator.iconUrl ? 'none' : 'flex' }}
+          >
             {validator.icon || (
               <span className="font-bold text-cyan-400">{rank}</span>
             )}
