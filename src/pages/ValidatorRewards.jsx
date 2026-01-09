@@ -34,39 +34,47 @@ export default function ValidatorRewards() {
       if (found) {
         setValidator(found);
         
-        // Fetch actual on-chain rewards
+        // Fetch actual on-chain inflation rewards using proper RPC method
         const epochInfo = await X1Rpc.getEpochInfo();
         const currentEpoch = epochInfo.epoch;
         
-        // Fetch inflation rewards for multiple epochs
+        console.log(`Fetching rewards for ${voteAddress.trim()} from epoch ${currentEpoch - 97} to ${currentEpoch - 1}`);
+        
         const rewardHistory = [];
         let totalRewards = 0;
         
-        // Get rewards for last 30 epochs
-        for (let i = 0; i < 30; i++) {
-          const epoch = currentEpoch - 1 - i;
+        // Fetch rewards for last 97 epochs to match x1rewards.xyz data
+        const fetchPromises = [];
+        for (let i = 1; i <= 97; i++) {
+          const epoch = currentEpoch - i;
           if (epoch < 0) break;
           
-          try {
-            const rewards = await X1Rpc.getInflationReward([voteAddress.trim()], epoch);
-            if (rewards && rewards[0]) {
-              const lamports = rewards[0].amount || 0;
-              const rewardXNT = lamports / 1e9;
-              totalRewards += rewardXNT;
-              
-              rewardHistory.unshift({
-                epoch,
-                rewards: rewardXNT,
-                postBalance: (rewards[0].postBalance || 0) / 1e9,
-                commission: rewards[0].commission || found.commission
-              });
-            }
-          } catch (err) {
-            console.warn(`Could not fetch rewards for epoch ${epoch}:`, err);
+          fetchPromises.push(
+            X1Rpc.getInflationReward([voteAddress.trim()], epoch)
+              .then(rewards => ({ epoch, rewards }))
+              .catch(() => ({ epoch, rewards: null }))
+          );
+        }
+        
+        const results = await Promise.all(fetchPromises);
+        
+        for (const { epoch, rewards } of results.reverse()) {
+          if (rewards && rewards[0] && rewards[0].amount) {
+            const rewardLamports = rewards[0].amount;
+            const rewardXNT = rewardLamports / 1e9;
+            totalRewards += rewardXNT;
+            
+            rewardHistory.push({
+              epoch,
+              rewards: rewardXNT,
+              postBalance: (rewards[0].postBalance || 0) / 1e9,
+              commission: rewards[0].commission !== undefined ? rewards[0].commission : found.commission
+            });
           }
         }
         
-        // If we got actual data, use it
+        console.log(`✓ Fetched ${rewardHistory.length} epochs of reward data. Total: ${totalRewards.toFixed(2)} XNT`);
+        
         if (rewardHistory.length > 0) {
           setRewardData({
             totalRewards,
@@ -76,15 +84,13 @@ export default function ValidatorRewards() {
             estimatedAPY: 7.2
           });
         } else {
-          // Fallback: fetch vote account balance history
-          const signatures = await X1Rpc.getSignaturesForAddress(voteAddress.trim(), { limit: 50 });
-          console.log('Vote account has', signatures.length, 'transactions');
+          console.warn('No reward data found - validator may be too new or data not available');
           setRewardData({
             totalRewards: 0,
             lastEpochRewards: 0,
             avgPerEpoch: 0,
             history: [],
-            estimatedAPY: 7.2
+            estimatedAPY: 0
           });
         }
       } else {
@@ -92,7 +98,7 @@ export default function ValidatorRewards() {
         setRewardData(null);
       }
     } catch (err) {
-      console.error('Failed to fetch validator:', err);
+      console.error('Failed to fetch validator rewards:', err);
     } finally {
       setLoading(false);
     }

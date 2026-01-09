@@ -52,34 +52,43 @@ export default function ValidatorDetail() {
           setValidator(found);
           setError(null);
           
-          // Fetch actual on-chain rewards
+          // Fetch actual on-chain inflation rewards
           const epochInfo = await X1Rpc.getEpochInfo();
           const currentEpoch = epochInfo.epoch;
           
-          const history = [];
-          for (let i = 0; i < 30; i++) {
-            const epoch = currentEpoch - 1 - i;
+          console.log(`Fetching rewards for validator ${found.votePubkey.slice(0, 8)} from epoch ${currentEpoch - 30} to ${currentEpoch - 1}`);
+          
+          const fetchPromises = [];
+          for (let i = 1; i <= 30; i++) {
+            const epoch = currentEpoch - i;
             if (epoch < 0) break;
             
-            try {
-              const rewards = await X1Rpc.getInflationReward([found.votePubkey], epoch);
-              if (rewards && rewards[0]) {
-                const lamports = rewards[0].amount || 0;
-                const rewardXNT = lamports / 1e9;
-                
-                history.unshift({
-                  epoch,
-                  rewards: rewardXNT,
-                  postBalance: (rewards[0].postBalance || 0) / 1e9,
-                  commission: rewards[0].commission || found.commission
-                });
-              }
-            } catch (err) {
-              console.warn(`Could not fetch rewards for epoch ${epoch}`);
+            fetchPromises.push(
+              X1Rpc.getInflationReward([found.votePubkey], epoch)
+                .then(rewards => ({ epoch, rewards }))
+                .catch(() => ({ epoch, rewards: null }))
+            );
+          }
+          
+          const results = await Promise.all(fetchPromises);
+          const history = [];
+          
+          for (const { epoch, rewards } of results.reverse()) {
+            if (rewards && rewards[0] && rewards[0].amount) {
+              const rewardLamports = rewards[0].amount;
+              const rewardXNT = rewardLamports / 1e9;
+              
+              history.push({
+                epoch,
+                rewards: rewardXNT,
+                postBalance: (rewards[0].postBalance || 0) / 1e9,
+                commission: rewards[0].commission !== undefined ? rewards[0].commission : found.commission
+              });
             }
           }
           
-          setRewardHistory(history.length > 0 ? history : []);
+          console.log(`✓ Loaded ${history.length} epochs of reward history`);
+          setRewardHistory(history);
         } else {
           setError('Validator not found');
         }
