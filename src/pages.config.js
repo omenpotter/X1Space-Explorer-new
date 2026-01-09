@@ -21,6 +21,7 @@ import ValidatorDetail from './pages/ValidatorDetail';
 import Validators from './pages/Validators';
 import Watchlist from './pages/Watchlist';
 import WhaleWatcher from './pages/WhaleWatcher';
+import ValidatorRewards from './pages/ValidatorRewards';
 import __Layout from './Layout.jsx';
 
 
@@ -48,6 +49,7 @@ export const PAGES = {
     "Validators": Validators,
     "Watchlist": Watchlist,
     "WhaleWatcher": WhaleWatcher,
+    "ValidatorRewards": ValidatorRewards,
 }
 
 export const pagesConfig = {

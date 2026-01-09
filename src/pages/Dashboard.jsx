@@ -215,24 +215,13 @@ export default function Dashboard() {
     return h > 0 ? `~${h}h ${m}m` : `~${m}m`;
   };
 
-  if (loading && !dashboardData) {
-    return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex flex-col items-center justify-center">
-        <div className="flex gap-2 mb-4">
-          <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
-            <span className="text-black font-black text-3xl">X1</span>
-          </div>
-        </div>
-        <h1 className="text-2xl font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></h1>
-        <div className="mt-4 flex items-center gap-2">
-          <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
-          <span className="text-gray-400 text-sm">Connecting...</span>
-        </div>
-      </div>
-    );
-  }
+  // Show skeleton UI while loading instead of full-screen loader
+  const showSkeleton = loading && !dashboardData;
 
   return (
+    <>
+      <title>X1 Blockchain Explorer | Real-time Network Stats & Analytics</title>
+      <meta name="description" content="X1Space - Real-time X1 blockchain explorer with live network stats, validators, transactions, and token analytics. Track TPS, blocks, and validator performance." />
     <div className="min-h-screen bg-[#1d2d3a] text-white">
       {/* Header */}
       <header className="bg-[#1d2d3a] border-b border-white/5">
@@ -387,9 +376,9 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <Suspense fallback={<div className="h-4" />}>
-                  <MempoolLegend />
-                </Suspense>
+                <Suspense fallback={<div className="h-4" aria-hidden="true" />}>
+                          <MempoolLegend />
+                        </Suspense>
                 <div className="flex items-center gap-2 ml-4">
                   <span className="text-emerald-400 text-sm font-medium">XNT $1.00</span>
                   <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">OTC</Badge>
@@ -555,6 +544,7 @@ export default function Dashboard() {
           <RecentBlocksTable blocks={recentBlocks} />
         </Suspense>
       </main>
-    </div>
-  );
-}
+      </div>
+      </>
+      );
+      }

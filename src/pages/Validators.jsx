@@ -23,6 +23,11 @@ import StakeDistribution from '../components/validators/StakeDistribution';
 import ExportButton from '../components/common/ExportButton';
 
 export default function Validators() {
+  useEffect(() => {
+    document.title = 'X1 Validators | X1Space';
+    const meta = document.querySelector('meta[name="description"]');
+    if (meta) meta.content = 'Browse X1 network validators, track performance, stake, commission, and uptime. Real-time validator statistics and analytics.';
+  }, []);
   const [validators, setValidators] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -121,17 +126,17 @@ export default function Validators() {
               <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
             </div>
             
-            <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('Blocks')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg></Button></Link>
-              <Link to={createPageUrl('Validators')}><Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></svg></Button></Link>
-              <Link to={createPageUrl('Transactions')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg></Button></Link>
+            <nav className="hidden md:flex items-center gap-1" role="navigation" aria-label="Main navigation">
+              <Link to={createPageUrl('Dashboard')} aria-label="Dashboard"><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg" aria-label="Dashboard"><Zap className="w-5 h-5" aria-hidden="true" /></Button></Link>
+              <Link to={createPageUrl('Blocks')} aria-label="Blocks"><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg" aria-label="Blocks"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg></Button></Link>
+              <Link to={createPageUrl('Validators')} aria-label="Validators"><Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg" aria-label="Validators"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></svg></Button></Link>
+              <Link to={createPageUrl('Transactions')} aria-label="Transactions"><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg" aria-label="Transactions"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg></Button></Link>
             </nav>
             
             <div className="flex-1 max-w-md">
               <div className="relative">
                 <Input placeholder="Search validators..." className="w-full bg-[#24384a] border-0 text-white placeholder:text-gray-500 pr-10 rounded-lg" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                <Button size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 bg-cyan-500 hover:bg-cyan-600 h-7 w-7 rounded"><Search className="w-4 h-4 text-black" /></Button>
+                <Button size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 bg-cyan-500 hover:bg-cyan-600 h-7 w-7 rounded" aria-label="Search validators"><Search className="w-4 h-4 text-black" aria-hidden="true" /></Button>
               </div>
             </div>
           </div>
@@ -196,6 +201,15 @@ export default function Validators() {
               <Button variant="outline" size="sm" className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10">
                 <Scale className="w-4 h-4 mr-2" />
                 Compare
+              </Button>
+            </Link>
+            <Link to={createPageUrl('ValidatorRewards')}>
+              <Button variant="outline" size="sm" className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10">
+                <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <circle cx="12" cy="12" r="8" />
+                  <path d="M12 2v20M2 12h20" />
+                </svg>
+                Rewards
               </Button>
             </Link>
             <ExportButton 
