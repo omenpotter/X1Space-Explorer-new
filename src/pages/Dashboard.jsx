@@ -40,15 +40,23 @@ import X1Rpc from '../components/x1/X1RpcService';
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [dashboardData, setDashboardData] = useState(null);
-  const [recentBlocks, setRecentBlocks] = useState([]);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [tpsInterval, setTpsInterval] = useState('1m');
   const [mempoolInterval, setMempoolInterval] = useState('1m');
-  const [performanceData, setPerformanceData] = useState([]);
-  const [pendingTxCount, setPendingTxCount] = useState(0);
+  
+  // Use refs for data to prevent object replacement and remounts
+  const dashboardRef = useRef(null);
+  const recentBlocksRef = useRef([]);
+  const performanceDataRef = useRef([]);
+  const pendingTxCountRef = useRef(0);
+  const [, forceRender] = useState(0);
+
+  // Read from ref for stable memoization
+  const dashboardData = dashboardRef.current;
+  const recentBlocks = recentBlocksRef.current;
+  const performanceData = performanceDataRef.current;
+  const pendingTxCount = pendingTxCountRef.current;
 
   const aggregatedTpsData = useMemo(() => {
     if (!dashboardData?.tpsHistory?.length) return [];
@@ -70,47 +78,70 @@ export default function Dashboard() {
     return aggregated;
   }, [dashboardData?.tpsHistory, tpsInterval]);
 
-  const fetchData = React.useCallback(async () => {
+  const initDashboard = async () => {
     try {
       const data = await X1Rpc.getDashboardData();
-      
-      // CRITICAL: Patch state instead of replacing to prevent remounts
-      setDashboardData(prev => {
-        if (!prev) return data; // Initial load
-        // Live update - only patch changed fields
-        return {
-          ...prev,
-          slot: data.slot,
-          tps: data.tps,
-          epochProgress: data.epochProgress,
-          slotsRemaining: data.slotsRemaining,
-          timeRemaining: data.timeRemaining,
-          tpsHistory: data.tpsHistory,
-          transactionCount: data.transactionCount,
-          supply: data.supply
-        };
-      });
-      
+      dashboardRef.current = data;
       setLastUpdate(new Date());
-      setLoading(false);
       setError(null);
+      forceRender(x => x + 1);
       
-      // Fetch secondary data in background
+      // Fetch secondary data
       Promise.all([
         X1Rpc.getRecentBlocks(10).catch(() => []),
         X1Rpc.getPerformanceHistory(60).catch(() => []),
         X1Rpc.getPendingTransactions().catch(() => [])
       ]).then(([blocks, perfHistory, pendingTxs]) => {
-        setRecentBlocks(blocks);
-        setPerformanceData(perfHistory);
-        setPendingTxCount(pendingTxs.length);
+        recentBlocksRef.current = blocks;
+        performanceDataRef.current = perfHistory;
+        pendingTxCountRef.current = pendingTxs.length;
+        forceRender(x => x + 1);
       }).catch(() => {});
     } catch (err) {
       console.error('Failed to fetch data:', err);
       setError(err.message);
-      setLoading(false);
     }
-  }, []); // NO DEPENDENCIES - stable reference
+  };
+
+  const pollDashboard = async () => {
+    try {
+      const data = await X1Rpc.getDashboardData();
+      
+      if (!dashboardRef.current) return;
+      
+      // CRITICAL: Patch in place, never replace object
+      Object.assign(dashboardRef.current, {
+        slot: data.slot,
+        tps: data.tps,
+        epochProgress: data.epochProgress,
+        slotsRemaining: data.slotsRemaining,
+        timeRemaining: data.timeRemaining,
+        tpsHistory: data.tpsHistory,
+        transactionCount: data.transactionCount,
+        supply: data.supply,
+        validators: data.validators
+      });
+      
+      setLastUpdate(new Date());
+      setError(null);
+      forceRender(x => x + 1);
+      
+      // Update secondary data
+      Promise.all([
+        X1Rpc.getRecentBlocks(10).catch(() => []),
+        X1Rpc.getPerformanceHistory(60).catch(() => []),
+        X1Rpc.getPendingTransactions().catch(() => [])
+      ]).then(([blocks, perfHistory, pendingTxs]) => {
+        recentBlocksRef.current = blocks;
+        performanceDataRef.current = perfHistory;
+        pendingTxCountRef.current = pendingTxs.length;
+        forceRender(x => x + 1);
+      }).catch(() => {});
+    } catch (err) {
+      console.error('Poll failed:', err);
+      if (!dashboardRef.current) setError(err.message);
+    }
+  };
 
   const aggregatedBlocks = useMemo(() => {
     // Calculate ratios from recent blocks data (actual on-chain tx types)
@@ -202,11 +233,11 @@ export default function Dashboard() {
   }, [mempoolInterval, recentBlocks, performanceData]);
 
   useEffect(() => {
-    // Single stable interval - created once on mount
-    fetchData();
-    const interval = setInterval(fetchData, 3000);
+    // Single stable interval - created exactly once
+    initDashboard();
+    const interval = setInterval(pollDashboard, 3000);
     return () => clearInterval(interval);
-  }, []); // NO DEPENDENCIES - never recreates interval
+  }, []);
 
   const handleSearch = () => {
     if (searchQuery) {
@@ -227,9 +258,25 @@ export default function Dashboard() {
     return h > 0 ? `~${h}h ${m}m` : `~${m}m`;
   };
 
-  // Show content immediately once we have any data, never hide it again
-  const hasData = !!dashboardData;
+  // Initial skeleton only
+  if (!dashboardData) {
+    return (
+      <div className="min-h-screen bg-[#1d2d3a] text-white flex flex-col items-center justify-center">
+        <div className="flex gap-2 mb-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
+            <span className="text-black font-black text-3xl">X1</span>
+          </div>
+        </div>
+        <h1 className="text-2xl font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></h1>
+        <div className="mt-4 flex items-center gap-2">
+          <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
+          <span className="text-gray-400 text-sm">Connecting...</span>
+        </div>
+      </div>
+    );
+  }
 
+  // From here on, everything stays mounted forever
   return (
     <div className="min-h-screen bg-[#1d2d3a] text-white">
       {/* Header */}
@@ -365,9 +412,8 @@ export default function Dashboard() {
       )}
 
       <main className="max-w-[1800px] mx-auto px-4 py-6">
-        {/* Block Visualization - always show once we have data */}
-        {hasData && (
-          <div className="flex flex-col gap-4 mb-8">
+        {/* Block Visualization - permanently mounted */}
+        <div className="flex flex-col gap-4 mb-8">
             {/* X1 View Box */}
             <div className="bg-[#24384a] rounded-xl p-4">
               <div className="flex items-center justify-between mb-4">
@@ -403,25 +449,10 @@ export default function Dashboard() {
               />
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Stats Grid */}
+        {/* Stats Grid - permanently mounted */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {!hasData ? (
-            <>
-              {/* Skeleton loaders for initial load only */}
-              <div className="space-y-4">
-                <div className="bg-[#24384a] rounded-xl p-4 h-32 animate-pulse" />
-                <div className="bg-[#24384a] rounded-xl p-4 h-32 animate-pulse" />
-                <div className="bg-[#24384a] rounded-xl p-4 h-32 animate-pulse" />
-              </div>
-              <div className="space-y-4">
-                <div className="bg-[#24384a] rounded-xl p-4 h-32 animate-pulse" />
-                <div className="bg-[#24384a] rounded-xl p-4 h-48 animate-pulse" />
-              </div>
-            </>
-          ) : (
-            <>
           {/* Left Column */}
           <div className="space-y-4">
             {/* Live Network Stats */}
@@ -544,27 +575,25 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="h-[200px]">
-                {aggregatedTpsData.length > 0 && (
-                  <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500">Loading chart...</div>}>
+                {aggregatedTpsData.length > 0 ? (
+                  <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500">Loading...</div>}>
                     <LazyChart data={aggregatedTpsData} tpsInterval={tpsInterval} />
                   </Suspense>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-gray-500">Loading...</div>
                 )}
               </div>
             </div>
 
 
           </div>
-            </>
-          )}
         </div>
 
-        {/* Quick Links and Recent Blocks - Lazy loaded */}
-        {hasData && (
-          <Suspense fallback={<div className="mt-8 h-32 bg-slate-800/20 rounded-xl animate-pulse" />}>
-            <QuickLinks />
-            <RecentBlocksTable blocks={recentBlocks} />
-          </Suspense>
-        )}
+        {/* Quick Links and Recent Blocks - permanently mounted */}
+        <Suspense fallback={<div className="mt-8 h-32 bg-slate-800/20 rounded-xl animate-pulse" />}>
+          <QuickLinks />
+          <RecentBlocksTable blocks={recentBlocks} />
+        </Suspense>
       </main>
     </div>
   );
