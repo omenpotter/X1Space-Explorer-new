@@ -260,6 +260,7 @@ export default function Validators() {
                   <th className="text-right text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('lastVote')}>
                     <div className="flex items-center justify-end gap-1">Last Vote <ArrowUpDown className="w-3 h-3" /></div>
                   </th>
+                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Est. Rewards</th>
                   <th className="text-center text-gray-400 text-xs font-medium px-4 py-3">Status</th>
                 </tr>
               </thead>

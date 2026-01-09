@@ -16,6 +16,11 @@ const ValidatorCard = memo(function ValidatorCard({ validator, rank, totalStake 
     return stake.toFixed(2);
   };
 
+  // Calculate estimated APY and annual rewards
+  const networkAPY = 7.2;
+  const effectiveAPY = networkAPY * (1 - validator.commission / 100);
+  const annualRewards = validator.activatedStake * (effectiveAPY / 100);
+
   const getUptimeColor = (uptime) => {
     if (uptime >= 99) return 'text-emerald-400';
     if (uptime >= 95) return 'text-yellow-400';
