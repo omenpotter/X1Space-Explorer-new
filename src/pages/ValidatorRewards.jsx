@@ -59,17 +59,22 @@ export default function ValidatorRewards() {
         const results = await Promise.all(fetchPromises);
         
         for (const { epoch, rewards } of results.reverse()) {
-          if (rewards && rewards[0] && rewards[0].amount) {
-            const rewardLamports = rewards[0].amount;
+          if (rewards && rewards[0]) {
+            // Handle both lamports (number) and null amounts
+            const rewardLamports = rewards[0].amount || 0;
             const rewardXNT = rewardLamports / 1e9;
-            totalRewards += rewardXNT;
             
-            rewardHistory.push({
-              epoch,
-              rewards: rewardXNT,
-              postBalance: (rewards[0].postBalance || 0) / 1e9,
-              commission: rewards[0].commission !== undefined ? rewards[0].commission : found.commission
-            });
+            // Only add if there's actual reward data
+            if (rewardXNT > 0) {
+              totalRewards += rewardXNT;
+              
+              rewardHistory.push({
+                epoch,
+                rewards: rewardXNT,
+                postBalance: (rewards[0].postBalance || 0) / 1e9,
+                commission: rewards[0].commission !== undefined ? rewards[0].commission : found.commission
+              });
+            }
           }
         }
         

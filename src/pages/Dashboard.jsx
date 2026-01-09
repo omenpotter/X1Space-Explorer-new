@@ -41,8 +41,30 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [dashboardData, setDashboardData] = useState(null);
-  const [recentBlocks, setRecentBlocks] = useState([]);
+  const [dashboardData, setDashboardData] = useState(() => {
+    // Load from sessionStorage to prevent data loss on refresh
+    const cached = sessionStorage.getItem('x1-dashboard-data');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+  const [recentBlocks, setRecentBlocks] = useState(() => {
+    // Load from sessionStorage
+    const cached = sessionStorage.getItem('x1-recent-blocks');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
   const [lastUpdate, setLastUpdate] = useState(null);
   const [tpsInterval, setTpsInterval] = useState('1m');
   const [mempoolInterval, setMempoolInterval] = useState('1m');
@@ -86,10 +108,14 @@ export default function Dashboard() {
       // Only update if we got valid data
       if (data && Object.keys(data).length > 0) {
         setDashboardData(data);
+        // Persist to sessionStorage
+        sessionStorage.setItem('x1-dashboard-data', JSON.stringify(data));
         setError(null);
       }
       if (blocks && blocks.length > 0) {
         setRecentBlocks(blocks);
+        // Persist to sessionStorage
+        sessionStorage.setItem('x1-recent-blocks', JSON.stringify(blocks));
       }
       
       setLastUpdate(new Date());
