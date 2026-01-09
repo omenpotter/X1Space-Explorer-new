@@ -303,36 +303,22 @@ export async function getDashboardData() {
   const cached = getCached('dashboardData');
   if (cached) return cached;
 
-  // Fetch ONLY critical data - remove non-essential calls
+  // Fetch all data in parallel - use shorter timeout for speed
   const [
     slot,
     epochInfo,
     performanceSamples,
+    supply,
+    transactionCount,
     voteAccounts
   ] = await Promise.all([
     getSlot().catch(() => 0),
     getEpochInfo().catch(() => null),
-    getRecentPerformanceSamples(20).catch(() => []), // Reduced from 30 to 20
+    getRecentPerformanceSamples(20).catch(() => []),
+    getSupply().catch(() => ({ value: { total: 0, circulating: 0, nonCirculating: 0 } })),
+    getTransactionCount().catch(() => 0),
     getVoteAccounts().catch(() => ({ current: [], delinquent: [] }))
   ]);
-
-  // Fetch non-critical data in background after returning
-  Promise.all([
-    getSupply().catch(() => null),
-    getTransactionCount().catch(() => 0)
-  ]).then(([supply, txCount]) => {
-    // Update cache with full data when available
-    const updatedData = {
-      ...getCached('dashboardData'),
-      supply: supply ? {
-        total: (supply?.value?.total || 0) / 1e9,
-        circulating: (supply?.value?.circulating || 0) / 1e9,
-        nonCirculating: (supply?.value?.nonCirculating || 0) / 1e9
-      } : { total: 0, circulating: 0, nonCirculating: 0 },
-      transactionCount: txCount || 0
-    };
-    setCache('dashboardData', updatedData, 'short');
-  }).catch(() => {});
 
   // Calculate TPS from performance samples
   const avgTps = performanceSamples.length > 0
@@ -350,28 +336,28 @@ export async function getDashboardData() {
 
   const result = {
     slot: slot || 0,
-    blockHeight: 0, // Will be populated later
+    blockHeight: 0,
     epoch: epochInfo?.epoch || 0,
     epochProgress: parseFloat(epochProgress),
     slotsRemaining,
     timeRemaining,
-    transactionCount: 0, // Will be populated later
+    transactionCount: transactionCount || 0,
     tps: avgTps,
     tpsHistory: performanceSamples.map((s, i) => ({
       time: `${performanceSamples.length - i}m`,
       tps: Math.round(s.numTransactions / s.samplePeriodSecs)
     })).reverse(),
     supply: {
-      total: 0,
-      circulating: 0,
-      nonCirculating: 0
-    }, // Will be populated later
+      total: (supply?.value?.total || 0) / 1e9,
+      circulating: (supply?.value?.circulating || 0) / 1e9,
+      nonCirculating: (supply?.value?.nonCirculating || 0) / 1e9
+    },
     validators: {
       current: voteAccounts?.current?.length || 0,
       delinquent: voteAccounts?.delinquent?.length || 0,
       totalStake: ((voteAccounts?.current || []).reduce((sum, v) => sum + v.activatedStake, 0) + (voteAccounts?.delinquent || []).reduce((sum, v) => sum + v.activatedStake, 0)) / 1e9
     },
-    version: 'loading'
+    version: 'x1'
   };
   
   // Cache dashboard data for 3 seconds
