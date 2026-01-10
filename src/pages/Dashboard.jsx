@@ -294,72 +294,51 @@ export default function Dashboard() {
               </div>
             </div>
             
-            <nav className="flex items-center gap-1">
+            <nav className="flex items-center gap-2">
               <Link to={createPageUrl('Dashboard')} aria-label="Dashboard">
-                <Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg" aria-label="Dashboard">
-                  <Zap className="w-5 h-5" />
+                <Button variant="ghost" className="text-cyan-400 bg-cyan-500/10 rounded-lg text-sm" aria-label="Dashboard">
+                  Dashboard
                 </Button>
               </Link>
               <Link to={createPageUrl('Blocks')} aria-label="Blocks">
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" aria-label="Blocks">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                    <rect x="3" y="3" width="7" height="7" />
-                    <rect x="14" y="3" width="7" height="7" />
-                    <rect x="3" y="14" width="7" height="7" />
-                    <rect x="14" y="14" width="7" height="7" />
-                  </svg>
+                <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Blocks">
+                  Blocks
                 </Button>
               </Link>
               <Link to={createPageUrl('Validators')} aria-label="Validators">
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" aria-label="Validators">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                    <path d="M3 3v18h18" />
-                    <path d="M18 17V9" />
-                    <path d="M13 17V5" />
-                    <path d="M8 17v-3" />
-                  </svg>
+                <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Validators">
+                  Validators
                 </Button>
               </Link>
               <Link to={createPageUrl('Transactions')} aria-label="Transactions">
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" aria-label="Transactions">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                  </svg>
+                <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Transactions">
+                  Transactions
                 </Button>
               </Link>
               <Link to={createPageUrl('NetworkHealth')} aria-label="Network Health">
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" aria-label="Network Health">
-                  <Globe className="w-5 h-5" />
+                <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Network Health">
+                  Network
                 </Button>
               </Link>
               <Link to={createPageUrl('StakingCalculator')} aria-label="Staking Calculator">
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" aria-label="Staking Calculator">
-                  <Calculator className="w-5 h-5" />
+                <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Staking Calculator">
+                  Staking
                 </Button>
               </Link>
               <Link to={createPageUrl('AddressLookup')} aria-label="Address Lookup">
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" aria-label="Address Lookup">
-                  <Wallet className="w-5 h-5" />
+                <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Address Lookup">
+                  Lookup
                 </Button>
               </Link>
               <Link to={createPageUrl('CustomDashboard')} aria-label="Custom Dashboard">
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" aria-label="Custom Dashboard">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                    <rect x="3" y="3" width="7" height="9" rx="1" />
-                    <rect x="14" y="3" width="7" height="5" rx="1" />
-                    <rect x="14" y="12" width="7" height="9" rx="1" />
-                    <rect x="3" y="16" width="7" height="5" rx="1" />
-                  </svg>
+                <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Custom Dashboard">
+                  Custom
                 </Button>
               </Link>
 
               <Link to={createPageUrl('TokenExplorer')} aria-label="Token Explorer">
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg" aria-label="Token Explorer">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                    <circle cx="12" cy="12" r="8" />
-                    <path d="M12 2v20M2 12h20" />
-                  </svg>
+                <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Token Explorer">
+                  Tokens
                 </Button>
               </Link>
             </nav>
