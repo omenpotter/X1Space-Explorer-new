@@ -124,7 +124,6 @@ export default function Dashboard() {
       
       setLastUpdate(new Date());
       setError(null);
-      forceRender(x => x + 1);
       
       // Update secondary data
       Promise.all([
@@ -284,9 +283,7 @@ export default function Dashboard() {
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-                <Suspense fallback={<MiniFallback />}>
-                  <MobileNav />
-                </Suspense>
+              <MobileNav />
               <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
                 <span className="text-black font-black text-sm">X1</span>
               </div>
@@ -404,7 +401,7 @@ export default function Dashboard() {
           <div className="max-w-[1800px] mx-auto flex items-center gap-2 text-red-400 text-sm">
             <AlertCircle className="w-4 h-4" />
             <span>Error connecting to X1 RPC: {error}</span>
-            <Button variant="ghost" size="sm" onClick={fetchData} className="ml-auto text-red-400">
+            <Button variant="ghost" size="sm" onClick={pollDashboard} className="ml-auto text-red-400">
               Retry
             </Button>
           </div>
@@ -575,24 +572,18 @@ export default function Dashboard() {
               </div>
               <div className="h-[200px]">
                 {aggregatedTpsData.length > 0 ? (
-                  <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500">Loading...</div>}>
-                    <LazyChart data={aggregatedTpsData} tpsInterval={tpsInterval} />
-                  </Suspense>
+                  <LazyChart data={aggregatedTpsData} tpsInterval={tpsInterval} />
                 ) : (
                   <div className="h-full flex items-center justify-center text-gray-500">Loading...</div>
                 )}
               </div>
             </div>
-
-
           </div>
         </div>
 
         {/* Quick Links and Recent Blocks - permanently mounted */}
-        <Suspense fallback={<div className="mt-8 h-32 bg-slate-800/20 rounded-xl animate-pulse" />}>
-          <QuickLinks />
-          <RecentBlocksTable blocks={recentBlocks} />
-        </Suspense>
+        <QuickLinks />
+        <RecentBlocksTable blocks={recentBlocks} />
       </main>
     </div>
   );
