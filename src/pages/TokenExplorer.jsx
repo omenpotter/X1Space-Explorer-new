@@ -382,7 +382,7 @@ export default function TokenExplorer() {
         case 'marketCap': return direction * (b.marketCap - a.marketCap);
         case 'price': return direction * (parseFloat(b.price) - parseFloat(a.price));
         case 'change': return direction * (parseFloat(b.priceChange24h) - parseFloat(a.priceChange24h));
-        case 'volume': return direction * (b.volume24h - a.volume24h);
+  
         case 'name': return direction * a.name.localeCompare(b.name);
         default: return 0;
       }
@@ -968,7 +968,7 @@ export default function TokenExplorer() {
               <option value="marketCap">Market Cap</option>
               <option value="price">Price</option>
               <option value="change">24h Change</option>
-              <option value="volume">Volume</option>
+
               <option value="supply">Supply</option>
               <option value="name">Name</option>
             </select>
@@ -1077,7 +1077,6 @@ export default function TokenExplorer() {
                   <th className="text-right text-gray-400 text-xs px-4 py-3 cursor-pointer hover:text-white" onClick={() => setSortBy('price')}>Price</th>
                   <th className="text-right text-gray-400 text-xs px-4 py-3 cursor-pointer hover:text-white" onClick={() => setSortBy('change')}>24h Change</th>
                   <th className="text-right text-gray-400 text-xs px-4 py-3 cursor-pointer hover:text-white" onClick={() => setSortBy('marketCap')}>Market Cap</th>
-                  <th className="text-right text-gray-400 text-xs px-4 py-3 cursor-pointer hover:text-white" onClick={() => setSortBy('volume')}>24h Volume</th>
                   <th className="text-right text-gray-400 text-xs px-4 py-3 cursor-pointer hover:text-white" onClick={() => setSortBy('supply')}>Supply</th>
                   <th className="text-center text-gray-400 text-xs px-4 py-3"></th>
                 </tr>
@@ -1128,7 +1127,6 @@ export default function TokenExplorer() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right text-gray-400">${formatNum(token.marketCap)}</td>
-                    <td className="px-4 py-3 text-right text-gray-400">${formatNum(token.volume24h)}</td>
                     <td className="px-4 py-3 text-right text-gray-400">{formatNum(token.totalSupply)}</td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-2">
