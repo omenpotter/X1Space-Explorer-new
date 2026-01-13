@@ -8,6 +8,7 @@ import { createPageUrl } from '@/utils';
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip, XAxis, PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area } from 'recharts';
 import { startTokenScanner, stopTokenScanner, getDiscoveredTokens } from '../components/x1/TokenDiscovery';
 import { startPriceFeed, stopPriceFeed, subscribeToPriceUpdates, unsubscribeFromPriceUpdates } from '../components/x1/PriceFeed';
+import X1Api from '../components/x1/X1ApiClient';
 
 // Helper to derive Metaplex metadata PDA
 const deriveMetadataPDA = async (mint) => {
@@ -72,10 +73,19 @@ export default function TokenExplorer() {
   const [discoveredTokens, setDiscoveredTokens] = useState([]);
   const [showDiscovered, setShowDiscovered] = useState(false);
   const [livePriceIndicator, setLivePriceIndicator] = useState(false);
+  const [apiHealthy, setApiHealthy] = useState(false);
+  const [creatorProfile, setCreatorProfile] = useState(null);
+  const [liquidityPools, setLiquidityPools] = useState([]);
 
   useEffect(() => {
     loadWatchlist();
     fetchData();
+    
+    // Check X1 API health
+    X1Api.checkHealth().then(health => {
+      setApiHealthy(health.status === 'online');
+      console.log('X1 API Status:', health.status);
+    });
     
     // Start background services
     startTokenScanner();
@@ -100,10 +110,20 @@ export default function TokenExplorer() {
       setTimeout(() => setLivePriceIndicator(false), 2000);
     });
     
+    // Subscribe to real-time token updates via WebSocket
+    const unsubscribe = X1Api.subscribeToTokenUpdates((update) => {
+      console.log('Real-time token update:', update);
+      if (update.type === 'token_verified' || update.type === 'token_updated') {
+        fetchData(); // Refresh token list on updates
+      }
+    });
+    
     return () => {
       stopTokenScanner();
       stopPriceFeed();
       unsubscribeFromPriceUpdates();
+      unsubscribe();
+      X1Api.disconnectWebSocket();
     };
   }, []);
 
@@ -123,7 +143,60 @@ export default function TokenExplorer() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Check cache first
+      // Try X1 API first if available
+      if (apiHealthy) {
+        console.log('🔄 Fetching tokens from X1 API...');
+        const apiTokens = await X1Api.listTokens({ limit: 100, verified: true });
+        
+        if (apiTokens.success && apiTokens.data.tokens.length > 0) {
+          console.log(`✓ Loaded ${apiTokens.data.tokens.length} tokens from X1 API`);
+          const tokenList = apiTokens.data.tokens.map(token => ({
+            mint: token.mint,
+            name: token.name || 'Unknown Token',
+            symbol: token.symbol || 'UNKNOWN',
+            logo: token.logo_uri,
+            decimals: token.decimals || 9,
+            totalSupply: token.total_supply || 0,
+            tokenType: token.token_type || 'SPL Token',
+            price: token.price?.toFixed(4) || '0.0000',
+            marketCap: token.market_cap || 0,
+            priceChange24h: token.price_change_24h?.toFixed(2) || '0.00',
+            volume24h: token.volume_24h || 0,
+            mintAuthority: token.mint_authority,
+            freezeAuthority: token.freeze_authority,
+            website: token.website,
+            twitter: token.twitter,
+            verified: token.verified === true,
+            priceHistory: token.price_history || []
+          }));
+          
+          setAllTokens(tokenList);
+          
+          // Also get discovered tokens from API
+          const discoveredApi = await X1Api.listTokens({ limit: 100, verified: false });
+          if (discoveredApi.success) {
+            const discovered = discoveredApi.data.tokens.map(token => ({
+              mint: token.mint,
+              name: token.name || 'Unknown Token',
+              symbol: token.symbol || 'UNKNOWN',
+              logo: token.logo_uri,
+              decimals: token.decimals || 9,
+              totalSupply: token.total_supply || 0,
+              tokenType: token.token_type || 'SPL Token',
+              price: '0.0000',
+              verified: false
+            }));
+            setDiscoveredTokens(discovered);
+            console.log(`✓ Found ${discovered.length} discovered tokens from API`);
+          }
+          
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // Fallback to original method if API not available
+      console.log('⚠️ X1 API unavailable, using fallback method...');
       const { getCachedTokens, setCachedTokens, fetchTokenList } = await import('../components/x1/TokenRegistry');
       const { fetchRealtimePrices } = await import('../components/x1/PriceFeed');
       
@@ -135,7 +208,6 @@ export default function TokenExplorer() {
         setValidators(cached.validators);
         setAllTokens(cached.tokens);
         
-        // Load discovered tokens in background
         const discovered = getDiscoveredTokens();
         setDiscoveredTokens(discovered);
         
@@ -145,14 +217,12 @@ export default function TokenExplorer() {
       
       const X1Rpc = (await import('../components/x1/X1RpcService')).default;
       
-      // Fetch basic network data in parallel
       const [supplyData, voteData, knownTokens] = await Promise.all([
         X1Rpc.getSupply().catch(() => null),
         X1Rpc.getVoteAccounts().catch(() => ({ current: [], delinquent: [] })),
         fetchTokenList()
       ]);
       
-      // Process supply
       if (supplyData?.value) {
         const val = supplyData.value;
         setSupply({
@@ -161,7 +231,6 @@ export default function TokenExplorer() {
         });
       }
 
-      // Process validators
       if (voteData) {
         const totalStake = (voteData.current.reduce((sum, v) => sum + v.activatedStake, 0) + 
                            voteData.delinquent.reduce((sum, v) => sum + v.activatedStake, 0)) / 1e9;
@@ -175,17 +244,14 @@ export default function TokenExplorer() {
       console.log('Building token list...');
       const tokenList = [];
       
-      // Fetch real-time prices
       const prices = await fetchRealtimePrices();
       setLivePriceIndicator(true);
       setTimeout(() => setLivePriceIndicator(false), 2000);
       
-      // Build token list from registry - optimized
       Object.entries(knownTokens).forEach(([mint, tokenData]) => {
         const priceData = prices[mint] || {};
         const basePrice = priceData.price || 1.0;
         
-        // Simplified price history for faster loading
         const priceHistory = Array.from({ length: 30 }, (_, i) => ({
           timestamp: Date.now() - (30 - i) * 86400000,
           price: basePrice * (1 + (Math.random() - 0.5) * 0.1)
@@ -215,12 +281,10 @@ export default function TokenExplorer() {
       console.log(`✓ Loaded ${tokenList.length} verified tokens`);
       setAllTokens(tokenList);
       
-      // Load discovered tokens
       const discovered = getDiscoveredTokens();
       setDiscoveredTokens(discovered);
       console.log(`✓ Found ${discovered.length} discovered tokens`);
       
-      // Cache the results
       setCachedTokens({
         supply: { total: Number(supplyData?.value?.total || 0) / 1e9, circulating: Number(supplyData?.value?.circulating || 0) / 1e9 },
         validators: { totalStake: (voteData.current.reduce((sum, v) => sum + v.activatedStake, 0) + voteData.delinquent.reduce((sum, v) => sum + v.activatedStake, 0)) / 1e9, activeCount: voteData.current.length },
@@ -321,8 +385,112 @@ export default function TokenExplorer() {
     setTokenTransactions([]);
     setTokenHolders([]);
     setTokenMetadata(null);
+    setCreatorProfile(null);
+    setLiquidityPools([]);
     
     try {
+      // Try fetching from X1 API first
+      if (apiHealthy) {
+        console.log('🔄 Fetching token details from X1 API...');
+        const [apiDetails, apiHolders, apiTxs, apiPools] = await Promise.all([
+          X1Api.getTokenDetails(mint),
+          X1Api.getTokenHolders(mint, { limit: 50 }),
+          X1Api.getTokenTransactions(mint, { limit: 50 }),
+          X1Api.getLiquidityPools(mint)
+        ]);
+        
+        if (apiDetails.success) {
+          const token = apiDetails.data.token;
+          setTokenDetails({
+            mint: token.mint,
+            decimals: token.decimals || 9,
+            supply: token.total_supply || 0,
+            mintAuthority: token.mint_authority || 'None',
+            freezeAuthority: token.freeze_authority || 'None',
+            isInitialized: true,
+            supplyType: token.mint_authority ? 'Mintable' : 'Fixed Supply',
+            creationDate: token.created_at ? new Date(token.created_at) : null,
+            blockTime: token.created_at ? new Date(token.created_at).getTime() / 1000 : null
+          });
+          
+          if (token.metadata) {
+            setTokenMetadata({
+              name: token.name,
+              symbol: token.symbol,
+              image: token.logo_uri,
+              description: token.description,
+              website: token.website,
+              twitter: token.twitter
+            });
+          }
+          
+          // Get creator profile if available
+          if (token.creator_address) {
+            const creator = await X1Api.getCreatorProfile(token.creator_address);
+            if (creator.success) {
+              setCreatorProfile(creator.data.creator);
+            }
+          }
+        }
+        
+        if (apiHolders.success) {
+          const holders = apiHolders.data.holders.map(h => ({
+            address: h.owner_address,
+            balance: h.balance,
+            percentage: h.percentage
+          }));
+          setTokenHolders(holders);
+          
+          const top10 = holders.slice(0, 10);
+          const others = holders.slice(10).reduce((sum, h) => sum + h.percentage, 0);
+          const chartData = [
+            ...top10.map((h, i) => ({
+              name: `Holder ${i + 1}`,
+              value: h.percentage,
+              address: h.address
+            })),
+            ...(others > 0 ? [{ name: 'Others', value: others, address: null }] : [])
+          ];
+          setHolderChartData(chartData);
+        }
+        
+        if (apiTxs.success) {
+          const txs = apiTxs.data.transactions.map(tx => ({
+            signature: tx.signature,
+            blockTime: new Date(tx.timestamp).getTime() / 1000,
+            type: tx.type || 'transfer',
+            amount: tx.amount || 0,
+            from: tx.from_address,
+            to: tx.to_address,
+            status: tx.status === 'success' ? 'success' : 'failed'
+          }));
+          setTokenTransactions(txs);
+          
+          const flowData = txs.reduce((acc, tx) => {
+            const hour = Math.floor(tx.blockTime / 3600) * 3600;
+            const existing = acc.find(d => d.timestamp === hour);
+            if (existing) {
+              existing.count += 1;
+              existing.volume += tx.amount;
+            } else {
+              acc.push({ timestamp: hour * 1000, count: 1, volume: tx.amount });
+            }
+            return acc;
+          }, []).sort((a, b) => a.timestamp - b.timestamp);
+          setTxFlowData(flowData);
+        }
+        
+        if (apiPools.success && apiPools.data.pools.length > 0) {
+          setLiquidityPools(apiPools.data.pools);
+          console.log(`✓ Found ${apiPools.data.pools.length} liquidity pools`);
+        }
+        
+        setLoadingDetails(false);
+        return;
+      }
+      
+      // Fallback to RPC if API unavailable
+      console.log('⚠️ X1 API unavailable, using RPC fallback...');
       const X1Rpc = (await import('../components/x1/X1RpcService')).default;
       
       // Fetch token account info first
@@ -624,6 +792,11 @@ export default function TokenExplorer() {
             {livePriceIndicator && (
               <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs animate-pulse">
                 Live Prices Updated
+              </Badge>
+            )}
+            {apiHealthy && (
+              <Badge className="bg-blue-500/20 text-blue-400 border-0 text-xs ml-2">
+                X1 API Connected
               </Badge>
             )}
           </h1>
@@ -994,8 +1167,11 @@ export default function TokenExplorer() {
                         />
                       )}
                       <div className="flex-1">
-                        <h4 className="text-white font-bold text-lg">
+                        <h4 className="text-white font-bold text-lg flex items-center gap-2">
                           {tokenMetadata?.name || allTokens.find(t => t.mint === selectedToken)?.name || 'Token'}
+                          {allTokens.find(t => t.mint === selectedToken)?.verified && (
+                            <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">✓ X1Space Verified</Badge>
+                          )}
                         </h4>
                         <p className="text-gray-400 text-sm">
                           {tokenMetadata?.description || allTokens.find(t => t.mint === selectedToken)?.symbol || 'No description available'}
@@ -1013,6 +1189,71 @@ export default function TokenExplorer() {
                           )}
                         </div>
                       </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Creator Profile */}
+                {creatorProfile && (
+                  <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
+                    <h4 className="text-white font-medium mb-3">Creator / Deployer</h4>
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-white font-bold">
+                        {creatorProfile.name?.charAt(0) || '?'}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-white font-medium">{creatorProfile.name || 'Anonymous'}</p>
+                        <Link to={createPageUrl('AddressLookup') + `?address=${creatorProfile.address}`} className="text-cyan-400 hover:underline font-mono text-xs">
+                          {creatorProfile.address.substring(0, 12)}...{creatorProfile.address.slice(-4)}
+                        </Link>
+                        {creatorProfile.total_tokens > 0 && (
+                          <p className="text-gray-400 text-xs mt-1">Deployed {creatorProfile.total_tokens} tokens</p>
+                        )}
+                      </div>
+                      {creatorProfile.verified && (
+                        <Badge className="bg-emerald-500/20 text-emerald-400 border-0">✓ Verified Creator</Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Liquidity Pools */}
+                {liquidityPools.length > 0 && (
+                  <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
+                    <h4 className="text-white font-medium mb-3">Liquidity Pools (X1 Launcher)</h4>
+                    <div className="space-y-3">
+                      {liquidityPools.map((pool, i) => (
+                        <div key={i} className="bg-[#24384a] rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-white font-medium">{pool.pair_name}</span>
+                              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">{pool.dex_name}</Badge>
+                            </div>
+                            <a 
+                              href={pool.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-cyan-400 hover:text-cyan-300 text-xs"
+                            >
+                              Trade →
+                            </a>
+                          </div>
+                          <div className="grid grid-cols-3 gap-4 text-sm">
+                            <div>
+                              <p className="text-gray-400 text-xs">Liquidity</p>
+                              <p className="text-white font-mono">${formatNum(pool.liquidity_usd)}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-400 text-xs">24h Volume</p>
+                              <p className="text-white font-mono">${formatNum(pool.volume_24h)}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-400 text-xs">Price</p>
+                              <p className="text-white font-mono">${pool.price.toFixed(6)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
