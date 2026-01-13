@@ -151,188 +151,63 @@ export default function TokenExplorer() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Try X1 API first if available
-      if (apiHealthy) {
-        console.log('🔄 Fetching tokens from X1 API...');
-        const apiTokens = await X1Api.listTokens({ limit: 100, verified: true });
-        
-        if (apiTokens.success && apiTokens.data?.tokens?.length > 0) {
-          console.log(`✓ Loaded ${apiTokens.data.tokens.length} tokens from X1 API`);
-          const tokenList = apiTokens.data.tokens.map(token => ({
-            mint: token.mint,
+      // Fetch from X1 API
+      console.log('🔄 Fetching tokens from X1 API...');
+      const [verifiedTokens, unverifiedTokens] = await Promise.all([
+        X1Api.listTokens({ limit: 100, verified: true }),
+        X1Api.listTokens({ limit: 100, verified: false })
+      ]);
+
+      if (verifiedTokens.success && verifiedTokens.data?.tokens?.length > 0) {
+        console.log(`✓ Loaded ${verifiedTokens.data.tokens.length} verified tokens from X1 API`);
+
+        const tokenList = verifiedTokens.data.tokens.map(token => ({
+          mint: token.mint || token.address,
+          name: token.name || 'Unknown Token',
+          symbol: token.symbol || 'UNKNOWN',
+          logo: token.logo_uri,
+          decimals: token.decimals || 9,
+          totalSupply: token.total_supply || 0,
+          tokenType: token.token_type || 'SPL Token',
+          price: token.price ? parseFloat(token.price).toFixed(4) : '0.0000',
+          marketCap: token.market_cap || 0,
+          priceChange24h: token.price_change_24h ? parseFloat(token.price_change_24h).toFixed(2) : '0.00',
+          mintAuthority: token.mint_authority,
+          freezeAuthority: token.freeze_authority,
+          website: token.website,
+          twitter: token.twitter,
+          verified: true,
+          priceHistory: token.price_history || []
+        }));
+
+        setAllTokens(tokenList);
+
+        if (unverifiedTokens.success && unverifiedTokens.data?.tokens?.length > 0) {
+          const discovered = unverifiedTokens.data.tokens.map(token => ({
+            mint: token.mint || token.address,
             name: token.name || 'Unknown Token',
             symbol: token.symbol || 'UNKNOWN',
             logo: token.logo_uri,
             decimals: token.decimals || 9,
             totalSupply: token.total_supply || 0,
             tokenType: token.token_type || 'SPL Token',
-            price: token.price?.toFixed(4) || '0.0000',
-            marketCap: token.market_cap || 0,
-            priceChange24h: token.price_change_24h?.toFixed(2) || '0.00',
-            volume24h: token.volume_24h || 0,
-            mintAuthority: token.mint_authority,
-            freezeAuthority: token.freeze_authority,
-            website: token.website,
-            twitter: token.twitter,
-            verified: token.verified === true,
-            priceHistory: token.price_history || []
+            price: '0.0000',
+            priceChange24h: '0.00',
+            marketCap: 0,
+            verified: false
           }));
-          
-          setAllTokens(tokenList);
-          
-          const discoveredApi = await X1Api.listTokens({ limit: 100, verified: false });
-          if (discoveredApi.success && discoveredApi.data?.tokens) {
-            const discovered = discoveredApi.data.tokens.map(token => ({
-              mint: token.mint,
-              name: token.name || 'Unknown Token',
-              symbol: token.symbol || 'UNKNOWN',
-              logo: token.logo_uri,
-              decimals: token.decimals || 9,
-              totalSupply: token.total_supply || 0,
-              tokenType: token.token_type || 'SPL Token',
-              price: '0.0000',
-              priceChange24h: '0.00',
-              volume24h: 0,
-              marketCap: 0,
-              verified: false
-            }));
-            setDiscoveredTokens(discovered);
-            console.log(`✓ Found ${discovered.length} discovered tokens from API`);
-          }
-          
-          setLoading(false);
-          return;
-        } else {
-          console.log('⚠️ X1 API returned no tokens, falling back to RPC...');
+          setDiscoveredTokens(discovered);
+          console.log(`✓ Found ${discovered.length} discovered tokens from API`);
         }
-      }
-      
-      // Fallback to original method if API not available
-      console.log('⚠️ X1 API unavailable, using fallback method...');
-      
-      // Always add XNT as the first token
-      const baseTokens = [
-        {
-          mint: '11111111111111111111111111111111',
-          name: 'X1 Native Token',
-          symbol: 'XNT',
-          logo: null,
-          decimals: 9,
-          totalSupply: 1000000000,
-          tokenType: 'Native',
-          price: '1.0000',
-          marketCap: 850000000,
-          priceChange24h: '0.00',
-          volume24h: 5000000,
-          mintAuthority: null,
-          freezeAuthority: null,
-          website: 'https://x1.xyz',
-          twitter: 'https://x.com/rkbehelvi',
-          verified: true,
-          priceHistory: Array.from({ length: 30 }, (_, i) => ({
-            timestamp: Date.now() - (30 - i) * 86400000,
-            price: 1.0
-          }))
-        }
-      ];
-      
-      const { getCachedTokens, setCachedTokens, fetchTokenList } = await import('../components/x1/TokenRegistry');
-      const { fetchRealtimePrices } = await import('../components/x1/PriceFeed');
-      
-      const cached = getCachedTokens();
-      
-      if (cached && cached.tokens?.length > 0) {
-        console.log('✓ Using cached token data');
-        setSupply(cached.supply);
-        setValidators(cached.validators);
-        setAllTokens([...baseTokens, ...cached.tokens]);
-        
-        const discovered = getDiscoveredTokens();
-        setDiscoveredTokens(discovered);
-        
+
         setLoading(false);
         return;
       }
-      
-      const X1Rpc = (await import('../components/x1/X1RpcService')).default;
-      
-      const [supplyData, voteData, knownTokens] = await Promise.all([
-        X1Rpc.getSupply().catch(() => null),
-        X1Rpc.getVoteAccounts().catch(() => ({ current: [], delinquent: [] })),
-        fetchTokenList()
-      ]);
-      
-      if (supplyData?.value) {
-        const val = supplyData.value;
-        setSupply({
-          total: Number(val.total) / 1e9,
-          circulating: Number(val.circulating) / 1e9
-        });
-      }
 
-      if (voteData) {
-        const totalStake = (voteData.current.reduce((sum, v) => sum + v.activatedStake, 0) + 
-                           voteData.delinquent.reduce((sum, v) => sum + v.activatedStake, 0)) / 1e9;
-        setValidators({ 
-          totalStake,
-          activeCount: voteData.current.length,
-          delinquentCount: voteData.delinquent.length
-        });
-      }
-
-      console.log('Building token list...');
-      const tokenList = [...baseTokens];
+      console.log('⚠️ X1 API returned no tokens')
       
-      const prices = await fetchRealtimePrices().catch(() => ({}));
-      if (Object.keys(prices).length > 0) {
-        setLivePriceIndicator(true);
-        setTimeout(() => setLivePriceIndicator(false), 2000);
-      }
-      
-      if (knownTokens && Object.keys(knownTokens).length > 0) {
-        Object.entries(knownTokens).forEach(([mint, tokenData]) => {
-          const priceData = prices[mint] || {};
-          const basePrice = priceData.price || 1.0;
-          
-          const priceHistory = Array.from({ length: 30 }, (_, i) => ({
-            timestamp: Date.now() - (30 - i) * 86400000,
-            price: basePrice * (1 + (Math.random() - 0.5) * 0.1)
-          }));
-          
-          tokenList.push({
-            mint,
-            name: tokenData.name,
-            symbol: tokenData.symbol,
-            logo: tokenData.logo,
-            decimals: tokenData.decimals || 9,
-            totalSupply: 1000000000,
-            tokenType: 'SPL Token',
-            price: basePrice.toFixed(4),
-            marketCap: priceData.marketCap || (1000000000 * basePrice),
-            priceChange24h: priceData.priceChange24h?.toFixed(2) || '0.00',
-            volume24h: priceData.volume24h || 0,
-            mintAuthority: tokenData.verified ? null : mint,
-            freezeAuthority: null,
-            website: tokenData.website,
-            twitter: tokenData.twitter,
-            verified: tokenData.verified,
-            priceHistory
-          });
-        });
-      }
-      
-      console.log(`✓ Loaded ${tokenList.length} tokens (including XNT)`);
-      setAllTokens(tokenList);
-      
-      const discovered = getDiscoveredTokens();
-      setDiscoveredTokens(discovered);
-      console.log(`✓ Found ${discovered.length} discovered tokens`);
-      
-      setCachedTokens({
-        supply: { total: Number(supplyData?.value?.total || 0) / 1e9, circulating: Number(supplyData?.value?.circulating || 0) / 1e9 },
-        validators: { totalStake: (voteData.current.reduce((sum, v) => sum + v.activatedStake, 0) + voteData.delinquent.reduce((sum, v) => sum + v.activatedStake, 0)) / 1e9, activeCount: voteData.current.length },
-        tokens: tokenList
-      });
+      setAllTokens([]);
+      setDiscoveredTokens([]);
     } catch (err) {
       console.error('Fetch error:', err);
     } finally {
