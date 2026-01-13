@@ -2,13 +2,16 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Coins, Search, Loader2, TrendingUp, TrendingDown, Star, ChevronLeft, RefreshCw, Copy, Check, Clock, Calendar, Filter, Globe, Twitter } from 'lucide-react';
+import { Coins, Search, Loader2, TrendingUp, TrendingDown, Star, ChevronLeft, RefreshCw, Copy, Check, Clock, Calendar, Filter, Globe, Twitter, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip, XAxis, PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area } from 'recharts';
 import { startTokenScanner, stopTokenScanner, getDiscoveredTokens } from '../components/x1/TokenDiscovery';
 import { startPriceFeed, stopPriceFeed, subscribeToPriceUpdates, unsubscribeFromPriceUpdates } from '../components/x1/PriceFeed';
 import X1Api from '../components/x1/X1ApiClient';
+import WalletConnector from '../components/portfolio/WalletConnector';
+import PortfolioTracker from '../components/portfolio/PortfolioTracker';
+import AIVerificationAssistant from '../components/portfolio/AIVerificationAssistant';
 
 // Helper to derive Metaplex metadata PDA
 const deriveMetadataPDA = async (mint) => {
@@ -76,6 +79,11 @@ export default function TokenExplorer() {
   const [apiHealthy, setApiHealthy] = useState(false);
   const [creatorProfile, setCreatorProfile] = useState(null);
   const [liquidityPools, setLiquidityPools] = useState([]);
+  const [walletConnected, setWalletConnected] = useState(false);
+  const [walletAddress, setWalletAddress] = useState(null);
+  const [showPortfolio, setShowPortfolio] = useState(false);
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [aiAssistantToken, setAiAssistantToken] = useState(null);
 
   useEffect(() => {
     loadWatchlist();
@@ -148,7 +156,7 @@ export default function TokenExplorer() {
         console.log('🔄 Fetching tokens from X1 API...');
         const apiTokens = await X1Api.listTokens({ limit: 100, verified: true });
         
-        if (apiTokens.success && apiTokens.data.tokens.length > 0) {
+        if (apiTokens.success && apiTokens.data?.tokens?.length > 0) {
           console.log(`✓ Loaded ${apiTokens.data.tokens.length} tokens from X1 API`);
           const tokenList = apiTokens.data.tokens.map(token => ({
             mint: token.mint,
@@ -172,9 +180,8 @@ export default function TokenExplorer() {
           
           setAllTokens(tokenList);
           
-          // Also get discovered tokens from API
           const discoveredApi = await X1Api.listTokens({ limit: 100, verified: false });
-          if (discoveredApi.success) {
+          if (discoveredApi.success && discoveredApi.data?.tokens) {
             const discovered = discoveredApi.data.tokens.map(token => ({
               mint: token.mint,
               name: token.name || 'Unknown Token',
@@ -184,6 +191,9 @@ export default function TokenExplorer() {
               totalSupply: token.total_supply || 0,
               tokenType: token.token_type || 'SPL Token',
               price: '0.0000',
+              priceChange24h: '0.00',
+              volume24h: 0,
+              marketCap: 0,
               verified: false
             }));
             setDiscoveredTokens(discovered);
@@ -192,6 +202,8 @@ export default function TokenExplorer() {
           
           setLoading(false);
           return;
+        } else {
+          console.log('⚠️ X1 API returned no tokens, falling back to RPC...');
         }
       }
       
@@ -776,10 +788,33 @@ export default function TokenExplorer() {
                 <span className="font-bold"><span className="text-cyan-400">X1</span>Space</span>
               </Link>
             </div>
-            <Button onClick={fetchData} variant="outline" size="sm" className="border-white/20 text-cyan-400">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <WalletConnector 
+                onConnect={({ address }) => {
+                  setWalletAddress(address);
+                  setWalletConnected(true);
+                }}
+                onDisconnect={() => {
+                  setWalletAddress(null);
+                  setWalletConnected(false);
+                  setShowPortfolio(false);
+                }}
+              />
+              {walletConnected && (
+                <Button 
+                  onClick={() => setShowPortfolio(!showPortfolio)} 
+                  variant="outline" 
+                  size="sm" 
+                  className={`border-white/20 ${showPortfolio ? 'bg-cyan-500/20 text-cyan-400' : 'text-cyan-400'}`}
+                >
+                  Portfolio
+                </Button>
+              )}
+              <Button onClick={fetchData} variant="outline" size="sm" className="border-white/20 text-cyan-400">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -843,6 +878,13 @@ export default function TokenExplorer() {
             <p className="text-2xl font-bold text-cyan-400">{validators.activeCount}</p>
           </div>
         </div>
+
+        {/* Portfolio Tracker */}
+        {showPortfolio && walletConnected && (
+          <div className="mb-6">
+            <PortfolioTracker walletAddress={walletAddress} allTokens={allTokens} />
+          </div>
+        )}
 
         {/* XNT Featured */}
         <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 rounded-xl p-6 mb-6">
@@ -1070,6 +1112,20 @@ export default function TokenExplorer() {
                         >
                          Details
                         </Button>
+                        {!token.verified && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setAiAssistantToken(token.mint);
+                              setShowAIAssistant(true);
+                            }}
+                            className="text-purple-400 hover:bg-purple-500/10 text-xs"
+                            title="AI Verification Assistant"
+                          >
+                            <Sparkles className="w-3 h-3" />
+                          </Button>
+                        )}
                         </div>
                         </td>
                         </tr>
@@ -1083,6 +1139,17 @@ export default function TokenExplorer() {
             </div>
           )}
         </div>
+
+        {/* AI Verification Assistant */}
+        {showAIAssistant && (
+          <AIVerificationAssistant 
+            tokenMint={aiAssistantToken}
+            onClose={() => {
+              setShowAIAssistant(false);
+              setAiAssistantToken(null);
+            }}
+          />
+        )}
 
         {/* Token Details Modal */}
         {selectedToken && (
