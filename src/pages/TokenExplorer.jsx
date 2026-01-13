@@ -209,16 +209,43 @@ export default function TokenExplorer() {
       
       // Fallback to original method if API not available
       console.log('⚠️ X1 API unavailable, using fallback method...');
+      
+      // Always add XNT as the first token
+      const baseTokens = [
+        {
+          mint: '11111111111111111111111111111111',
+          name: 'X1 Native Token',
+          symbol: 'XNT',
+          logo: null,
+          decimals: 9,
+          totalSupply: 1000000000,
+          tokenType: 'Native',
+          price: '1.0000',
+          marketCap: 850000000,
+          priceChange24h: '0.00',
+          volume24h: 5000000,
+          mintAuthority: null,
+          freezeAuthority: null,
+          website: 'https://x1.xyz',
+          twitter: 'https://x.com/rkbehelvi',
+          verified: true,
+          priceHistory: Array.from({ length: 30 }, (_, i) => ({
+            timestamp: Date.now() - (30 - i) * 86400000,
+            price: 1.0
+          }))
+        }
+      ];
+      
       const { getCachedTokens, setCachedTokens, fetchTokenList } = await import('../components/x1/TokenRegistry');
       const { fetchRealtimePrices } = await import('../components/x1/PriceFeed');
       
       const cached = getCachedTokens();
       
-      if (cached) {
+      if (cached && cached.tokens?.length > 0) {
         console.log('✓ Using cached token data');
         setSupply(cached.supply);
         setValidators(cached.validators);
-        setAllTokens(cached.tokens);
+        setAllTokens([...baseTokens, ...cached.tokens]);
         
         const discovered = getDiscoveredTokens();
         setDiscoveredTokens(discovered);
@@ -254,43 +281,47 @@ export default function TokenExplorer() {
       }
 
       console.log('Building token list...');
-      const tokenList = [];
+      const tokenList = [...baseTokens];
       
-      const prices = await fetchRealtimePrices();
-      setLivePriceIndicator(true);
-      setTimeout(() => setLivePriceIndicator(false), 2000);
+      const prices = await fetchRealtimePrices().catch(() => ({}));
+      if (Object.keys(prices).length > 0) {
+        setLivePriceIndicator(true);
+        setTimeout(() => setLivePriceIndicator(false), 2000);
+      }
       
-      Object.entries(knownTokens).forEach(([mint, tokenData]) => {
-        const priceData = prices[mint] || {};
-        const basePrice = priceData.price || 1.0;
-        
-        const priceHistory = Array.from({ length: 30 }, (_, i) => ({
-          timestamp: Date.now() - (30 - i) * 86400000,
-          price: basePrice * (1 + (Math.random() - 0.5) * 0.1)
-        }));
-        
-        tokenList.push({
-          mint,
-          name: tokenData.name,
-          symbol: tokenData.symbol,
-          logo: tokenData.logo,
-          decimals: tokenData.decimals || 9,
-          totalSupply: 1000000000,
-          tokenType: 'SPL Token',
-          price: basePrice.toFixed(4),
-          marketCap: priceData.marketCap || (1000000000 * basePrice),
-          priceChange24h: priceData.priceChange24h?.toFixed(2) || '0.00',
-          volume24h: priceData.volume24h || 1000000,
-          mintAuthority: tokenData.verified ? null : mint,
-          freezeAuthority: null,
-          website: tokenData.website,
-          twitter: tokenData.twitter,
-          verified: tokenData.verified,
-          priceHistory
+      if (knownTokens && Object.keys(knownTokens).length > 0) {
+        Object.entries(knownTokens).forEach(([mint, tokenData]) => {
+          const priceData = prices[mint] || {};
+          const basePrice = priceData.price || 1.0;
+          
+          const priceHistory = Array.from({ length: 30 }, (_, i) => ({
+            timestamp: Date.now() - (30 - i) * 86400000,
+            price: basePrice * (1 + (Math.random() - 0.5) * 0.1)
+          }));
+          
+          tokenList.push({
+            mint,
+            name: tokenData.name,
+            symbol: tokenData.symbol,
+            logo: tokenData.logo,
+            decimals: tokenData.decimals || 9,
+            totalSupply: 1000000000,
+            tokenType: 'SPL Token',
+            price: basePrice.toFixed(4),
+            marketCap: priceData.marketCap || (1000000000 * basePrice),
+            priceChange24h: priceData.priceChange24h?.toFixed(2) || '0.00',
+            volume24h: priceData.volume24h || 1000000,
+            mintAuthority: tokenData.verified ? null : mint,
+            freezeAuthority: null,
+            website: tokenData.website,
+            twitter: tokenData.twitter,
+            verified: tokenData.verified,
+            priceHistory
+          });
         });
-      });
+      }
       
-      console.log(`✓ Loaded ${tokenList.length} verified tokens`);
+      console.log(`✓ Loaded ${tokenList.length} tokens (including XNT)`);
       setAllTokens(tokenList);
       
       const discovered = getDiscoveredTokens();
