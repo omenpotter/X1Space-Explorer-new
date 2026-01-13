@@ -310,7 +310,7 @@ export default function TokenExplorer() {
             price: basePrice.toFixed(4),
             marketCap: priceData.marketCap || (1000000000 * basePrice),
             priceChange24h: priceData.priceChange24h?.toFixed(2) || '0.00',
-            volume24h: priceData.volume24h || 1000000,
+            volume24h: priceData.volume24h || 0,
             mintAuthority: tokenData.verified ? null : mint,
             freezeAuthority: null,
             website: tokenData.website,
