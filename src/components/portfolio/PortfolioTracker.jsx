@@ -16,6 +16,36 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
     if (walletAddress) {
       fetchHoldings();
     }
+    
+    // Subscribe to real-time price updates via WebSocket
+    const unsubscribe = X1Api.subscribeToTokenUpdates((update) => {
+      if (update.type === 'price_update') {
+        console.log('🔴 Portfolio: Real-time price update received');
+        setHoldings(prev => prev.map(holding => {
+          const priceData = update.data[holding.mint];
+          if (priceData) {
+            const newPrice = priceData.price;
+            const newValue = holding.amount * newPrice;
+            const profitLoss = newValue - (holding.purchasePrice * holding.amount);
+            const profitLossPercent = holding.purchasePrice > 0 ? (profitLoss / (holding.purchasePrice * holding.amount)) * 100 : 0;
+            
+            return {
+              ...holding,
+              currentPrice: newPrice,
+              currentValue: newValue,
+              profitLoss,
+              profitLossPercent,
+              priceChange24h: priceData.price_change_24h?.toFixed(2) || holding.priceChange24h
+            };
+          }
+          return holding;
+        }));
+      }
+    });
+    
+    return () => {
+      unsubscribe();
+    };
   }, [walletAddress]);
 
   const fetchHoldings = async () => {
