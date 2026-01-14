@@ -120,9 +120,65 @@ export default function TokenExplorer() {
     
     // Subscribe to real-time token updates via WebSocket
     const unsubscribe = X1Api.subscribeToTokenUpdates((update) => {
-      console.log('Real-time token update:', update);
+      console.log('🔴 Real-time WebSocket update:', update);
+      
+      if (update.type === 'token_created') {
+        // Add new token to list
+        const newToken = {
+          mint: update.data.mint,
+          name: update.data.name || 'Unknown Token',
+          symbol: update.data.symbol || 'UNKNOWN',
+          logo: update.data.logo_uri,
+          decimals: update.data.decimals || 9,
+          totalSupply: update.data.total_supply || 0,
+          tokenType: update.data.token_type || 'SPL Token',
+          price: '0.0000',
+          marketCap: 0,
+          priceChange24h: '0.00',
+          verified: update.data.verified || false,
+          priceHistory: []
+        };
+        
+        if (update.data.verified) {
+          setAllTokens(prev => [newToken, ...prev]);
+        } else {
+          setDiscoveredTokens(prev => [newToken, ...prev]);
+        }
+        setLivePriceIndicator(true);
+        setTimeout(() => setLivePriceIndicator(false), 2000);
+      }
+      
       if (update.type === 'token_verified' || update.type === 'token_updated') {
-        fetchData(); // Refresh token list on updates
+        // Update existing token
+        setAllTokens(prev => prev.map(token => 
+          token.mint === update.data.mint ? {
+            ...token,
+            ...update.data,
+            price: update.data.price ? parseFloat(update.data.price).toFixed(4) : token.price,
+            marketCap: update.data.market_cap || token.marketCap,
+            priceChange24h: update.data.price_change_24h ? parseFloat(update.data.price_change_24h).toFixed(2) : token.priceChange24h
+          } : token
+        ));
+        setLivePriceIndicator(true);
+        setTimeout(() => setLivePriceIndicator(false), 2000);
+      }
+      
+      if (update.type === 'price_update') {
+        // Real-time price updates
+        setAllTokens(prev => prev.map(token => {
+          const priceData = update.data[token.mint];
+          if (priceData) {
+            return {
+              ...token,
+              price: priceData.price.toFixed(4),
+              priceChange24h: priceData.price_change_24h?.toFixed(2) || token.priceChange24h,
+              marketCap: priceData.market_cap || token.marketCap
+            };
+          }
+          return token;
+        }));
+        setLivePriceIndicator(true);
+        setTimeout(() => setLivePriceIndicator(false), 2000);
       }
     });
     
@@ -158,10 +214,11 @@ export default function TokenExplorer() {
         X1Api.listTokens({ limit: 100, verified: false })
       ]);
 
-      if (verifiedTokens.success && verifiedTokens.data?.tokens?.length > 0) {
-        console.log(`✓ Loaded ${verifiedTokens.data.tokens.length} verified tokens from X1 API`);
+      if (verifiedTokens.success) {
+        const tokens = verifiedTokens.data?.tokens || [];
+        console.log(`✓ Loaded ${tokens.length} verified tokens from X1 API`);
 
-        const tokenList = verifiedTokens.data.tokens.map(token => ({
+        const tokenList = tokens.map(token => ({
           mint: token.mint || token.address,
           name: token.name || 'Unknown Token',
           symbol: token.symbol || 'UNKNOWN',
@@ -182,8 +239,9 @@ export default function TokenExplorer() {
 
         setAllTokens(tokenList);
 
-        if (unverifiedTokens.success && unverifiedTokens.data?.tokens?.length > 0) {
-          const discovered = unverifiedTokens.data.tokens.map(token => ({
+        if (unverifiedTokens.success) {
+          const unverified = unverifiedTokens.data?.tokens || [];
+          const discovered = unverified.map(token => ({
             mint: token.mint || token.address,
             name: token.name || 'Unknown Token',
             symbol: token.symbol || 'UNKNOWN',
@@ -204,8 +262,7 @@ export default function TokenExplorer() {
         return;
       }
 
-      console.log('⚠️ X1 API returned no tokens')
-      
+      console.log('⚠️ X1 API returned empty response, setting empty arrays');
       setAllTokens([]);
       setDiscoveredTokens([]);
     } catch (err) {
