@@ -176,41 +176,21 @@ export default function TokenExplorer() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch from X1 API
-      console.log('🔄 Fetching tokens from X1 API...');
-      const [verifiedTokens, unverifiedTokens] = await Promise.all([
-        X1Api.listTokens({ limit: 100, verified: true }),
-        X1Api.listTokens({ limit: 100, verified: false })
-      ]);
+      console.log('🔄 Fetching tokens from X1 API (http://45.94.81.202:3001)...');
+      
+      // Fetch all tokens without verified filter first to get total count
+      const allTokensResponse = await X1Api.listTokens({ limit: 500, offset: 0 });
 
-      if (verifiedTokens.success) {
-        const tokens = verifiedTokens.data?.tokens || [];
-        console.log(`✓ Loaded ${tokens.length} verified tokens from X1 API`);
+      if (allTokensResponse.success && allTokensResponse.data?.tokens) {
+        const tokens = allTokensResponse.data.tokens;
+        console.log(`✓ Loaded ${tokens.length} total tokens from X1 API`);
 
-        const tokenList = tokens.map(token => ({
-          mint: token.mint || token.address,
-          name: token.name || 'Unknown Token',
-          symbol: token.symbol || 'UNKNOWN',
-          logo: token.logo_uri,
-          decimals: token.decimals || 9,
-          totalSupply: token.total_supply || 0,
-          tokenType: token.token_type || 'SPL Token',
-          price: token.price ? parseFloat(token.price).toFixed(4) : '0.0000',
-          marketCap: token.market_cap || 0,
-          priceChange24h: token.price_change_24h ? parseFloat(token.price_change_24h).toFixed(2) : '0.00',
-          mintAuthority: token.mint_authority,
-          freezeAuthority: token.freeze_authority,
-          website: token.website,
-          twitter: token.twitter,
-          verified: true,
-          priceHistory: token.price_history || []
-        }));
+        // Separate verified and unverified tokens
+        const verified = [];
+        const unverified = [];
 
-        setAllTokens(tokenList);
-
-        if (unverifiedTokens.success) {
-          const unverified = unverifiedTokens.data?.tokens || [];
-          const discovered = unverified.map(token => ({
+        tokens.forEach(token => {
+          const tokenData = {
             mint: token.mint || token.address,
             name: token.name || 'Unknown Token',
             symbol: token.symbol || 'UNKNOWN',
@@ -218,24 +198,43 @@ export default function TokenExplorer() {
             decimals: token.decimals || 9,
             totalSupply: token.total_supply || 0,
             tokenType: token.token_type || 'SPL Token',
-            price: '0.0000',
-            priceChange24h: '0.00',
-            marketCap: 0,
-            verified: false
-          }));
-          setDiscoveredTokens(discovered);
-          console.log(`✓ Found ${discovered.length} discovered tokens from API`);
-        }
+            price: token.price ? parseFloat(token.price).toFixed(4) : '0.0000',
+            marketCap: token.market_cap || 0,
+            priceChange24h: token.price_change_24h ? parseFloat(token.price_change_24h).toFixed(2) : '0.00',
+            mintAuthority: token.mint_authority,
+            freezeAuthority: token.freeze_authority,
+            website: token.website,
+            twitter: token.twitter,
+            createdBy: token.created_by,
+            createdAt: token.created_at,
+            verificationCount: token.verification_count || 0,
+            isScam: token.is_scam || false,
+            verified: (token.verification_count || 0) > 0,
+            priceHistory: token.price_history || []
+          };
 
+          if ((token.verification_count || 0) > 0) {
+            verified.push(tokenData);
+          } else {
+            unverified.push(tokenData);
+          }
+        });
+
+        setAllTokens(verified);
+        setDiscoveredTokens(unverified);
+        
+        console.log(`✓ Verified: ${verified.length}, Unverified: ${unverified.length}`);
         setLoading(false);
         return;
       }
 
-      console.log('⚠️ X1 API returned empty response, setting empty arrays');
+      console.log('⚠️ X1 API returned no tokens');
       setAllTokens([]);
       setDiscoveredTokens([]);
     } catch (err) {
-      console.error('Fetch error:', err);
+      console.error('❌ Fetch error:', err);
+      setAllTokens([]);
+      setDiscoveredTokens([]);
     } finally {
       setLoading(false);
     }

@@ -5,6 +5,10 @@
 const API_BASE_URL = 'http://45.94.81.202:3001';
 const WS_URL = 'ws://45.94.81.202:3001';
 
+// Prevent multiple WebSocket connections from interfering with Dashboard
+let wsConnectionCount = 0;
+const MAX_WS_CONNECTIONS = 1;
+
 // Cache for API responses
 const cache = new Map();
 const CACHE_TTL = 30000; // 30 seconds
@@ -196,7 +200,16 @@ let isConnecting = false;
 export function subscribeToTokenUpdates(callback) {
   subscribers.add(callback);
   
+  // Only allow one WebSocket connection to prevent Dashboard interference
+  if (wsConnectionCount >= MAX_WS_CONNECTIONS) {
+    console.warn('⚠️ WebSocket connection limit reached - using existing connection');
+    return () => {
+      subscribers.delete(callback);
+    };
+  }
+  
   if ((!ws || ws.readyState === WebSocket.CLOSED) && !isConnecting) {
+    wsConnectionCount++;
     connectWebSocket();
   }
   
@@ -205,6 +218,7 @@ export function subscribeToTokenUpdates(callback) {
     if (subscribers.size === 0 && ws) {
       ws.close();
       ws = null;
+      wsConnectionCount = 0;
     }
   };
 }
