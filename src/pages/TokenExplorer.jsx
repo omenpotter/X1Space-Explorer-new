@@ -6,8 +6,7 @@ import { Coins, Search, Loader2, TrendingUp, TrendingDown, Star, ChevronLeft, Re
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip, XAxis, PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area } from 'recharts';
-import { startTokenScanner, stopTokenScanner, getDiscoveredTokens } from '../components/x1/TokenDiscovery';
-import { startPriceFeed, stopPriceFeed, subscribeToPriceUpdates, unsubscribeFromPriceUpdates } from '../components/x1/PriceFeed';
+
 import X1Api from '../components/x1/X1ApiClient';
 import WalletConnector from '../components/portfolio/WalletConnector';
 import PortfolioTracker from '../components/portfolio/PortfolioTracker';
@@ -95,35 +94,11 @@ export default function TokenExplorer() {
       console.log('X1 API Status:', health.status);
     });
     
-    // Start background services
-    startTokenScanner();
-    startPriceFeed();
-    
-    // Subscribe to live price updates
-    subscribeToPriceUpdates((newPrices) => {
-      setAllTokens(prev => prev.map(token => {
-        const priceData = newPrices[token.mint] || newPrices[token.symbol];
-        if (priceData) {
-          return {
-            ...token,
-            price: priceData.price.toFixed(4),
-            priceChange24h: priceData.priceChange24h?.toFixed(2) || token.priceChange24h,
-            volume24h: priceData.volume24h || token.volume24h,
-            marketCap: priceData.marketCap || token.marketCap
-          };
-        }
-        return token;
-      }));
-      setLivePriceIndicator(true);
-      setTimeout(() => setLivePriceIndicator(false), 2000);
-    });
-    
-    // Subscribe to real-time token updates via WebSocket
+    // Subscribe to real-time token updates via WebSocket (don't interfere with Dashboard services)
     const unsubscribe = X1Api.subscribeToTokenUpdates((update) => {
       console.log('🔴 Real-time WebSocket update:', update);
       
       if (update.type === 'token_created') {
-        // Add new token to list
         const newToken = {
           mint: update.data.mint,
           name: update.data.name || 'Unknown Token',
@@ -149,7 +124,6 @@ export default function TokenExplorer() {
       }
       
       if (update.type === 'token_verified' || update.type === 'token_updated') {
-        // Update existing token
         setAllTokens(prev => prev.map(token => 
           token.mint === update.data.mint ? {
             ...token,
@@ -164,7 +138,6 @@ export default function TokenExplorer() {
       }
       
       if (update.type === 'price_update') {
-        // Real-time price updates
         setAllTokens(prev => prev.map(token => {
           const priceData = update.data[token.mint];
           if (priceData) {
@@ -183,11 +156,7 @@ export default function TokenExplorer() {
     });
     
     return () => {
-      stopTokenScanner();
-      stopPriceFeed();
-      unsubscribeFromPriceUpdates();
       unsubscribe();
-      X1Api.disconnectWebSocket();
     };
   }, []);
 
