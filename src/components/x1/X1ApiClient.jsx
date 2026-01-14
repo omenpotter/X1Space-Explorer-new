@@ -191,11 +191,12 @@ export async function getTokenPriceHistory(mint, params = {}) {
 let ws = null;
 let reconnectTimer = null;
 const subscribers = new Set();
+let isConnecting = false;
 
 export function subscribeToTokenUpdates(callback) {
   subscribers.add(callback);
   
-  if (!ws || ws.readyState === WebSocket.CLOSED) {
+  if ((!ws || ws.readyState === WebSocket.CLOSED) && !isConnecting) {
     connectWebSocket();
   }
   
@@ -209,12 +210,15 @@ export function subscribeToTokenUpdates(callback) {
 }
 
 function connectWebSocket() {
+  if (isConnecting) return;
+  
   try {
+    isConnecting = true;
     ws = new WebSocket(WS_URL);
     
     ws.onopen = () => {
       console.log('✓ WebSocket connected to X1 API');
-      // Subscribe to token updates
+      isConnecting = false;
       ws.send(JSON.stringify({
         action: 'subscribe',
         channel: 'tokens'
@@ -232,11 +236,12 @@ function connectWebSocket() {
     
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);
+      isConnecting = false;
     };
     
     ws.onclose = () => {
       console.log('WebSocket closed');
-      // Attempt reconnection if there are active subscribers
+      isConnecting = false;
       if (subscribers.size > 0) {
         reconnectTimer = setTimeout(() => {
           console.log('Attempting WebSocket reconnection...');
@@ -246,6 +251,7 @@ function connectWebSocket() {
     };
   } catch (error) {
     console.error('WebSocket connection failed:', error);
+    isConnecting = false;
   }
 }
 
