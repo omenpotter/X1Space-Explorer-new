@@ -44,6 +44,7 @@ export default function Dashboard() {
   const [lastUpdate, setLastUpdate] = useState(null);
   const [tpsInterval, setTpsInterval] = useState('1m');
   const [mempoolInterval, setMempoolInterval] = useState('1m');
+  const [hasLoadedData, setHasLoadedData] = useState(false);
   
   // OPTIMIZATION: Use refs for data to prevent object replacement and remounts
   const dashboardRef = React.useRef(null);
@@ -110,6 +111,7 @@ export default function Dashboard() {
       setError(null);
       setDataVersion(v => v + 1);
       isInitializedRef.current = true;
+      setHasLoadedData(true);
     } catch (err) {
       if (err.name !== 'AbortError') {
         console.error('Failed to fetch data:', err);
@@ -314,8 +316,8 @@ export default function Dashboard() {
     return h > 0 ? `~${h}h ${m}m` : `~${m}m`;
   }, []);
 
-  // Initial skeleton only
-  if (!dashboardData) {
+  // Only show connecting spinner on first load
+  if (!hasLoadedData) {
     return (
       <div className="min-h-screen bg-[#1d2d3a] text-white flex flex-col items-center justify-center">
         <div className="flex gap-2 mb-4">
@@ -332,7 +334,7 @@ export default function Dashboard() {
     );
   }
 
-  // From here on, everything stays mounted forever
+  // From here on, keep old data visible during updates (Stale-While-Revalidate)
   return (
     <div className="min-h-screen bg-[#1d2d3a] text-white">
       {/* Header */}

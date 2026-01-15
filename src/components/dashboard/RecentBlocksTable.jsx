@@ -54,4 +54,8 @@ const RecentBlocksTable = memo(function RecentBlocksTable({ blocks }) {
   );
 });
 
+RecentBlocksTable.displayName = 'RecentBlocksTable';
+
+export default RecentBlocksTable;);
+
 export default RecentBlocksTable;

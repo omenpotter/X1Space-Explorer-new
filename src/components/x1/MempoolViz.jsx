@@ -36,6 +36,7 @@ export const MempoolAggregatedViz = memo(({ data, label, onClick, viewMode = '1m
   const blocks = useMemo(() => {
     const result = [];
     const total = 80;
+    let idCounter = 0;
     
     // Use safe defaults if data is missing
     const safeVoteCount = voteCount || 0;
@@ -62,22 +63,22 @@ export const MempoolAggregatedViz = memo(({ data, label, onClick, viewMode = '1m
     
     if (totalDots === 0 || (safeVoteCount === 0 && safeTransferCount === 0 && safeProgramCount === 0 && safeOtherCount === 0)) {
       // Default distribution
-      for (let i = 0; i < 56; i++) result.push('vote');
-      for (let i = 0; i < 12; i++) result.push('transfer');
-      for (let i = 0; i < 8; i++) result.push('token');
-      for (let i = 0; i < 4; i++) result.push('other');
+      for (let i = 0; i < 56; i++) result.push({ id: `vote-${idCounter++}`, type: 'vote' });
+      for (let i = 0; i < 12; i++) result.push({ id: `transfer-${idCounter++}`, type: 'transfer' });
+      for (let i = 0; i < 8; i++) result.push({ id: `token-${idCounter++}`, type: 'token' });
+      for (let i = 0; i < 4; i++) result.push({ id: `other-${idCounter++}`, type: 'other' });
     } else {
       // Generate colored blocks based on actual counts
-      for (let i = 0; i < voteDots; i++) result.push('vote');
-      for (let i = 0; i < transferDots; i++) result.push('transfer');
-      for (let i = 0; i < programDots; i++) result.push('token');
-      for (let i = 0; i < otherDots; i++) result.push('other');
+      for (let i = 0; i < voteDots; i++) result.push({ id: `vote-${idCounter++}`, type: 'vote' });
+      for (let i = 0; i < transferDots; i++) result.push({ id: `transfer-${idCounter++}`, type: 'transfer' });
+      for (let i = 0; i < programDots; i++) result.push({ id: `token-${idCounter++}`, type: 'token' });
+      for (let i = 0; i < otherDots; i++) result.push({ id: `other-${idCounter++}`, type: 'other' });
       
       // Fill remaining slots proportionally if under 80
       while (result.length < total) {
-        if (safeVoteCount > 0) result.push('vote');
-        else if (safeTransferCount > 0) result.push('transfer');
-        else result.push('vote');
+        if (safeVoteCount > 0) result.push({ id: `vote-${idCounter++}`, type: 'vote' });
+        else if (safeTransferCount > 0) result.push({ id: `transfer-${idCounter++}`, type: 'transfer' });
+        else result.push({ id: `vote-${idCounter++}`, type: 'vote' });
         if (result.length >= total) break;
       }
     }
@@ -105,8 +106,8 @@ export const MempoolAggregatedViz = memo(({ data, label, onClick, viewMode = '1m
       </div>
       
       <div className="flex-1 px-1.5 py-1 flex flex-wrap gap-[1px] content-start overflow-hidden">
-        {blocks.map((type, i) => (
-          <TxBlock key={i} type={type} size="xs" />
+        {blocks.map((block) => (
+          <TxBlock key={block.id} type={block.type} size="xs" />
         ))}
       </div>
       
@@ -132,6 +133,7 @@ export const MempoolBlockViz = memo(({ block, isNew }) => {
   const blocks = useMemo(() => {
     const result = [];
     const total = 60;
+    let idCounter = 0;
     
     // If we have real transaction counts, use them
     if (txCount && txCount > 0) {
@@ -144,16 +146,16 @@ export const MempoolBlockViz = memo(({ block, isNew }) => {
       const programBlocks = Math.round(total * programRatio);
       const otherBlocks = Math.max(0, total - voteBlocks - transferBlocks - programBlocks);
       
-      for (let i = 0; i < voteBlocks; i++) result.push('vote');
-      for (let i = 0; i < transferBlocks; i++) result.push('transfer');
-      for (let i = 0; i < programBlocks; i++) result.push('token');
-      for (let i = 0; i < otherBlocks; i++) result.push('other');
+      for (let i = 0; i < voteBlocks; i++) result.push({ id: `vote-${idCounter++}`, type: 'vote' });
+      for (let i = 0; i < transferBlocks; i++) result.push({ id: `transfer-${idCounter++}`, type: 'transfer' });
+      for (let i = 0; i < programBlocks; i++) result.push({ id: `token-${idCounter++}`, type: 'token' });
+      for (let i = 0; i < otherBlocks; i++) result.push({ id: `other-${idCounter++}`, type: 'other' });
     } else {
       // Default distribution for blocks without tx data - typical X1 ratio
-      for (let i = 0; i < 42; i++) result.push('vote');    // ~70%
-      for (let i = 0; i < 9; i++) result.push('transfer'); // ~15%
-      for (let i = 0; i < 6; i++) result.push('token');    // ~10%
-      for (let i = 0; i < 3; i++) result.push('other');    // ~5%
+      for (let i = 0; i < 42; i++) result.push({ id: `vote-${idCounter++}`, type: 'vote' });    // ~70%
+      for (let i = 0; i < 9; i++) result.push({ id: `transfer-${idCounter++}`, type: 'transfer' }); // ~15%
+      for (let i = 0; i < 6; i++) result.push({ id: `token-${idCounter++}`, type: 'token' });    // ~10%
+      for (let i = 0; i < 3; i++) result.push({ id: `other-${idCounter++}`, type: 'other' });    // ~5%
     }
     
     // Shuffle for visual variety
@@ -188,8 +190,8 @@ export const MempoolBlockViz = memo(({ block, isNew }) => {
         </div>
         
         <div className="flex-1 px-1.5 py-1 flex flex-wrap gap-[1px] content-start overflow-hidden">
-          {blocks.map((type, i) => (
-            <TxBlock key={i} type={type} size="xs" />
+          {blocks.map((block) => (
+            <TxBlock key={block.id} type={block.type} size="xs" />
           ))}
         </div>
         
@@ -234,11 +236,11 @@ MempoolLegend.displayName = 'MempoolLegend';
 
 // Pending transactions mini-viz that loops - SAME SIZE as block boxes
 const PendingTxViz = memo(({ pendingCount = 0 }) => {
-  const [animKey, setAnimKey] = useState(0);
+  const [animTrigger, setAnimTrigger] = useState(0);
   
   useEffect(() => {
     const interval = setInterval(() => {
-      setAnimKey(k => k + 1);
+      setAnimTrigger(k => k + 1);
     }, 2000);
     return () => clearInterval(interval);
   }, []);
@@ -246,15 +248,16 @@ const PendingTxViz = memo(({ pendingCount = 0 }) => {
   const txTypes = useMemo(() => {
     const types = [];
     const count = Math.min(pendingCount || 20, 60);
+    let idCounter = 0;
     for (let i = 0; i < count; i++) {
       const rand = Math.random();
-      if (rand < 0.6) types.push('vote');
-      else if (rand < 0.8) types.push('transfer');
-      else if (rand < 0.95) types.push('token');
-      else types.push('other');
+      if (rand < 0.6) types.push({ id: `pending-vote-${idCounter++}`, type: 'vote' });
+      else if (rand < 0.8) types.push({ id: `pending-transfer-${idCounter++}`, type: 'transfer' });
+      else if (rand < 0.95) types.push({ id: `pending-token-${idCounter++}`, type: 'token' });
+      else types.push({ id: `pending-other-${idCounter++}`, type: 'other' });
     }
     return types;
-  }, [pendingCount, animKey]);
+  }, [pendingCount, animTrigger]);
 
   return (
     <div className="relative flex-1 min-w-[100px] max-w-[140px] h-[140px] bg-gradient-to-b from-cyan-900/30 to-slate-900/50 border border-dashed border-cyan-500/30 rounded-lg overflow-hidden flex flex-col">
@@ -264,8 +267,8 @@ const PendingTxViz = memo(({ pendingCount = 0 }) => {
       </div>
       
       <div className="flex-1 px-1.5 py-1 flex flex-wrap gap-[1px] content-start overflow-hidden">
-        {txTypes.map((type, i) => (
-          <TxBlock key={`${animKey}-${i}`} type={type} size="xs" />
+        {txTypes.map((block) => (
+          <TxBlock key={block.id} type={block.type} size="xs" />
         ))}
       </div>
       
