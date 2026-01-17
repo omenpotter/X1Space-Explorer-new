@@ -1136,9 +1136,6 @@ export default function TokenExplorer() {
           />
         )}
 
-        {/* Token Details Modal */}
-        {selectedToken && (
-
         {/* Token Details Modal - POPUP OVERLAY */}
         {showDetailsModal && modalToken && (
           <TokenDetailsModal
