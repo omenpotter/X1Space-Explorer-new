@@ -92,7 +92,7 @@ export async function listTokens(params = {}) {
   }
 
   try {
-    const url = `${API_BASE_URL}/api/getTokens?limit=${limit}&offset=${offset}&verified_only=${verified}`;
+    const url = `${API_BASE_URL}${API_CONFIG.endpoints.tokens}?limit=${limit}&offset=${offset}&verified_only=${verified}`;
     console.log('📡 Fetching tokens from:', url);
     
     const data = await apiRequest(url);
