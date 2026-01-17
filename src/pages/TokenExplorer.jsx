@@ -182,8 +182,8 @@ export default function TokenExplorer() {
   try {
     console.log('🔄 Fetching tokens from API...');
     
-    // Fetch all tokens
-    const allTokensResponse = await X1Api.listTokens({ limit: 500, offset: 0 });
+    // Fetch only tokens with real names (153 tokens)
+    const allTokensResponse = await X1Api.listTokens({ limit: 500, offset: 0, verified: true });
 
     if (allTokensResponse.success && allTokensResponse.data?.tokens) {
       const tokens = allTokensResponse.data.tokens;
