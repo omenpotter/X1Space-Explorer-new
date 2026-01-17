@@ -1,4 +1,4 @@
-// X1 Blockchain Explorer API Client - Updated Version
+// X1 Blockchain Explorer API Client - Base44 Version (Real Data Only)
 import API_CONFIG from '@/config/api.config';
 
 const API_BASE_URL = API_CONFIG.baseURL;
@@ -75,181 +75,36 @@ async function apiRequest(url, options = {}, retries = 3) {
         throw error;
       }
       
+      // Exponential backoff
       await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
     }
   }
 }
 
-// Mock data generator
-function generateMockTokens() {
-  return [
-    {
-      mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-      name: 'USD Coin',
-      symbol: 'USDC',
-      logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
-      decimals: 6,
-      totalSupply: 1000000000000,
-      tokenType: 'SPL Token',
-      price: '1.0000',
-      marketCap: 1000000000,
-      priceChange24h: '0.01',
-      verified: true,
-      mintAuthority: null,
-      freezeAuthority: null,
-      website: 'https://www.circle.com/usdc',
-      twitter: 'https://twitter.com/circle',
-      createdBy: null,
-      createdAt: '2021-01-01T00:00:00Z',
-      verificationCount: 100,
-      isScam: false,
-      priceHistory: generateMockPriceHistory(1.0, 0.001)
-    },
-    {
-      mint: 'So11111111111111111111111111111111111111112',
-      name: 'Wrapped SOL',
-      symbol: 'SOL',
-      logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
-      decimals: 9,
-      totalSupply: 500000000000000000,
-      tokenType: 'SPL Token',
-      price: '142.5000',
-      marketCap: 71250000000,
-      priceChange24h: '5.23',
-      verified: true,
-      mintAuthority: null,
-      freezeAuthority: null,
-      website: 'https://solana.com',
-      twitter: 'https://twitter.com/solana',
-      createdBy: null,
-      createdAt: '2020-03-01T00:00:00Z',
-      verificationCount: 150,
-      isScam: false,
-      priceHistory: generateMockPriceHistory(142.5, 7.5)
-    },
-    {
-      mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
-      name: 'USDT',
-      symbol: 'USDT',
-      logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.svg',
-      decimals: 6,
-      totalSupply: 800000000000,
-      tokenType: 'SPL Token',
-      price: '0.9998',
-      marketCap: 799840000,
-      priceChange24h: '-0.02',
-      verified: true,
-      mintAuthority: null,
-      freezeAuthority: null,
-      website: 'https://tether.to',
-      twitter: 'https://twitter.com/tether_to',
-      createdBy: null,
-      createdAt: '2021-06-01T00:00:00Z',
-      verificationCount: 120,
-      isScam: false,
-      priceHistory: generateMockPriceHistory(1.0, 0.002)
-    },
-    {
-      mint: 'X1TokenMockAddress11111111111111111111111',
-      name: 'X1 Token',
-      symbol: 'X1',
-      logo: null,
-      decimals: 9,
-      totalSupply: 1000000000000000,
-      tokenType: 'Token-2022',
-      price: '0.0150',
-      marketCap: 15000000,
-      priceChange24h: '12.50',
-      verified: true,
-      mintAuthority: null,
-      freezeAuthority: null,
-      website: 'https://x1.network',
-      twitter: 'https://twitter.com/x1network',
-      createdBy: 'X1 Foundation',
-      createdAt: '2024-01-01T00:00:00Z',
-      verificationCount: 50,
-      isScam: false,
-      priceHistory: generateMockPriceHistory(0.015, 0.002)
-    },
-    {
-      mint: 'SampleToken1111111111111111111111111111',
-      name: 'Sample Token',
-      symbol: 'SMPL',
-      logo: null,
-      decimals: 6,
-      totalSupply: 500000000,
-      tokenType: 'SPL Token',
-      price: '0.0025',
-      marketCap: 1250000,
-      priceChange24h: '-2.15',
-      verified: true,
-      mintAuthority: 'SampleMintAuth111111111111111111111111',
-      freezeAuthority: null,
-      website: null,
-      twitter: null,
-      createdBy: null,
-      createdAt: '2024-06-15T00:00:00Z',
-      verificationCount: 5,
-      isScam: false,
-      priceHistory: generateMockPriceHistory(0.0025, 0.0001)
-    },
-    {
-      mint: 'TestToken22222222222222222222222222222',
-      name: 'Test Meme Coin',
-      symbol: 'MEME',
-      logo: null,
-      decimals: 9,
-      totalSupply: 1000000000000,
-      tokenType: 'Token-2022',
-      price: '0.000015',
-      marketCap: 15000,
-      priceChange24h: '250.00',
-      verified: true,
-      mintAuthority: null,
-      freezeAuthority: null,
-      website: null,
-      twitter: null,
-      createdBy: null,
-      createdAt: '2024-12-01T00:00:00Z',
-      verificationCount: 2,
-      isScam: false,
-      priceHistory: generateMockPriceHistory(0.000015, 0.00001)
-    }
-  ];
-}
-
-function generateMockPriceHistory(basePrice, volatility) {
-  const history = [];
-  const now = Date.now();
-  
-  for (let i = 168; i >= 0; i--) {
-    const timestamp = now - (i * 3600000);
-    const randomChange = (Math.random() - 0.5) * 2 * volatility;
-    const price = basePrice + randomChange;
-    
-    history.push({
-      timestamp: new Date(timestamp).toISOString(),
-      price: Math.max(0, price),
-      volume: Math.random() * 1000000
-    });
-  }
-  
-  return history;
-}
-
-// List all tokens with fallback
+// List all tokens - REAL DATA ONLY
 export async function listTokens(params = {}) {
   const { limit = 100, offset = 0, verified = true } = params;
   const cacheKey = getCacheKey('tokens', params);
   const cached = getCache(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    console.log('📦 Using cached data');
+    return cached;
+  }
 
   try {
     const url = `${API_BASE_URL}/api/getTokens?limit=${limit}&offset=${offset}&verified_only=${verified}`;
+    console.log('📡 Fetching tokens from:', url);
+    
     const data = await apiRequest(url);
     
+    console.log('✓ Received data:', {
+      success: data.success,
+      tokenCount: data.tokens?.length || 0,
+      total: data.total
+    });
+    
     const result = {
-      success: true,
+      success: data.success !== false,
       data: {
         tokens: data.tokens || [],
         total: data.total || 0
@@ -259,29 +114,29 @@ export async function listTokens(params = {}) {
     setCache(cacheKey, result);
     return result;
   } catch (error) {
-    console.warn('⚠️ API unavailable, using mock data');
+    console.error('❌ Failed to fetch tokens:', error);
     
-    const mockTokens = generateMockTokens();
-    const result = {
-      success: true,
+    // Return error, don't fallback to mock data
+    return {
+      success: false,
+      error: error.message,
       data: {
-        tokens: mockTokens.slice(offset, offset + limit),
-        total: mockTokens.length
-      },
-      _mock: true
+        tokens: [],
+        total: 0
+      }
     };
-    
-    return result;
   }
 }
 
-// Search tokens
+// Search tokens - REAL DATA ONLY
 export async function searchTokens(query, params = {}) {
   const { limit = 50, offset = 0 } = params;
   if (!query) return { success: false, data: { tokens: [], total: 0 } };
 
   try {
     const url = `${API_BASE_URL}/api/searchTokens?q=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`;
+    console.log('🔍 Searching tokens:', url);
+    
     const data = await apiRequest(url);
     
     return {
@@ -292,32 +147,28 @@ export async function searchTokens(query, params = {}) {
       }
     };
   } catch (error) {
-    const mockTokens = generateMockTokens();
-    const filtered = mockTokens.filter(t => 
-      t.name.toLowerCase().includes(query.toLowerCase()) ||
-      t.symbol.toLowerCase().includes(query.toLowerCase()) ||
-      t.mint.includes(query)
-    );
-    
-    return {
-      success: true,
-      data: {
-        tokens: filtered.slice(offset, offset + limit),
-        total: filtered.length
-      },
-      _mock: true
+    console.error('❌ Search failed:', error);
+    return { 
+      success: false, 
+      error: error.message,
+      data: { tokens: [], total: 0 } 
     };
   }
 }
 
-// Get token details
+// Get token details - REAL DATA ONLY
 export async function getTokenDetails(mint) {
   const cacheKey = getCacheKey(`token/${mint}`);
   const cached = getCache(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    console.log('📦 Using cached token details');
+    return cached;
+  }
 
   try {
     const url = `${API_BASE_URL}/api/getTokenByMint?mint=${mint}`;
+    console.log('📡 Fetching token details:', url);
+    
     const data = await apiRequest(url);
     
     const result = {
@@ -328,30 +179,37 @@ export async function getTokenDetails(mint) {
     setCache(cacheKey, result);
     return result;
   } catch (error) {
-    const mockTokens = generateMockTokens();
-    const token = mockTokens.find(t => t.mint === mint);
-    
+    console.error('❌ Failed to fetch token details:', error);
     return {
-      success: !!token,
-      data: token || null,
-      _mock: true
+      success: false,
+      error: error.message,
+      data: null
     };
   }
 }
 
-// Verify token
+// Verify token (X1Space)
 export async function verifyToken(tokenData) {
   try {
     const url = `${API_BASE_URL}/api/verify-token`;
+    console.log('✅ Verifying token:', tokenData.mint);
+    
     const data = await apiRequest(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(tokenData)
     });
     
-    return { success: true, data };
+    return { 
+      success: true, 
+      data 
+    };
   } catch (error) {
-    return { success: false, error: error.message };
+    console.error('❌ Token verification failed:', error);
+    return { 
+      success: false, 
+      error: error.message 
+    };
   }
 }
 
@@ -361,6 +219,8 @@ export async function getTokenHolders(mint, params = {}) {
   
   try {
     const url = `${API_BASE_URL}/api/tokens/${mint}/holders?limit=${limit}&offset=${offset}`;
+    console.log('📡 Fetching token holders:', url);
+    
     const data = await apiRequest(url);
     
     return {
@@ -371,8 +231,10 @@ export async function getTokenHolders(mint, params = {}) {
       }
     };
   } catch (error) {
+    console.error('❌ Failed to fetch holders:', error);
     return { 
-      success: false, 
+      success: false,
+      error: error.message,
       data: { holders: [], total: 0 }
     };
   }
@@ -384,6 +246,8 @@ export async function getTokenTransactions(mint, params = {}) {
   
   try {
     const url = `${API_BASE_URL}/api/tokens/${mint}/transactions?limit=${limit}&offset=${offset}`;
+    console.log('📡 Fetching token transactions:', url);
+    
     const data = await apiRequest(url);
     
     return {
@@ -394,8 +258,10 @@ export async function getTokenTransactions(mint, params = {}) {
       }
     };
   } catch (error) {
+    console.error('❌ Failed to fetch transactions:', error);
     return { 
-      success: false, 
+      success: false,
+      error: error.message,
       data: { transactions: [], total: 0 }
     };
   }
@@ -409,6 +275,8 @@ export async function getLiquidityPools(mint) {
 
   try {
     const url = `${API_BASE_URL}/api/pools?token=${mint}`;
+    console.log('📡 Fetching liquidity pools:', url);
+    
     const data = await apiRequest(url);
     
     const result = {
@@ -421,7 +289,12 @@ export async function getLiquidityPools(mint) {
     setCache(cacheKey, result);
     return result;
   } catch (error) {
-    return { success: false, data: { pools: [] } };
+    console.error('❌ Failed to fetch pools:', error);
+    return { 
+      success: false,
+      error: error.message,
+      data: { pools: [] } 
+    };
   }
 }
 
@@ -433,6 +306,8 @@ export async function getCreatorProfile(address) {
 
   try {
     const url = `${API_BASE_URL}/api/creator/${address}`;
+    console.log('📡 Fetching creator profile:', url);
+    
     const data = await apiRequest(url);
     
     const result = {
@@ -443,7 +318,11 @@ export async function getCreatorProfile(address) {
     setCache(cacheKey, result);
     return result;
   } catch (error) {
-    return { success: false };
+    console.error('❌ Failed to fetch creator profile:', error);
+    return { 
+      success: false,
+      error: error.message
+    };
   }
 }
 
@@ -456,6 +335,8 @@ export async function getTokenPriceHistory(mint, params = {}) {
 
   try {
     const url = `${API_BASE_URL}/api/tokens/${mint}/price-history?period=${period}`;
+    console.log('📡 Fetching price history:', url);
+    
     const data = await apiRequest(url);
     
     const result = {
@@ -468,23 +349,91 @@ export async function getTokenPriceHistory(mint, params = {}) {
     setCache(cacheKey, result);
     return result;
   } catch (error) {
-    return { success: false, data: { history: [] } };
+    console.error('❌ Failed to fetch price history:', error);
+    return { 
+      success: false,
+      error: error.message,
+      data: { history: [] } 
+    };
   }
 }
 
-// WebSocket connection (DISABLED for now)
+// WebSocket connection for real-time updates
 let ws = null;
 let reconnectTimer = null;
 const subscribers = new Set();
+let isConnecting = false;
 
 export function subscribeToTokenUpdates(callback) {
   if (!API_CONFIG.features.websocket) {
-    console.log('WebSocket disabled - skipping real-time updates');
+    console.log('ℹ️ WebSocket disabled in config');
     return () => {};
   }
   
   subscribers.add(callback);
-  return () => subscribers.delete(callback);
+  
+  if ((!ws || ws.readyState === WebSocket.CLOSED) && !isConnecting) {
+    connectWebSocket();
+  }
+  
+  return () => {
+    subscribers.delete(callback);
+    if (subscribers.size === 0 && ws) {
+      ws.close();
+      ws = null;
+    }
+  };
+}
+
+function connectWebSocket() {
+  if (isConnecting) return;
+  
+  try {
+    isConnecting = true;
+    console.log('🔌 Connecting WebSocket to:', WS_URL);
+    
+    ws = new WebSocket(WS_URL);
+    
+    ws.onopen = () => {
+      console.log('✓ WebSocket connected');
+      isConnecting = false;
+      ws.send(JSON.stringify({
+        action: 'subscribe',
+        channel: 'tokens'
+      }));
+    };
+    
+    ws.onmessage = (event) => {
+      try {
+        const update = JSON.parse(event.data);
+        console.log('📨 WebSocket update:', update.type);
+        subscribers.forEach(callback => callback(update));
+      } catch (error) {
+        console.error('❌ WebSocket message parse error:', error);
+      }
+    };
+    
+    ws.onerror = (error) => {
+      console.error('❌ WebSocket error:', error);
+      isConnecting = false;
+    };
+    
+    ws.onclose = () => {
+      console.log('🔌 WebSocket closed');
+      isConnecting = false;
+      ws = null;
+      
+      if (subscribers.size > 0) {
+        reconnectTimer = setTimeout(() => {
+          console.log('🔄 Attempting WebSocket reconnection...');
+          connectWebSocket();
+        }, 5000);
+      }
+    };
+  } catch (error) {
+    console.error('❌ WebSocket connection failed:', error);
+    isConnecting = false;
+  }
 }
 
 export function disconnectWebSocket() {
@@ -497,8 +446,10 @@ export function disconnectWebSocket() {
     ws = null;
   }
   subscribers.clear();
+  console.log('🔌 WebSocket disconnected');
 }
 
+// Export default object with all functions
 export default {
   checkHealth,
   listTokens,
