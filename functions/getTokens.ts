@@ -28,11 +28,11 @@ Deno.serve(async (req) => {
 
         // Connect to PostgreSQL
         const client = new Client({
-            user: Deno.env.get('X1_DB_USER'),
-            password: Deno.env.get('X1_DB_PASSWORD'),
-            host: Deno.env.get('X1_DB_HOST'),
-            database: Deno.env.get('X1_DB_NAME'),
-            port: parseInt(Deno.env.get('X1_DB_PORT') || '5432'),
+            user: Deno.env.get('x1user'),
+            password: Deno.env.get('password123'),
+            host: Deno.env.get('127.0.0.1'),
+            database: Deno.env.get('x1_explorer'),
+            port: 5432,  // Hardcoded since Base44 doesn't need this as env var
         });
 
         await client.connect();
