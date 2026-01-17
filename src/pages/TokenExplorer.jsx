@@ -11,6 +11,9 @@ import X1Api from '../components/x1/X1ApiClient';
 import WalletConnector from '../components/portfolio/WalletConnector';
 import PortfolioTracker from '../components/portfolio/PortfolioTracker';
 import AIVerificationAssistant from '../components/portfolio/AIVerificationAssistant';
+import SmartSearchBar from '../components/ai/SmartSearchBar';
+import TokenHealthScore from '../components/ai/TokenHealthScore';
+import NetworkAnomalyAlert from '../components/ai/NetworkAnomalyAlert';
 
 // Helper to derive Metaplex metadata PDA
 const deriveMetadataPDA = async (mint) => {
@@ -83,6 +86,7 @@ export default function TokenExplorer() {
   const [showPortfolio, setShowPortfolio] = useState(false);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [aiAssistantToken, setAiAssistantToken] = useState(null);
+  const [aiSearchResult, setAiSearchResult] = useState(null);
 
   useEffect(() => {
     loadWatchlist();
@@ -751,6 +755,9 @@ export default function TokenExplorer() {
       </header>
 
       <main className="max-w-[1800px] mx-auto px-4 py-6">
+        {/* Network Anomaly Alert */}
+        <NetworkAnomalyAlert />
+
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold flex items-center gap-3">
             <Coins className="w-7 h-7 text-cyan-400" />
@@ -849,6 +856,20 @@ export default function TokenExplorer() {
           </div>
         </div>
         
+        {/* AI Smart Search */}
+        <div className="mb-6">
+          <SmartSearchBar 
+            onResult={(result) => {
+              setAiSearchResult(result);
+              if (result.action === 'search_token' && result.parameters.name) {
+                setSearchQuery(result.parameters.name);
+              } else if (result.action === 'get_token_details' && result.parameters.mint) {
+                fetchTokenDetails(result.parameters.mint);
+              }
+            }}
+          />
+        </div>
+
         {/* Search and Filters */}
         <div className="bg-[#24384a] rounded-xl p-4 mb-6">
           <div className="flex flex-wrap gap-3 items-center mb-3">
@@ -1253,8 +1274,14 @@ export default function TokenExplorer() {
                     </div>
                   </div>
                 )}
-                
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+
+                {/* AI Token Health Score */}
+                <TokenHealthScore 
+                  mint={selectedToken} 
+                  tokenName={allTokens.find(t => t.mint === selectedToken)?.name}
+                />
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6 mt-6">
                   <div className="bg-[#1d2d3a] rounded-lg p-3">
                     <p className="text-gray-400 text-xs mb-1">Mint Address</p>
                     <p className="text-cyan-400 font-mono text-xs break-all">{tokenDetails.mint}</p>
