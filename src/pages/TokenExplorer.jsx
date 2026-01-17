@@ -762,7 +762,7 @@ export default function TokenExplorer() {
 
       <main className="max-w-[1800px] mx-auto px-4 py-6">
         {/* Network Anomaly Alert - Temporarily disabled */}
-        <* <NetworkAnomalyAlert /> */>
+{/* <NetworkAnomalyAlert /> */}   
 
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold flex items-center gap-3">
