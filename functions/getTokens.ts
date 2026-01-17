@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
         const client = new Client({
             user: 'x1user',
             password: 'password123',
-            host: '127.0.0.1',
+            host: '45.94.81.202',
             database: 'x1_explorer',
             port: 5432,
         });
