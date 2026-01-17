@@ -1,18 +1,17 @@
-// API Configuration for X1 Space Explorer
+// API Configuration for X1 Space Explorer on Base44
 const isDevelopment = import.meta.env.DEV;
-const isProduction = import.meta.env.PROD;
 
 export const API_CONFIG = {
-  // Base URLs - CHANGE THIS AFTER VERCEL DEPLOYMENT
+  // Base44 deployment URLs
   baseURL: isDevelopment 
     ? 'http://localhost:3000'
-    : 'https://x1space-explorer.vercel.app',  // UPDATE WITH YOUR VERCEL URL
+    : window.location.origin,  // Use same origin on Base44
   
   wsURL: isDevelopment
     ? 'ws://localhost:3000'
-    : 'wss://x1space-explorer.vercel.app',  // UPDATE WITH YOUR VERCEL URL
+    : `wss://${window.location.host}`,
   
-  // API Endpoints
+  // API Endpoints (Base44 Functions)
   endpoints: {
     tokens: '/api/getTokens',
     tokenDetail: '/api/getTokenByMint',
@@ -24,6 +23,9 @@ export const API_CONFIG = {
     analyzeToken: '/api/analyzeToken',
     detectAnomalies: '/api/detectAnomalies'
   },
+  
+  // X1 Blockchain RPC - YOUR VALIDATOR RPC
+  rpcEndpoint: 'https://xolana.xen.network',  // or your validator IP
   
   // Cache settings
   cache: {
@@ -37,9 +39,9 @@ export const API_CONFIG = {
   
   // Feature flags
   features: {
-    websocket: false,  // Disable WebSocket for now
+    websocket: false,  // Disable for now
     aiSearch: true,
-    realTimePrices: false,  // Disable until backend is ready
+    realTimePrices: true,
     portfolioTracking: true
   }
 };
