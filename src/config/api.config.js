@@ -1,8 +1,50 @@
-baseURL: isDevelopment 
-  ? 'http://localhost:3000'
-  : window.location.origin,  // Use Base44's own domain
-```
+// API Configuration for X1 Space Explorer
+const isDevelopment = import.meta.env.DEV;
+const isProduction = import.meta.env.PROD;
 
-This way it calls:
-```
-https://x1space.base44.app/api/getTokens
+export const API_CONFIG = {
+  // Base URLs - Use Base44's own domain
+  baseURL: isDevelopment 
+    ? 'http://localhost:3000'
+    : window.location.origin,  // https://x1space.base44.app
+  
+  wsURL: isDevelopment
+    ? 'ws://localhost:3000'
+    : `wss://${window.location.host}`,
+  
+  // API Endpoints - Using /functions/ path for Base44
+  endpoints: {
+    tokens: '/functions/getTokens',
+    tokenDetail: '/functions/getTokenByMint',
+    search: '/functions/searchTokens',
+    validators: '/functions/getValidators',
+    networkStats: '/functions/getNetworkStats',
+    networkHistory: '/functions/getNetworkHistory',
+    smartSearch: '/functions/smartSearch',
+    analyzeToken: '/functions/analyzeToken',
+    detectAnomalies: '/functions/detectAnomalies'
+  },
+  
+  // X1 Blockchain RPC
+  rpcEndpoint: 'https://xolana.xen.network',
+  
+  // Cache settings
+  cache: {
+    enabled: true,
+    ttl: 30000,
+  },
+  
+  // Request settings
+  timeout: 10000,
+  retries: 3,
+  
+  // Feature flags
+  features: {
+    websocket: false,
+    aiSearch: true,
+    realTimePrices: true,
+    portfolioTracking: true
+  }
+};
+
+export default API_CONFIG;
