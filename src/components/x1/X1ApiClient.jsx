@@ -134,7 +134,7 @@ export async function searchTokens(query, params = {}) {
   if (!query) return { success: false, data: { tokens: [], total: 0 } };
 
   try {
-    const url = `${API_BASE_URL}/api/searchTokens?q=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`;
+    const url = `${API_BASE_URL}${API_CONFIG.endpoints.search}?q=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`;
     console.log('🔍 Searching tokens:', url);
     
     const data = await apiRequest(url);
@@ -166,7 +166,7 @@ export async function getTokenDetails(mint) {
   }
 
   try {
-    const url = `${API_BASE_URL}/api/getTokenByMint?mint=${mint}`;
+    const url = `${API_BASE_URL}${API_CONFIG.endpoints.tokenDetail}?mint=${mint}`;
     console.log('📡 Fetching token details:', url);
     
     const data = await apiRequest(url);
@@ -191,7 +191,7 @@ export async function getTokenDetails(mint) {
 // Verify token (X1Space)
 export async function verifyToken(tokenData) {
   try {
-    const url = `${API_BASE_URL}/api/verify-token`;
+    const url = `${API_BASE_URL}/functions/verify-token`;
     console.log('✅ Verifying token:', tokenData.mint);
     
     const data = await apiRequest(url, {
@@ -218,7 +218,7 @@ export async function getTokenHolders(mint, params = {}) {
   const { limit = 50, offset = 0 } = params;
   
   try {
-    const url = `${API_BASE_URL}/api/tokens/${mint}/holders?limit=${limit}&offset=${offset}`;
+    const url = `${API_BASE_URL}/functions/tokens/${mint}/holders?limit=${limit}&offset=${offset}`;
     console.log('📡 Fetching token holders:', url);
     
     const data = await apiRequest(url);
@@ -245,7 +245,7 @@ export async function getTokenTransactions(mint, params = {}) {
   const { limit = 50, offset = 0 } = params;
   
   try {
-    const url = `${API_BASE_URL}/api/tokens/${mint}/transactions?limit=${limit}&offset=${offset}`;
+    const url = `${API_BASE_URL}/functions/tokens/${mint}/transactions?limit=${limit}&offset=${offset}`;
     console.log('📡 Fetching token transactions:', url);
     
     const data = await apiRequest(url);
@@ -274,7 +274,7 @@ export async function getLiquidityPools(mint) {
   if (cached) return cached;
 
   try {
-    const url = `${API_BASE_URL}/api/pools?token=${mint}`;
+    const url = `${API_BASE_URL}/functions/pools?token=${mint}`;
     console.log('📡 Fetching liquidity pools:', url);
     
     const data = await apiRequest(url);
@@ -305,7 +305,7 @@ export async function getCreatorProfile(address) {
   if (cached) return cached;
 
   try {
-    const url = `${API_BASE_URL}/api/creator/${address}`;
+    const url = `${API_BASE_URL}/functions/creator/${address}`;
     console.log('📡 Fetching creator profile:', url);
     
     const data = await apiRequest(url);
@@ -334,7 +334,7 @@ export async function getTokenPriceHistory(mint, params = {}) {
   if (cached) return cached;
 
   try {
-    const url = `${API_BASE_URL}/api/tokens/${mint}/price-history?period=${period}`;
+    const url = `${API_BASE_URL}/functions/tokens/${mint}/price-history?period=${period}`;
     console.log('📡 Fetching price history:', url);
     
     const data = await apiRequest(url);
