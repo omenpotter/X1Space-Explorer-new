@@ -1,8 +1,70 @@
 {
+  "version": 2,
+  "functions": {
+    "functions/**/*.ts": {
+      "runtime": "edge",
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "source": "/api/getTokens",
+      "destination": "/functions/getTokens"
+    },
+    {
+      "source": "/api/getTokenByMint",
+      "destination": "/functions/getTokenByMint"
+    },
+    {
+      "source": "/api/searchTokens",
+      "destination": "/functions/searchTokens"
+    },
+    {
+      "source": "/api/getValidators",
+      "destination": "/functions/getValidators"
+    },
+    {
+      "source": "/api/getNetworkStats",
+      "destination": "/functions/getNetworkStats"
+    },
+    {
+      "source": "/api/getNetworkHistory",
+      "destination": "/functions/getNetworkHistory"
+    },
+    {
+      "source": "/api/smartSearch",
+      "destination": "/functions/smartSearch"
+    },
+    {
+      "source": "/api/analyzeToken",
+      "destination": "/functions/analyzeToken"
+    },
+    {
+      "source": "/api/detectAnomalies",
+      "destination": "/functions/detectAnomalies"
     }
-  ]
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization"
+        }
+      ]
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }
