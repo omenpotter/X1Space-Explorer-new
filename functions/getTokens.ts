@@ -26,14 +26,14 @@ Deno.serve(async (req) => {
         console.log('📊 Fetching tokens from database...');
         console.log(`Params: limit=${limit}, offset=${offset}, verifiedOnly=${verifiedOnly}`);
 
-        // Connect to PostgreSQL - HARDCODED CREDENTIALS
-        const client = new Client({
-            user: 'x1user',
-            password: 'password123',
-            host: '45.94.81.202',
-            database: 'x1_explorer',
-            port: 5432,
-        });
+        /// Connect to PostgreSQL - Using environment variables
+       const client = new Client({
+    user: Deno.env.get('X1_DB_USER') || 'x1user',
+    password: Deno.env.get('X1_DB_PASSWORD') || 'password123',
+    host: Deno.env.get('X1_DB_HOST') || '45.94.81.202',
+    database: Deno.env.get('X1_DB_NAME') || 'x1_explorer',
+    port: 5432,
+});
 
         console.log('🔌 Connecting to database...');
         console.log('Host: 127.0.0.1, Database: x1_explorer, User: x1user');
