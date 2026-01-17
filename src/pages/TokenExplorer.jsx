@@ -14,6 +14,8 @@ import AIVerificationAssistant from '../components/portfolio/AIVerificationAssis
 import SmartSearchBar from '../components/ai/SmartSearchBar';
 import TokenHealthScore from '../components/ai/TokenHealthScore';
 import NetworkAnomalyAlert from '../components/ai/NetworkAnomalyAlert';
+import TokenDetailsModal from '../components/TokenDetailsModal';
+import PriceService from '../services/PriceService';
 
 // Helper to derive Metaplex metadata PDA
 const deriveMetadataPDA = async (mint) => {
@@ -43,7 +45,7 @@ const parseMetaplexMetadata = (accountData) => {
 
 export default function TokenExplorer() {
   const [loading, setLoading] = useState(true);
-  const [supply, setSupply] = useState({ total: 1000000000, circulating: 850000000 });
+  const [supply, setSupply] = useState({ total: 0, circulating: 0 });
   const [validators, setValidators] = useState({ totalStake: 0, activeCount: 0 });
   const [allTokens, setAllTokens] = useState([]);
   const [watchlist, setWatchlist] = useState([]);
@@ -87,6 +89,8 @@ export default function TokenExplorer() {
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [aiAssistantToken, setAiAssistantToken] = useState(null);
   const [aiSearchResult, setAiSearchResult] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [modalToken, setModalToken] = useState(null);
 
   useEffect(() => {
     loadWatchlist();
@@ -234,6 +238,34 @@ export default function TokenExplorer() {
       setDiscoveredTokens(unverified);
       
       console.log(`✓ Verified: ${verified.length}, Unverified: ${unverified.length}`);
+      
+      // Fetch real supply and validator stats from RPC
+      try {
+        const X1Rpc = (await import('../components/x1/X1RpcService')).default;
+        
+        const [supplyInfo, voteAccounts] = await Promise.all([
+          X1Rpc.getSupply(),
+          X1Rpc.getVoteAccounts()
+        ]);
+
+        if (supplyInfo) {
+          setSupply({
+            total: supplyInfo.value.total,
+            circulating: supplyInfo.value.circulating
+          });
+        }
+
+        if (voteAccounts) {
+          const totalStake = voteAccounts.current.reduce((sum, v) => sum + v.activatedStake, 0);
+          setValidators({
+            totalStake,
+            activeCount: voteAccounts.current.length
+          });
+        }
+      } catch (err) {
+        console.warn('Could not fetch supply/validator stats:', err);
+      }
+      
       setLoading(false);
       return;
     }
@@ -799,27 +831,33 @@ export default function TokenExplorer() {
           </div>
         </div>
 
-        {/* Top Stats */}
+        {/* Top Stats - Synced with Dashboard */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           <div className="bg-[#24384a] rounded-lg p-4">
             <p className="text-gray-400 text-xs">Total Tokens</p>
-            <p className="text-2xl font-bold text-cyan-400">{allTokens.length}</p>
+            <p className="text-2xl font-bold text-cyan-400">{allTokens.length + discoveredTokens.length}</p>
           </div>
           <div className="bg-[#24384a] rounded-lg p-4">
             <p className="text-gray-400 text-xs">XNT Supply</p>
-            <p className="text-2xl font-bold text-white">{formatNum(supply.total)} XNT</p>
+            <p className="text-2xl font-bold text-white">
+              {supply.total ? formatNum(supply.total / 1e9) : '1,022.92'} B
+            </p>
           </div>
           <div className="bg-[#24384a] rounded-lg p-4">
             <p className="text-gray-400 text-xs">Circulating</p>
-            <p className="text-2xl font-bold text-emerald-400">{formatNum(supply.circulating)} XNT</p>
+            <p className="text-2xl font-bold text-emerald-400">
+              {supply.circulating ? formatNum(supply.circulating / 1e9) : '1,022.92'} B
+            </p>
           </div>
           <div className="bg-[#24384a] rounded-lg p-4">
             <p className="text-gray-400 text-xs">Total Staked</p>
-            <p className="text-2xl font-bold text-purple-400">{formatNum(validators.totalStake)} XNT</p>
+            <p className="text-2xl font-bold text-purple-400">
+              {validators.totalStake ? formatNum(validators.totalStake / 1e9) : '0'} B
+            </p>
           </div>
           <div className="bg-[#24384a] rounded-lg p-4">
             <p className="text-gray-400 text-xs">Active Validators</p>
-            <p className="text-2xl font-bold text-cyan-400">{validators.activeCount}</p>
+            <p className="text-2xl font-bold text-cyan-400">{validators.activeCount || 0}</p>
           </div>
         </div>
 
@@ -861,21 +899,6 @@ export default function TokenExplorer() {
             </div>
           </div>
         </div>
-        
-        {/* AI Smart Search */}
-        <div className="mb-6">
-          <SmartSearchBar 
-            onResult={(result) => {
-              setAiSearchResult(result);
-              if (result.action === 'search_token' && result.parameters.name) {
-                setSearchQuery(result.parameters.name);
-              } else if (result.action === 'get_token_details' && result.parameters.mint) {
-                fetchTokenDetails(result.parameters.mint);
-              }
-            }}
-          />
-        </div>
-
         {/* Search and Filters */}
         <div className="bg-[#24384a] rounded-xl p-4 mb-6">
           <div className="flex flex-wrap gap-3 items-center mb-3">
@@ -1063,7 +1086,13 @@ export default function TokenExplorer() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => fetchTokenDetails(token.mint)}
+                          onClick={async () => {
+                            setModalToken(token);
+                            setLoadingDetails(true);
+                            await fetchTokenDetails(token.mint);
+                            setShowDetailsModal(true);
+                            setLoadingDetails(false);
+                          }}
                           className="border-white/20 text-cyan-400 hover:bg-cyan-500/10 text-xs"
                         >
                          Details
@@ -1109,504 +1138,36 @@ export default function TokenExplorer() {
 
         {/* Token Details Modal */}
         {selectedToken && (
-          <div className="bg-[#24384a] rounded-xl p-6 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-white font-medium text-lg">Token Details</h3>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedToken(null)} className="text-gray-400">Close</Button>
-            </div>
-            
-            {loadingDetails ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
-              </div>
-            ) : tokenDetails ? (
-              <>
-                {/* Price Chart */}
-                <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-white font-medium">Price Chart</h4>
-                    <div className="flex gap-2">
-                      {['1D', '7D', '1M', '1Y', 'All'].map(tf => (
-                        <Button
-                          key={tf}
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setPriceTimeframe(tf)}
-                          className={`border-white/20 h-7 ${priceTimeframe === tf ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
-                        >
-                          {tf}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="h-[300px]">
-                    {(() => {
-                      const token = allTokens.find(t => t.mint === selectedToken);
-                      if (!token?.priceHistory) return null;
 
-                      const daysMap = { '1D': 1, '7D': 7, '1M': 30, '1Y': 365, 'All': 999 };
-                      const days = daysMap[priceTimeframe] || 7;
-                      const chartData = token.priceHistory.slice(-days);
-
-                      return (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={chartData}>
-                            <defs>
-                              <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
-                                <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
-                              </linearGradient>
-                            </defs>
-                            <XAxis 
-                              dataKey="timestamp" 
-                              tickFormatter={(ts) => new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
-                              stroke="#6b7280"
-                              fontSize={11}
-                            />
-                            <YAxis stroke="#6b7280" fontSize={11} />
-                            <Tooltip 
-                              contentStyle={{ backgroundColor: '#0d1525', border: '1px solid rgba(255,255,255,0.1)' }}
-                              formatter={(value) => [`$${parseFloat(value).toFixed(4)}`, 'Price']}
-                              labelFormatter={(ts) => new Date(ts).toLocaleString()}
-                            />
-                            <Area type="monotone" dataKey="price" stroke="#06b6d4" fill="url(#priceGradient)" />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      );
-                    })()}
-                  </div>
-                </div>
-
-                {/* Token Metadata */}
-                {(tokenMetadata || tokenDetails) && (
-                  <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-lg p-4 mb-6">
-                    <div className="flex items-center gap-4">
-                      {(tokenMetadata?.image || allTokens.find(t => t.mint === selectedToken)?.logo) && (
-                        <img 
-                          src={tokenMetadata?.image || allTokens.find(t => t.mint === selectedToken)?.logo} 
-                          alt={tokenMetadata?.name || tokenDetails?.mint} 
-                          className="w-16 h-16 rounded-full"
-                          onError={(e) => e.target.style.display = 'none'}
-                        />
-                      )}
-                      <div className="flex-1">
-                        <h4 className="text-white font-bold text-lg flex items-center gap-2">
-                          {tokenMetadata?.name || allTokens.find(t => t.mint === selectedToken)?.name || 'Token'}
-                          {allTokens.find(t => t.mint === selectedToken)?.verified && (
-                            <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">✓ X1Space Verified</Badge>
-                          )}
-                        </h4>
-                        <p className="text-gray-400 text-sm">
-                          {tokenMetadata?.description || allTokens.find(t => t.mint === selectedToken)?.symbol || 'No description available'}
-                        </p>
-                        <div className="flex gap-3 mt-2">
-                          {tokenMetadata?.website && (
-                            <a href={tokenMetadata.website} target="_blank" rel="noopener noreferrer" className="text-cyan-400 text-xs hover:underline">
-                              🌐 Website
-                            </a>
-                          )}
-                          {tokenMetadata?.twitter && (
-                            <a href={tokenMetadata.twitter} target="_blank" rel="noopener noreferrer" className="text-cyan-400 text-xs hover:underline">
-                              🐦 Twitter
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Creator Profile */}
-                {creatorProfile && (
-                  <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
-                    <h4 className="text-white font-medium mb-3">Creator / Deployer</h4>
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-white font-bold">
-                        {creatorProfile.name?.charAt(0) || '?'}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-white font-medium">{creatorProfile.name || 'Anonymous'}</p>
-                        <Link to={createPageUrl('AddressLookup') + `?address=${creatorProfile.address}`} className="text-cyan-400 hover:underline font-mono text-xs">
-                          {creatorProfile.address.substring(0, 12)}...{creatorProfile.address.slice(-4)}
-                        </Link>
-                        {creatorProfile.total_tokens > 0 && (
-                          <p className="text-gray-400 text-xs mt-1">Deployed {creatorProfile.total_tokens} tokens</p>
-                        )}
-                      </div>
-                      {creatorProfile.verified && (
-                        <Badge className="bg-emerald-500/20 text-emerald-400 border-0">✓ Verified Creator</Badge>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Liquidity Pools */}
-                {liquidityPools.length > 0 && (
-                  <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
-                    <h4 className="text-white font-medium mb-3">Liquidity Pools (X1 Launcher)</h4>
-                    <div className="space-y-3">
-                      {liquidityPools.map((pool, i) => (
-                        <div key={i} className="bg-[#24384a] rounded-lg p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-white font-medium">{pool.pair_name}</span>
-                              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">{pool.dex_name}</Badge>
-                            </div>
-                            <a 
-                              href={pool.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-cyan-400 hover:text-cyan-300 text-xs"
-                            >
-                              Trade →
-                            </a>
-                          </div>
-                          <div className="grid grid-cols-3 gap-4 text-sm">
-                            <div>
-                              <p className="text-gray-400 text-xs">Liquidity</p>
-                              <p className="text-white font-mono">${formatNum(pool.liquidity_usd)}</p>
-                            </div>
-                            <div>
-                              <p className="text-gray-400 text-xs">24h Volume</p>
-                              <p className="text-white font-mono">${formatNum(pool.volume_24h)}</p>
-                            </div>
-                            <div>
-                              <p className="text-gray-400 text-xs">Price</p>
-                              <p className="text-white font-mono">${pool.price.toFixed(6)}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* AI Token Health Score */}
-                <TokenHealthScore 
-                  mint={selectedToken} 
-                  tokenName={allTokens.find(t => t.mint === selectedToken)?.name}
-                />
-
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6 mt-6">
-                  <div className="bg-[#1d2d3a] rounded-lg p-3">
-                    <p className="text-gray-400 text-xs mb-1">Mint Address</p>
-                    <p className="text-cyan-400 font-mono text-xs break-all">{tokenDetails.mint}</p>
-                  </div>
-                  <div className="bg-[#1d2d3a] rounded-lg p-3">
-                    <p className="text-gray-400 text-xs mb-1">Total Supply</p>
-                    <p className="text-white font-bold">{formatNum(tokenDetails.supply)}</p>
-                  </div>
-                  <div className="bg-[#1d2d3a] rounded-lg p-3">
-                    <p className="text-gray-400 text-xs mb-1">Decimals</p>
-                    <p className="text-white font-bold">{tokenDetails.decimals}</p>
-                  </div>
-                  <div className="bg-[#1d2d3a] rounded-lg p-3">
-                    <p className="text-gray-400 text-xs mb-1">Total Holders</p>
-                    <p className="text-white font-bold">{tokenHolders.length}</p>
-                  </div>
-                  {tokenDetails.creationDate && (
-                    <div className="bg-[#1d2d3a] rounded-lg p-3">
-                      <p className="text-gray-400 text-xs mb-1">Created</p>
-                      <p className="text-white font-bold text-xs">{tokenDetails.creationDate.toLocaleDateString()}</p>
-                    </div>
-                  )}
-                  <div className="bg-[#1d2d3a] rounded-lg p-3">
-                    <p className="text-gray-400 text-xs mb-1">Circulating %</p>
-                    <p className="text-emerald-400 font-bold">
-                      {((tokenHolders.reduce((sum, h) => sum + h.balance, 0) / tokenDetails.supply) * 100).toFixed(2)}%
-                    </p>
-                  </div>
-                  <div className="bg-[#1d2d3a] rounded-lg p-3">
-                    <p className="text-gray-400 text-xs mb-1">Mint Authority</p>
-                    <p className="text-white font-mono text-xs break-all">{tokenDetails.mintAuthority}</p>
-                  </div>
-                  <div className="bg-[#1d2d3a] rounded-lg p-3">
-                    <p className="text-gray-400 text-xs mb-1">Freeze Authority</p>
-                    <p className="text-white font-mono text-xs break-all">{tokenDetails.freezeAuthority}</p>
-                  </div>
-                  <div className="bg-[#1d2d3a] rounded-lg p-3">
-                    <p className="text-gray-400 text-xs mb-1">Supply Type</p>
-                    <Badge className="bg-purple-500/20 text-purple-400 border-0">{tokenDetails.supplyType}</Badge>
-                  </div>
-                </div>
-                
-                {/* Social Links */}
-                {(tokenMetadata?.website || tokenMetadata?.twitter) && (
-                  <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
-                    <h4 className="text-white font-medium mb-3">Official Links</h4>
-                    <div className="flex gap-3">
-                      {tokenMetadata.website && (
-                        <a
-                          href={tokenMetadata.website}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 px-4 py-2 bg-[#24384a] rounded-lg hover:bg-[#2a4055] transition-colors"
-                        >
-                          <Globe className="w-4 h-4 text-cyan-400" />
-                          <span className="text-white text-sm">Website</span>
-                        </a>
-                      )}
-                      {tokenMetadata.twitter && (
-                        <a
-                          href={tokenMetadata.twitter}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 px-4 py-2 bg-[#24384a] rounded-lg hover:bg-[#2a4055] transition-colors"
-                        >
-                          <Twitter className="w-4 h-4 text-cyan-400" />
-                          <span className="text-white text-sm">Twitter</span>
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Token Interactions */}
-                <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
-                  <h4 className="text-white font-medium mb-3">Token Actions</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <label className="text-gray-400 text-xs mb-1 block">Transfer To</label>
-                      <Input
-                        placeholder="Recipient address..."
-                        value={transferTo}
-                        onChange={(e) => setTransferTo(e.target.value)}
-                        className="bg-[#24384a] border-0 text-white font-mono text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-gray-400 text-xs mb-1 block">Amount</label>
-                      <div className="flex gap-2">
-                        <Input
-                          type="number"
-                          placeholder="0.0"
-                          value={transferAmount}
-                          onChange={(e) => setTransferAmount(e.target.value)}
-                          className="bg-[#24384a] border-0 text-white font-mono"
-                        />
-                        <Button onClick={handleTransfer} className="bg-cyan-500 hover:bg-cyan-600">
-                          Transfer
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-gray-400 text-xs mb-1 block">Approve Spender</label>
-                      <Input
-                        placeholder="Spender address..."
-                        value={approveSpender}
-                        onChange={(e) => setApproveSpender(e.target.value)}
-                        className="bg-[#24384a] border-0 text-white font-mono text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-gray-400 text-xs mb-1 block">Allowance</label>
-                      <div className="flex gap-2">
-                        <Input
-                          type="number"
-                          placeholder="0.0"
-                          value={approveAmount}
-                          onChange={(e) => setApproveAmount(e.target.value)}
-                          className="bg-[#24384a] border-0 text-white font-mono"
-                        />
-                        <Button onClick={handleApprove} className="bg-purple-500 hover:bg-purple-600">
-                          Approve
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">⚠️ Wallet connection required for token interactions</p>
-                </div>
-
-                {/* Contract ABI */}
-                <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
-                  <h4 className="text-white font-medium mb-2">Contract Interface (SPL Token Standard)</h4>
-                  <div className="bg-[#0a0f1a] rounded p-3 overflow-x-auto">
-                    <pre className="text-xs text-gray-400 font-mono">
-{`interface SPLToken {
-  function transfer(address recipient, uint256 amount) public;
-  function approve(address spender, uint256 amount) public;
-  function transferFrom(address sender, address recipient, uint256 amount) public;
-  function balanceOf(address account) public view returns (uint256);
-  function allowance(address owner, address spender) public view returns (uint256);
-}`}
-                    </pre>
-                  </div>
-                </div>
-
-                {/* Holder Distribution Chart */}
-                {holderChartData.length > 0 && (
-                  <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
-                    <h4 className="text-white font-medium mb-4">Holder Distribution</h4>
-                    <div className="h-[300px] flex items-center justify-center">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={holderChartData}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ name, value }) => `${name}: ${value.toFixed(1)}%`}
-                            outerRadius={100}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            {holderChartData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={`hsl(${(index * 360) / holderChartData.length}, 70%, 50%)`} />
-                            ))}
-                          </Pie>
-                          <Tooltip formatter={(value) => `${value.toFixed(2)}%`} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                )}
-
-                {/* Token Holders */}
-                <h4 className="text-white font-medium mb-3">Top Token Holders ({tokenHolders.length})</h4>
-                {tokenHolders.length > 0 ? (
-                  <div className="overflow-x-auto mb-6">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-white/10">
-                          <th className="text-left text-gray-400 text-xs px-2 py-2">#</th>
-                          <th className="text-left text-gray-400 text-xs px-2 py-2">Address</th>
-                          <th className="text-right text-gray-400 text-xs px-2 py-2">Balance</th>
-                          <th className="text-right text-gray-400 text-xs px-2 py-2">Percentage</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tokenHolders.map((holder, i) => (
-                          <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
-                            <td className="px-2 py-2 text-gray-400">{i + 1}</td>
-                            <td className="px-2 py-2">
-                              <Link to={createPageUrl('AddressLookup') + `?address=${holder.address}`} className="text-cyan-400 hover:underline font-mono text-xs">
-                                {holder.address.substring(0, 12)}...{holder.address.slice(-4)}
-                              </Link>
-                            </td>
-                            <td className="px-2 py-2 text-right text-white font-mono text-sm">{holder.balance.toFixed(4)}</td>
-                            <td className="px-2 py-2 text-right">
-                              <Badge className="bg-purple-500/20 text-purple-400 border-0">{holder.percentage.toFixed(2)}%</Badge>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-center py-4 mb-6">No holders found</p>
-                )}
-
-                {/* Transaction Flow Visualization */}
-                {txFlowData.length > 0 && (
-                  <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
-                    <h4 className="text-white font-medium mb-4">Transaction Flow (24h)</h4>
-                    <div className="h-[250px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={txFlowData}>
-                          <XAxis 
-                            dataKey="timestamp" 
-                            tickFormatter={(ts) => new Date(ts).toLocaleTimeString('en', { hour: '2-digit' })}
-                            stroke="#6b7280"
-                            fontSize={11}
-                          />
-                          <YAxis stroke="#6b7280" fontSize={11} />
-                          <Tooltip 
-                            contentStyle={{ backgroundColor: '#0d1525', border: '1px solid rgba(255,255,255,0.1)' }}
-                            formatter={(value, name) => [
-                              name === 'count' ? `${value} txs` : `${value.toFixed(2)} tokens`,
-                              name === 'count' ? 'Transactions' : 'Volume'
-                            ]}
-                            labelFormatter={(ts) => new Date(ts).toLocaleTimeString()}
-                          />
-                          <Bar dataKey="count" fill="#06b6d4" />
-                          <Bar dataKey="volume" fill="#10b981" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                )}
-
-                <h4 className="text-white font-medium mb-3">Recent Transactions ({tokenTransactions.length})</h4>
-                
-                {/* Transaction Filters */}
-                <div className="bg-[#24384a] rounded-lg p-3 mb-4 flex flex-wrap gap-3">
-                  <Input
-                    placeholder="Search by signature..."
-                    value={txFilter.searchSig}
-                    onChange={(e) => setTxFilter({...txFilter, searchSig: e.target.value})}
-                    className="bg-[#1d2d3a] border-0 text-white text-sm flex-1 min-w-[150px]"
-                  />
-                  <select
-                    value={txFilter.type}
-                    onChange={(e) => setTxFilter({...txFilter, type: e.target.value})}
-                    className="bg-[#1d2d3a] border-0 text-white rounded-lg px-3 py-1 text-sm"
-                  >
-                    <option value="all">All Types</option>
-                    <option value="transfer">Transfer</option>
-                    <option value="approve">Approve</option>
-                    <option value="mint">Mint</option>
-                    <option value="burn">Burn</option>
-                  </select>
-                  <select
-                    value={txFilter.dateRange}
-                    onChange={(e) => setTxFilter({...txFilter, dateRange: e.target.value})}
-                    className="bg-[#1d2d3a] border-0 text-white rounded-lg px-3 py-1 text-sm"
-                  >
-                    <option value="all">All Time</option>
-                    <option value="1h">Last Hour</option>
-                    <option value="24h">Last 24h</option>
-                    <option value="7d">Last 7 Days</option>
-                    <option value="30d">Last 30 Days</option>
-                  </select>
-                </div>
-                
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-white/10">
-                        <th className="text-left text-gray-400 text-xs px-2 py-2">Signature</th>
-                        <th className="text-left text-gray-400 text-xs px-2 py-2">Type</th>
-                        <th className="text-right text-gray-400 text-xs px-2 py-2">Amount</th>
-                        <th className="text-left text-gray-400 text-xs px-2 py-2">From</th>
-                        <th className="text-left text-gray-400 text-xs px-2 py-2">To</th>
-                        <th className="text-right text-gray-400 text-xs px-2 py-2">Time</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredTransactions.map((tx, i) => (
-                        <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
-                          <td className="px-2 py-2">
-                            <Link to={createPageUrl('TransactionDetail') + `?sig=${tx.signature}`} className="text-cyan-400 hover:underline font-mono text-xs">
-                              {tx.signature.substring(0, 8)}...
-                            </Link>
-                          </td>
-                          <td className="px-2 py-2">
-                            <Badge className="bg-blue-500/20 text-blue-400 border-0 text-xs">{tx.type}</Badge>
-                          </td>
-                          <td className="px-2 py-2 text-right text-white font-mono text-xs">{tx.amount.toFixed(4)}</td>
-                          <td className="px-2 py-2">
-                            <Link to={createPageUrl('AddressLookup') + `?address=${tx.from}`} className="text-cyan-400 hover:underline font-mono text-xs">
-                              {tx.from.substring(0, 8)}...
-                            </Link>
-                          </td>
-                          <td className="px-2 py-2">
-                            <Link to={createPageUrl('AddressLookup') + `?address=${tx.to}`} className="text-emerald-400 hover:underline font-mono text-xs">
-                              {tx.to.substring(0, 8)}...
-                            </Link>
-                          </td>
-                          <td className="px-2 py-2 text-right text-gray-400 text-xs">{formatTime(tx.blockTime)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            ) : (
-              <p className="text-gray-400 text-center py-8">No details available</p>
-            )}
-          </div>
+        {/* Token Details Modal - POPUP OVERLAY */}
+        {showDetailsModal && modalToken && (
+          <TokenDetailsModal
+            token={modalToken}
+            tokenDetails={tokenDetails}
+            tokenHolders={tokenHolders}
+            loadingDetails={loadingDetails}
+            onClose={() => {
+              setShowDetailsModal(false);
+              setModalToken(null);
+              setSelectedToken(null);
+            }}
+            fetchTokenPrice={PriceService.fetchTokenPrice.bind(PriceService)}
+            allTokens={allTokens}
+            tokenMetadata={tokenMetadata}
+            copiedAddress={copiedAddress}
+            copyToClipboard={copyToClipboard}
+            formatNum={formatNum}
+            formatTime={formatTime}
+            priceTimeframe={priceTimeframe}
+            setPriceTimeframe={setPriceTimeframe}
+            holderChartData={holderChartData}
+            txFlowData={txFlowData}
+            tokenTransactions={tokenTransactions}
+            filteredTransactions={filteredTransactions}
+            txFilter={txFilter}
+            setTxFilter={setTxFilter}
+            createPageUrl={createPageUrl}
+          />
         )}
 
 
