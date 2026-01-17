@@ -26,17 +26,17 @@ Deno.serve(async (req) => {
         console.log('📊 Fetching tokens from database...');
         console.log(`Params: limit=${limit}, offset=${offset}, verifiedOnly=${verifiedOnly}`);
 
-        /// Connect to PostgreSQL - Using environment variables
-       const client = new Client({
-    user: Deno.env.get('X1_DB_USER') || 'x1user',
-    password: Deno.env.get('X1_DB_PASSWORD') || 'password123',
-    host: Deno.env.get('X1_DB_HOST') || '45.94.81.202',
-    database: Deno.env.get('X1_DB_NAME') || 'x1_explorer',
-    port: 5432,
-});
+        // Connect to PostgreSQL - Using environment variables ✅
+        const client = new Client({
+            user: Deno.env.get('X1_DB_USER') || 'x1user',
+            password: Deno.env.get('X1_DB_PASSWORD') || 'password123',
+            host: Deno.env.get('X1_DB_HOST') || '45.94.81.202',
+            database: Deno.env.get('X1_DB_NAME') || 'x1_explorer',
+            port: 5432,
+        });
 
         console.log('🔌 Connecting to database...');
-        console.log('Host: 127.0.0.1, Database: x1_explorer, User: x1user');
+        console.log(`Host: ${Deno.env.get('X1_DB_HOST') || '45.94.81.202'}, Database: ${Deno.env.get('X1_DB_NAME') || 'x1_explorer'}`);
 
         await client.connect();
         console.log('✓ Database connected successfully');
@@ -181,3 +181,16 @@ Deno.serve(async (req) => {
         });
     }
 });
+```
+
+---
+
+## Summary - What You Need to Do:
+
+### ✅ **1. In Base44 Dashboard:**
+Set these environment variables:
+```
+X1_DB_USER=x1user
+X1_DB_PASSWORD=password123
+X1_DB_HOST=45.94.81.202
+X1_DB_NAME=x1_explorer
