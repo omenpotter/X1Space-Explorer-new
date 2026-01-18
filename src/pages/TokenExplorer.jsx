@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, Fragment } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,6 @@ import SmartSearchBar from '../components/ai/SmartSearchBar';
 import TokenHealthScore from '../components/ai/TokenHealthScore';
 import NetworkAnomalyAlert from '../components/ai/NetworkAnomalyAlert';
 import TokenDetailsModal from '../components/TokenDetailsModal';
-import PriceService from '../services/PriceService';
 
 // Helper to derive Metaplex metadata PDA
 const deriveMetadataPDA = async (mint) => {
@@ -89,7 +88,7 @@ export default function TokenExplorer() {
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [aiAssistantToken, setAiAssistantToken] = useState(null);
   const [aiSearchResult, setAiSearchResult] = useState(null);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [expandedToken, setExpandedToken] = useState(null);
   const [modalToken, setModalToken] = useState(null);
 
   useEffect(() => {
@@ -1033,87 +1032,125 @@ export default function TokenExplorer() {
               </thead>
               <tbody>
                 {(showDiscovered ? discoveredTokens : filteredAndSortedTokens).slice(0, displayLimit).map((token, i) => (
-                  <tr key={token.mint} className="border-b border-white/5 hover:bg-white/[0.02]">
-                    <td className="px-4 py-3 text-gray-500">{i + 1}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {token.logo ? (
-                          <img src={token.logo} alt={token.symbol} className="w-8 h-8 rounded-full" onError={(e) => e.target.style.display = 'none'} />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-xs">
-                            {token.symbol.substring(0, 2)}
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-white font-medium text-sm">{token.name}</p>
-                          <div className="flex items-center gap-2">
-                            <p className="text-gray-500 text-xs font-mono truncate">{token.mint.substring(0, 12)}...</p>
-                            <button
-                              onClick={() => copyToClipboard(token.mint)}
-                              className="text-gray-500 hover:text-cyan-400 transition-colors shrink-0"
-                              title="Copy mint address"
-                            >
-                              {copiedAddress === token.mint ? (
-                                <Check className="w-3 h-3 text-emerald-400" />
-                              ) : (
-                                <Copy className="w-3 h-3" />
+                  <Fragment key={token.mint}>
+                    <tr className="border-b border-white/5 hover:bg-white/[0.02]">
+                      <td className="px-4 py-3 text-gray-500">{i + 1}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {token.logo ? (
+                            <img src={token.logo} alt={token.symbol} className="w-8 h-8 rounded-full" onError={(e) => e.target.style.display = 'none'} />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-xs">
+                              {token.symbol.substring(0, 2)}
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white font-medium text-sm">{token.name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-gray-500 text-xs font-mono truncate">{token.mint.substring(0, 12)}...</p>
+                              <button
+                                onClick={() => copyToClipboard(token.mint)}
+                                className="text-gray-500 hover:text-cyan-400 transition-colors shrink-0"
+                                title="Copy mint address"
+                              >
+                                {copiedAddress === token.mint ? (
+                                  <Check className="w-3 h-3 text-emerald-400" />
+                                ) : (
+                                  <Copy className="w-3 h-3" />
+                                )}
+                              </button>
+                              <Badge className="bg-blue-500/20 text-blue-400 border-0 text-xs">{token.tokenType || 'SPL Token'}</Badge>
+                              {showDiscovered && (
+                                <Badge className="bg-yellow-500/20 text-yellow-400 border-0 text-xs">Unverified</Badge>
                               )}
-                            </button>
-                            <Badge className="bg-blue-500/20 text-blue-400 border-0 text-xs">{token.tokenType || 'SPL Token'}</Badge>
-                            {showDiscovered && (
-                              <Badge className="bg-yellow-500/20 text-yellow-400 border-0 text-xs">Unverified</Badge>
-                            )}
-                            {token.verified && (
-                              <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">✓ Verified</Badge>
-                            )}
+                              {token.verified && (
+                                <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">✓ Verified</Badge>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right text-white font-mono">${token.price}</td>
-                    <td className="px-4 py-3 text-right">
-                      <span className={parseFloat(token.priceChange24h) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                        {parseFloat(token.priceChange24h) >= 0 ? '+' : ''}{token.priceChange24h}%
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-400">${formatNum(token.marketCap)}</td>
-                    <td className="px-4 py-3 text-right text-gray-400">{formatNum(token.totalSupply)}</td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => toggleWatchlist(token.mint)} className={watchlist.includes(token.mint) ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}>
-                         <Star className="w-4 h-4" fill={watchlist.includes(token.mint) ? 'currentColor' : 'none'} />
-                        </button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={async () => {
-                            setModalToken(token);
-                            setLoadingDetails(true);
-                            await fetchTokenDetails(token.mint);
-                            setShowDetailsModal(true);
-                            setLoadingDetails(false);
-                          }}
-                          className="border-white/20 text-cyan-400 hover:bg-cyan-500/10 text-xs"
-                        >
-                         Details
-                        </Button>
-                        {!token.verified && (
+                      </td>
+                      <td className="px-4 py-3 text-right text-white font-mono">${token.price}</td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={parseFloat(token.priceChange24h) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                          {parseFloat(token.priceChange24h) >= 0 ? '+' : ''}{token.priceChange24h}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-400">${formatNum(token.marketCap)}</td>
+                      <td className="px-4 py-3 text-right text-gray-400">{formatNum(token.totalSupply)}</td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <button onClick={() => toggleWatchlist(token.mint)} className={watchlist.includes(token.mint) ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}>
+                           <Star className="w-4 h-4" fill={watchlist.includes(token.mint) ? 'currentColor' : 'none'} />
+                          </button>
                           <Button
                             size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setAiAssistantToken(token.mint);
-                              setShowAIAssistant(true);
+                            variant="outline"
+                            onClick={async () => {
+                              if (expandedToken === token.mint) {
+                                setExpandedToken(null);
+                              } else {
+                                setExpandedToken(token.mint);
+                                setModalToken(token);
+                                setLoadingDetails(true);
+                                await fetchTokenDetails(token.mint);
+                                setLoadingDetails(false);
+                              }
                             }}
-                            className="text-purple-400 hover:bg-purple-500/10 text-xs"
-                            title="AI Verification Assistant"
+                            className={`border-white/20 text-cyan-400 hover:bg-cyan-500/10 text-xs ${
+                              expandedToken === token.mint ? 'bg-cyan-500/20' : ''
+                            }`}
                           >
-                            <Sparkles className="w-3 h-3" />
+                           {expandedToken === token.mint ? 'Hide' : 'Details'}
                           </Button>
-                        )}
-                        </div>
+                          {!token.verified && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setAiAssistantToken(token.mint);
+                                setShowAIAssistant(true);
+                              }}
+                              className="text-purple-400 hover:bg-purple-500/10 text-xs"
+                              title="AI Verification Assistant"
+                            >
+                              <Sparkles className="w-3 h-3" />
+                            </Button>
+                          )}
+                          </div>
+                          </td>
+                          </tr>
+                          
+                    {/* Inline Token Details - Opens below this row */}
+                    {expandedToken === token.mint && (
+                      <tr>
+                        <td colSpan="7" className="p-0 bg-[#1d2d3a]">
+                          <TokenDetailsModal
+                            token={modalToken}
+                            tokenDetails={tokenDetails}
+                            tokenHolders={tokenHolders}
+                            loadingDetails={loadingDetails}
+                            onClose={() => setExpandedToken(null)}
+                            allTokens={allTokens}
+                            tokenMetadata={tokenMetadata}
+                            copiedAddress={copiedAddress}
+                            copyToClipboard={copyToClipboard}
+                            formatNum={formatNum}
+                            formatTime={formatTime}
+                            priceTimeframe={priceTimeframe}
+                            setPriceTimeframe={setPriceTimeframe}
+                            holderChartData={holderChartData}
+                            txFlowData={txFlowData}
+                            tokenTransactions={tokenTransactions}
+                            filteredTransactions={filteredTransactions}
+                            txFilter={txFilter}
+                            setTxFilter={setTxFilter}
+                            createPageUrl={createPageUrl}
+                          />
                         </td>
-                        </tr>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -1136,36 +1173,6 @@ export default function TokenExplorer() {
           />
         )}
 
-        {/* Token Details Modal - POPUP OVERLAY */}
-        {showDetailsModal && modalToken && (
-          <TokenDetailsModal
-            token={modalToken}
-            tokenDetails={tokenDetails}
-            tokenHolders={tokenHolders}
-            loadingDetails={loadingDetails}
-            onClose={() => {
-              setShowDetailsModal(false);
-              setModalToken(null);
-              setSelectedToken(null);
-            }}
-            fetchTokenPrice={PriceService.fetchTokenPrice.bind(PriceService)}
-            allTokens={allTokens}
-            tokenMetadata={tokenMetadata}
-            copiedAddress={copiedAddress}
-            copyToClipboard={copyToClipboard}
-            formatNum={formatNum}
-            formatTime={formatTime}
-            priceTimeframe={priceTimeframe}
-            setPriceTimeframe={setPriceTimeframe}
-            holderChartData={holderChartData}
-            txFlowData={txFlowData}
-            tokenTransactions={tokenTransactions}
-            filteredTransactions={filteredTransactions}
-            txFilter={txFilter}
-            setTxFilter={setTxFilter}
-            createPageUrl={createPageUrl}
-          />
-        )}
 
 
       </main>
