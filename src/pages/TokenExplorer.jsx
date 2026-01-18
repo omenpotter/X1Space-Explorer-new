@@ -242,6 +242,47 @@ export default function TokenExplorer() {
       
       console.log(`✓ Verified: ${verified.length}, Unverified: ${unverified.length}`);
       
+      // Fetch supply from RPC for tokens with 0 supply
+      console.log('🔄 Fetching token supplies from RPC...');
+      const tokensWithSupply = await Promise.all(
+        verified.slice(0, 20).map(async (token) => { // First 20 tokens only for speed
+          if (token.totalSupply === 0) {
+            try {
+              const response = await fetch('https://rpc.mainnet.x1.xyz', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  jsonrpc: '2.0',
+                  id: 1,
+                  method: 'getTokenSupply',
+                  params: [token.mint]
+                })
+              });
+              
+              const data = await response.json();
+              if (data?.result?.value?.uiAmount) {
+                return { ...token, totalSupply: data.result.value.uiAmount };
+              }
+            } catch (err) {
+              console.error(`Failed to fetch supply for ${token.symbol}:`, err);
+            }
+          }
+          return token;
+        })
+      );
+      
+      // Update first 20 tokens with RPC supply
+      setAllTokens(prev => {
+        const updated = [...prev];
+        tokensWithSupply.forEach((token, i) => {
+          if (updated[i]) {
+            updated[i] = token;
+          }
+        });
+        return updated;
+      });
+      console.log('✅ RPC supply fetch complete');
+      
       // Fetch real supply and validator stats from RPC
       try {
         const X1Rpc = (await import('../components/x1/X1RpcService')).default;
