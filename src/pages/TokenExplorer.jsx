@@ -197,6 +197,8 @@ export default function TokenExplorer() {
       const verified = [];
       const unverified = [];
 
+      console.log('First token raw data:', tokens[0]); // DEBUG
+
       tokens.forEach(token => {
         const tokenData = {
           mint: token.mint || token.address,
@@ -204,7 +206,7 @@ export default function TokenExplorer() {
           symbol: token.symbol || 'UNKNOWN',
           logo: token.logo_uri || token.logo,
           decimals: token.decimals || 9,
-          totalSupply: convertSupply(token.total_supply || token.totalSupply || 0, token.decimals || 9),
+          totalSupply: convertSupply(token.total_supply || token.totalSupply || token.supply || 0, token.decimals || 9),
           tokenType: token.token_type || token.tokenType || 'SPL Token',
           price: token.price ? parseFloat(token.price).toFixed(4) : '0.0000',
           marketCap: token.market_cap || token.marketCap || 0,
@@ -869,7 +871,7 @@ export default function TokenExplorer() {
             <div className="flex items-center gap-6">
               <div>
                 <p className="text-gray-400 text-xs">Market Cap</p>
-                <p className="text-white font-bold">${formatNum(supply.circulating * 1.0)}</p>
+                <p className="text-white font-bold">${formatNum(supply.circulating / 1e9)}</p>
               </div>
               <div>
                 <p className="text-gray-400 text-xs">24h Change</p>
