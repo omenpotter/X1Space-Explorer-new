@@ -45,31 +45,69 @@ export default function TokenDetailsModal({
   const tokenData = allTokens?.find(t => t.mint === token.mint) || token;
   const details = tokenDetails || tokenData;
 
-  // Fetch actual token holders from RPC
+  // Fetch actual token holders - WITHOUT @solana/web3.js import
   useEffect(() => {
     const fetchHolders = async () => {
       if (!token?.mint) return;
       
       setLoadingHolders(true);
       try {
-        // Import X1 RPC service
-        const X1Rpc = (await import('../components/x1/X1RpcService')).default;
-        
-        // Get largest accounts for this token
-        const response = await X1Rpc.connection.getTokenLargestAccounts(
-          new (await import('@solana/web3.js')).PublicKey(token.mint)
-        );
-        
-        if (response?.value) {
-          const totalSupply = details?.totalSupply || tokenData.totalSupply || 1;
+        // Try to use tokenHolders prop first (if already fetched by parent)
+        if (tokenHolders && tokenHolders.length > 0) {
+          setActualHolders(tokenHolders);
+          setLoadingHolders(false);
+          return;
+        }
+
+        // Try X1 API first
+        try {
+          const X1Api = (await import('../components/x1/X1ApiClient')).default;
+          const holdersResponse = await X1Api.getTokenHolders(token.mint, { limit: 50 });
           
-          const holders = response.value.map((holder, index) => ({
-            address: holder.address.toBase58(),
-            amount: holder.uiAmount || 0,
-            percentage: ((holder.uiAmount || 0) / totalSupply * 100).toFixed(2)
-          }));
+          if (holdersResponse?.success && holdersResponse.data?.holders) {
+            setActualHolders(holdersResponse.data.holders);
+            setLoadingHolders(false);
+            return;
+          }
+        } catch (apiError) {
+          console.log('API holder fetch failed, trying RPC:', apiError);
+        }
+
+        // Fallback: Use RPC with string mint address (no PublicKey needed)
+        try {
+          const X1Rpc = (await import('../components/x1/X1RpcService')).default;
           
-          setActualHolders(holders);
+          // Call getTokenLargestAccounts with string address directly
+          // X1 RPC should handle the conversion internally
+          const response = await fetch('https://rpc.mainnet.x1.xyz', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'getTokenLargestAccounts',
+              params: [token.mint]
+            })
+          });
+          
+          const data = await response.json();
+          
+          if (data?.result?.value) {
+            const totalSupply = details?.totalSupply || tokenData.totalSupply || 1;
+            
+            const holders = data.result.value.map((holder, index) => ({
+              address: holder.address || 'Unknown',
+              amount: holder.uiAmount || 0,
+              percentage: ((holder.uiAmount || 0) / totalSupply * 100).toFixed(2)
+            }));
+            
+            setActualHolders(holders);
+          } else {
+            setActualHolders([]);
+          }
+        } catch (rpcError) {
+          console.error('RPC holder fetch failed:', rpcError);
+          setActualHolders([]);
         }
       } catch (error) {
         console.error('Error fetching holders:', error);
@@ -80,7 +118,7 @@ export default function TokenDetailsModal({
     };
 
     fetchHolders();
-  }, [token?.mint, details?.totalSupply, tokenData.totalSupply]);
+  }, [token?.mint, tokenHolders, details?.totalSupply, tokenData.totalSupply]);
 
   // Calculate AI Health Score locally
   useEffect(() => {
