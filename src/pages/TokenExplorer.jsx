@@ -709,20 +709,27 @@ export default function TokenExplorer() {
   const convertSupply = (supply, decimals = 9) => {
     if (!supply || supply === 0) return 0;
     
-    // If supply is very large (in lamports), divide by 10^decimals
-    if (supply > 1000000000000) {
-      return supply / Math.pow(10, decimals);
+    // Convert to number if string
+    const numSupply = typeof supply === 'string' ? parseFloat(supply) : supply;
+    if (isNaN(numSupply)) return 0;
+    
+    // If supply is larger than 10^decimals, it's likely in lamports
+    const threshold = Math.pow(10, decimals);
+    if (numSupply >= threshold) {
+      return numSupply / threshold;
     }
     
-    return supply;
+    return numSupply;
   };
 
   const formatNum = (num) => {
     if (!num || num === 0) return '0';
-    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
-    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
-    if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
-    return num.toFixed(2);
+    const n = typeof num === 'string' ? parseFloat(num) : num;
+    if (isNaN(n)) return '0';
+    if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+    if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(2) + 'K';
+    return n.toFixed(2);
   };
 
   const formatTime = (timestamp) => {
