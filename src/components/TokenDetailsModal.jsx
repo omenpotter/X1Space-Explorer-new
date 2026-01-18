@@ -50,11 +50,17 @@ export default function TokenDetailsModal({
     const supply = details?.totalSupply || tokenData?.totalSupply || 0;
     const decimals = details?.decimals || tokenData?.decimals || 9;
     
-    // If supply is very large (in lamports), divide by 10^decimals
-    if (supply > 1000000000000) {
-      return supply / Math.pow(10, decimals);
+    // Convert to number if string
+    const numSupply = typeof supply === 'string' ? parseFloat(supply) : supply;
+    if (!numSupply || numSupply === 0 || isNaN(numSupply)) return 0;
+    
+    // If supply is larger than 10^decimals, it's likely in lamports
+    const threshold = Math.pow(10, decimals);
+    if (numSupply >= threshold) {
+      return numSupply / threshold;
     }
-    return supply;
+    
+    return numSupply;
   };
 
   // Fetch actual WALLET HOLDERS (not token accounts)
