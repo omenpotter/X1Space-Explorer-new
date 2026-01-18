@@ -8,8 +8,6 @@ import { createPageUrl } from '@/utils';
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip, XAxis, PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area } from 'recharts';
 
 import X1Api from '../components/x1/X1ApiClient';
-import WalletConnector from '../components/portfolio/WalletConnector';
-import PortfolioTracker from '../components/portfolio/PortfolioTracker';
 import AIVerificationAssistant from '../components/portfolio/AIVerificationAssistant';
 import SmartSearchBar from '../components/ai/SmartSearchBar';
 import TokenHealthScore from '../components/ai/TokenHealthScore';
@@ -82,9 +80,6 @@ export default function TokenExplorer() {
   const [apiHealthy, setApiHealthy] = useState(false);
   const [creatorProfile, setCreatorProfile] = useState(null);
   const [liquidityPools, setLiquidityPools] = useState([]);
-  const [walletConnected, setWalletConnected] = useState(false);
-  const [walletAddress, setWalletAddress] = useState(null);
-  const [showPortfolio, setShowPortfolio] = useState(false);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [aiAssistantToken, setAiAssistantToken] = useState(null);
   const [aiSearchResult, setAiSearchResult] = useState(null);
@@ -209,7 +204,7 @@ export default function TokenExplorer() {
           symbol: token.symbol || 'UNKNOWN',
           logo: token.logo_uri || token.logo,
           decimals: token.decimals || 9,
-          totalSupply: token.total_supply || token.totalSupply || 0,
+          totalSupply: convertSupply(token.total_supply || token.totalSupply || 0, token.decimals || 9),
           tokenType: token.token_type || token.tokenType || 'SPL Token',
           price: token.price ? parseFloat(token.price).toFixed(4) : '0.0000',
           marketCap: token.market_cap || token.marketCap || 0,
@@ -710,7 +705,20 @@ export default function TokenExplorer() {
     return filtered;
   }, [tokenTransactions, txFilter]);
 
+  // Helper to convert supply from lamports to tokens
+  const convertSupply = (supply, decimals = 9) => {
+    if (!supply || supply === 0) return 0;
+    
+    // If supply is very large (in lamports), divide by 10^decimals
+    if (supply > 1000000000000) {
+      return supply / Math.pow(10, decimals);
+    }
+    
+    return supply;
+  };
+
   const formatNum = (num) => {
+    if (!num || num === 0) return '0';
     if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
     if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
     if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
@@ -761,27 +769,6 @@ export default function TokenExplorer() {
               </Link>
             </div>
             <div className="flex items-center gap-2">
-              <WalletConnector 
-                onConnect={({ address }) => {
-                  setWalletAddress(address);
-                  setWalletConnected(true);
-                }}
-                onDisconnect={() => {
-                  setWalletAddress(null);
-                  setWalletConnected(false);
-                  setShowPortfolio(false);
-                }}
-              />
-              {walletConnected && (
-                <Button 
-                  onClick={() => setShowPortfolio(!showPortfolio)} 
-                  variant="outline" 
-                  size="sm" 
-                  className={`border-white/20 ${showPortfolio ? 'bg-cyan-500/20 text-cyan-400' : 'text-cyan-400'}`}
-                >
-                  Portfolio
-                </Button>
-              )}
               <Button onClick={fetchData} variant="outline" size="sm" className="border-white/20 text-cyan-400">
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Refresh
@@ -859,13 +846,6 @@ export default function TokenExplorer() {
             <p className="text-2xl font-bold text-cyan-400">{validators.activeCount || 0}</p>
           </div>
         </div>
-
-        {/* Portfolio Tracker */}
-        {showPortfolio && walletConnected && (
-          <div className="mb-6">
-            <PortfolioTracker walletAddress={walletAddress} allTokens={allTokens} />
-          </div>
-        )}
 
         {/* XNT Featured */}
         <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 rounded-xl p-6 mb-6">
