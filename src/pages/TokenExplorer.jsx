@@ -197,17 +197,6 @@ export default function TokenExplorer() {
       const verified = [];
       const unverified = [];
 
-      // DEBUG: Log RAW API token
-      if (tokens.length > 0) {
-        console.log('=== RAW API TOKEN (BEFORE MAPPING) ===');
-        console.log('First token from API:', tokens[0]);
-        console.log('Keys:', Object.keys(tokens[0]));
-        console.log('total_supply:', tokens[0].total_supply);
-        console.log('totalSupply:', tokens[0].totalSupply);
-        console.log('supply:', tokens[0].supply);
-        console.log('======================================');
-      }
-
       tokens.forEach(token => {
         const tokenData = {
           mint: token.mint || token.address,
@@ -242,16 +231,59 @@ export default function TokenExplorer() {
       setAllTokens(verified);
       setDiscoveredTokens(unverified);
       
-      // DEBUG: Log first token to see data structure
-      if (verified.length > 0) {
-        console.log('=== FIRST TOKEN DEBUG ===');
-        console.log('Token data:', verified[0]);
-        console.log('totalSupply:', verified[0].totalSupply);
-        console.log('decimals:', verified[0].decimals);
-        console.log('========================');
+      console.log(`✓ Verified: ${verified.length}, Unverified: ${unverified.length}`);
+      
+      // Fetch supply from RPC for ALL tokens since API returns 0
+      console.log('🔄 Fetching token supplies from RPC (API has 0 values)...');
+      
+      const fetchSupplyBatch = async (tokens) => {
+        return Promise.all(
+          tokens.map(async (token) => {
+            try {
+              const response = await fetch('https://rpc.mainnet.x1.xyz', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  jsonrpc: '2.0',
+                  id: 1,
+                  method: 'getTokenSupply',
+                  params: [token.mint]
+                })
+              });
+              
+              const data = await response.json();
+              if (data?.result?.value?.uiAmount) {
+                return { ...token, totalSupply: data.result.value.uiAmount };
+              }
+            } catch (err) {
+              // Silent fail, keep original
+            }
+            return token;
+          })
+        );
+      };
+      
+      // Fetch in batches to avoid overwhelming RPC
+      const batchSize = 10;
+      for (let i = 0; i < Math.min(verified.length, 50); i += batchSize) {
+        const batch = verified.slice(i, i + batchSize);
+        const updatedBatch = await fetchSupplyBatch(batch);
+        
+        setAllTokens(prev => {
+          const updated = [...prev];
+          updatedBatch.forEach((token, idx) => {
+            const index = i + idx;
+            if (updated[index]) {
+              updated[index] = token;
+            }
+          });
+          return updated;
+        });
+        
+        console.log(`✅ Fetched supply for tokens ${i + 1}-${Math.min(i + batchSize, 50)}`);
       }
       
-      console.log(`✓ Verified: ${verified.length}, Unverified: ${unverified.length}`);
+      console.log('✅ Supply fetch complete (first 50 tokens)');
       
       // Fetch real supply and validator stats from RPC
       try {
