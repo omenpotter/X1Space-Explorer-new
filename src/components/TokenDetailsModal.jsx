@@ -45,70 +45,89 @@ export default function TokenDetailsModal({
   const tokenData = allTokens?.find(t => t.mint === token.mint) || token;
   const details = tokenDetails || tokenData;
 
-  // Fetch actual token holders - WITHOUT @solana/web3.js import
+  // Calculate total supply with proper decimals handling
+  const getTotalSupply = () => {
+    const supply = details?.totalSupply || tokenData?.totalSupply || 0;
+    const decimals = details?.decimals || tokenData?.decimals || 9;
+    
+    // If supply is very large (in lamports), divide by 10^decimals
+    if (supply > 1000000000000) {
+      return supply / Math.pow(10, decimals);
+    }
+    return supply;
+  };
+
+  // Fetch actual WALLET HOLDERS (not token accounts)
   useEffect(() => {
     const fetchHolders = async () => {
       if (!token?.mint) return;
       
       setLoadingHolders(true);
       try {
-        // Try to use tokenHolders prop first (if already fetched by parent)
-        if (tokenHolders && tokenHolders.length > 0) {
-          setActualHolders(tokenHolders);
+        // Step 1: Get largest token accounts
+        const response = await fetch('https://rpc.mainnet.x1.xyz', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'getTokenLargestAccounts',
+            params: [token.mint]
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (!data?.result?.value || data.result.value.length === 0) {
+          setActualHolders([]);
           setLoadingHolders(false);
           return;
         }
 
-        // Try X1 API first
-        try {
-          const X1Api = (await import('../components/x1/X1ApiClient')).default;
-          const holdersResponse = await X1Api.getTokenHolders(token.mint, { limit: 50 });
-          
-          if (holdersResponse?.success && holdersResponse.data?.holders) {
-            setActualHolders(holdersResponse.data.holders);
-            setLoadingHolders(false);
-            return;
-          }
-        } catch (apiError) {
-          console.log('API holder fetch failed, trying RPC:', apiError);
-        }
-
-        // Fallback: Use RPC with string mint address (no PublicKey needed)
-        try {
-          const X1Rpc = (await import('../components/x1/X1RpcService')).default;
-          
-          // Call getTokenLargestAccounts with string address directly
-          // X1 RPC should handle the conversion internally
-          const response = await fetch('https://rpc.mainnet.x1.xyz', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              jsonrpc: '2.0',
-              id: 1,
-              method: 'getTokenLargestAccounts',
-              params: [token.mint]
-            })
-          });
-          
-          const data = await response.json();
-          
-          if (data?.result?.value) {
-            const totalSupply = details?.totalSupply || tokenData.totalSupply || 1;
-            
-            const holders = data.result.value.map((holder, index) => ({
-              address: holder.address || 'Unknown',
-              amount: holder.uiAmount || 0,
-              percentage: ((holder.uiAmount || 0) / totalSupply * 100).toFixed(2)
-            }));
-            
-            setActualHolders(holders);
-          } else {
-            setActualHolders([]);
-          }
-        } catch (rpcError) {
-          console.error('RPC holder fetch failed:', rpcError);
-          setActualHolders([]);
-        }
+        // Step 2: Fetch owner (wallet) address for each token account
+        const tokenAccounts = data.result.value.slice(0, 50); // Top 50
+        const totalSupply = getTotalSupply();
+        
+        const holdersWithOwners = await Promise.all(
+          tokenAccounts.map(async (account, index) => {
+            try {
+              // Get account info to extract owner
+              const accountInfoResponse = await fetch('https://rpc.mainnet.x1.xyz', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  jsonrpc: '2.0',
+                  id: index + 2,
+                  method: 'getAccountInfo',
+                  params: [
+                    account.address,
+                    { encoding: 'jsonParsed' }
+                  ]
+                })
+              });
+              
+              const accountInfo = await accountInfoResponse.json();
+              const ownerAddress = accountInfo?.result?.value?.data?.parsed?.info?.owner || account.address;
+              
+              return {
+                address: ownerAddress, // WALLET ADDRESS
+                tokenAccount: account.address, // Token account (for reference)
+                amount: account.uiAmount || 0,
+                percentage: totalSupply > 0 ? ((account.uiAmount || 0) / totalSupply * 100).toFixed(2) : '0.00'
+              };
+            } catch (err) {
+              console.error(`Failed to get owner for ${account.address}:`, err);
+              return {
+                address: account.address, // Fallback to token account
+                tokenAccount: account.address,
+                amount: account.uiAmount || 0,
+                percentage: totalSupply > 0 ? ((account.uiAmount || 0) / totalSupply * 100).toFixed(2) : '0.00'
+              };
+            }
+          })
+        );
+        
+        setActualHolders(holdersWithOwners);
       } catch (error) {
         console.error('Error fetching holders:', error);
         setActualHolders([]);
@@ -118,7 +137,7 @@ export default function TokenDetailsModal({
     };
 
     fetchHolders();
-  }, [token?.mint, tokenHolders, details?.totalSupply, tokenData.totalSupply]);
+  }, [token?.mint]);
 
   // Calculate AI Health Score locally
   useEffect(() => {
@@ -312,12 +331,13 @@ export default function TokenDetailsModal({
                   <ExternalLink className="w-3 h-3 text-white" />
                 </a>
                 
-                {/* View on X1.Ninja */}
+                {/* View on X1.Ninja - Opens screener since we don't have pair address */}
                 <a
-                  href={`https://x1.ninja/token/${token.mint}`}
+                  href="https://x1.ninja"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg transition-colors border border-purple-500/30"
+                  title="Search for this token on X1.Ninja screener"
                 >
                   <Search className="w-4 h-4 text-purple-400" />
                   <span className="text-purple-400 text-sm font-medium">View on X1.Ninja</span>
@@ -377,14 +397,14 @@ export default function TokenDetailsModal({
             <div className="bg-[#1d2d3a] rounded-lg p-3 border-2 border-cyan-500/30">
               <p className="text-gray-400 text-xs mb-1">Total Supply</p>
               <p className="text-white font-mono text-lg font-bold">
-                {formatNum(details?.totalSupply || tokenData.totalSupply || 0)}
+                {formatNum(getTotalSupply())}
               </p>
               <p className="text-gray-400 text-xs mt-1">{tokenData.symbol || 'tokens'}</p>
             </div>
 
             <div className="bg-[#1d2d3a] rounded-lg p-3">
               <p className="text-gray-400 text-xs mb-1">Decimals</p>
-              <p className="text-white font-mono text-lg">{details?.decimals || tokenData.decimals || 0}</p>
+              <p className="text-white font-mono text-lg">{details?.decimals || tokenData.decimals || 9}</p>
             </div>
 
             <div className="bg-[#1d2d3a] rounded-lg p-3">
@@ -520,16 +540,16 @@ export default function TokenDetailsModal({
             </div>
           )}
 
-          {/* Top 50 Holders */}
+          {/* Top 50 Wallet Holders */}
           <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-white font-medium flex items-center gap-2">
                 <Users className="w-5 h-5 text-cyan-400" />
-                Top Token Holders
+                Top Wallet Holders
               </h4>
               {actualHolders.length > 0 && (
                 <Badge className="bg-cyan-500/20 text-cyan-400 border-0">
-                  Showing {Math.min(actualHolders.length, 50)} of {actualHolders.length} holders
+                  Showing {actualHolders.length} wallet addresses
                 </Badge>
               )}
             </div>
@@ -537,22 +557,25 @@ export default function TokenDetailsModal({
             {loadingHolders ? (
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
-                <p className="text-gray-400 text-sm ml-3">Loading holder data...</p>
+                <p className="text-gray-400 text-sm ml-3">Fetching wallet holders (this may take a moment)...</p>
               </div>
             ) : actualHolders.length > 0 ? (
               <div className="space-y-2 max-h-96 overflow-y-auto">
-                {actualHolders.slice(0, 50).map((holder, i) => (
+                {actualHolders.map((holder, i) => (
                   <div key={i} className="flex items-center justify-between p-2 bg-[#24384a] rounded hover:bg-[#2a4055] transition-colors">
                     <div className="flex items-center gap-2">
                       <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs min-w-[2.5rem]">
                         #{i + 1}
                       </Badge>
-                      <Link 
-                        to={createPageUrl('AddressLookup') + `?address=${holder.address}`}
-                        className="text-cyan-400 hover:underline font-mono text-xs"
-                      >
-                        {holder.address.substring(0, 8)}...{holder.address.substring(holder.address.length - 6)}
-                      </Link>
+                      <div>
+                        <Link 
+                          to={createPageUrl('AddressLookup') + `?address=${holder.address}`}
+                          className="text-cyan-400 hover:underline font-mono text-xs block"
+                        >
+                          {holder.address.substring(0, 8)}...{holder.address.substring(holder.address.length - 6)}
+                        </Link>
+                        <p className="text-gray-500 text-xs">Wallet Address</p>
+                      </div>
                     </div>
                     <div className="text-right">
                       <p className="text-white font-mono text-xs font-bold">{formatNum(holder.amount)}</p>
