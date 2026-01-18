@@ -197,8 +197,6 @@ export default function TokenExplorer() {
       const verified = [];
       const unverified = [];
 
-      console.log('First token raw data:', tokens[0]); // DEBUG
-
       tokens.forEach(token => {
         const tokenData = {
           mint: token.mint || token.address,
@@ -206,7 +204,7 @@ export default function TokenExplorer() {
           symbol: token.symbol || 'UNKNOWN',
           logo: token.logo_uri || token.logo,
           decimals: token.decimals || 9,
-          totalSupply: convertSupply(token.total_supply || token.totalSupply || token.supply || 0, token.decimals || 9),
+          totalSupply: token.total_supply || token.totalSupply || token.supply || 0,
           tokenType: token.token_type || token.tokenType || 'SPL Token',
           price: token.price ? parseFloat(token.price).toFixed(4) : '0.0000',
           marketCap: token.market_cap || token.marketCap || 0,
@@ -232,6 +230,15 @@ export default function TokenExplorer() {
 
       setAllTokens(verified);
       setDiscoveredTokens(unverified);
+      
+      // DEBUG: Log first token to see data structure
+      if (verified.length > 0) {
+        console.log('=== FIRST TOKEN DEBUG ===');
+        console.log('Token data:', verified[0]);
+        console.log('totalSupply:', verified[0].totalSupply);
+        console.log('decimals:', verified[0].decimals);
+        console.log('========================');
+      }
       
       console.log(`✓ Verified: ${verified.length}, Unverified: ${unverified.length}`);
       
@@ -707,31 +714,11 @@ export default function TokenExplorer() {
     return filtered;
   }, [tokenTransactions, txFilter]);
 
-  // Helper to convert supply from lamports to tokens
-  const convertSupply = (supply, decimals = 9) => {
-    if (!supply || supply === 0) return 0;
-    
-    // Convert to number if string
-    const numSupply = typeof supply === 'string' ? parseFloat(supply) : supply;
-    if (isNaN(numSupply)) return 0;
-    
-    // If supply is larger than 10^decimals, it's likely in lamports
-    const threshold = Math.pow(10, decimals);
-    if (numSupply >= threshold) {
-      return numSupply / threshold;
-    }
-    
-    return numSupply;
-  };
-
   const formatNum = (num) => {
-    if (!num || num === 0) return '0';
-    const n = typeof num === 'string' ? parseFloat(num) : num;
-    if (isNaN(n)) return '0';
-    if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-    if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-    if (n >= 1e3) return (n / 1e3).toFixed(2) + 'K';
-    return n.toFixed(2);
+    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+    if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+    return num.toFixed(2);
   };
 
   const formatTime = (timestamp) => {
@@ -855,7 +842,6 @@ export default function TokenExplorer() {
             <p className="text-2xl font-bold text-cyan-400">{validators.activeCount || 0}</p>
           </div>
         </div>
-
         {/* XNT Featured */}
         <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 rounded-xl p-6 mb-6">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
