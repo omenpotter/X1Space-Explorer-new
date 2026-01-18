@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { 
   X, Copy, Check, Clock, Globe, Twitter, TrendingUp, 
-  TrendingDown, AlertCircle, Shield, Users, Activity 
+  TrendingDown, AlertCircle, Shield, Users, Activity, Info
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { 
@@ -12,7 +12,6 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, XAxis, 
   YAxis, Tooltip 
 } from 'recharts';
-import TokenHealthScore from './ai/TokenHealthScore';
 
 export default function TokenDetailsModal({
   token,
@@ -20,7 +19,6 @@ export default function TokenDetailsModal({
   tokenHolders,
   loadingDetails,
   onClose,
-  fetchTokenPrice,
   allTokens,
   tokenMetadata,
   copiedAddress,
@@ -37,28 +35,94 @@ export default function TokenDetailsModal({
   setTxFilter,
   createPageUrl
 }) {
-  const [priceData, setPriceData] = useState(null);
-  const [loadingPrice, setLoadingPrice] = useState(false);
-
-  // Fetch price when modal opens
-  useEffect(() => {
-    if (token?.mint && fetchTokenPrice) {
-      setLoadingPrice(true);
-      fetchTokenPrice(token.mint)
-        .then(data => {
-          setPriceData(data);
-          setLoadingPrice(false);
-        })
-        .catch(err => {
-          console.error('Failed to fetch price:', err);
-          setLoadingPrice(false);
-        });
-    }
-  }, [token?.mint, fetchTokenPrice]);
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [loadingAI, setLoadingAI] = useState(false);
 
   if (!token) return null;
 
   const tokenData = allTokens?.find(t => t.mint === token.mint) || token;
+  const details = tokenDetails || tokenData;
+
+  // Calculate AI Health Score locally (no API call)
+  useEffect(() => {
+    if (!details) return;
+
+    const calculateHealthScore = () => {
+      let score = 100;
+      const risks = [];
+      const positives = [];
+
+      // Check Mint Authority
+      if (details.mintAuthority && details.mintAuthority !== 'None') {
+        score -= 20;
+        risks.push('Token can still be minted - supply not fixed');
+      } else {
+        positives.push('Fixed supply - no more tokens can be minted');
+      }
+
+      // Check Freeze Authority
+      if (details.freezeAuthority && details.freezeAuthority !== 'None') {
+        score -= 15;
+        risks.push('Freeze authority enabled - accounts can be frozen');
+      } else {
+        positives.push('Freeze disabled - accounts cannot be frozen');
+      }
+
+      // Check holder distribution
+      if (tokenHolders && tokenHolders.length > 0) {
+        const topHolderPercent = parseFloat(tokenHolders[0]?.percentage || 0);
+        if (topHolderPercent > 50) {
+          score -= 25;
+          risks.push(`Top holder owns ${topHolderPercent}% - high centralization risk`);
+        } else if (topHolderPercent > 25) {
+          score -= 10;
+          risks.push(`Top holder owns ${topHolderPercent}% - moderate concentration`);
+        } else {
+          positives.push('Good token distribution - no single dominant holder');
+        }
+      }
+
+      // Check if verified
+      if (tokenData.verified) {
+        positives.push('Community verified token');
+      } else {
+        score -= 10;
+        risks.push('Token not yet verified by community');
+      }
+
+      // Check age (if available)
+      if (details.createdAt) {
+        const ageInDays = (Date.now() / 1000 - details.createdAt) / 86400;
+        if (ageInDays < 7) {
+          score -= 15;
+          risks.push('Token is very new (< 7 days old)');
+        } else if (ageInDays > 30) {
+          positives.push(`Token has been active for ${Math.floor(ageInDays)} days`);
+        }
+      }
+
+      score = Math.max(0, Math.min(100, score));
+
+      setAiAnalysis({
+        score,
+        risks,
+        positives,
+        supplyAnalysis: details.mintAuthority === 'None' ? 
+          'Fixed supply provides price stability and prevents dilution' : 
+          'Mintable supply could lead to inflation',
+        distributionAnalysis: tokenHolders && tokenHolders.length > 0 ?
+          `Token distributed among ${tokenHolders.length} holders` :
+          'Holder information not available',
+        authorityAnalysis: `Mint: ${details.mintAuthority === 'None' ? 'Disabled ✓' : 'Enabled ⚠'}, Freeze: ${details.freezeAuthority === 'None' ? 'Disabled ✓' : 'Enabled ⚠'}`,
+        recommendation: score >= 80 ? 'Strong fundamentals - Low risk' :
+                       score >= 60 ? 'Moderate risk - DYOR recommended' :
+                       score >= 40 ? 'High risk - Exercise caution' :
+                       'Very high risk - Not recommended'
+      });
+    };
+
+    calculateHealthScore();
+  }, [details, tokenHolders, tokenData]);
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 overflow-y-auto" onClick={onClose}>
@@ -100,40 +164,24 @@ export default function TokenDetailsModal({
                       {tokenData?.symbol || 'UNKNOWN'}
                     </Badge>
                     {tokenData?.verified && (
-                      <Badge className="bg-emerald-500/20 text-emerald-400 border-0">
-                        ✓ Verified
-                      </Badge>
+                      <div className="relative group">
+                        <Badge className="bg-emerald-500/20 text-emerald-400 border-0 cursor-help">
+                          ✓ Verified
+                        </Badge>
+                        <div className="absolute left-0 top-full mt-2 w-64 p-3 bg-[#1d2d3a] border border-emerald-500/30 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                          <p className="text-emerald-400 font-medium text-xs mb-1">Community Verified</p>
+                          <p className="text-gray-300 text-xs">
+                            This token has been verified by the X1Space community. 
+                            Verification count: {tokenData.verificationCount || 1}
+                          </p>
+                        </div>
+                      </div>
                     )}
                   </div>
                   
                   {/* Price Info */}
                   <div className="flex items-center gap-4 flex-wrap">
-                    {loadingPrice ? (
-                      <div className="text-gray-400 text-sm">Loading price...</div>
-                    ) : priceData?.price ? (
-                      <>
-                        <div>
-                          <p className="text-3xl font-bold text-white">
-                            ${parseFloat(priceData.price).toFixed(6)}
-                          </p>
-                        </div>
-                        {priceData.priceChange24h !== undefined && (
-                          <div className={`flex items-center gap-1 ${
-                            priceData.priceChange24h >= 0 ? 'text-emerald-400' : 'text-red-400'
-                          }`}>
-                            {priceData.priceChange24h >= 0 ? (
-                              <TrendingUp className="w-5 h-5" />
-                            ) : (
-                              <TrendingDown className="w-5 h-5" />
-                            )}
-                            <span className="text-xl font-bold">
-                              {priceData.priceChange24h >= 0 ? '+' : ''}
-                              {priceData.priceChange24h.toFixed(2)}%
-                            </span>
-                          </div>
-                        )}
-                      </>
-                    ) : tokenData?.price && parseFloat(tokenData.price) > 0 ? (
+                    {tokenData?.price && parseFloat(tokenData.price) > 0 ? (
                       <>
                         <div>
                           <p className="text-3xl font-bold text-white">
@@ -159,7 +207,7 @@ export default function TokenDetailsModal({
                     ) : (
                       <div className="text-gray-500 text-sm">
                         <AlertCircle className="w-4 h-4 inline mr-1" />
-                        Price data unavailable
+                        Price data unavailable - Trade on XDEX or X1.Ninja
                       </div>
                     )}
                   </div>
@@ -173,9 +221,9 @@ export default function TokenDetailsModal({
 
                   {/* Links */}
                   <div className="flex items-center gap-3 mt-3">
-                    {token.website && (
+                    {tokenData.website && (
                       <a
-                        href={token.website}
+                        href={tokenData.website}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-2 px-4 py-2 bg-[#24384a] rounded-lg hover:bg-[#2a4055] transition-colors"
@@ -184,9 +232,9 @@ export default function TokenDetailsModal({
                         <span className="text-white text-sm">Website</span>
                       </a>
                     )}
-                    {token.twitter && (
+                    {tokenData.twitter && (
                       <a
-                        href={token.twitter}
+                        href={tokenData.twitter}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-2 px-4 py-2 bg-[#24384a] rounded-lg hover:bg-[#2a4055] transition-colors"
@@ -195,12 +243,21 @@ export default function TokenDetailsModal({
                         <span className="text-white text-sm">Twitter</span>
                       </a>
                     )}
+                    <a
+                      href={`https://app.xdex.xyz/swap?inputMint=XNTgPNZTY9XHCT79JBmSJy7ZLdYvNgmNspGSUT8sFMF&outputMint=${token.mint}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 bg-cyan-500/20 rounded-lg hover:bg-cyan-500/30 transition-colors"
+                    >
+                      <Activity className="w-4 h-4 text-cyan-400" />
+                      <span className="text-cyan-400 text-sm font-medium">Trade on XDEX</span>
+                    </a>
                   </div>
                 </div>
               </div>
 
-              {/* Price Chart */}
-              {(priceData?.priceHistory?.length > 0 || tokenData?.priceHistory?.length > 0) && (
+              {/* Price Chart - Only show if history exists */}
+              {tokenData?.priceHistory?.length > 0 && (
                 <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="text-white font-medium">Price Chart</h4>
@@ -222,13 +279,7 @@ export default function TokenDetailsModal({
                   </div>
                   <div className="h-[300px]">
                     {(() => {
-                      const history = priceData?.priceHistory || tokenData?.priceHistory || [];
-                      if (history.length === 0) return (
-                        <div className="h-full flex items-center justify-center text-gray-500">
-                          No price history available
-                        </div>
-                      );
-
+                      const history = tokenData.priceHistory || [];
                       const daysMap = { '1D': 1, '7D': 7, '1M': 30, '1Y': 365, 'All': 999 };
                       const days = daysMap[priceTimeframe] || 7;
                       const chartData = history.slice(-days);
@@ -283,111 +334,175 @@ export default function TokenDetailsModal({
                 </div>
 
                 <div className="bg-[#1d2d3a] rounded-lg p-3">
-                  <p className="text-gray-400 text-xs mb-1">Decimals</p>
-                  <p className="text-white font-mono">{tokenDetails?.decimals || token.decimals || 0}</p>
+                  <p className="text-gray-400 text-xs mb-1">Total Supply</p>
+                  <p className="text-white font-mono text-sm font-bold">
+                    {formatNum(details?.totalSupply || tokenData.totalSupply || 0)}
+                  </p>
+                  <p className="text-gray-500 text-xs mt-1">{tokenData.symbol || 'tokens'}</p>
                 </div>
 
                 <div className="bg-[#1d2d3a] rounded-lg p-3">
-                  <p className="text-gray-400 text-xs mb-1">Total Supply</p>
-                  <p className="text-white font-mono">
-                    {formatNum(tokenDetails?.totalSupply || token.totalSupply || 0)}
-                  </p>
+                  <p className="text-gray-400 text-xs mb-1">Decimals</p>
+                  <p className="text-white font-mono">{details?.decimals || tokenData.decimals || 0}</p>
                 </div>
 
                 <div className="bg-[#1d2d3a] rounded-lg p-3">
                   <p className="text-gray-400 text-xs mb-1">Token Standard</p>
                   <Badge className="bg-blue-500/20 text-blue-400 border-0 text-xs">
-                    {tokenDetails?.tokenType || token.tokenType || 'SPL Token'}
+                    {details?.tokenType || tokenData.tokenType || 'SPL Token'}
                   </Badge>
                 </div>
 
                 {/* Mint Authority with Clear Explanation */}
-                <div className="bg-[#1d2d3a] rounded-lg p-3">
-                  <p className="text-gray-400 text-xs mb-1">Mint Authority</p>
-                  {(!tokenDetails?.mintAuthority || tokenDetails.mintAuthority === 'None') ? (
+                <div className="bg-[#1d2d3a] rounded-lg p-3 col-span-2">
+                  <p className="text-gray-400 text-xs mb-2">Mint Authority</p>
+                  {(!details?.mintAuthority || details.mintAuthority === 'None') ? (
                     <div>
-                      <Badge className="bg-emerald-500/20 text-emerald-400 border-0 mb-1">
+                      <Badge className="bg-emerald-500/20 text-emerald-400 border-0 mb-2">
                         <Shield className="w-3 h-3 mr-1" />
-                        Fixed Supply
+                        Fixed Supply (Mint Disabled)
                       </Badge>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Mint disabled - No additional tokens can be created
+                      <p className="text-xs text-gray-300">
+                        ✓ No more tokens can be minted - supply is permanently fixed
                       </p>
                     </div>
                   ) : (
                     <div>
-                      <Badge className="bg-yellow-500/20 text-yellow-400 border-0 mb-1">
+                      <Badge className="bg-yellow-500/20 text-yellow-400 border-0 mb-2">
                         <AlertCircle className="w-3 h-3 mr-1" />
                         Mintable
                       </Badge>
-                      <p className="text-white font-mono text-xs break-all">{tokenDetails.mintAuthority}</p>
-                      <p className="text-xs text-yellow-400 mt-1">
-                        ⚠️ More tokens can be minted
+                      <p className="text-white font-mono text-xs break-all mb-1">{details.mintAuthority}</p>
+                      <p className="text-xs text-yellow-300">
+                        ⚠️ Warning: More tokens can be minted by this authority, potentially diluting value
                       </p>
                     </div>
                   )}
                 </div>
 
                 {/* Freeze Authority with Clear Explanation */}
-                <div className="bg-[#1d2d3a] rounded-lg p-3">
-                  <p className="text-gray-400 text-xs mb-1">Freeze Authority</p>
-                  {(!tokenDetails?.freezeAuthority || tokenDetails.freezeAuthority === 'None') ? (
+                <div className="bg-[#1d2d3a] rounded-lg p-3 col-span-2">
+                  <p className="text-gray-400 text-xs mb-2">Freeze Authority</p>
+                  {(!details?.freezeAuthority || details.freezeAuthority === 'None') ? (
                     <div>
-                      <Badge className="bg-emerald-500/20 text-emerald-400 border-0 mb-1">
+                      <Badge className="bg-emerald-500/20 text-emerald-400 border-0 mb-2">
                         <Shield className="w-3 h-3 mr-1" />
                         Freeze Disabled
                       </Badge>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Token accounts cannot be frozen
+                      <p className="text-xs text-gray-300">
+                        ✓ Token accounts cannot be frozen - full user control
                       </p>
                     </div>
                   ) : (
                     <div>
-                      <Badge className="bg-red-500/20 text-red-400 border-0 mb-1">
+                      <Badge className="bg-red-500/20 text-red-400 border-0 mb-2">
                         <AlertCircle className="w-3 h-3 mr-1" />
                         Freezable
                       </Badge>
-                      <p className="text-white font-mono text-xs break-all">{tokenDetails.freezeAuthority}</p>
-                      <p className="text-xs text-red-400 mt-1">
-                        ⚠️ Accounts can be frozen
+                      <p className="text-white font-mono text-xs break-all mb-1">{details.freezeAuthority}</p>
+                      <p className="text-xs text-red-300">
+                        ⚠️ Warning: This authority can freeze token accounts, preventing transfers
                       </p>
                     </div>
                   )}
                 </div>
 
-                {tokenDetails?.createdAt && (
+                {details?.createdAt && (
                   <div className="bg-[#1d2d3a] rounded-lg p-3">
                     <p className="text-gray-400 text-xs mb-1">Created</p>
                     <p className="text-white text-xs flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      {formatTime(tokenDetails.createdAt)}
+                      {formatTime(details.createdAt)}
                     </p>
                   </div>
                 )}
 
-                {tokenDetails?.createdBy && (
+                {details?.createdBy && (
                   <div className="bg-[#1d2d3a] rounded-lg p-3">
                     <p className="text-gray-400 text-xs mb-1">Creator</p>
                     <Link 
-                      to={createPageUrl('AddressLookup') + `?address=${tokenDetails.createdBy}`}
+                      to={createPageUrl('AddressLookup') + `?address=${details.createdBy}`}
                       className="text-cyan-400 hover:underline font-mono text-xs truncate block"
                     >
-                      {tokenDetails.createdBy.substring(0, 12)}...
+                      {details.createdBy.substring(0, 12)}...
                     </Link>
                   </div>
                 )}
               </div>
 
-              {/* AI Health Score with Detailed Analysis */}
-              <div className="mb-6">
-                <TokenHealthScore 
-                  tokenMint={token.mint} 
-                  tokenData={tokenDetails || token}
-                />
-              </div>
+              {/* AI Health Score - LOCAL CALCULATION */}
+              {aiAnalysis && (
+                <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-lg p-6 mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-white font-medium text-lg flex items-center gap-2">
+                      <Activity className="w-5 h-5 text-purple-400" />
+                      AI Health Analysis
+                    </h4>
+                    <div className={`text-4xl font-bold ${
+                      aiAnalysis.score >= 80 ? 'text-emerald-400' :
+                      aiAnalysis.score >= 60 ? 'text-yellow-400' :
+                      aiAnalysis.score >= 40 ? 'text-orange-400' : 'text-red-400'
+                    }`}>
+                      {aiAnalysis.score}/100
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {/* Positive Factors */}
+                    {aiAnalysis.positives.length > 0 && (
+                      <div className="bg-[#1d2d3a] rounded-lg p-4">
+                        <p className="text-emerald-400 font-medium text-sm mb-3">✓ Positive Factors</p>
+                        <ul className="space-y-2">
+                          {aiAnalysis.positives.map((positive, i) => (
+                            <li key={i} className="text-gray-300 text-xs flex items-start gap-2">
+                              <span className="text-emerald-400 mt-0.5">•</span>
+                              <span>{positive}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Risk Factors */}
+                    {aiAnalysis.risks.length > 0 && (
+                      <div className="bg-[#1d2d3a] rounded-lg p-4">
+                        <p className="text-red-400 font-medium text-sm mb-3">⚠ Risk Factors</p>
+                        <ul className="space-y-2">
+                          {aiAnalysis.risks.map((risk, i) => (
+                            <li key={i} className="text-gray-300 text-xs flex items-start gap-2">
+                              <span className="text-red-400 mt-0.5">•</span>
+                              <span>{risk}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    <div className="bg-[#1d2d3a] rounded-lg p-3">
+                      <p className="text-cyan-400 text-xs font-medium mb-1">Supply Analysis</p>
+                      <p className="text-gray-300 text-xs">{aiAnalysis.supplyAnalysis}</p>
+                    </div>
+                    <div className="bg-[#1d2d3a] rounded-lg p-3">
+                      <p className="text-cyan-400 text-xs font-medium mb-1">Distribution Analysis</p>
+                      <p className="text-gray-300 text-xs">{aiAnalysis.distributionAnalysis}</p>
+                    </div>
+                    <div className="bg-[#1d2d3a] rounded-lg p-3">
+                      <p className="text-cyan-400 text-xs font-medium mb-1">Authority Status</p>
+                      <p className="text-gray-300 text-xs">{aiAnalysis.authorityAnalysis}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-white/10">
+                    <p className="text-purple-400 font-medium text-sm mb-1">Recommendation</p>
+                    <p className="text-white text-sm font-medium">{aiAnalysis.recommendation}</p>
+                  </div>
+                </div>
+              )}
 
               {/* Top Holders */}
-              {tokenHolders && tokenHolders.length > 0 && (
+              {tokenHolders && tokenHolders.length > 0 ? (
                 <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-white font-medium flex items-center gap-2">
@@ -395,7 +510,7 @@ export default function TokenDetailsModal({
                       Top Token Holders
                     </h4>
                     <Badge className="bg-cyan-500/20 text-cyan-400 border-0">
-                      Showing {Math.min(tokenHolders.length, 50)} of {tokenHolders.length} holders
+                      Showing {Math.min(tokenHolders.length, 50)} of {tokenHolders.length} total holders
                     </Badge>
                   </div>
                   <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -420,9 +535,16 @@ export default function TokenDetailsModal({
                     ))}
                   </div>
                 </div>
+              ) : (
+                <div className="bg-[#1d2d3a] rounded-lg p-6 mb-6 text-center">
+                  <Users className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                  <p className="text-gray-400 text-sm">
+                    No holder data available for this token yet
+                  </p>
+                </div>
               )}
 
-              {/* Holder Distribution Chart */}
+              {/* Holder Distribution Chart - Only show if data exists */}
               {holderChartData && holderChartData.length > 0 && (
                 <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
                   <h4 className="text-white font-medium mb-4">Holder Distribution</h4>
@@ -449,7 +571,7 @@ export default function TokenDetailsModal({
                 </div>
               )}
 
-              {/* Transaction Flow */}
+              {/* Transaction Flow - Only show if data exists */}
               {txFlowData && txFlowData.length > 0 && (
                 <div className="bg-[#1d2d3a] rounded-lg p-4 mb-6">
                   <h4 className="text-white font-medium mb-4 flex items-center gap-2">
@@ -482,7 +604,7 @@ export default function TokenDetailsModal({
                 </div>
               )}
 
-              {/* Recent Transactions */}
+              {/* Recent Transactions - Only show if data exists */}
               {tokenTransactions && tokenTransactions.length > 0 && (
                 <div className="bg-[#1d2d3a] rounded-lg p-4">
                   <h4 className="text-white font-medium mb-3">
