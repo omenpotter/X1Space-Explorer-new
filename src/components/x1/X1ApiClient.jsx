@@ -100,14 +100,18 @@ export async function listTokens(params = {}) {
     console.log('✓ Received data:', {
       success: data.success,
       tokenCount: data.tokens?.length || 0,
-      total: data.total
+      total: data.total,
+      verified: data.verified,
+      discovered: data.discovered
     });
     
     const result = {
       success: data.success !== false,
       data: {
         tokens: data.tokens || [],
-        total: data.total || 0
+        total: data.total || 0,
+        verified: data.verified || 0,
+        discovered: data.discovered || 0
       }
     };
     
@@ -122,11 +126,11 @@ export async function listTokens(params = {}) {
       error: error.message,
       data: {
         tokens: [],
-        total: 0
+        total: 0,
+        verified: 0,
+        discovered: 0
       }
     };
-  }
-}
 
 // Search tokens - REAL DATA ONLY
 export async function searchTokens(query, params = {}) {
