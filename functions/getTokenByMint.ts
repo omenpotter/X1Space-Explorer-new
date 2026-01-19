@@ -48,7 +48,19 @@ Deno.serve(async (req) => {
             }, { status: 404 });
         }
 
-        return Response.json(result.rows[0]);
+        // Format response - Convert types properly
+        const token = result.rows[0];
+        const formatted = {
+            ...token,
+            decimals: parseInt(token.decimals) || 9,
+            total_supply: parseFloat(token.total_supply) || 0,
+            totalSupply: parseFloat(token.total_supply) || 0,
+            verification_count: parseInt(token.verification_count) || 0,
+            scam_report_count: parseInt(token.scam_report_count) || 0,
+            is_scam: token.is_scam || false
+        };
+
+        return Response.json(formatted);
 
     } catch (error) {
         return Response.json({
