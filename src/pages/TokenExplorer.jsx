@@ -218,6 +218,7 @@ export default function TokenExplorer() {
           verificationCount: token.verification_count || token.verificationCount || 0,
           isScam: token.is_scam || token.isScam || false,
           verified: (token.verification_count || token.verificationCount || 0) > 0,
+          verified: token.name !== 'Unknown Token' && token.symbol !== 'UNKNOWN',
           priceHistory: token.price_history || token.priceHistory || []
         };
 
