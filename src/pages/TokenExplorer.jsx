@@ -233,41 +233,7 @@ export default function TokenExplorer() {
       setDiscoveredTokens(unverified);
       
       console.log(`✓ Verified: ${verified.length}, Unverified: ${unverified.length}`);
-      
-      // Fetch supply from RPC for ALL tokens since API returns 0
-      console.log('🔄 Fetching token supplies from RPC (API has 0 values)...');
-      
-      const fetchSupplyBatch = async (tokens) => {
-        return Promise.all(
-          tokens.map(async (token) => {
-            try {
-              const response = await fetch('https://rpc.mainnet.x1.xyz', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  jsonrpc: '2.0',
-                  id: 1,
-                  method: 'getTokenSupply',
-                  params: [token.mint]
-                })
-              });
-              
-              const data = await response.json();
-              if (data?.result?.value?.uiAmount) {
-                return { ...token, totalSupply: data.result.value.uiAmount };
-              }
-            } catch (err) {
-              // Silent fail, keep original
-            }
-            return token;
-          })
-        );
-      };
-      
-      // Fetch in batches to avoid overwhelming RPC
-      const batchSize = 10;
-      for (let i = 0; i < Math.min(verified.length, 50); i += batchSize) {
-        const batch = verified.slice(i, i + batchSize);
+        
         const updatedBatch = await fetchSupplyBatch(batch);
         
         setAllTokens(prev => {
