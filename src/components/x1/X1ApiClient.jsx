@@ -131,6 +131,8 @@ export async function listTokens(params = {}) {
         discovered: 0
       }
     };
+  }  // ← ADD THIS CLOSING BRACE
+}    // ← ADD THIS CLOSING BRACE (closes the listTokens function)
 
 // Search tokens - REAL DATA ONLY
 export async function searchTokens(query, params = {}) {
