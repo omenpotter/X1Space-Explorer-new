@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
         console.log('📊 Fetching tokens from database...');
         console.log(`Params: limit=${limit}, offset=${offset}, verifiedOnly=${verifiedOnly}`);
 
-        // Connect to PostgreSQL - Using environment variables ✅
+        // Connect to PostgreSQL
         const client = new Client({
             user: Deno.env.get('X1_DB_USER') || 'x1user',
             password: Deno.env.get('X1_DB_PASSWORD') || 'password123',
@@ -41,37 +41,20 @@ Deno.serve(async (req) => {
         await client.connect();
         console.log('✓ Database connected successfully');
 
-        // Build query - matches your exact schema
+        // Build query
         let query = `
             SELECT 
-                mint,
-                name,
-                symbol,
-                decimals,
-                total_supply,
-                logo_uri,
-                token_standard,
-                created_by,
-                created_at,
-                first_verified_at,
-                last_verified_at,
-                verification_count,
-                is_scam,
-                scam_report_count,
-                website,
-                twitter,
-                telegram,
-                discord,
-                description,
-                metadata_uri
+                mint, name, symbol, decimals, total_supply, logo_uri,
+                token_standard, created_by, created_at, first_verified_at,
+                last_verified_at, verification_count, is_scam, scam_report_count,
+                website, twitter, telegram, discord, description, metadata_uri
             FROM verified_tokens 
-            WHERE 1=1
+            WHERE total_supply > 0
         `;
         
         const params = [];
         let paramCount = 1;
 
-        // Only show tokens with actual names (not "Unknown Token")
         if (verifiedOnly) {
             query += ` AND name != 'Unknown Token' AND symbol != 'UNKNOWN'`;
         }
@@ -82,7 +65,7 @@ Deno.serve(async (req) => {
             paramCount++;
         }
 
-        query += ` ORDER BY created_at DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
+        query += ` ORDER BY total_supply DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
         params.push(limit, offset);
 
         console.log('🔍 Executing query...');
@@ -90,7 +73,7 @@ Deno.serve(async (req) => {
         console.log(`✓ Found ${result.rows.length} tokens`);
 
         // Count total
-        let countQuery = 'SELECT COUNT(*) FROM verified_tokens WHERE 1=1';
+        let countQuery = 'SELECT COUNT(*) FROM verified_tokens WHERE total_supply > 0';
         
         if (verifiedOnly) {
             countQuery += ` AND name != 'Unknown Token' AND symbol != 'UNKNOWN'`;
@@ -108,14 +91,15 @@ Deno.serve(async (req) => {
         await client.end();
         console.log('✓ Database connection closed');
 
-        // Format response
+        // Format response - Convert to proper types
         const tokens = result.rows.map(row => ({
             mint: row.mint,
             name: row.name || 'Unknown Token',
             symbol: row.symbol || 'UNKNOWN',
             logo_uri: row.logo_uri,
-            decimals: row.decimals || 9,
-            total_supply: row.total_supply || 0,
+            decimals: parseInt(row.decimals) || 9,
+            total_supply: parseFloat(row.total_supply) || 0,
+            totalSupply: parseFloat(row.total_supply) || 0,  // Add both formats for compatibility
             token_type: row.token_standard || 'SPL Token',
             token_standard: row.token_standard,
             created_by: row.created_by,
@@ -131,7 +115,6 @@ Deno.serve(async (req) => {
             discord: row.discord,
             description: row.description,
             metadata_uri: row.metadata_uri,
-            // Add default values for UI
             price: '0.0000',
             market_cap: 0,
             price_change_24h: '0.00',
@@ -141,6 +124,7 @@ Deno.serve(async (req) => {
         }));
 
         console.log('✅ Returning response with', tokens.length, 'tokens');
+        console.log('📊 First token sample:', tokens[0]?.name, tokens[0]?.total_supply);
 
         return new Response(JSON.stringify({
             success: true,
@@ -158,11 +142,6 @@ Deno.serve(async (req) => {
 
     } catch (error) {
         console.error('❌ Database error:', error);
-        console.error('Error details:', {
-            name: error.name,
-            message: error.message,
-            stack: error.stack
-        });
         
         return new Response(JSON.stringify({
             success: false,
@@ -181,16 +160,3 @@ Deno.serve(async (req) => {
         });
     }
 });
-```
-
----
-
-## Summary - What You Need to Do:
-
-### ✅ **1. In Base44 Dashboard:**
-Set these environment variables:
-```
-X1_DB_USER=x1user
-X1_DB_PASSWORD=password123
-X1_DB_HOST=45.94.81.202
-X1_DB_NAME=x1_explorer
