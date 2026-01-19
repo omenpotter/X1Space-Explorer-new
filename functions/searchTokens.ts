@@ -33,7 +33,8 @@ Deno.serve(async (req) => {
 
         await client.connect();
 
-        let query = 'SELECT * FROM verified_tokens WHERE';
+        // Filter tokens with supply > 0
+        let query = 'SELECT * FROM verified_tokens WHERE total_supply > 0 AND (';
         const params = [];
         const conditions = [];
         let paramCount = 1;
@@ -50,17 +51,28 @@ Deno.serve(async (req) => {
             paramCount++;
         }
 
-        query += ' ' + conditions.join(' OR ');
-        query += ` LIMIT $${paramCount}`;
+        query += conditions.join(' OR ');
+        query += `) ORDER BY total_supply DESC LIMIT $${paramCount}`;
         params.push(limit);
 
         const result = await client.query(query, params);
 
         await client.end();
 
+        // Format results - Convert types
+        const formattedResults = result.rows.map(token => ({
+            ...token,
+            decimals: parseInt(token.decimals) || 9,
+            total_supply: parseFloat(token.total_supply) || 0,
+            totalSupply: parseFloat(token.total_supply) || 0,
+            verification_count: parseInt(token.verification_count) || 0,
+            scam_report_count: parseInt(token.scam_report_count) || 0,
+            is_scam: token.is_scam || false
+        }));
+
         return Response.json({
-            results: result.rows,
-            count: result.rows.length,
+            results: formattedResults,
+            count: formattedResults.length,
             query: { name, symbol }
         });
 
