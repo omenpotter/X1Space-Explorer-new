@@ -191,7 +191,7 @@ export default function TokenExplorer() {
         console.log('⚠️ Using mock data - backend not connected');
       } else {
         console.log(`✓ Loaded ${tokens.length} tokens from API`);
-      }
+        console.log(`📊 Total: ${allTokensResponse.data.total}, Verified: ${allTokensResponse.data.verified}, Discovered: ${allTokensResponse.data.discovered}`);
 
       // Separate verified and unverified tokens
       const verified = [];
