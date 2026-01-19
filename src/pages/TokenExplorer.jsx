@@ -192,7 +192,7 @@ export default function TokenExplorer() {
       } else {
         console.log(`✓ Loaded ${tokens.length} tokens from API`);
         console.log(`📊 Total: ${allTokensResponse.data.total}, Verified: ${allTokensResponse.data.verified}, Discovered: ${allTokensResponse.data.discovered}`);
-
+      }  
       // Separate verified and unverified tokens
       const verified = [];
       const unverified = [];
@@ -217,7 +217,6 @@ export default function TokenExplorer() {
           createdAt: token.created_at || token.createdAt,
           verificationCount: token.verification_count || token.verificationCount || 0,
           isScam: token.is_scam || token.isScam || false,
-          verified: (token.verification_count || token.verificationCount || 0) > 0,
           verified: token.name !== 'Unknown Token' && token.symbol !== 'UNKNOWN',
           priceHistory: token.price_history || token.priceHistory || []
         };
@@ -233,24 +232,6 @@ export default function TokenExplorer() {
       setDiscoveredTokens(unverified);
       
       console.log(`✓ Verified: ${verified.length}, Unverified: ${unverified.length}`);
-        
-        const updatedBatch = await fetchSupplyBatch(batch);
-        
-        setAllTokens(prev => {
-          const updated = [...prev];
-          updatedBatch.forEach((token, idx) => {
-            const index = i + idx;
-            if (updated[index]) {
-              updated[index] = token;
-            }
-          });
-          return updated;
-        });
-        
-        console.log(`✅ Fetched supply for tokens ${i + 1}-${Math.min(i + batchSize, 50)}`);
-      }
-      
-      console.log('✅ Supply fetch complete (first 50 tokens)');
       
       // Fetch real supply and validator stats from RPC
       try {
