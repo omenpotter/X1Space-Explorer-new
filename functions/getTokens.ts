@@ -36,12 +36,10 @@ Deno.serve(async (req) => {
         });
 
         console.log('🔌 Connecting to database...');
-        console.log(`Host: ${Deno.env.get('X1_DB_HOST') || '45.94.81.202'}, Database: ${Deno.env.get('X1_DB_NAME') || 'x1_explorer'}`);
-
         await client.connect();
         console.log('✓ Database connected successfully');
 
-        // Build query
+        // Build query - Filter tokens with supply > 0
         let query = `
             SELECT 
                 mint, name, symbol, decimals, total_supply, logo_uri,
@@ -55,6 +53,7 @@ Deno.serve(async (req) => {
         const params = [];
         let paramCount = 1;
 
+        // Only apply verified filter if verifiedOnly is true
         if (verifiedOnly) {
             query += ` AND name != 'Unknown Token' AND symbol != 'UNKNOWN'`;
         }
@@ -65,6 +64,7 @@ Deno.serve(async (req) => {
             paramCount++;
         }
 
+        // Order by supply (largest first)
         query += ` ORDER BY total_supply DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
         params.push(limit, offset);
 
@@ -72,7 +72,23 @@ Deno.serve(async (req) => {
         const result = await client.query(query, params);
         console.log(`✓ Found ${result.rows.length} tokens`);
 
-        // Count total
+        // Get counts for verified and discovered
+        const verifiedCountResult = await client.query(`
+            SELECT COUNT(*) FROM verified_tokens 
+            WHERE total_supply > 0 
+              AND name != 'Unknown Token' 
+              AND symbol != 'UNKNOWN'
+        `);
+        const verifiedCount = parseInt(verifiedCountResult.rows[0].count);
+
+        const discoveredCountResult = await client.query(`
+            SELECT COUNT(*) FROM verified_tokens 
+            WHERE total_supply > 0 
+              AND (name = 'Unknown Token' OR symbol = 'UNKNOWN')
+        `);
+        const discoveredCount = parseInt(discoveredCountResult.rows[0].count);
+
+        // Count total with filters
         let countQuery = 'SELECT COUNT(*) FROM verified_tokens WHERE total_supply > 0';
         
         if (verifiedOnly) {
@@ -87,6 +103,7 @@ Deno.serve(async (req) => {
         const countResult = await client.query(countQuery);
         const total = parseInt(countResult.rows[0].count);
         console.log(`✓ Total tokens: ${total}`);
+        console.log(`✓ Verified: ${verifiedCount}, Discovered: ${discoveredCount}`);
 
         await client.end();
         console.log('✓ Database connection closed');
@@ -99,16 +116,16 @@ Deno.serve(async (req) => {
             logo_uri: row.logo_uri,
             decimals: parseInt(row.decimals) || 9,
             total_supply: parseFloat(row.total_supply) || 0,
-            totalSupply: parseFloat(row.total_supply) || 0,  // Add both formats for compatibility
+            totalSupply: parseFloat(row.total_supply) || 0,
             token_type: row.token_standard || 'SPL Token',
             token_standard: row.token_standard,
             created_by: row.created_by,
             created_at: row.created_at,
             first_verified_at: row.first_verified_at,
             last_verified_at: row.last_verified_at,
-            verification_count: row.verification_count || 0,
+            verification_count: parseInt(row.verification_count) || 0,
             is_scam: row.is_scam || false,
-            scam_report_count: row.scam_report_count || 0,
+            scam_report_count: parseInt(row.scam_report_count) || 0,
             website: row.website,
             twitter: row.twitter,
             telegram: row.telegram,
@@ -124,12 +141,14 @@ Deno.serve(async (req) => {
         }));
 
         console.log('✅ Returning response with', tokens.length, 'tokens');
-        console.log('📊 First token sample:', tokens[0]?.name, tokens[0]?.total_supply);
+        console.log('📊 First token sample:', tokens[0]?.name, '| Supply:', tokens[0]?.total_supply, '| Image:', tokens[0]?.logo_uri ? 'YES' : 'NO');
 
         return new Response(JSON.stringify({
             success: true,
             tokens,
             total,
+            verified: verifiedCount,
+            discovered: discoveredCount,
             page: Math.floor(offset / limit) + 1,
             limit,
             offset
