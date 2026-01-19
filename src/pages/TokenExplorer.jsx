@@ -221,11 +221,11 @@ export default function TokenExplorer() {
           priceHistory: token.price_history || token.priceHistory || []
         };
 
-        if ((token.verification_count || token.verificationCount || 0) > 0) {
-          verified.push(tokenData);
-        } else {
-          unverified.push(tokenData);
-        }
+        if (token.name !== 'Unknown Token' && token.symbol !== 'UNKNOWN') {
+       verified.push(tokenData);
+       } else {
+       unverified.push(tokenData);
+      }
       });
 
       setAllTokens(verified);
