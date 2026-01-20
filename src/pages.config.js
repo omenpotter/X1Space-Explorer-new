@@ -6,6 +6,7 @@ import CustomDashboard from './pages/CustomDashboard';
 import Dashboard from './pages/Dashboard';
 import Home from './pages/Home';
 import Leaderboard from './pages/Leaderboard';
+import LPExplorer from './pages/LPExplorer';  
 import NetworkHealth from './pages/NetworkHealth';
 import NetworkMap from './pages/NetworkMap';
 import PortfolioTracker from './pages/PortfolioTracker';
@@ -33,6 +34,7 @@ export const PAGES = {
     "Dashboard": Dashboard,
     "Home": Home,
     "Leaderboard": Leaderboard,
+    "LPExplorer": LPExplorer, 
     "NetworkHealth": NetworkHealth,
     "NetworkMap": NetworkMap,
     "PortfolioTracker": PortfolioTracker,
