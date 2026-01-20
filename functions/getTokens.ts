@@ -45,7 +45,8 @@ Deno.serve(async (req) => {
                 mint, name, symbol, decimals, total_supply, logo_uri,
                 token_standard, created_by, created_at, first_verified_at,
                 last_verified_at, verification_count, is_scam, scam_report_count,
-                website, twitter, telegram, discord, description, metadata_uri
+                website, twitter, telegram, discord, description, metadata_uri,
+                price, market_cap, price_updated_at
             FROM verified_tokens 
             WHERE total_supply > 0
         `;
@@ -135,8 +136,6 @@ Deno.serve(async (req) => {
             discord: row.discord,
             description: row.description,
             metadata_uri: row.metadata_uri,
-            price: '0.0000',
-            market_cap: 0,
             price_change_24h: '0.00',
             mint_authority: null,
             freeze_authority: null,
