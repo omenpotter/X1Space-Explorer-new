@@ -1,7 +1,7 @@
 // src/services/lpApi.js
 // LP (Liquidity Pool) API Client for X1 Space Explorer
 
-const LP_API_BASE = 'http://localhost:3001/api/lp';
+const LP_API_BASE = import.meta.env.VITE_LP_API_URL || 'http://localhost:3001/api/lp';
 
 /**
  * Fetch LP statistics
