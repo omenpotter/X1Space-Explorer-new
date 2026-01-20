@@ -1,127 +1,450 @@
-// src/services/lpApi.js
-// LP (Liquidity Pool) API Client for X1 Space Explorer
+// src/pages/LPExplorer.jsx
+// Updated with dark theme matching Dashboard and back button
 
-const LP_API_BASE = import.meta.env.VITE_LP_API_URL || 'http://localhost:3001/api/lp';
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
+import {
+  DropletIcon, 
+  TrendingUpIcon, 
+  UsersIcon, 
+  ActivityIcon,
+  SearchIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
+  ExternalLinkIcon,
+  ArrowLeftIcon,
+  RefreshCwIcon,
+  AlertCircleIcon
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+import { 
+  getLPStats,
+  getLPTokens,
+  getTopLPHolders,
+  getLPEvents,
+  getLPEventStats,
+  formatLPAmount,
+  formatEventTime
+} from '@/services/lpApi';
 
-/**
- * Fetch LP statistics
- */
-export const getLPStats = async () => {
-  const response = await fetch(`${LP_API_BASE}/stats`);
-  if (!response.ok) throw new Error('Failed to fetch LP stats');
-  return response.json();
+const LPExplorer = () => {
+  const [stats, setStats] = useState(null);
+  const [lpTokens, setLpTokens] = useState([]);
+  const [topHolders, setTopHolders] = useState([]);
+  const [recentEvents, setRecentEvents] = useState([]);
+  const [eventStats, setEventStats] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const [statsData, tokensData, holdersData, eventsData, eventStatsData] = await Promise.all([
+        getLPStats(),
+        getLPTokens(50),
+        getTopLPHolders(30),
+        getLPEvents({ limit: 20 }),
+        getLPEventStats()
+      ]);
+
+      setStats(statsData.stats);
+      setLpTokens(tokensData.tokens);
+      setTopHolders(holdersData.holders);
+      setRecentEvents(eventsData.events);
+      setEventStats(eventStatsData.stats);
+    } catch (error) {
+      console.error('Failed to load LP data:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredTokens = lpTokens.filter(token =>
+    token.lp_mint.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0f1419] text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-cyan-400/20 border-t-cyan-400 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading LP data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#0f1419] text-white">
+        <div className="max-w-[1800px] mx-auto px-4 py-8">
+          {/* Header with Back Button */}
+          <div className="flex items-center gap-4 mb-6">
+            <Link to={createPageUrl('Dashboard')}>
+              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                <ArrowLeftIcon className="w-4 h-4 mr-2" />
+                Back to Dashboard
+              </Button>
+            </Link>
+          </div>
+
+          {/* Error Card */}
+          <Card className="bg-[#1d2d3a] border-red-500/20">
+            <CardContent className="pt-6">
+              <div className="text-center py-12">
+                <AlertCircleIcon className="w-16 h-16 text-red-400 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-white mb-2">Failed to Load LP Data</h3>
+                <p className="text-gray-400 mb-4">{error}</p>
+                <div className="space-y-2 text-sm text-gray-500 mb-6">
+                  <p>Please check:</p>
+                  <ul className="list-disc list-inside">
+                    <li>Backend API is running on port 3001</li>
+                    <li>Database has LP data</li>
+                    <li>CORS is configured correctly</li>
+                  </ul>
+                </div>
+                <Button onClick={loadData} className="bg-cyan-500 hover:bg-cyan-600">
+                  <RefreshCwIcon className="w-4 h-4 mr-2" />
+                  Try Again
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0f1419] text-white">
+      <div className="max-w-[1800px] mx-auto px-4 py-8 space-y-8">
+        {/* Header with Back Button */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link to={createPageUrl('Dashboard')}>
+              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                <ArrowLeftIcon className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-4xl font-bold text-white">Liquidity Pools</h1>
+              <p className="text-gray-400 mt-1">
+                Explore XDEX liquidity pools, holders, and activity
+              </p>
+            </div>
+          </div>
+          <Button 
+            onClick={loadData} 
+            variant="outline" 
+            size="sm"
+            className="border-gray-600 text-gray-300 hover:bg-gray-800"
+          >
+            <RefreshCwIcon className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="bg-[#1d2d3a] border-white/10">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-300">Total Pools</CardTitle>
+              <DropletIcon className="h-4 w-4 text-cyan-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-white">{stats?.total_pools || 0}</div>
+              <p className="text-xs text-gray-500">Active liquidity pools</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-[#1d2d3a] border-white/10">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-300">Total Holders</CardTitle>
+              <UsersIcon className="h-4 w-4 text-blue-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-white">{stats?.total_holders || 0}</div>
+              <p className="text-xs text-gray-500">Unique LP holders</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-[#1d2d3a] border-white/10">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-300">Total LP Supply</CardTitle>
+              <TrendingUpIcon className="h-4 w-4 text-emerald-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-white">
+                {stats?.total_lp_supply ? formatLPAmount(stats.total_lp_supply, 0) : '0'}
+              </div>
+              <p className="text-xs text-gray-500">LP tokens issued</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-[#1d2d3a] border-white/10">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-300">LP Events</CardTitle>
+              <ActivityIcon className="h-4 w-4 text-yellow-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-white">{eventStats?.total_events || 0}</div>
+              <p className="text-xs text-gray-500">
+                <span className="text-emerald-400">{eventStats?.add_count || 0} adds</span> · {' '}
+                <span className="text-red-400">{eventStats?.remove_count || 0} removes</span>
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Content Tabs */}
+        <Tabs defaultValue="pools" className="space-y-4">
+          <TabsList className="bg-[#1d2d3a] border border-white/10">
+            <TabsTrigger value="pools" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400">
+              Pools
+            </TabsTrigger>
+            <TabsTrigger value="holders" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400">
+              Top Holders
+            </TabsTrigger>
+            <TabsTrigger value="activity" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400">
+              Recent Activity
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Pools Tab */}
+          <TabsContent value="pools" className="space-y-4">
+            <Card className="bg-[#1d2d3a] border-white/10">
+              <CardHeader>
+                <CardTitle className="text-white">Liquidity Pools</CardTitle>
+                <CardDescription className="text-gray-400">Top pools by holder count</CardDescription>
+                <div className="flex items-center space-x-2 pt-4">
+                  <SearchIcon className="h-4 w-4 text-gray-500" />
+                  <Input
+                    placeholder="Search by LP mint address..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="max-w-sm bg-[#0f1419] border-white/10 text-white placeholder:text-gray-500"
+                  />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-white/5 hover:bg-transparent">
+                      <TableHead className="text-gray-400">LP Token</TableHead>
+                      <TableHead className="text-right text-gray-400">Holders</TableHead>
+                      <TableHead className="text-right text-gray-400">Total Supply</TableHead>
+                      <TableHead className="text-right text-gray-400">Decimals</TableHead>
+                      <TableHead className="text-right text-gray-400">Updated</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredTokens.length > 0 ? filteredTokens.map((token) => (
+                      <TableRow key={token.lp_mint} className="border-white/5 hover:bg-white/5">
+                        <TableCell className="font-mono text-sm text-gray-300">
+                          <div className="flex items-center space-x-2">
+                            <span className="truncate max-w-[200px]" title={token.lp_mint}>
+                              {token.lp_mint.slice(0, 8)}...{token.lp_mint.slice(-8)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 hover:bg-white/10"
+                              onClick={() => window.open(`https://xen.pub/address/${token.lp_mint}`, '_blank')}
+                            >
+                              <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="outline" className="border-cyan-400/30 text-cyan-400">
+                            {token.holder_count}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-gray-300">
+                          {formatLPAmount(token.total_supply)}
+                        </TableCell>
+                        <TableCell className="text-right text-gray-300">{token.decimals}</TableCell>
+                        <TableCell className="text-right text-sm text-gray-500">
+                          {new Date(token.updated_at).toLocaleDateString()}
+                        </TableCell>
+                      </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                          No pools found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Top Holders Tab */}
+          <TabsContent value="holders" className="space-y-4">
+            <Card className="bg-[#1d2d3a] border-white/10">
+              <CardHeader>
+                <CardTitle className="text-white">Top LP Holders</CardTitle>
+                <CardDescription className="text-gray-400">Users with most LP positions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-white/5 hover:bg-transparent">
+                      <TableHead className="text-gray-400">Rank</TableHead>
+                      <TableHead className="text-gray-400">Holder Address</TableHead>
+                      <TableHead className="text-right text-gray-400">Pool Count</TableHead>
+                      <TableHead className="text-right text-gray-400">Total LP Balance</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {topHolders.length > 0 ? topHolders.map((holder, index) => (
+                      <TableRow key={holder.holder_address} className="border-white/5 hover:bg-white/5">
+                        <TableCell>
+                          <Badge 
+                            variant={index < 3 ? "default" : "outline"}
+                            className={index < 3 ? "bg-cyan-500 text-white" : "border-gray-600 text-gray-400"}
+                          >
+                            #{index + 1}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-sm text-gray-300">
+                          <div className="flex items-center space-x-2">
+                            <span className="truncate max-w-[300px]" title={holder.holder_address}>
+                              {holder.holder_address.slice(0, 8)}...{holder.holder_address.slice(-8)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 hover:bg-white/10"
+                              onClick={() => window.open(`https://xen.pub/address/${holder.holder_address}`, '_blank')}
+                            >
+                              <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="secondary" className="bg-blue-500/20 text-blue-400 border-0">
+                            {holder.pool_count} pools
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-gray-300">
+                          {formatLPAmount(holder.total_lp_balance, 0)}
+                        </TableCell>
+                      </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                          No holders found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Recent Activity Tab */}
+          <TabsContent value="activity" className="space-y-4">
+            <Card className="bg-[#1d2d3a] border-white/10">
+              <CardHeader>
+                <CardTitle className="text-white">Recent LP Events</CardTitle>
+                <CardDescription className="text-gray-400">Latest add and remove liquidity transactions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-white/5 hover:bg-transparent">
+                      <TableHead className="text-gray-400">Type</TableHead>
+                      <TableHead className="text-gray-400">LP Token</TableHead>
+                      <TableHead className="text-gray-400">User</TableHead>
+                      <TableHead className="text-right text-gray-400">Amount</TableHead>
+                      <TableHead className="text-right text-gray-400">Time</TableHead>
+                      <TableHead className="text-gray-400">Tx</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recentEvents.length > 0 ? recentEvents.map((event) => (
+                      <TableRow key={event.signature} className="border-white/5 hover:bg-white/5">
+                        <TableCell>
+                          <Badge 
+                            variant={event.event_type === 'add_liquidity' ? 'default' : 'destructive'}
+                            className={event.event_type === 'add_liquidity' 
+                              ? 'bg-emerald-500/20 text-emerald-400 border-0' 
+                              : 'bg-red-500/20 text-red-400 border-0'
+                            }
+                          >
+                            {event.event_type === 'add_liquidity' ? (
+                              <><ArrowUpIcon className="h-3 w-3 mr-1 inline" /> Add</>
+                            ) : (
+                              <><ArrowDownIcon className="h-3 w-3 mr-1 inline" /> Remove</>
+                            )}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-sm text-gray-400">
+                          {event.lp_mint.slice(0, 6)}...
+                        </TableCell>
+                        <TableCell className="font-mono text-sm text-gray-400">
+                          {event.user_address.slice(0, 6)}...
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-sm text-gray-300">
+                          {event.event_type === 'add_liquidity' ? '+' : '-'}
+                          {formatLPAmount(event.lp_amount_change)}
+                        </TableCell>
+                        <TableCell className="text-right text-sm text-gray-500">
+                          {formatEventTime(event.block_time)}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-white/10"
+                            onClick={() => window.open(`https://xen.pub/tx/${event.signature}`, '_blank')}
+                          >
+                            <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                          No recent LP events found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
 };
 
-/**
- * Fetch all LP tokens with holder counts
- * @param {number} limit - Number of tokens to fetch (default: 100)
- */
-export const getLPTokens = async (limit = 100) => {
-  const response = await fetch(`${LP_API_BASE}/tokens?limit=${limit}`);
-  if (!response.ok) throw new Error('Failed to fetch LP tokens');
-  return response.json();
-};
-
-/**
- * Fetch specific LP token details with holders
- * @param {string} mint - LP token mint address
- */
-export const getLPToken = async (mint) => {
-  const response = await fetch(`${LP_API_BASE}/token/${mint}`);
-  if (!response.ok) throw new Error('Failed to fetch LP token details');
-  return response.json();
-};
-
-/**
- * Fetch top LP holders across all pools
- * @param {number} limit - Number of holders to fetch (default: 50)
- */
-export const getTopLPHolders = async (limit = 50) => {
-  const response = await fetch(`${LP_API_BASE}/top-holders?limit=${limit}`);
-  if (!response.ok) throw new Error('Failed to fetch top LP holders');
-  return response.json();
-};
-
-/**
- * Fetch LP positions for a specific holder
- * @param {string} address - Wallet address
- */
-export const getHolderPositions = async (address) => {
-  const response = await fetch(`${LP_API_BASE}/holder/${address}`);
-  if (!response.ok) throw new Error('Failed to fetch holder positions');
-  return response.json();
-};
-
-/**
- * Fetch LP events (add/remove liquidity)
- * @param {Object} params - Query parameters
- * @param {number} params.limit - Number of events (default: 50)
- * @param {string} params.lp_mint - Filter by LP token
- * @param {string} params.user - Filter by user address
- * @param {string} params.type - Event type: 'add_liquidity' or 'remove_liquidity'
- */
-export const getLPEvents = async (params = {}) => {
-  const queryParams = new URLSearchParams();
-  
-  if (params.limit) queryParams.append('limit', params.limit);
-  if (params.lp_mint) queryParams.append('lp_mint', params.lp_mint);
-  if (params.user) queryParams.append('user', params.user);
-  if (params.type) queryParams.append('type', params.type);
-  
-  const url = `${LP_API_BASE}/events${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error('Failed to fetch LP events');
-  return response.json();
-};
-
-/**
- * Fetch events for specific LP token
- * @param {string} mint - LP token mint address
- * @param {number} limit - Number of events (default: 50)
- */
-export const getLPTokenEvents = async (mint, limit = 50) => {
-  const response = await fetch(`${LP_API_BASE}/events/${mint}?limit=${limit}`);
-  if (!response.ok) throw new Error('Failed to fetch LP token events');
-  return response.json();
-};
-
-/**
- * Fetch LP event statistics
- */
-export const getLPEventStats = async () => {
-  const response = await fetch(`${LP_API_BASE}/events/stats/summary`);
-  if (!response.ok) throw new Error('Failed to fetch LP event stats');
-  return response.json();
-};
-
-/**
- * Format LP amount for display
- * @param {string} amount - Raw amount string
- * @param {number} decimals - Token decimals (default: 9)
- */
-export const formatLPAmount = (amount, decimals = 9) => {
-  const value = Number(amount) / Math.pow(10, decimals);
-  if (value >= 1000000) return `${(value / 1000000).toFixed(2)}M`;
-  if (value >= 1000) return `${(value / 1000).toFixed(2)}K`;
-  return value.toFixed(2);
-};
-
-/**
- * Format timestamp to readable date
- * @param {number} timestamp - Unix timestamp
- */
-export const formatEventTime = (timestamp) => {
-  const date = new Date(timestamp * 1000);
-  const now = new Date();
-  const diff = now - date;
-  
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-  
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days < 7) return `${days}d ago`;
-  
-  return date.toLocaleDateString();
-};
+export default LPExplorer;
