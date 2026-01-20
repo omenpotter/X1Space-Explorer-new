@@ -1,4 +1,6 @@
 // src/pages/LPExplorer.jsx
+// Updated with dark theme matching Dashboard and back button
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -14,6 +16,21 @@ import {
   TableRow 
 } from '@/components/ui/table';
 import {
+  DropletIcon, 
+  TrendingUpIcon, 
+  UsersIcon, 
+  ActivityIcon,
+  SearchIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
+  ExternalLinkIcon,
+  ArrowLeftIcon,
+  RefreshCwIcon,
+  AlertCircleIcon
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+import { 
   getLPStats,
   getLPTokens,
   getTopLPHolders,
@@ -22,16 +39,6 @@ import {
   formatLPAmount,
   formatEventTime
 } from '@/services/lpApi';
-import { 
-  DropletIcon, 
-  TrendingUpIcon, 
-  UsersIcon, 
-  ActivityIcon,
-  SearchIcon,
-  ArrowUpIcon,
-  ArrowDownIcon,
-  ExternalLinkIcon
-} from 'lucide-react';
 
 const LPExplorer = () => {
   const [stats, setStats] = useState(null);
@@ -41,6 +48,7 @@ const LPExplorer = () => {
   const [eventStats, setEventStats] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -49,6 +57,7 @@ const LPExplorer = () => {
   const loadData = async () => {
     try {
       setLoading(true);
+      setError(null);
       
       const [statsData, tokensData, holdersData, eventsData, eventStatsData] = await Promise.all([
         getLPStats(),
@@ -65,6 +74,7 @@ const LPExplorer = () => {
       setEventStats(eventStatsData.stats);
     } catch (error) {
       console.error('Failed to load LP data:', error);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
@@ -76,267 +86,363 @@ const LPExplorer = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-[#0f1419] text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-cyan-400/20 border-t-cyan-400 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading LP data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#0f1419] text-white">
+        <div className="max-w-[1800px] mx-auto px-4 py-8">
+          {/* Header with Back Button */}
+          <div className="flex items-center gap-4 mb-6">
+            <Link to={createPageUrl('Dashboard')}>
+              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                <ArrowLeftIcon className="w-4 h-4 mr-2" />
+                Back to Dashboard
+              </Button>
+            </Link>
+          </div>
+
+          {/* Error Card */}
+          <Card className="bg-[#1d2d3a] border-red-500/20">
+            <CardContent className="pt-6">
+              <div className="text-center py-12">
+                <AlertCircleIcon className="w-16 h-16 text-red-400 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-white mb-2">Failed to Load LP Data</h3>
+                <p className="text-gray-400 mb-4">{error}</p>
+                <div className="space-y-2 text-sm text-gray-500 mb-6">
+                  <p>Please check:</p>
+                  <ul className="list-disc list-inside">
+                    <li>Backend API is running on port 3001</li>
+                    <li>Database has LP data</li>
+                    <li>CORS is configured correctly</li>
+                  </ul>
+                </div>
+                <Button onClick={loadData} className="bg-cyan-500 hover:bg-cyan-600">
+                  <RefreshCwIcon className="w-4 h-4 mr-2" />
+                  Try Again
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-8">
-      {/* Header */}
-      <div className="flex flex-col space-y-2">
-        <h1 className="text-4xl font-bold">Liquidity Pools</h1>
-        <p className="text-muted-foreground">
-          Explore XDEX liquidity pools, holders, and activity
-        </p>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Pools</CardTitle>
-            <DropletIcon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.total_pools || 0}</div>
-            <p className="text-xs text-muted-foreground">Active liquidity pools</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Holders</CardTitle>
-            <UsersIcon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.total_holders || 0}</div>
-            <p className="text-xs text-muted-foreground">Unique LP holders</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total LP Supply</CardTitle>
-            <TrendingUpIcon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats?.total_lp_supply ? formatLPAmount(stats.total_lp_supply, 0) : '0'}
+    <div className="min-h-screen bg-[#0f1419] text-white">
+      <div className="max-w-[1800px] mx-auto px-4 py-8 space-y-8">
+        {/* Header with Back Button */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link to={createPageUrl('Dashboard')}>
+              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                <ArrowLeftIcon className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-4xl font-bold text-white">Liquidity Pools</h1>
+              <p className="text-gray-400 mt-1">
+                Explore XDEX liquidity pools, holders, and activity
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">LP tokens issued</p>
-          </CardContent>
-        </Card>
+          </div>
+          <Button 
+            onClick={loadData} 
+            variant="outline" 
+            size="sm"
+            className="border-gray-600 text-gray-300 hover:bg-gray-800"
+          >
+            <RefreshCwIcon className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">LP Events</CardTitle>
-            <ActivityIcon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{eventStats?.total_events || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              <span className="text-green-600">{eventStats?.add_count || 0} adds</span> · {' '}
-              <span className="text-red-600">{eventStats?.remove_count || 0} removes</span>
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="bg-[#1d2d3a] border-white/10">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-300">Total Pools</CardTitle>
+              <DropletIcon className="h-4 w-4 text-cyan-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-white">{stats?.total_pools || 0}</div>
+              <p className="text-xs text-gray-500">Active liquidity pools</p>
+            </CardContent>
+          </Card>
 
-      {/* Main Content Tabs */}
-      <Tabs defaultValue="pools" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="pools">Pools</TabsTrigger>
-          <TabsTrigger value="holders">Top Holders</TabsTrigger>
-          <TabsTrigger value="activity">Recent Activity</TabsTrigger>
-        </TabsList>
+          <Card className="bg-[#1d2d3a] border-white/10">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-300">Total Holders</CardTitle>
+              <UsersIcon className="h-4 w-4 text-blue-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-white">{stats?.total_holders || 0}</div>
+              <p className="text-xs text-gray-500">Unique LP holders</p>
+            </CardContent>
+          </Card>
 
-        {/* Pools Tab */}
-        <TabsContent value="pools" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Liquidity Pools</CardTitle>
-              <CardDescription>Top pools by holder count</CardDescription>
-              <div className="flex items-center space-x-2 pt-4">
-                <SearchIcon className="h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by LP mint address..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-sm"
-                />
+          <Card className="bg-[#1d2d3a] border-white/10">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-300">Total LP Supply</CardTitle>
+              <TrendingUpIcon className="h-4 w-4 text-emerald-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-white">
+                {stats?.total_lp_supply ? formatLPAmount(stats.total_lp_supply, 0) : '0'}
               </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>LP Token</TableHead>
-                    <TableHead className="text-right">Holders</TableHead>
-                    <TableHead className="text-right">Total Supply</TableHead>
-                    <TableHead className="text-right">Decimals</TableHead>
-                    <TableHead className="text-right">Updated</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredTokens.map((token) => (
-                    <TableRow key={token.lp_mint}>
-                      <TableCell className="font-mono text-sm">
-                        <div className="flex items-center space-x-2">
-                          <span className="truncate max-w-[200px]" title={token.lp_mint}>
-                            {token.lp_mint.slice(0, 8)}...{token.lp_mint.slice(-8)}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                            onClick={() => window.open(`https://xen.pub/address/${token.lp_mint}`, '_blank')}
-                          >
-                            <ExternalLinkIcon className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Badge variant="outline">{token.holder_count}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {formatLPAmount(token.total_supply)}
-                      </TableCell>
-                      <TableCell className="text-right">{token.decimals}</TableCell>
-                      <TableCell className="text-right text-sm text-muted-foreground">
-                        {new Date(token.updated_at).toLocaleDateString()}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <p className="text-xs text-gray-500">LP tokens issued</p>
             </CardContent>
           </Card>
-        </TabsContent>
 
-        {/* Top Holders Tab */}
-        <TabsContent value="holders" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Top LP Holders</CardTitle>
-              <CardDescription>Users with most LP positions</CardDescription>
+          <Card className="bg-[#1d2d3a] border-white/10">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-300">LP Events</CardTitle>
+              <ActivityIcon className="h-4 w-4 text-yellow-400" />
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Rank</TableHead>
-                    <TableHead>Holder Address</TableHead>
-                    <TableHead className="text-right">Pool Count</TableHead>
-                    <TableHead className="text-right">Total LP Balance</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {topHolders.map((holder, index) => (
-                    <TableRow key={holder.holder_address}>
-                      <TableCell>
-                        <Badge variant={index < 3 ? "default" : "outline"}>
-                          #{index + 1}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        <div className="flex items-center space-x-2">
-                          <span className="truncate max-w-[300px]" title={holder.holder_address}>
-                            {holder.holder_address.slice(0, 8)}...{holder.holder_address.slice(-8)}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                            onClick={() => window.open(`https://xen.pub/address/${holder.holder_address}`, '_blank')}
-                          >
-                            <ExternalLinkIcon className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Badge variant="secondary">{holder.pool_count} pools</Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {formatLPAmount(holder.total_lp_balance, 0)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="text-2xl font-bold text-white">{eventStats?.total_events || 0}</div>
+              <p className="text-xs text-gray-500">
+                <span className="text-emerald-400">{eventStats?.add_count || 0} adds</span> · {' '}
+                <span className="text-red-400">{eventStats?.remove_count || 0} removes</span>
+              </p>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
 
-        {/* Recent Activity Tab */}
-        <TabsContent value="activity" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent LP Events</CardTitle>
-              <CardDescription>Latest add and remove liquidity transactions</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Type</TableHead>
-                    <TableHead>LP Token</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead className="text-right">Time</TableHead>
-                    <TableHead>Tx</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentEvents.map((event) => (
-                    <TableRow key={event.signature}>
-                      <TableCell>
-                        <Badge variant={event.event_type === 'add_liquidity' ? 'default' : 'destructive'}>
-                          {event.event_type === 'add_liquidity' ? (
-                            <><ArrowUpIcon className="h-3 w-3 mr-1" /> Add</>
-                          ) : (
-                            <><ArrowDownIcon className="h-3 w-3 mr-1" /> Remove</>
-                          )}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {event.lp_mint.slice(0, 6)}...
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {event.user_address.slice(0, 6)}...
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-sm">
-                        {event.event_type === 'add_liquidity' ? '+' : '-'}
-                        {formatLPAmount(event.lp_amount_change)}
-                      </TableCell>
-                      <TableCell className="text-right text-sm text-muted-foreground">
-                        {formatEventTime(event.block_time)}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                          onClick={() => window.open(`https://xen.pub/tx/${event.signature}`, '_blank')}
-                        >
-                          <ExternalLinkIcon className="h-3 w-3" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              
-              {recentEvents.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  No recent LP events found
+        {/* Main Content Tabs */}
+        <Tabs defaultValue="pools" className="space-y-4">
+          <TabsList className="bg-[#1d2d3a] border border-white/10">
+            <TabsTrigger value="pools" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400">
+              Pools
+            </TabsTrigger>
+            <TabsTrigger value="holders" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400">
+              Top Holders
+            </TabsTrigger>
+            <TabsTrigger value="activity" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400">
+              Recent Activity
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Pools Tab */}
+          <TabsContent value="pools" className="space-y-4">
+            <Card className="bg-[#1d2d3a] border-white/10">
+              <CardHeader>
+                <CardTitle className="text-white">Liquidity Pools</CardTitle>
+                <CardDescription className="text-gray-400">Top pools by holder count</CardDescription>
+                <div className="flex items-center space-x-2 pt-4">
+                  <SearchIcon className="h-4 w-4 text-gray-500" />
+                  <Input
+                    placeholder="Search by LP mint address..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="max-w-sm bg-[#0f1419] border-white/10 text-white placeholder:text-gray-500"
+                  />
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-white/5 hover:bg-transparent">
+                      <TableHead className="text-gray-400">LP Token</TableHead>
+                      <TableHead className="text-right text-gray-400">Holders</TableHead>
+                      <TableHead className="text-right text-gray-400">Total Supply</TableHead>
+                      <TableHead className="text-right text-gray-400">Decimals</TableHead>
+                      <TableHead className="text-right text-gray-400">Updated</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredTokens.length > 0 ? filteredTokens.map((token) => (
+                      <TableRow key={token.lp_mint} className="border-white/5 hover:bg-white/5">
+                        <TableCell className="font-mono text-sm text-gray-300">
+                          <div className="flex items-center space-x-2">
+                            <span className="truncate max-w-[200px]" title={token.lp_mint}>
+                              {token.lp_mint.slice(0, 8)}...{token.lp_mint.slice(-8)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 hover:bg-white/10"
+                              onClick={() => window.open(`https://xen.pub/address/${token.lp_mint}`, '_blank')}
+                            >
+                              <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="outline" className="border-cyan-400/30 text-cyan-400">
+                            {token.holder_count}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-gray-300">
+                          {formatLPAmount(token.total_supply)}
+                        </TableCell>
+                        <TableCell className="text-right text-gray-300">{token.decimals}</TableCell>
+                        <TableCell className="text-right text-sm text-gray-500">
+                          {new Date(token.updated_at).toLocaleDateString()}
+                        </TableCell>
+                      </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                          No pools found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Top Holders Tab */}
+          <TabsContent value="holders" className="space-y-4">
+            <Card className="bg-[#1d2d3a] border-white/10">
+              <CardHeader>
+                <CardTitle className="text-white">Top LP Holders</CardTitle>
+                <CardDescription className="text-gray-400">Users with most LP positions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-white/5 hover:bg-transparent">
+                      <TableHead className="text-gray-400">Rank</TableHead>
+                      <TableHead className="text-gray-400">Holder Address</TableHead>
+                      <TableHead className="text-right text-gray-400">Pool Count</TableHead>
+                      <TableHead className="text-right text-gray-400">Total LP Balance</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {topHolders.length > 0 ? topHolders.map((holder, index) => (
+                      <TableRow key={holder.holder_address} className="border-white/5 hover:bg-white/5">
+                        <TableCell>
+                          <Badge 
+                            variant={index < 3 ? "default" : "outline"}
+                            className={index < 3 ? "bg-cyan-500 text-white" : "border-gray-600 text-gray-400"}
+                          >
+                            #{index + 1}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-sm text-gray-300">
+                          <div className="flex items-center space-x-2">
+                            <span className="truncate max-w-[300px]" title={holder.holder_address}>
+                              {holder.holder_address.slice(0, 8)}...{holder.holder_address.slice(-8)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 hover:bg-white/10"
+                              onClick={() => window.open(`https://xen.pub/address/${holder.holder_address}`, '_blank')}
+                            >
+                              <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="secondary" className="bg-blue-500/20 text-blue-400 border-0">
+                            {holder.pool_count} pools
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-gray-300">
+                          {formatLPAmount(holder.total_lp_balance, 0)}
+                        </TableCell>
+                      </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                          No holders found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Recent Activity Tab */}
+          <TabsContent value="activity" className="space-y-4">
+            <Card className="bg-[#1d2d3a] border-white/10">
+              <CardHeader>
+                <CardTitle className="text-white">Recent LP Events</CardTitle>
+                <CardDescription className="text-gray-400">Latest add and remove liquidity transactions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-white/5 hover:bg-transparent">
+                      <TableHead className="text-gray-400">Type</TableHead>
+                      <TableHead className="text-gray-400">LP Token</TableHead>
+                      <TableHead className="text-gray-400">User</TableHead>
+                      <TableHead className="text-right text-gray-400">Amount</TableHead>
+                      <TableHead className="text-right text-gray-400">Time</TableHead>
+                      <TableHead className="text-gray-400">Tx</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recentEvents.length > 0 ? recentEvents.map((event) => (
+                      <TableRow key={event.signature} className="border-white/5 hover:bg-white/5">
+                        <TableCell>
+                          <Badge 
+                            variant={event.event_type === 'add_liquidity' ? 'default' : 'destructive'}
+                            className={event.event_type === 'add_liquidity' 
+                              ? 'bg-emerald-500/20 text-emerald-400 border-0' 
+                              : 'bg-red-500/20 text-red-400 border-0'
+                            }
+                          >
+                            {event.event_type === 'add_liquidity' ? (
+                              <><ArrowUpIcon className="h-3 w-3 mr-1 inline" /> Add</>
+                            ) : (
+                              <><ArrowDownIcon className="h-3 w-3 mr-1 inline" /> Remove</>
+                            )}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-sm text-gray-400">
+                          {event.lp_mint.slice(0, 6)}...
+                        </TableCell>
+                        <TableCell className="font-mono text-sm text-gray-400">
+                          {event.user_address.slice(0, 6)}...
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-sm text-gray-300">
+                          {event.event_type === 'add_liquidity' ? '+' : '-'}
+                          {formatLPAmount(event.lp_amount_change)}
+                        </TableCell>
+                        <TableCell className="text-right text-sm text-gray-500">
+                          {formatEventTime(event.block_time)}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-white/10"
+                            onClick={() => window.open(`https://xen.pub/tx/${event.signature}`, '_blank')}
+                          >
+                            <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                          No recent LP events found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 };
