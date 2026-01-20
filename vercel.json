@@ -43,6 +43,10 @@
     {
       "source": "/api/detectAnomalies",
       "destination": "/functions/detectAnomalies"
+    },
+    {
+      "source": "/api/getTokenPrices",
+      "destination": "/functions/getTokenPrices"
     }
   ],
   "headers": [
