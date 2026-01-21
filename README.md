@@ -1,1 +1,1 @@
-X1Space Explorer
+X1 Space Explorer
