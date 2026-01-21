@@ -1,3 +1,4 @@
+   // Updated: Jan 21, 2026 - LP Explorer
 import AddressLookup from './pages/AddressLookup';
 import ApiDocs from './pages/ApiDocs';
 import BlockDetail from './pages/BlockDetail';
