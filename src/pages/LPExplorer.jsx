@@ -252,6 +252,7 @@ const LPExplorer = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-white/5 hover:bg-transparent">
+                      <TableHead className="text-gray-400 w-16">#</TableHead>
                       <TableHead className="text-gray-400">LP Token</TableHead>
                       <TableHead className="text-right text-gray-400">Holders</TableHead>
                       <TableHead className="text-right text-gray-400">Total Supply</TableHead>
@@ -260,8 +261,11 @@ const LPExplorer = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredTokens.length > 0 ? filteredTokens.map((token) => (
+                    {filteredTokens.length > 0 ? filteredTokens.map((token, index) => (
                       <TableRow key={token.lp_mint} className="border-white/5 hover:bg-white/5">
+                        <TableCell className="text-gray-400 font-medium">
+                          {index + 1}
+                        </TableCell>
                         <TableCell className="font-mono text-sm">
                           <div className="flex items-center space-x-2">
                             <span className="text-cyan-400 font-semibold">
