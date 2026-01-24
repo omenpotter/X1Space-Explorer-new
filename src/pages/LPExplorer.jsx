@@ -262,11 +262,16 @@ const LPExplorer = () => {
                   <TableBody>
                     {filteredTokens.length > 0 ? filteredTokens.map((token) => (
                       <TableRow key={token.lp_mint} className="border-white/5 hover:bg-white/5">
-                        <TableCell className="font-mono text-sm text-gray-300">
+                        <TableCell className="font-mono text-sm">
                           <div className="flex items-center space-x-2">
-                            <span className="truncate max-w-[200px]" title={token.lp_mint}>
-                              {token.lp_mint.slice(0, 8)}...{token.lp_mint.slice(-8)}
-                            </span>
+                            <div className="flex flex-col">
+                              <span className="text-cyan-400 font-semibold">
+                                {token.pair_symbol || `${token.token_a_symbol}/${token.token_b_symbol}`}
+                              </span>
+                              <span className="text-xs text-gray-500" title={token.lp_mint}>
+                                {token.lp_mint.slice(0, 8)}...{token.lp_mint.slice(-8)}
+                              </span>
+                            </div>
                             <Button
                               variant="ghost"
                               size="sm"
