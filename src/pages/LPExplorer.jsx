@@ -61,9 +61,9 @@ const LPExplorer = () => {
       
       const [statsData, tokensData, holdersData, eventsData, eventStatsData] = await Promise.all([
         getLPStats(),
-        getLPTokens(50),
-        getTopLPHolders(30),
-        getLPEvents({ limit: 20 }),
+        getLPTokens(500),
+        getTopLPHolders(100),
+        getLPEvents({ limit: 50 }),
         getLPEventStats()
       ]);
 
@@ -262,17 +262,16 @@ const LPExplorer = () => {
                   <TableBody>
                     {filteredTokens.length > 0 ? filteredTokens.map((token) => (
                       <TableRow key={token.lp_mint} className="border-white/5 hover:bg-white/5">
-                        <TableCell className="font-mono text-sm">
+                        <TableCell className="font-mono text-sm text-gray-300">
                           <div className="flex items-center space-x-2">
-                            <span className="text-cyan-400 font-semibold">
-                              {token.pair_symbol || `${token.token_a_symbol}/${token.token_b_symbol}`}
+                            <span className="truncate max-w-[200px]" title={token.lp_mint}>
+                              {token.lp_mint.slice(0, 8)}...{token.lp_mint.slice(-8)}
                             </span>
                             <Button
                               variant="ghost"
                               size="sm"
                               className="h-6 w-6 p-0 hover:bg-white/10"
-                              onClick={() => window.open(`https://explorer.mainnet.x1.xyz/address/${token.lp_mint}`, '_blank')}
-                              title={`View ${token.lp_mint} on X1 Explorer`}
+                              onClick={() => window.open(`https://xen.pub/address/${token.lp_mint}`, '_blank')}
                             >
                               <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
                             </Button>
@@ -341,7 +340,7 @@ const LPExplorer = () => {
                               variant="ghost"
                               size="sm"
                               className="h-6 w-6 p-0 hover:bg-white/10"
-                              onClick={() => window.open(`https://explorer.mainnet.x1.xyz/address/${holder.holder_address}`, '_blank')}
+                              onClick={() => window.open(`https://xen.pub/address/${holder.holder_address}`, '_blank')}
                             >
                               <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
                             </Button>
@@ -424,7 +423,7 @@ const LPExplorer = () => {
                             variant="ghost"
                             size="sm"
                             className="h-6 w-6 p-0 hover:bg-white/10"
-                            onClick={() => window.open(`https://explorer.mainnet.x1.xyz/tx/${event.signature}`, '_blank')}
+                            onClick={() => window.open(`https://xen.pub/tx/${event.signature}`, '_blank')}
                           >
                             <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
                           </Button>
