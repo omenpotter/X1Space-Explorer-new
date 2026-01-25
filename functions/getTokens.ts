@@ -18,9 +18,8 @@ Deno.serve(async (req) => {
     try {
         const url = new URL(req.url);
         
-        const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 5000); // Increased to 5000
+        const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 5000);
         const offset = parseInt(url.searchParams.get('offset') || '0');
-        // Accept both 'verified_only' and 'verified' parameters for compatibility
         const verifiedParam = url.searchParams.get('verified_only') || url.searchParams.get('verified');
         const verifiedOnly = verifiedParam === 'true';
         const tokenStandard = url.searchParams.get('token_standard');
@@ -41,14 +40,14 @@ Deno.serve(async (req) => {
         await client.connect();
         console.log('✓ Database connected successfully');
 
-        // Build query - Filter tokens with supply > 0
+        // Build query using the VERIFIED COLUMN
         let query = `
             SELECT 
                 mint, name, symbol, decimals, total_supply, logo_uri,
                 token_standard, created_by, created_at, first_verified_at,
                 last_verified_at, verification_count, is_scam, scam_report_count,
                 website, twitter, telegram, discord, description, metadata_uri,
-                price, market_cap, price_updated_at
+                price, market_cap, price_updated_at, verified
             FROM verified_tokens 
             WHERE total_supply > 0
         `;
@@ -56,9 +55,9 @@ Deno.serve(async (req) => {
         const params = [];
         let paramCount = 1;
 
-        // Only apply verified filter if verifiedOnly is true
+        // Use the verified column instead of name/symbol checks
         if (verifiedOnly) {
-            query += ` AND name != 'Unknown Token' AND symbol != 'UNKNOWN'`;
+            query += ` AND verified = true`;
         }
 
         if (tokenStandard) {
@@ -67,27 +66,24 @@ Deno.serve(async (req) => {
             paramCount++;
         }
 
-        // Order by supply (largest first)
-        query += ` ORDER BY total_supply DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
+        // Order by verified first, then by supply
+        query += ` ORDER BY verified DESC, total_supply DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
         params.push(limit, offset);
 
         console.log('🔍 Executing query...');
         const result = await client.query(query, params);
         console.log(`✓ Found ${result.rows.length} tokens`);
 
-        // Get counts for verified and discovered
+        // Get counts using the verified column
         const verifiedCountResult = await client.query(`
             SELECT COUNT(*) FROM verified_tokens 
-            WHERE total_supply > 0 
-              AND name != 'Unknown Token' 
-              AND symbol != 'UNKNOWN'
+            WHERE total_supply > 0 AND verified = true
         `);
         const verifiedCount = parseInt(verifiedCountResult.rows[0].count);
 
         const discoveredCountResult = await client.query(`
             SELECT COUNT(*) FROM verified_tokens 
-            WHERE total_supply > 0 
-              AND (name = 'Unknown Token' OR symbol = 'UNKNOWN')
+            WHERE total_supply > 0 AND verified = false
         `);
         const discoveredCount = parseInt(discoveredCountResult.rows[0].count);
 
@@ -95,7 +91,7 @@ Deno.serve(async (req) => {
         let countQuery = 'SELECT COUNT(*) FROM verified_tokens WHERE total_supply > 0';
         
         if (verifiedOnly) {
-            countQuery += ` AND name != 'Unknown Token' AND symbol != 'UNKNOWN'`;
+            countQuery += ` AND verified = true`;
         }
         
         if (tokenStandard) {
@@ -105,13 +101,12 @@ Deno.serve(async (req) => {
         console.log('🔢 Counting total tokens...');
         const countResult = await client.query(countQuery);
         const total = parseInt(countResult.rows[0].count);
-        console.log(`✓ Total tokens: ${total}`);
-        console.log(`✓ Verified: ${verifiedCount}, Discovered: ${discoveredCount}`);
+        console.log(`✅ Total: ${total}, Verified: ${verifiedCount}, Discovered: ${discoveredCount}`);
 
         await client.end();
         console.log('✓ Database connection closed');
 
-        // Format response - Convert to proper types
+        // Format response - Include verified field
         const tokens = result.rows.map(row => ({
             mint: row.mint,
             name: row.name || 'Unknown Token',
@@ -130,6 +125,7 @@ Deno.serve(async (req) => {
             first_verified_at: row.first_verified_at,
             last_verified_at: row.last_verified_at,
             verification_count: parseInt(row.verification_count) || 0,
+            verified: row.verified || false, // ✅ INCLUDE VERIFIED FIELD
             is_scam: row.is_scam || false,
             scam_report_count: parseInt(row.scam_report_count) || 0,
             website: row.website,
@@ -144,8 +140,7 @@ Deno.serve(async (req) => {
             price_history: []
         }));
 
-        console.log('✅ Returning response with', tokens.length, 'tokens');
-        console.log('📊 First token sample:', tokens[0]?.name, '| Supply:', tokens[0]?.total_supply, '| Image:', tokens[0]?.logo_uri ? 'YES' : 'NO');
+        console.log('✅ Returning', tokens.length, 'tokens');
 
         return new Response(JSON.stringify({
             success: true,
