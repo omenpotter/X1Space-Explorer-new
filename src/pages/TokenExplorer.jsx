@@ -211,22 +211,45 @@ export default function TokenExplorer() {
     try {
       console.log('🔄 Fetching tokens from API...');
       
-      // Fetch ALL tokens (verified and unverified)
-      const allTokensResponse = await X1Api.listTokens({ limit: 1500, offset: 0, verified: false });
-
-      if (allTokensResponse.success && allTokensResponse.data?.tokens) {
-        const tokens = allTokensResponse.data.tokens;
+      // Strategy: Fetch ALL tokens without any filters
+      // If API doesn't support this, fetch verified and unverified separately
+      let allFetchedTokens = [];
+      
+      try {
+        // Try fetching all tokens at once (no verified filter)
+        const allTokensResponse = await X1Api.listTokens({ limit: 2000, offset: 0 });
         
-        // Show mock data indicator if using mock data
-        if (allTokensResponse._mock) {
-          console.log('⚠️ Using mock data - backend not connected');
-        } else {
-          console.log(`✓ Loaded ${tokens.length} tokens from API`);
-          console.log(`📊 Total: ${allTokensResponse.data.total}, Verified: ${allTokensResponse.data.verified}, Discovered: ${allTokensResponse.data.discovered}`);
-        }  
+        if (allTokensResponse.success && allTokensResponse.data?.tokens) {
+          allFetchedTokens = allTokensResponse.data.tokens;
+          console.log(`✓ Loaded ${allFetchedTokens.length} tokens from API (single call)`);
+        }
+      } catch (err) {
+        console.warn('Single API call failed, trying separate calls...', err);
+      }
+      
+      // If we didn't get tokens, try fetching verified and unverified separately
+      if (allFetchedTokens.length === 0) {
+        const [verifiedResponse, unverifiedResponse] = await Promise.all([
+          X1Api.listTokens({ limit: 1500, offset: 0, verified: true }),
+          X1Api.listTokens({ limit: 1500, offset: 0, verified: false })
+        ]);
+        
+        if (verifiedResponse.success && verifiedResponse.data?.tokens) {
+          allFetchedTokens.push(...verifiedResponse.data.tokens);
+          console.log(`✓ Loaded ${verifiedResponse.data.tokens.length} verified tokens`);
+        }
+        
+        if (unverifiedResponse.success && unverifiedResponse.data?.tokens) {
+          allFetchedTokens.push(...unverifiedResponse.data.tokens);
+          console.log(`✓ Loaded ${unverifiedResponse.data.tokens.length} unverified tokens`);
+        }
+      }
+
+      if (allFetchedTokens.length > 0) {
+        console.log(`📊 Total fetched: ${allFetchedTokens.length} tokens`);
         
         // Process ALL tokens and AUTO-VERIFY them
-        const processedTokens = tokens.map(token => {
+        const processedTokens = allFetchedTokens.map(token => {
           const tokenData = {
             mint: token.mint || token.address,
             name: token.name || 'Unknown Token',
