@@ -22,14 +22,12 @@ const deriveMetadataPDA = async (mint) => {
     Buffer.from(METADATA_PROGRAM_ID, 'base64'),
     Buffer.from(mint, 'base64')
   ];
-  // Simplified - in production use @solana/web3.js PublicKey.findProgramAddress
   return mint; // Placeholder
 };
 
 // Parse Metaplex metadata from account data
 const parseMetaplexMetadata = (accountData) => {
   try {
-    // Simplified parser - in production decode properly
     return {
       name: 'Token',
       symbol: 'TKN',
@@ -40,11 +38,34 @@ const parseMetaplexMetadata = (accountData) => {
   }
 };
 
+// ============================================================================
+// AUTOMATIC VERIFICATION SYSTEM
+// ============================================================================
+// A token is automatically verified if it meets ALL criteria:
+// - Has valid metadata (name != 'Unknown Token', symbol != 'UNKNOWN')
+// - Has valid supply (totalSupply > 0)
+// - Has price data OR market cap data
+const autoVerifyToken = (token) => {
+  const hasValidMetadata = token.name && 
+                          token.name !== 'Unknown Token' && 
+                          token.symbol && 
+                          token.symbol !== 'UNKNOWN';
+  
+  const hasValidSupply = token.totalSupply && token.totalSupply > 0;
+  
+  const hasPrice = token.price && parseFloat(token.price) > 0;
+  
+  const hasMarketCap = token.marketCap && token.marketCap > 0;
+  
+  // Token is verified if it has valid metadata AND supply AND (price OR market cap)
+  return hasValidMetadata && hasValidSupply && (hasPrice || hasMarketCap);
+};
+
 export default function TokenExplorer() {
   const [loading, setLoading] = useState(true);
   const [supply, setSupply] = useState({ total: 0, circulating: 0 });
   const [validators, setValidators] = useState({ totalStake: 0, activeCount: 0 });
-  const [allTokens, setAllTokens] = useState([]);
+  const [allTokens, setAllTokens] = useState([]); // NOW CONTAINS ALL TOKENS (verified + unverified)
   const [watchlist, setWatchlist] = useState([]);
   const [selectedToken, setSelectedToken] = useState(null);
   const [tokenDetails, setTokenDetails] = useState(null);
@@ -70,12 +91,11 @@ export default function TokenExplorer() {
     marketCapMin: '',
     marketCapMax: '',
     priceChangeMin: '',
-    priceChangeMax: ''
+    priceChangeMax: '',
+    verificationStatus: 'all' // NEW: 'all', 'verified', 'unverified'
   });
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const searchDebounceRef = useRef(null);
-  const [discoveredTokens, setDiscoveredTokens] = useState([]);
-  const [showDiscovered, setShowDiscovered] = useState(false);
   const [livePriceIndicator, setLivePriceIndicator] = useState(false);
   const [apiHealthy, setApiHealthy] = useState(false);
   const [creatorProfile, setCreatorProfile] = useState(null);
@@ -96,7 +116,7 @@ export default function TokenExplorer() {
       console.log('X1 API Status:', health.status);
     });
     
-    // Subscribe to real-time token updates via WebSocket (don't interfere with Dashboard services)
+    // Subscribe to real-time token updates via WebSocket
     const unsubscribe = X1Api.subscribeToTokenUpdates((update) => {
       console.log('🔴 Real-time WebSocket update:', update);
       
@@ -109,32 +129,39 @@ export default function TokenExplorer() {
           decimals: update.data.decimals || 9,
           totalSupply: update.data.total_supply || 0,
           tokenType: update.data.token_type || 'SPL Token',
-          price: '0.0000',
-          marketCap: 0,
-          priceChange24h: '0.00',
-          verified: update.data.verified || false,
+          price: update.data.price || '0.0000',
+          marketCap: update.data.market_cap || 0,
+          priceChange24h: update.data.price_change_24h || '0.00',
+          verified: false, // Will be auto-verified below
           priceHistory: []
         };
         
-        if (update.data.verified) {
-          setAllTokens(prev => [newToken, ...prev]);
-        } else {
-          setDiscoveredTokens(prev => [newToken, ...prev]);
-        }
+        // AUTOMATIC VERIFICATION
+        newToken.verified = autoVerifyToken(newToken);
+        
+        // Add to allTokens array (no more separate arrays)
+        setAllTokens(prev => [newToken, ...prev]);
         setLivePriceIndicator(true);
         setTimeout(() => setLivePriceIndicator(false), 2000);
       }
       
       if (update.type === 'token_verified' || update.type === 'token_updated') {
-        setAllTokens(prev => prev.map(token => 
-          token.mint === update.data.mint ? {
-            ...token,
-            ...update.data,
-            price: update.data.price ? parseFloat(update.data.price).toFixed(4) : token.price,
-            marketCap: update.data.market_cap || token.marketCap,
-            priceChange24h: update.data.price_change_24h ? parseFloat(update.data.price_change_24h).toFixed(2) : token.priceChange24h
-          } : token
-        ));
+        setAllTokens(prev => prev.map(token => {
+          if (token.mint === update.data.mint) {
+            const updatedToken = {
+              ...token,
+              ...update.data,
+              price: update.data.price ? parseFloat(update.data.price).toFixed(4) : token.price,
+              marketCap: update.data.market_cap || token.marketCap,
+              priceChange24h: update.data.price_change_24h ? parseFloat(update.data.price_change_24h).toFixed(2) : token.priceChange24h
+            };
+            
+            // RE-VERIFY after update
+            updatedToken.verified = autoVerifyToken(updatedToken);
+            return updatedToken;
+          }
+          return token;
+        }));
         setLivePriceIndicator(true);
         setTimeout(() => setLivePriceIndicator(false), 2000);
       }
@@ -143,12 +170,16 @@ export default function TokenExplorer() {
         setAllTokens(prev => prev.map(token => {
           const priceData = update.data[token.mint];
           if (priceData) {
-            return {
+            const updatedToken = {
               ...token,
               price: priceData.price.toFixed(4),
               priceChange24h: priceData.price_change_24h?.toFixed(2) || token.priceChange24h,
               marketCap: priceData.market_cap || token.marketCap
             };
+            
+            // RE-VERIFY after price update
+            updatedToken.verified = autoVerifyToken(updatedToken);
+            return updatedToken;
           }
           return token;
         }));
@@ -176,105 +207,111 @@ export default function TokenExplorer() {
   };
 
   const fetchData = async () => {
-  setLoading(true);
-  try {
-    console.log('🔄 Fetching tokens from API...');
-    
-    // Fetch only tokens with real names (153 tokens)
-    const allTokensResponse = await X1Api.listTokens({ limit: 1500, offset: 0, verified: false });
-
-    if (allTokensResponse.success && allTokensResponse.data?.tokens) {
-      const tokens = allTokensResponse.data.tokens;
+    setLoading(true);
+    try {
+      console.log('🔄 Fetching tokens from API...');
       
-      // Show mock data indicator if using mock data
-      if (allTokensResponse._mock) {
-        console.log('⚠️ Using mock data - backend not connected');
-      } else {
-        console.log(`✓ Loaded ${tokens.length} tokens from API`);
-        console.log(`📊 Total: ${allTokensResponse.data.total}, Verified: ${allTokensResponse.data.verified}, Discovered: ${allTokensResponse.data.discovered}`);
-      }  
-      // Separate verified and unverified tokens
-      const verified = [];
-      const unverified = [];
+      // Fetch ALL tokens (verified and unverified)
+      const allTokensResponse = await X1Api.listTokens({ limit: 1500, offset: 0, verified: false });
 
-      tokens.forEach(token => {
-        const tokenData = {
-          mint: token.mint || token.address,
-          name: token.name || 'Unknown Token',
-          symbol: token.symbol || 'UNKNOWN',
-          logo: token.logo_uri || token.logo,
-          decimals: token.decimals || 9,
-          totalSupply: token.total_supply || token.totalSupply || token.supply || 0,
-          tokenType: token.token_type || token.tokenType || 'SPL Token',
-          price: token.price ? parseFloat(token.price).toFixed(4) : '0.0000',
-          marketCap: token.market_cap || token.marketCap || 0,
-          priceChange24h: token.price_change_24h || token.priceChange24h ? parseFloat(token.price_change_24h || token.priceChange24h).toFixed(2) : '0.00',
-          mintAuthority: token.mint_authority || token.mintAuthority,
-          freezeAuthority: token.freeze_authority || token.freezeAuthority,
-          website: token.website,
-          twitter: token.twitter,
-          createdBy: token.created_by || token.createdBy,
-          createdAt: token.created_at || token.createdAt,
-          verificationCount: token.verification_count || token.verificationCount || 0,
-          isScam: token.is_scam || token.isScam || false,
-          verified: token.name !== 'Unknown Token' && token.symbol !== 'UNKNOWN',
-          priceHistory: token.price_history || token.priceHistory || []
-        };
-
-        if (token.name !== 'Unknown Token' && token.symbol !== 'UNKNOWN') {
-       verified.push(tokenData);
-       } else {
-       unverified.push(tokenData);
-      }
-      });
-
-      setAllTokens(verified);
-      setDiscoveredTokens(unverified);
-      
-      console.log(`✓ Verified: ${verified.length}, Unverified: ${unverified.length}`);
-      
-      // Fetch real supply and validator stats from RPC
-      try {
-        const X1Rpc = (await import('../components/x1/X1RpcService')).default;
+      if (allTokensResponse.success && allTokensResponse.data?.tokens) {
+        const tokens = allTokensResponse.data.tokens;
         
-        const [supplyInfo, voteAccounts] = await Promise.all([
-          X1Rpc.getSupply(),
-          X1Rpc.getVoteAccounts()
-        ]);
+        // Show mock data indicator if using mock data
+        if (allTokensResponse._mock) {
+          console.log('⚠️ Using mock data - backend not connected');
+        } else {
+          console.log(`✓ Loaded ${tokens.length} tokens from API`);
+          console.log(`📊 Total: ${allTokensResponse.data.total}, Verified: ${allTokensResponse.data.verified}, Discovered: ${allTokensResponse.data.discovered}`);
+        }  
+        
+        // Process ALL tokens and AUTO-VERIFY them
+        const processedTokens = tokens.map(token => {
+          const tokenData = {
+            mint: token.mint || token.address,
+            name: token.name || 'Unknown Token',
+            symbol: token.symbol || 'UNKNOWN',
+            logo: token.logo_uri || token.logo,
+            decimals: token.decimals || 9,
+            totalSupply: token.total_supply || token.totalSupply || token.supply || 0,
+            tokenType: token.token_type || token.tokenType || 'SPL Token',
+            price: token.price ? parseFloat(token.price).toFixed(4) : '0.0000',
+            marketCap: token.market_cap || token.marketCap || 0,
+            priceChange24h: token.price_change_24h || token.priceChange24h ? parseFloat(token.price_change_24h || token.priceChange24h).toFixed(2) : '0.00',
+            mintAuthority: token.mint_authority || token.mintAuthority,
+            freezeAuthority: token.freeze_authority || token.freezeAuthority,
+            website: token.website,
+            twitter: token.twitter,
+            createdBy: token.created_by || token.createdBy,
+            createdAt: token.created_at || token.createdAt,
+            verificationCount: token.verification_count || token.verificationCount || 0,
+            isScam: token.is_scam || token.isScam || false,
+            verified: false, // Will be set below
+            priceHistory: token.price_history || token.priceHistory || []
+          };
 
-        if (supplyInfo) {
-          setSupply({
-            total: supplyInfo.value.total,
-            circulating: supplyInfo.value.circulating
-          });
-        }
+          // AUTOMATIC VERIFICATION
+          tokenData.verified = autoVerifyToken(tokenData);
+          
+          return tokenData;
+        });
 
-        if (voteAccounts) {
-          const totalStake = voteAccounts.current.reduce((sum, v) => sum + v.activatedStake, 0);
-          setValidators({
-            totalStake,
-            activeCount: voteAccounts.current.length
-          });
+        // Store ALL tokens in single array
+        setAllTokens(processedTokens);
+        
+        const verifiedCount = processedTokens.filter(t => t.verified).length;
+        const unverifiedCount = processedTokens.filter(t => !t.verified).length;
+        console.log(`✓ Total: ${processedTokens.length}, Verified: ${verifiedCount}, Unverified: ${unverifiedCount}`);
+        
+        // Fetch real supply and validator stats from RPC
+        try {
+          const X1Rpc = (await import('../components/x1/X1RpcService')).default;
+          
+          const [supplyInfo, voteAccounts] = await Promise.all([
+            X1Rpc.getSupply(),
+            X1Rpc.getVoteAccounts()
+          ]);
+
+          if (supplyInfo) {
+            setSupply({
+              total: supplyInfo.value.total,
+              circulating: supplyInfo.value.circulating
+            });
+          }
+
+          if (voteAccounts) {
+            const totalStake = voteAccounts.current.reduce((sum, v) => sum + v.activatedStake, 0);
+            setValidators({
+              totalStake,
+              activeCount: voteAccounts.current.length
+            });
+          }
+        } catch (err) {
+          console.warn('Could not fetch supply/validator stats:', err);
         }
-      } catch (err) {
-        console.warn('Could not fetch supply/validator stats:', err);
+        
+        setLoading(false);
+        return;
       }
-      
-      setLoading(false);
-      return;
-    }
 
-    console.log('⚠️ No token data available');
-    setAllTokens([]);
-    setDiscoveredTokens([]);
-  } catch (err) {
-    console.error('❌ Fetch error:', err);
-    setAllTokens([]);
-    setDiscoveredTokens([]);
-  } finally {
-    setLoading(false);
-  }
-}; 
+      console.log('⚠️ No token data available');
+      setAllTokens([]);
+    } catch (err) {
+      console.error('❌ Fetch error:', err);
+      setAllTokens([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Calculate token statistics
+  const tokenStats = useMemo(() => {
+    const verified = allTokens.filter(t => t.verified).length;
+    const unverified = allTokens.filter(t => !t.verified).length;
+    const total = allTokens.length;
+    
+    return { total, verified, unverified };
+  }, [allTokens]);
   
   const filteredAndSortedTokens = useMemo(() => {
     let filtered = [...allTokens];
@@ -292,6 +329,13 @@ export default function TokenExplorer() {
     // Apply advanced filters
     if (advancedFilters.tokenType !== 'all') {
       filtered = filtered.filter(token => token.tokenType === advancedFilters.tokenType);
+    }
+    
+    // NEW: Verification status filter
+    if (advancedFilters.verificationStatus !== 'all') {
+      filtered = filtered.filter(token => 
+        advancedFilters.verificationStatus === 'verified' ? token.verified : !token.verified
+      );
     }
     
     if (advancedFilters.marketCapMin) {
@@ -784,43 +828,21 @@ export default function TokenExplorer() {
               </Badge>
             )}
           </h1>
-          <div className="flex gap-2">
-            <Button
-              variant={!showDiscovered ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowDiscovered(false)}
-              className={!showDiscovered ? "bg-cyan-500" : "border-white/20"}
-            >
-              Verified ({allTokens.length})
-            </Button>
-            <Button
-              variant={showDiscovered ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowDiscovered(true)}
-              className={showDiscovered ? "bg-cyan-500" : "border-white/20"}
-            >
-              Discovered ({discoveredTokens.length})
-            </Button>
-          </div>
         </div>
 
-        {/* Top Stats - Synced with Dashboard */}
+        {/* Top Stats - NOW SHOWS ALL TOKENS */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           <div className="bg-[#24384a] rounded-lg p-4">
             <p className="text-gray-400 text-xs">Total Tokens</p>
-            <p className="text-2xl font-bold text-cyan-400">{allTokens.length + discoveredTokens.length}</p>
+            <p className="text-2xl font-bold text-cyan-400">{tokenStats.total}</p>
           </div>
           <div className="bg-[#24384a] rounded-lg p-4">
-            <p className="text-gray-400 text-xs">XNT Supply</p>
-            <p className="text-2xl font-bold text-white">
-              {supply.total ? formatNum(supply.total / 1e9) : '1,022.92'} B
-            </p>
+            <p className="text-gray-400 text-xs">Verified</p>
+            <p className="text-2xl font-bold text-emerald-400">{tokenStats.verified}</p>
           </div>
           <div className="bg-[#24384a] rounded-lg p-4">
-            <p className="text-gray-400 text-xs">Circulating</p>
-            <p className="text-2xl font-bold text-emerald-400">
-              {supply.circulating ? formatNum(supply.circulating / 1e9) : '1,022.92'} B
-            </p>
+            <p className="text-gray-400 text-xs">Discovered</p>
+            <p className="text-2xl font-bold text-yellow-400">{tokenStats.unverified}</p>
           </div>
           <div className="bg-[#24384a] rounded-lg p-4">
             <p className="text-gray-400 text-xs">Total Staked</p>
@@ -906,7 +928,7 @@ export default function TokenExplorer() {
             </Button>
           </div>
           
-          {/* Advanced Filters */}
+          {/* Advanced Filters with Verification Status */}
           {showAdvancedFilters && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-white/10">
               <div>
@@ -919,6 +941,18 @@ export default function TokenExplorer() {
                   <option value="all">All Types</option>
                   <option value="SPL Token">SPL Token</option>
                   <option value="Token-2022">Token-2022</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs mb-1 block">Verification Status</label>
+                <select
+                  value={advancedFilters.verificationStatus}
+                  onChange={(e) => setAdvancedFilters({...advancedFilters, verificationStatus: e.target.value})}
+                  className="w-full bg-[#1d2d3a] border-0 text-white rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="all">All Tokens</option>
+                  <option value="verified">Verified Only</option>
+                  <option value="unverified">Unverified Only</option>
                 </select>
               </div>
               <div>
@@ -962,7 +996,7 @@ export default function TokenExplorer() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setAdvancedFilters({ tokenType: 'all', marketCapMin: '', marketCapMax: '', priceChangeMin: '', priceChangeMax: '' })}
+                onClick={() => setAdvancedFilters({ tokenType: 'all', marketCapMin: '', marketCapMax: '', priceChangeMin: '', priceChangeMax: '', verificationStatus: 'all' })}
                 className="text-gray-400 hover:text-white"
               >
                 Clear Filters
@@ -971,17 +1005,12 @@ export default function TokenExplorer() {
           )}
         </div>
 
-        {/* Top Tokens */}
+        {/* Token List */}
         <div className="bg-[#24384a] rounded-xl overflow-hidden mb-6">
           <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
             <h3 className="text-white font-medium">
-              {showDiscovered ? 'Discovered Tokens (Unverified)' : 'Verified Tokens'} ({showDiscovered ? discoveredTokens.length : filteredAndSortedTokens.length})
+              Tokens ({filteredAndSortedTokens.length})
             </h3>
-            {showDiscovered && (
-              <Badge className="bg-yellow-500/20 text-yellow-400 border-0 text-xs">
-                ⚠️ Unverified - DYOR
-              </Badge>
-            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -997,7 +1026,7 @@ export default function TokenExplorer() {
                 </tr>
               </thead>
               <tbody>
-                {(showDiscovered ? discoveredTokens : filteredAndSortedTokens).slice(0, displayLimit).map((token, i) => (
+                {filteredAndSortedTokens.slice(0, displayLimit).map((token, i) => (
                   <Fragment key={token.mint}>
                     <tr className="border-b border-white/5 hover:bg-white/[0.02]">
                       <td className="px-4 py-3 text-gray-500">{i + 1}</td>
@@ -1026,11 +1055,10 @@ export default function TokenExplorer() {
                                 )}
                               </button>
                               <Badge className="bg-blue-500/20 text-blue-400 border-0 text-xs">{token.tokenType || 'SPL Token'}</Badge>
-                              {showDiscovered && (
-                                <Badge className="bg-yellow-500/20 text-yellow-400 border-0 text-xs">Unverified</Badge>
-                              )}
-                              {token.verified && (
+                              {token.verified ? (
                                 <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">✓ Verified</Badge>
+                              ) : (
+                                <Badge className="bg-yellow-500/20 text-yellow-400 border-0 text-xs">⚠ Unverified</Badge>
                               )}
                             </div>
                           </div>
@@ -1135,6 +1163,10 @@ export default function TokenExplorer() {
             onClose={() => {
               setShowAIAssistant(false);
               setAiAssistantToken(null);
+            }}
+            onVerified={() => {
+              // Re-fetch token data to update verification status
+              fetchData();
             }}
           />
         )}
