@@ -18,13 +18,15 @@ Deno.serve(async (req) => {
     try {
         const url = new URL(req.url);
         
-        const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 500);
+        const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 5000); // Increased to 5000
         const offset = parseInt(url.searchParams.get('offset') || '0');
-        const verifiedOnly = url.searchParams.get('verified_only') === 'true';
+        // Accept both 'verified_only' and 'verified' parameters for compatibility
+        const verifiedParam = url.searchParams.get('verified_only') || url.searchParams.get('verified');
+        const verifiedOnly = verifiedParam === 'true';
         const tokenStandard = url.searchParams.get('token_standard');
 
         console.log('📊 Fetching tokens from database...');
-        console.log(`Params: limit=${limit}, offset=${offset}, verifiedOnly=${verifiedOnly}`);
+        console.log(`Params: limit=${limit}, offset=${offset}, verified=${verifiedParam}, verifiedOnly=${verifiedOnly}`);
 
         // Connect to PostgreSQL
         const client = new Client({
