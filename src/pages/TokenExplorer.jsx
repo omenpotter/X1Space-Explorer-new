@@ -60,7 +60,7 @@ export default function TokenExplorer() {
   const [sortBy, setSortBy] = useState('supply');
   const [txFilter, setTxFilter] = useState({ type: 'all', dateRange: 'all', searchSig: '' });
   const [sortDirection, setSortDirection] = useState('desc');
-  const [displayLimit, setDisplayLimit] = useState(50);
+  const [displayLimit, setDisplayLimit] = useState(200); // MODIFIED: Increased from 50 to show more tokens initially
   const [copiedAddress, setCopiedAddress] = useState(null);
   const [priceTimeframe, setPriceTimeframe] = useState('7D');
   const [holderChartData, setHolderChartData] = useState([]);
@@ -180,8 +180,8 @@ export default function TokenExplorer() {
   try {
     console.log('🔄 Fetching tokens from API...');
     
-    // Fetch only tokens with real names (153 tokens)
-    const allTokensResponse = await X1Api.listTokens({ limit: 1500, offset: 0, verified: false });
+    // MODIFIED: Increased limit to 3000 to fetch more tokens
+    const allTokensResponse = await X1Api.listTokens({ limit: 3000, offset: 0, verified: false });
 
     if (allTokensResponse.success && allTokensResponse.data?.tokens) {
       const tokens = allTokensResponse.data.tokens;
@@ -217,11 +217,12 @@ export default function TokenExplorer() {
           createdAt: token.created_at || token.createdAt,
           verificationCount: token.verification_count || token.verificationCount || 0,
           isScam: token.is_scam || token.isScam || false,
-          verified: token.name !== 'Unknown Token' && token.symbol !== 'UNKNOWN',
+          verified: token.verified || false, // MODIFIED: Use backend's verified field
           priceHistory: token.price_history || token.priceHistory || []
         };
 
-        if (token.name !== 'Unknown Token' && token.symbol !== 'UNKNOWN') {
+        // MODIFIED: Use backend's verified field instead of checking name/symbol
+        if (token.verified) {
        verified.push(tokenData);
        } else {
        unverified.push(tokenData);
