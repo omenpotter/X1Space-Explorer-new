@@ -37,7 +37,7 @@ export default function PortfolioTracker() {
         
         if (response.success && response.data?.tokens) {
           setAllTokens(response.data.tokens);
-          console.log(`✓ Loaded ${response.data.tokens.length} tokens from database`);
+          console.log(`✅ Database loaded: ${response.data.tokens.length} tokens ready for matching`);
         }
       } catch (err) {
         console.error('Failed to load tokens from database:', err);
@@ -141,13 +141,15 @@ export default function PortfolioTracker() {
               .filter(t => t.amount > 0);
 
             console.log(`✓ Found ${walletTokens.length} tokens in wallet`);
+            console.log(`🔍 Matching ${walletTokens.length} wallet tokens against ${allTokens.length} database tokens`);
             
             // Match wallet tokens with database tokens (same approach as TokenExplorer)
-            const enrichedTokens = walletTokens.map(walletToken => {
+            const enrichedTokens = walletTokens.map((walletToken, idx) => {
               // Find token data in database
               const tokenData = allTokens.find(t => t.mint === walletToken.mint);
               
               if (tokenData) {
+                console.log(`✓ Token ${idx+1}: ${tokenData.symbol} (${tokenData.name}) found in database`);
                 const currentPrice = parseFloat(tokenData.price || 0);
                 const currentValue = walletToken.amount * currentPrice;
                 
@@ -171,6 +173,7 @@ export default function PortfolioTracker() {
                   discord: tokenData.discord
                 };
               } else {
+                console.log(`✗ Token ${idx+1}: ${walletToken.mint.slice(0, 8)}... NOT in database (${allTokens.length} tokens available)`);
                 // Fallback if token not in database
                 return {
                   mint: walletToken.mint,
@@ -226,9 +229,10 @@ export default function PortfolioTracker() {
     }
   };
 
-  // Auto-fetch when wallets change
+  // Auto-fetch when wallets change OR when allTokens finishes loading
   useEffect(() => {
-    if (wallets.length > 0 && allTokens.length > 0) {
+    if (wallets.length > 0) {
+      console.log(`🔄 Portfolio trigger: ${wallets.length} wallets, ${allTokens.length} tokens available`);
       fetchPortfolio();
     }
   }, [wallets, allTokens]);
