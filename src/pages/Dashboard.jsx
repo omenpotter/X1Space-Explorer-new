@@ -316,23 +316,8 @@ export default function Dashboard() {
     return h > 0 ? `~${h}h ${m}m` : `~${m}m`;
   }, []);
 
-  // Only show connecting spinner on first load
-  if (!hasLoadedData) {
-    return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex flex-col items-center justify-center">
-        <div className="flex gap-2 mb-4">
-          <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
-            <span className="text-black font-black text-3xl">X1</span>
-          </div>
-        </div>
-        <h1 className="text-2xl font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></h1>
-        <div className="mt-4 flex items-center gap-2">
-          <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
-          <span className="text-gray-400 text-sm">Connecting...</span>
-        </div>
-      </div>
-    );
-  }
+  // Skip loading screen - show dashboard immediately
+  if (!hasLoadedData) return null;
 
   // From here on, keep old data visible during updates (Stale-While-Revalidate)
   return (
