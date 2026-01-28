@@ -92,12 +92,13 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
     try {
       console.log('🔍 Fetching tokens for wallet:', walletAddress);
       
-      // SSH tunnel to your X1 validator + public RPC fallbacks
+      // RPC endpoints - Your server first (8899), then public fallbacks
       const RPC_ENDPOINTS = [
-        'http://localhost:8899',          // Your server via SSH tunnel: ssh -p 16217 -L 8899:localhost:8899 omencult@45.94.81.202
-        'http://localhost:9900',          // Alternate local port
-        'https://rpc.mainnet.x1.xyz',     // Public endpoint
-        'https://rpc.x1galaxy.io/'        // Another public endpoint
+        'http://45.94.81.202:8899',      // Your validator server - RPC API (PRIMARY)
+        'https://rpc.mainnet.x1.xyz',    // Public RPC 1
+        'https://nexus.fortiblox.com/rpc', // Public RPC 2
+        'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38', // Public RPC 3
+        'https://rpc.x1galaxy.io/'       // Public RPC 4
       ];
 
       let data = null;
@@ -194,7 +195,7 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
       }
     } catch (error) {
       console.error('❌ Error:', error.message);
-      setError(`Failed to fetch wallet tokens: ${error.message}. Ensure SSH tunnel is open: ssh -p 16217 -L 8899:localhost:8899 omencult@45.94.81.202`);
+      setError(`Failed to fetch wallet tokens: ${error.message}`);
     } finally {
       setLoading(false);
     }
