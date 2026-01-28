@@ -134,12 +134,14 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
           .filter(t => t.amount > 0);
 
         console.log(`✓ Found ${walletTokens.length} tokens`);
+        console.log(`🔍 Matching ${walletTokens.length} wallet tokens against ${allTokens.length} database tokens`);
         
         // Match with database tokens (SAME approach as TokenExplorer)
-        const enrichedHoldings = walletTokens.map(walletToken => {
+        const enrichedHoldings = walletTokens.map((walletToken, idx) => {
           const tokenData = allTokens.find(t => t.mint === walletToken.mint);
           
           if (tokenData) {
+            console.log(`✓ Token ${idx+1}: ${tokenData.symbol} (${tokenData.name}) found`);
             const currentPrice = parseFloat(tokenData.price || 0);
             const currentValue = walletToken.amount * currentPrice;
             
@@ -159,6 +161,7 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
               website: tokenData.website
             };
           } else {
+            console.log(`✗ Token ${idx+1}: ${walletToken.mint.slice(0, 8)}... NOT in database (${allTokens.length} available)`);
             return {
               ...walletToken,
               name: walletToken.mint.slice(0, 8) + '...' + walletToken.mint.slice(-8),
