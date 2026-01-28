@@ -79,9 +79,8 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
     try {
       console.log('🔍 Fetching tokens for wallet:', walletAddress);
       
-      // RPC endpoints
+      // RPC endpoints - HTTPS only to avoid mixed content errors
       const RPC_ENDPOINTS = [
-        'http://45.94.81.202:8899',
         'https://rpc.mainnet.x1.xyz',
         'https://nexus.fortiblox.com/rpc',
         'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38',
@@ -138,10 +137,18 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
         
         // Match with database tokens (SAME approach as TokenExplorer)
         const enrichedHoldings = walletTokens.map((walletToken, idx) => {
-          const tokenData = allTokens.find(t => t.mint === walletToken.mint);
+          // Try exact match first
+          let tokenData = allTokens.find(t => t.mint === walletToken.mint);
+          
+          // If no match, try case-insensitive
+          if (!tokenData) {
+            tokenData = allTokens.find(t => 
+              (t.mint || '').toLowerCase() === (walletToken.mint || '').toLowerCase()
+            );
+          }
           
           if (tokenData) {
-            console.log(`✓ Token ${idx+1}: ${tokenData.symbol} (${tokenData.name}) found`);
+            console.log(`✓ Token ${idx+1}: ${tokenData.symbol || 'UNKNOWN'} - Price: $${tokenData.price || 0}`);
             const currentPrice = parseFloat(tokenData.price || 0);
             const currentValue = walletToken.amount * currentPrice;
             
@@ -161,7 +168,7 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
               website: tokenData.website
             };
           } else {
-            console.log(`✗ Token ${idx+1}: ${walletToken.mint.slice(0, 8)}... NOT in database (${allTokens.length} available)`);
+            console.log(`✗ Token ${idx+1}: ${walletToken.mint.slice(0, 8)}... NOT FOUND`);
             return {
               ...walletToken,
               name: walletToken.mint.slice(0, 8) + '...' + walletToken.mint.slice(-8),
