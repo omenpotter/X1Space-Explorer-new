@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, memo } from 'react';
-import { flushSync } from 'react-dom'; // ADDED: For batching state updates
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,7 +55,6 @@ export default function Dashboard() {
   const [dataVersion, setDataVersion] = useState(0);
   const abortControllerRef = React.useRef(null);
   const isInitializedRef = React.useRef(false);
-  const isMountedRef = React.useRef(true); // ADDED: Track component mount status to prevent memory leaks
 
   // Read from ref for stable memoization
   const dashboardData = dashboardRef.current;
@@ -104,23 +102,16 @@ export default function Dashboard() {
         X1Rpc.getPendingTransactions().catch(() => [])
       ]);
       
-      // MODIFIED: Add check to prevent updates if component unmounted
-      if (!isMountedRef.current) return;
-      
       // OPTIMIZATION: Batch all state updates together to minimize re-renders
       dashboardRef.current = data;
       recentBlocksRef.current = blocks;
       performanceDataRef.current = perfHistory;
       pendingTxCountRef.current = pendingTxs.length;
+      setLastUpdate(new Date());
+      setError(null);
+      setDataVersion(v => v + 1);
       isInitializedRef.current = true;
-      
-      // MODIFIED: Use flushSync to batch all state updates in one render cycle
-      flushSync(() => {
-        setLastUpdate(new Date());
-        setError(null);
-        setDataVersion(v => v + 1);
-        setHasLoadedData(true);
-      });
+      setHasLoadedData(true);
     } catch (err) {
       if (err.name !== 'AbortError') {
         console.error('Failed to fetch data:', err);
@@ -141,9 +132,6 @@ export default function Dashboard() {
         X1Rpc.getPerformanceHistory(60),
         X1Rpc.getPendingTransactions()
       ]);
-      
-      // MODIFIED: Add check to prevent updates if component unmounted
-      if (!isMountedRef.current) return;
       
       // OPTIMIZATION: Only update if data actually changed to prevent unnecessary re-renders
       let hasChanges = false;
@@ -184,13 +172,10 @@ export default function Dashboard() {
       }
       
       // OPTIMIZATION: Only trigger re-render if data actually changed
-      // MODIFIED: Use flushSync to batch state updates
       if (hasChanges) {
-        flushSync(() => {
-          setLastUpdate(new Date());
-          setError(null);
-          setDataVersion(v => v + 1);
-        });
+        setLastUpdate(new Date());
+        setError(null);
+        setDataVersion(v => v + 1);
       }
     } catch (err) {
       console.error('Poll failed:', err);
@@ -201,105 +186,263 @@ export default function Dashboard() {
   // OPTIMIZATION: Memoize with dataVersion and optimize calculation loops
   const aggregatedBlocks = useMemo(() => {
     // OPTIMIZATION: Early return if no data to process
-    if (!recentBlocks?.length) return [];
+    if (!recentBlocks.length && !performanceData.length) return [];
     
-    const grouped = {};
-    for (const block of recentBlocks) {
-      const interval = mempoolInterval === '1m' ? '1m' : '10m';
-      const key = `${interval}`;
-      if (!grouped[key]) {
-        grouped[key] = {
-          label: key,
-          totalTxns: 0,
-          voteCount: 0,
-          transferCount: 0,
-          programCount: 0,
-          otherCount: 0,
-          slots: 0
+    // OPTIMIZATION: Calculate ratios once using optimized reduce
+    let voteRatio = 0.70, transferRatio = 0.12, programRatio = 0.09, otherRatio = 0.09;
+    if (recentBlocks.length > 0) {
+      let totalTx = 0, totalVote = 0, totalTransfer = 0, totalProgram = 0, totalOther = 0;
+      // OPTIMIZATION: Single loop instead of multiple reduces
+      for (let i = 0; i < recentBlocks.length; i++) {
+        const b = recentBlocks[i];
+        totalTx += b.txCount || 0;
+        totalVote += b.voteCount || 0;
+        totalTransfer += b.transferCount || 0;
+        totalProgram += b.programCount || 0;
+        totalOther += b.otherCount || 0;
+      }
+      if (totalTx > 0) {
+        const invTotal = 1 / totalTx; // OPTIMIZATION: Pre-calculate inverse for faster division
+        voteRatio = totalVote * invTotal;
+        transferRatio = totalTransfer * invTotal;
+        programRatio = totalProgram * invTotal;
+        otherRatio = totalOther * invTotal;
+      }
+    }
+    
+    const aggregated = [];
+    const now = Date.now();
+    
+    if (mempoolInterval === '1m') {
+      const availableSamples = Math.min(10, performanceData.length);
+      // OPTIMIZATION: Pre-allocate array
+      aggregated.length = availableSamples;
+      for (let i = 0; i < availableSamples; i++) {
+        const sample = performanceData[i];
+        if (!sample) continue;
+        const totalTxns = sample.transactions;
+        
+        // OPTIMIZATION: Use bitwise OR for rounding (faster than Math.round for positive numbers)
+        const voteCount = (totalTxns * voteRatio + 0.5) | 0;
+        const transferCount = (totalTxns * transferRatio + 0.5) | 0;
+        const programCount = (totalTxns * programRatio + 0.5) | 0;
+        const otherCount = Math.max(0, totalTxns - voteCount - transferCount - programCount);
+        
+        aggregated[i] = {
+          totalTxns,
+          slots: sample.slots,
+          label: i === 0 ? 'Now' : `${i}m ago`,
+          voteCount,
+          transferCount,
+          programCount,
+          otherCount,
+          timestamp: now - (i * 60000), // OPTIMIZATION: Pre-calculated constant
+          isRealData: true
         };
       }
-      grouped[key].totalTxns += block.txCount || 0;
-      grouped[key].voteCount += block.voteCount || 0;
-      grouped[key].transferCount += block.transferCount || 0;
-      grouped[key].programCount += block.programCount || 0;
-      grouped[key].otherCount += block.otherCount || 0;
-      grouped[key].slots += 1;
-    }
-    return Object.values(grouped);
-  }, [recentBlocks, mempoolInterval, dataVersion]);
-
-  // Helper functions
-  const formatNumber = (num) => {
-    if (!num) return '0';
-    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
-    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
-    if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
-    return num.toFixed(2);
-  };
-
-  const formatTime = (seconds) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-  };
-
-  // MODIFIED: Complete rewrite of useEffect for proper lifecycle management and cleanup
-  useEffect(() => {
-    isMountedRef.current = true;
-    initDashboard();
-
-    // Setup polling interval
-    const pollInterval = setInterval(() => {
-      if (isMountedRef.current) {
-        pollDashboard();
+    } else {
+      const maxWindows = Math.floor(performanceData.length / 10);
+      const windowsToShow = Math.min(6, maxWindows);
+      
+      for (let i = 0; i < windowsToShow; i++) {
+        let totalTxns = 0, totalSlots = 0;
+        const startIdx = i * 10;
+        const endIdx = Math.min(startIdx + 10, performanceData.length);
+        
+        // OPTIMIZATION: Single loop with range check
+        for (let j = startIdx; j < endIdx; j++) {
+          const sample = performanceData[j];
+          if (!sample) continue;
+          totalTxns += sample.transactions;
+          totalSlots += sample.slots;
+        }
+        
+        if (totalTxns === 0) continue;
+        
+        const voteCount = (totalTxns * voteRatio + 0.5) | 0;
+        const transferCount = (totalTxns * transferRatio + 0.5) | 0;
+        const programCount = (totalTxns * programRatio + 0.5) | 0;
+        const otherCount = Math.max(0, totalTxns - voteCount - transferCount - programCount);
+        
+        aggregated.push({
+          totalTxns,
+          slots: totalSlots,
+          label: i === 0 ? 'Now' : `${i * 10}m ago`,
+          voteCount,
+          transferCount,
+          programCount,
+          otherCount,
+          timestamp: now - (i * 600000), // OPTIMIZATION: Pre-calculated constant
+          isRealData: true
+        });
       }
-    }, 5000);
+    }
+    
+    return aggregated;
+  }, [mempoolInterval, recentBlocks, performanceData, dataVersion]);
 
-    // Cleanup on unmount
+  // OPTIMIZATION: Proper cleanup and request cancellation
+  React.useEffect(() => {
+    initDashboard();
+    // OPTIMIZATION: 5000ms polling interval with proper cleanup
+    const interval = setInterval(pollDashboard, 5000);
+    
     return () => {
-      isMountedRef.current = false;
-      clearInterval(pollInterval);
-      abortControllerRef.current?.abort();
+      clearInterval(interval);
+      // OPTIMIZATION: Cancel any pending requests on unmount
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
   }, [pollDashboard]);
 
+  const handleSearch = () => {
+    if (searchQuery) {
+      window.location.href = createPageUrl('Search') + `?q=${searchQuery}`;
+    }
+  };
+
+  // OPTIMIZATION: Memoized utility functions to prevent recreation on every render
+  const formatNumber = useCallback((num) => {
+    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+    if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+    return num?.toLocaleString() || '0';
+  }, []);
+
+  const formatTime = useCallback((seconds) => {
+    const h = (seconds / 3600) | 0; // OPTIMIZATION: Bitwise OR for faster floor operation
+    const m = ((seconds % 3600) / 60) | 0;
+    return h > 0 ? `~${h}h ${m}m` : `~${m}m`;
+  }, []);
+
+  // Only show connecting spinner on first load
+  if (!hasLoadedData) {
+    return (
+      <div className="min-h-screen bg-[#1d2d3a] text-white flex flex-col items-center justify-center">
+        <div className="flex gap-2 mb-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
+            <span className="text-black font-black text-3xl">X1</span>
+          </div>
+        </div>
+        <h1 className="text-2xl font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></h1>
+        <div className="mt-4 flex items-center gap-2">
+          <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
+          <span className="text-gray-400 text-sm">Connecting...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // From here on, keep old data visible during updates (Stale-While-Revalidate)
   return (
-    <div className="min-h-screen bg-[#1a252f]">
+    <div className="min-h-screen bg-[#1d2d3a] text-white">
       {/* Header */}
-      <header className="bg-[#202a35] border-b border-white/10 sticky top-0 z-50">
-        <div className="max-w-[1800px] mx-auto px-4 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-lg flex items-center justify-center font-bold text-white">
-              X
+      <header className="bg-[#1d2d3a] border-b border-white/5">
+        <div className="max-w-[1800px] mx-auto px-4 py-3">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <MobileNav />
+              <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
+                <span className="text-black font-black text-sm">X1</span>
+              </div>
+              <span className="hidden sm:block font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
+              <div className="ml-2 px-2 py-0.5 bg-cyan-500/20 rounded text-cyan-400 text-xs font-medium flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                Mainnet
+              </div>
             </div>
-            <span className="font-bold text-white hidden sm:inline">X1 Space</span>
-          </div>
+            
+            <nav className="flex items-center gap-2">
+              <Link to={createPageUrl('Dashboard')} aria-label="Dashboard">
+                <Button variant="ghost" className="text-cyan-400 bg-cyan-500/10 rounded-lg text-sm" aria-label="Dashboard">
+                  Dashboard
+                </Button>
+              </Link>
+              <Link to={createPageUrl('Blocks')} aria-label="Blocks">
+                <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Blocks">
+                  Blocks
+                </Button>
+              </Link>
+              <Link to={createPageUrl('Validators')} aria-label="Validators">
+                <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Validators">
+                  Validators
+                </Button>
+              </Link>
+              <Link to={createPageUrl('Transactions')} aria-label="Transactions">
+                <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Transactions">
+                  Transactions
+                </Button>
+              </Link>
+              <Link to={createPageUrl('NetworkHealth')} aria-label="Network Health">
+                <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Network Health">
+                  Network
+                </Button>
+              </Link>
+              <Link to={createPageUrl('StakingCalculator')} aria-label="Staking Calculator">
+                <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Staking Calculator">
+                  Staking
+                </Button>
+              </Link>
+              <Link to={createPageUrl('AddressLookup')} aria-label="Address Lookup">
+                <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Address Lookup">
+                  Lookup
+                </Button>
+              </Link>
+              <Link to={createPageUrl('CustomDashboard')} aria-label="Custom Dashboard">
+                <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Custom Dashboard">
+                  Custom
+                </Button>
+              </Link>
 
-          <div className="flex-1 max-w-md hidden md:block">
-            <Suspense fallback={<MiniFallback />}>
-              <GlobalSearch />
-            </Suspense>
-          </div>
+              <Link to={createPageUrl('TokenExplorer')} aria-label="Token Explorer">
+                <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Token Explorer">
+                  Tokens
+                </Button>
+              </Link>
+            </nav>
 
-          <div className="flex items-center gap-2">
-            <Suspense fallback={<MiniFallback />}>
-              <ThemeToggle />
-            </Suspense>
+            <div className="hidden md:flex items-center gap-3 mr-4">
+              <a href="https://x.com/rkbehelvi" target="_blank" rel="noopener noreferrer" className="text-gray-300 hover:text-white transition-colors" aria-label="Follow us on X (Twitter)">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+              </a>
+              <a href="https://t.me/+HtiLywX2Dug3MjJk" target="_blank" rel="noopener noreferrer" className="text-gray-300 hover:text-cyan-400 transition-colors" aria-label="Join us on Telegram">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
+              </a>
+            </div>
+
+            <div className="flex-1 max-w-md">
+              <div className="relative">
+                <Input
+                  placeholder="Explore the X1 ecosystem"
+                  className="w-full bg-[#24384a] border-0 text-white placeholder:text-gray-500 pr-10 rounded-lg"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                />
+                <Button 
+                  size="icon" 
+                  className="absolute right-1 top-1/2 -translate-y-1/2 bg-cyan-500 hover:bg-cyan-600 h-7 w-7 rounded"
+                  onClick={handleSearch}
+                >
+                  <Search className="w-4 h-4 text-black" />
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Error Banner */}
       {error && (
-        <div className="bg-red-900/20 border-b border-red-500/30 p-4 text-red-400 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-5 h-5" />
+        <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2">
+          <div className="max-w-[1800px] mx-auto flex items-center gap-2 text-red-400 text-sm">
+            <AlertCircle className="w-4 h-4" />
             <span>Error connecting to X1 RPC: {error}</span>
+            <Button variant="ghost" size="sm" onClick={pollDashboard} className="ml-auto text-red-400">
+              Retry
+            </Button>
           </div>
-          <Button variant="ghost" size="sm" onClick={pollDashboard} className="ml-auto text-red-400">
-            Retry
-          </Button>
         </div>
       )}
 
@@ -331,9 +474,8 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-            {/* MODIFIED: Added stable key to prevent remounting on every poll */}
-            <MempoolViz 
-              key="mempool-main-viz"
+            <MempoolViz
+              key="mempool-stable"
               mempoolInterval={mempoolInterval}
               recentBlocks={recentBlocks}
               aggregatedBlocks={aggregatedBlocks}
