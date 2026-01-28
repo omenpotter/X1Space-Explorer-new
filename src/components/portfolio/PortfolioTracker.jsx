@@ -11,6 +11,40 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
   const [loading, setLoading] = useState(false);
   const [showAddToken, setShowAddToken] = useState(false);
   const [manualToken, setManualToken] = useState({ mint: '', amount: '', purchasePrice: '' });
+  const [allAvailableTokens, setAllAvailableTokens] = useState([]); // ADDED: Store comprehensive token list
+
+  // ADDED: Fetch all available tokens to ensure complete token data
+  useEffect(() => {
+    const fetchAllTokens = async () => {
+      try {
+        // If allTokens prop is not sufficient, fetch comprehensive list
+        if (!allTokens || allTokens.length === 0) {
+          console.log('Fetching comprehensive token list...');
+          // Try to fetch from X1 API
+          const response = await fetch('https://api.x1.xyz/tokens', {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+          }).catch(() => null);
+          
+          if (response && response.ok) {
+            const data = await response.json();
+            const tokenList = Array.isArray(data) ? data : (data.tokens || data.data || []);
+            setAllAvailableTokens(tokenList);
+          }
+        } else {
+          setAllAvailableTokens(allTokens);
+        }
+      } catch (err) {
+        console.error('Failed to fetch comprehensive token list:', err);
+        // Fallback to prop if fetch fails
+        if (allTokens && allTokens.length > 0) {
+          setAllAvailableTokens(allTokens);
+        }
+      }
+    };
+
+    fetchAllTokens();
+  }, [allTokens]);
 
   useEffect(() => {
     if (walletAddress) {
@@ -79,9 +113,23 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
           };
         }).filter(t => t.amount > 0);
 
+        // MODIFIED: Use comprehensive token list (from state if available, fallback to prop)
+        const tokensToUse = allAvailableTokens.length > 0 ? allAvailableTokens : (allTokens || []);
+        
+        console.log('Total token accounts found:', tokenAccounts.length);
+        console.log('Token list available:', tokensToUse.length);
+        
         const enrichedHoldings = tokenAccounts.map(holding => {
-          const tokenData = allTokens.find(t => t.mint === holding.mint);
-          const currentPrice = tokenData ? parseFloat(tokenData.price) : 0;
+          // MODIFIED: Better mint matching with trim and case handling to handle edge cases
+          const tokenData = tokensToUse.find(t => 
+            (t.mint || '').trim().toLowerCase() === (holding.mint || '').trim().toLowerCase()
+          );
+          
+          if (!tokenData) {
+            console.warn(`Token not found in list for mint: ${holding.mint}`);
+          }
+          
+          const currentPrice = tokenData ? parseFloat(tokenData.price || 0) : 0;
           const currentValue = holding.amount * currentPrice;
 
           return {
@@ -98,6 +146,7 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
           };
         });
 
+        console.log('Enriched holdings:', enrichedHoldings.map(h => ({ symbol: h.symbol, amount: h.amount })));
         setHoldings(enrichedHoldings);
       }
     } catch (error) {
@@ -110,8 +159,13 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
   const addManualToken = () => {
     if (!manualToken.mint || !manualToken.amount) return;
 
-    const tokenData = allTokens.find(t => t.mint === manualToken.mint);
-    const currentPrice = tokenData ? parseFloat(tokenData.price) : 0;
+    // MODIFIED: Use comprehensive token list for manual token lookup
+    const tokensToUse = allAvailableTokens.length > 0 ? allAvailableTokens : (allTokens || []);
+    const tokenData = tokensToUse.find(t => 
+      (t.mint || '').trim().toLowerCase() === (manualToken.mint || '').trim().toLowerCase()
+    );
+    
+    const currentPrice = tokenData ? parseFloat(tokenData.price || 0) : 0;
     const purchasePrice = parseFloat(manualToken.purchasePrice) || 0;
     const amount = parseFloat(manualToken.amount);
     const currentValue = amount * currentPrice;
@@ -253,8 +307,9 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
                 </tr>
               </thead>
               <tbody>
-                {holdings.map((holding, i) => (
-                  <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
+                {/* MODIFIED: Changed key from index (i) to stable mint identifier */}
+                {holdings.map((holding) => (
+                  <tr key={holding.mint} className="border-b border-white/5 hover:bg-white/[0.02]">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {holding.logo ? (
