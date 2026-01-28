@@ -37,7 +37,7 @@ export default function PortfolioTracker() {
         
         if (response.success && response.data?.tokens) {
           setAllTokens(response.data.tokens);
-          console.log(`✅ Database loaded: ${response.data.tokens.length} tokens ready for matching`);
+          console.log(`✓ Loaded ${response.data.tokens.length} tokens from database`);
         }
       } catch (err) {
         console.error('Failed to load tokens from database:', err);
@@ -87,8 +87,7 @@ export default function PortfolioTracker() {
           
           // RPC endpoints - Your server first, then public fallbacks
           const RPC_ENDPOINTS = [
-            'http://45.94.81.202:8899',      // Your validator server
-            'https://rpc.mainnet.x1.xyz',    // Public RPC
+            'https://rpc.mainnet.x1.xyz',    // HTTPS - no mixed content issues
             'https://nexus.fortiblox.com/rpc', 
             'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38',
             'https://rpc.x1galaxy.io/'
@@ -145,11 +144,18 @@ export default function PortfolioTracker() {
             
             // Match wallet tokens with database tokens (same approach as TokenExplorer)
             const enrichedTokens = walletTokens.map((walletToken, idx) => {
-              // Find token data in database
-              const tokenData = allTokens.find(t => t.mint === walletToken.mint);
+              // Find token data in database - try exact match first
+              let tokenData = allTokens.find(t => t.mint === walletToken.mint);
+              
+              // If no match, try case-insensitive
+              if (!tokenData) {
+                tokenData = allTokens.find(t => 
+                  (t.mint || '').toLowerCase() === (walletToken.mint || '').toLowerCase()
+                );
+              }
               
               if (tokenData) {
-                console.log(`✓ Token ${idx+1}: ${tokenData.symbol} (${tokenData.name}) found in database`);
+                console.log(`✓ Token ${idx+1}: ${tokenData.symbol || 'UNKNOWN'} (${tokenData.name || 'Unknown Token'}) - Price: $${tokenData.price || 0}`);
                 const currentPrice = parseFloat(tokenData.price || 0);
                 const currentValue = walletToken.amount * currentPrice;
                 
@@ -173,7 +179,7 @@ export default function PortfolioTracker() {
                   discord: tokenData.discord
                 };
               } else {
-                console.log(`✗ Token ${idx+1}: ${walletToken.mint.slice(0, 8)}... NOT in database (${allTokens.length} tokens available)`);
+                console.log(`✗ Token ${idx+1}: ${walletToken.mint.slice(0, 8)}... NOT FOUND in ${allTokens.length} tokens`);
                 // Fallback if token not in database
                 return {
                   mint: walletToken.mint,
@@ -229,10 +235,9 @@ export default function PortfolioTracker() {
     }
   };
 
-  // Auto-fetch when wallets change OR when allTokens finishes loading
+  // Auto-fetch when wallets change
   useEffect(() => {
-    if (wallets.length > 0) {
-      console.log(`🔄 Portfolio trigger: ${wallets.length} wallets, ${allTokens.length} tokens available`);
+    if (wallets.length > 0 && allTokens.length > 0) {
       fetchPortfolio();
     }
   }, [wallets, allTokens]);
