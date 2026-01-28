@@ -17,7 +17,7 @@ export default function PortfolioTracker() {
   const [error, setError] = useState(null);
   const [portfolioData, setPortfolioData] = useState(null);
   const [hideBalances, setHideBalances] = useState(false);
-  const [allTokens, setAllTokens] = useState([]); // Store all tokens with enriched data
+  const [allTokens, setAllTokens] = useState([]);
 
   // Load wallets from localStorage
   useEffect(() => {
@@ -28,53 +28,56 @@ export default function PortfolioTracker() {
     }
   }, []);
 
-  // Load all tokens from database - SAME APPROACH AS TOKENEXPLORER
+  // Load all tokens using EXACT TokenExplorer approach
   useEffect(() => {
     const loadAllTokens = async () => {
       try {
-        console.log('📡 Loading all tokens from database (TokenExplorer approach)...');
+        console.log('📡 Loading tokens (TokenExplorer method)...');
         const allTokensResponse = await X1Api.listTokens({ limit: 3000, offset: 0, verified: false });
-        
+
         if (allTokensResponse.success && allTokensResponse.data?.tokens) {
           const tokens = allTokensResponse.data.tokens;
           
-          // ENRICHMENT STEP - SAME AS TOKENEXPLORER
-          // This handles multiple field name formats from the database
-          const enrichedTokens = tokens.map(token => ({
-            mint: token.mint || token.address,
-            name: token.name || 'Unknown Token',
-            symbol: token.symbol || 'UNKNOWN',
-            logo: token.logo_uri || token.logo,
-            decimals: token.decimals || 9,
-            totalSupply: token.total_supply || token.totalSupply || token.supply || 0,
-            tokenType: token.token_type || token.tokenType || 'SPL Token',
-            price: token.price ? parseFloat(token.price) : 0,
-            priceDisplay: token.price ? parseFloat(token.price).toFixed(4) : '0.0000',
-            marketCap: token.market_cap || token.marketCap || 0,
-            priceChange24h: token.price_change_24h || token.priceChange24h ? parseFloat(token.price_change_24h || token.priceChange24h).toFixed(2) : '0.00',
-            mintAuthority: token.mint_authority || token.mintAuthority,
-            freezeAuthority: token.freeze_authority || token.freezeAuthority,
-            website: token.website,
-            twitter: token.twitter,
-            createdBy: token.created_by || token.createdBy,
-            createdAt: token.created_at || token.createdAt,
-            verificationCount: token.verification_count || token.verificationCount || 0,
-            isScam: token.is_scam || token.isScam || false,
-            verified: token.verified || false,
-            priceHistory: token.price_history || token.priceHistory || [],
-            description: token.description,
-            telegram: token.telegram,
-            discord: token.discord
-          }));
+          console.log(`✓ Loaded ${tokens.length} tokens from API`);
+          
+          // ENRICHMENT - EXACT COPY FROM WORKING TOKENEXPLORER
+          const enrichedTokens = tokens.map(token => {
+            const tokenData = {
+              mint: token.mint || token.address,
+              name: token.name || 'Unknown Token',
+              symbol: token.symbol || 'UNKNOWN',
+              logo: token.logo_uri || token.logo,
+              decimals: token.decimals || 9,
+              totalSupply: token.total_supply || token.totalSupply || token.supply || 0,
+              tokenType: token.token_type || token.tokenType || 'SPL Token',
+              price: token.price ? parseFloat(token.price).toFixed(4) : '0.0000',
+              priceNum: token.price ? parseFloat(token.price) : 0,
+              marketCap: token.market_cap || token.marketCap || 0,
+              priceChange24h: token.price_change_24h || token.priceChange24h ? parseFloat(token.price_change_24h || token.priceChange24h).toFixed(2) : '0.00',
+              mintAuthority: token.mint_authority || token.mintAuthority,
+              freezeAuthority: token.freeze_authority || token.freezeAuthority,
+              website: token.website,
+              twitter: token.twitter,
+              createdBy: token.created_by || token.createdBy,
+              createdAt: token.created_at || token.createdAt,
+              verificationCount: token.verification_count || token.verificationCount || 0,
+              isScam: token.is_scam || token.isScam || false,
+              verified: token.verified || false,
+              priceHistory: token.price_history || token.priceHistory || [],
+              description: token.description,
+              telegram: token.telegram,
+              discord: token.discord
+            };
+            return tokenData;
+          });
           
           setAllTokens(enrichedTokens);
-          console.log(`✅ Loaded and enriched ${enrichedTokens.length} tokens`);
-          console.log('Sample token:', enrichedTokens[0]);
+          console.log(`✅ Enriched and ready: ${enrichedTokens.length} tokens`);
         } else {
           console.error('Failed to load tokens:', allTokensResponse);
         }
       } catch (err) {
-        console.error('Failed to load tokens from database:', err);
+        console.error('Failed to load tokens:', err);
       }
     };
 
@@ -89,7 +92,6 @@ export default function PortfolioTracker() {
   const addWallet = async () => {
     if (!newWallet || wallets.find(w => w.address === newWallet)) return;
     
-    // Validate address format (base58, 32-44 chars)
     if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(newWallet)) {
       setError('Invalid wallet address format');
       return;
@@ -104,7 +106,6 @@ export default function PortfolioTracker() {
     setWallets(wallets.filter(w => w.address !== address));
   };
 
-  // Fetch wallet tokens from RPC and match with enriched database tokens
   const fetchPortfolio = async () => {
     if (wallets.length === 0) {
       setPortfolioData(null);
@@ -119,7 +120,6 @@ export default function PortfolioTracker() {
         try {
           console.log('🔍 Fetching tokens for wallet:', wallet.address);
           
-          // RPC endpoints - HTTPS only
           const RPC_ENDPOINTS = [
             'https://rpc.mainnet.x1.xyz',
             'https://nexus.fortiblox.com/rpc',
@@ -129,11 +129,8 @@ export default function PortfolioTracker() {
 
           let rpcData = null;
 
-          // Try each RPC endpoint
           for (const endpoint of RPC_ENDPOINTS) {
             try {
-              console.log(`  → Trying: ${endpoint}`);
-              
               const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -152,17 +149,15 @@ export default function PortfolioTracker() {
               rpcData = await response.json();
               
               if (rpcData.result?.value) {
-                console.log(`✓ Connected to: ${endpoint}`);
+                console.log(`✓ RPC: ${endpoint}`);
                 break;
               }
             } catch (err) {
-              console.log(`  ✗ Failed: ${err.message}`);
               continue;
             }
           }
 
           if (!rpcData?.result?.value) {
-            console.error('No RPC data received');
             return {
               address: wallet.address,
               label: wallet.label,
@@ -183,14 +178,12 @@ export default function PortfolioTracker() {
             .filter(t => t.amount > 0);
 
           console.log(`✓ Found ${walletTokens.length} tokens in wallet`);
-          console.log(`🔍 Matching ${walletTokens.length} wallet tokens against ${allTokens.length} enriched database tokens`);
+          console.log(`Matching against ${allTokens.length} enriched tokens`);
           
-          // Match wallet tokens with ENRICHED database tokens
+          // Match with enriched tokens
           const enrichedWalletTokens = walletTokens.map((walletToken, idx) => {
-            // Find in enriched tokens
             let tokenData = allTokens.find(t => t.mint === walletToken.mint);
             
-            // Fallback: case-insensitive match
             if (!tokenData) {
               tokenData = allTokens.find(t => 
                 (t.mint || '').toLowerCase() === (walletToken.mint || '').toLowerCase()
@@ -198,20 +191,19 @@ export default function PortfolioTracker() {
             }
             
             if (tokenData) {
-              console.log(`✓ Token ${idx+1}: ${tokenData.symbol} (${tokenData.name}) - Price: $${tokenData.priceDisplay}`);
-              const currentValue = walletToken.amount * tokenData.price;
+              console.log(`✓ Token ${idx+1}: ${tokenData.symbol} (${tokenData.name}) - $${tokenData.price}`);
+              const currentValue = walletToken.amount * tokenData.priceNum;
               
               return {
                 mint: walletToken.mint,
                 amount: walletToken.amount,
                 decimals: walletToken.decimals,
-                // Use enriched data fields
                 name: tokenData.name,
                 symbol: tokenData.symbol,
                 logo: tokenData.logo,
                 price: tokenData.price,
-                priceDisplay: tokenData.priceDisplay,
-                currentPrice: tokenData.price,
+                priceNum: tokenData.priceNum,
+                currentPrice: tokenData.priceNum,
                 currentValue: currentValue,
                 priceChange24h: tokenData.priceChange24h,
                 verified: tokenData.verified,
@@ -222,7 +214,7 @@ export default function PortfolioTracker() {
                 description: tokenData.description
               };
             } else {
-              console.log(`✗ Token ${idx+1}: ${walletToken.mint.slice(0, 8)}... NOT FOUND (${allTokens.length} tokens in database)`);
+              console.log(`✗ Token ${idx+1}: ${walletToken.mint.slice(0, 8)}... not found`);
               return {
                 mint: walletToken.mint,
                 amount: walletToken.amount,
@@ -230,8 +222,8 @@ export default function PortfolioTracker() {
                 name: walletToken.mint.slice(0, 8) + '...' + walletToken.mint.slice(-8),
                 symbol: 'UNKNOWN',
                 logo: null,
-                price: 0,
-                priceDisplay: '0.0000',
+                price: '0.0000',
+                priceNum: 0,
                 currentPrice: 0,
                 currentValue: 0,
                 priceChange24h: '0.00',
@@ -247,7 +239,7 @@ export default function PortfolioTracker() {
             totalValue: enrichedWalletTokens.reduce((sum, t) => sum + t.currentValue, 0)
           };
         } catch (err) {
-          console.error('Error fetching wallet portfolio:', err);
+          console.error('Wallet error:', err);
           return {
             address: wallet.address,
             label: wallet.label,
@@ -264,26 +256,23 @@ export default function PortfolioTracker() {
         totalPortfolioValue: results.reduce((sum, w) => sum + w.totalValue, 0)
       });
     } catch (error) {
-      console.error('Portfolio fetch error:', error);
+      console.error('Portfolio error:', error);
       setError(error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Auto-fetch when BOTH wallets AND allTokens are ready
+  // Auto-fetch when ready
   useEffect(() => {
     if (wallets.length > 0 && allTokens.length > 0) {
-      console.log(`🔄 Portfolio trigger: ${wallets.length} wallets, ${allTokens.length} enriched tokens available - FETCHING`);
+      console.log(`🚀 Fetching: ${wallets.length} wallets, ${allTokens.length} enriched tokens`);
       fetchPortfolio();
-    } else if (wallets.length > 0 && allTokens.length === 0) {
-      console.log(`⏳ Waiting: ${wallets.length} wallets, but enriched tokens still loading...`);
     }
   }, [wallets, allTokens]);
 
   return (
     <div className="min-h-screen bg-[#1d2d3a] text-white">
-      {/* Header */}
       <header className="bg-[#1d2d3a] border-b border-white/5">
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
@@ -299,7 +288,6 @@ export default function PortfolioTracker() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-        {/* Add Wallet Section */}
         <div className="bg-[#24384a] rounded-xl p-6">
           <h2 className="text-lg font-bold mb-4">Add Wallet</h2>
           <div className="flex gap-2">
@@ -310,10 +298,7 @@ export default function PortfolioTracker() {
               onKeyPress={(e) => e.key === 'Enter' && addWallet()}
               className="bg-[#1d2d3a] border-0 text-white placeholder:text-gray-500"
             />
-            <Button 
-              onClick={addWallet}
-              className="bg-cyan-500 hover:bg-cyan-600"
-            >
+            <Button onClick={addWallet} className="bg-cyan-500 hover:bg-cyan-600">
               Add
             </Button>
           </div>
@@ -324,15 +309,13 @@ export default function PortfolioTracker() {
           )}
         </div>
 
-        {/* Loading State */}
         {allTokens.length === 0 && (
           <div className="flex items-center justify-center p-8">
             <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mr-2" />
-            <span className="text-gray-400">Loading enriched token database...</span>
+            <span className="text-gray-400">Loading token database...</span>
           </div>
         )}
 
-        {/* Wallets List */}
         {allTokens.length > 0 && wallets.length > 0 && (
           <div className="bg-[#24384a] rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
@@ -361,7 +344,7 @@ export default function PortfolioTracker() {
             {loading && (
               <div className="flex items-center justify-center p-8">
                 <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mr-2" />
-                <span className="text-gray-400">Loading portfolio data...</span>
+                <span className="text-gray-400">Loading portfolio...</span>
               </div>
             )}
 
@@ -388,7 +371,6 @@ export default function PortfolioTracker() {
                       </Button>
                     </div>
 
-                    {/* Tokens Table */}
                     {wallet.tokens.length > 0 && (
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
@@ -398,7 +380,7 @@ export default function PortfolioTracker() {
                               <th className="text-right py-2 px-2 text-gray-400">Balance</th>
                               <th className="text-right py-2 px-2 text-gray-400">Price</th>
                               <th className="text-right py-2 px-2 text-gray-400">Value</th>
-                              <th className="text-right py-2 px-2 text-gray-400">24h Change</th>
+                              <th className="text-right py-2 px-2 text-gray-400">24h</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -410,20 +392,19 @@ export default function PortfolioTracker() {
                                     <div>
                                       <div className="flex items-center gap-1">
                                         <p className="font-semibold">{token.symbol}</p>
-                                        {token.verified && <Badge className="bg-cyan-500/20 text-cyan-400 text-xs">Verified</Badge>}
+                                        {token.verified && <Badge className="bg-cyan-500/20 text-cyan-400 text-xs">✓</Badge>}
                                       </div>
                                       <p className="text-gray-400 text-xs">{token.name}</p>
                                     </div>
                                   </div>
                                 </td>
                                 <td className="text-right py-2 px-2 font-mono text-sm">{token.amount.toFixed(4)}</td>
-                                <td className="text-right py-2 px-2 font-mono text-sm">${token.priceDisplay}</td>
+                                <td className="text-right py-2 px-2 font-mono text-sm">${token.price}</td>
                                 <td className="text-right py-2 px-2 font-mono text-sm">
                                   {hideBalances ? '••••' : `$${token.currentValue.toFixed(2)}`}
                                 </td>
                                 <td className={`text-right py-2 px-2 font-semibold ${parseFloat(token.priceChange24h) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                  {parseFloat(token.priceChange24h) >= 0 ? <TrendingUp className="w-4 h-4 inline mr-1" /> : <TrendingDown className="w-4 h-4 inline mr-1" />}
-                                  {token.priceChange24h}%
+                                  {parseFloat(token.priceChange24h) >= 0 ? '↑' : '↓'} {token.priceChange24h}%
                                 </td>
                               </tr>
                             ))}
@@ -434,13 +415,12 @@ export default function PortfolioTracker() {
 
                     {wallet.tokens.length === 0 && (
                       <div className="text-center py-4 text-gray-400">
-                        <p>No tokens found in this wallet</p>
+                        <p>No tokens found</p>
                       </div>
                     )}
                   </div>
                 ))}
 
-                {/* Portfolio Summary */}
                 {portfolioData.wallets.length > 0 && (
                   <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-4 mt-6">
                     <p className="text-gray-400 mb-1">Total Portfolio Value</p>
@@ -457,7 +437,7 @@ export default function PortfolioTracker() {
         {allTokens.length > 0 && wallets.length === 0 && (
           <div className="text-center py-12 text-gray-400">
             <Wallet className="w-16 h-16 mx-auto mb-4 opacity-30" />
-            <p>No wallets added yet. Add a wallet above to get started!</p>
+            <p>No wallets added yet. Add one above!</p>
           </div>
         )}
       </main>
