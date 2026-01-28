@@ -11,29 +11,6 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
   const [loading, setLoading] = useState(false);
   const [showAddToken, setShowAddToken] = useState(false);
   const [manualToken, setManualToken] = useState({ mint: '', amount: '', purchasePrice: '' });
-  const [allAvailableTokens, setAllAvailableTokens] = useState([]);
-
-  // Fetch comprehensive token list
-  useEffect(() => {
-    const fetchTokens = async () => {
-      try {
-        if (!allTokens || allTokens.length === 0) {
-          const res = await fetch('https://api.x1.xyz/tokens').catch(() => null);
-          if (res?.ok) {
-            const data = await res.json();
-            const list = Array.isArray(data) ? data : (data.tokens || data.data || []);
-            setAllAvailableTokens(list);
-          }
-        } else {
-          setAllAvailableTokens(allTokens);
-        }
-      } catch (err) {
-        console.error('Token fetch error:', err);
-        if (allTokens?.length > 0) setAllAvailableTokens(allTokens);
-      }
-    };
-    fetchTokens();
-  }, [allTokens]);
 
   useEffect(() => {
     if (walletAddress) {
@@ -103,17 +80,16 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
         }).filter(t => t.amount > 0);
 
         const enrichedHoldings = tokenAccounts.map(holding => {
-          const tokensToUse = allAvailableTokens.length > 0 ? allAvailableTokens : (allTokens || []);
-          const tokenData = tokensToUse.find(t => 
-            (t.mint || '').trim().toLowerCase() === (holding.mint || '').trim().toLowerCase()
-          );
+          // Don't rely on allTokens - just show the token with mint address as fallback
+          const tokenData = allTokens?.find(t => t.mint === holding.mint);
           const currentPrice = tokenData ? parseFloat(tokenData.price) : 0;
           const currentValue = holding.amount * currentPrice;
 
           return {
             ...holding,
-            name: tokenData?.name || 'Unknown Token',
-            symbol: tokenData?.symbol || 'UNKNOWN',
+            // Use mint address slice if token name not available
+            name: tokenData?.name || holding.mint.slice(0, 8) + '...' + holding.mint.slice(-8),
+            symbol: tokenData?.symbol || 'TOKEN',
             logo: tokenData?.logo,
             currentPrice,
             currentValue,
@@ -136,10 +112,7 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
   const addManualToken = () => {
     if (!manualToken.mint || !manualToken.amount) return;
 
-    const tokensToUse = allAvailableTokens.length > 0 ? allAvailableTokens : (allTokens || []);
-    const tokenData = tokensToUse.find(t => 
-      (t.mint || '').trim().toLowerCase() === (manualToken.mint || '').trim().toLowerCase()
-    );
+    const tokenData = allTokens?.find(t => t.mint === manualToken.mint);
     const currentPrice = tokenData ? parseFloat(tokenData.price) : 0;
     const purchasePrice = parseFloat(manualToken.purchasePrice) || 0;
     const amount = parseFloat(manualToken.amount);
@@ -151,8 +124,8 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
     const newHolding = {
       mint: manualToken.mint,
       amount,
-      name: tokenData?.name || 'Unknown Token',
-      symbol: tokenData?.symbol || 'UNKNOWN',
+      name: tokenData?.name || manualToken.mint.slice(0, 8) + '...' + manualToken.mint.slice(-8),
+      symbol: tokenData?.symbol || 'TOKEN',
       logo: tokenData?.logo,
       currentPrice,
       currentValue,
@@ -282,8 +255,8 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
                 </tr>
               </thead>
               <tbody>
-                {holdings.map((holding) => (
-                  <tr key={holding.mint} className="border-b border-white/5 hover:bg-white/[0.02]">
+                {holdings.map((holding, i) => (
+                  <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {holding.logo ? (
