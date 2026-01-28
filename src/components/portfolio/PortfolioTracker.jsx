@@ -5,58 +5,47 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Plus, Trash2, Loader2, DollarSign } from 'lucide-react';
 import X1Api from '../x1/X1ApiClient';
 
-export default function PortfolioTracker({ walletAddress: propWalletAddress, allTokens }) {
+export default function PortfolioTracker({ walletAddress: propWalletAddress, allTokens: propAllTokens }) {
   const [holdings, setHoldings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAddToken, setShowAddToken] = useState(false);
   const [manualToken, setManualToken] = useState({ mint: '', amount: '', purchasePrice: '' });
   const [walletAddress, setWalletAddress] = useState(propWalletAddress || '');
   const [error, setError] = useState(null);
-  const [tokenMetadata, setTokenMetadata] = useState(new Map());
+  const [allTokens, setAllTokens] = useState(propAllTokens || []); // Use prop or load own
 
-  // Fetch token metadata from X1Api once on component mount
+  // Load token data from database if not provided by parent
   useEffect(() => {
-    const loadTokenMetadata = async () => {
-      try {
-        console.log('📡 Loading token metadata from X1Api...');
-        const response = await X1Api.listTokens({ limit: 3000, offset: 0, verified: false });
-        
-        if (response.success && response.data?.tokens) {
-          const metadata = new Map();
-          response.data.tokens.forEach(token => {
-            metadata.set(token.mint, {
-              name: token.name || 'Unknown Token',
-              symbol: token.symbol || 'UNKNOWN',
-              logo: token.logo_uri || token.logo,
-              price: parseFloat(token.price || 0),
-              priceChange24h: token.price_change_24h || '0.00',
-              decimals: token.decimals || 9,
-              verified: token.verified || false
-            });
-          });
-          console.log(`✓ Loaded metadata for ${metadata.size} tokens from X1Api`);
-          setTokenMetadata(metadata);
-        } else {
-          console.warn('Failed to load token metadata from X1Api');
+    if (!propAllTokens || propAllTokens.length === 0) {
+      const loadTokenData = async () => {
+        try {
+          console.log('📡 Loading token data from database (no props provided)...');
+          const response = await X1Api.listTokens({ limit: 3000, offset: 0, verified: false });
+          
+          if (response.success && response.data?.tokens) {
+            console.log(`✓ Loaded ${response.data.tokens.length} tokens from database`);
+            setAllTokens(response.data.tokens);
+          }
+        } catch (err) {
+          console.error('Failed to load token data:', err);
         }
-      } catch (err) {
-        console.error('Error loading token metadata:', err);
-      }
-    };
+      };
+      loadTokenData();
+    } else {
+      console.log(`✓ Using ${propAllTokens.length} tokens from parent prop`);
+      setAllTokens(propAllTokens);
+    }
+  }, [propAllTokens]);
 
-    loadTokenMetadata();
-  }, []);
-
-  // Original wallet token fetching and real-time updates
+  // Subscribe to real-time price updates
   useEffect(() => {
     if (walletAddress) {
       fetchHoldings();
     }
     
-    // Subscribe to real-time price updates via WebSocket
     const unsubscribe = X1Api.subscribeToTokenUpdates((update) => {
       if (update.type === 'price_update') {
-        console.log('💰 Real-time price update received');
+        console.log('💰 Real-time price update');
         setHoldings(prev => prev.map(holding => {
           const priceData = update.data[holding.mint];
           if (priceData) {
@@ -79,9 +68,7 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
       }
     });
     
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [walletAddress]);
 
   const fetchHoldings = async () => {
@@ -92,18 +79,17 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
     try {
       console.log('🔍 Fetching tokens for wallet:', walletAddress);
       
-      // RPC endpoints - Your server first (8899), then public fallbacks
+      // RPC endpoints
       const RPC_ENDPOINTS = [
-        'http://45.94.81.202:8899',      // Your validator server - RPC API (PRIMARY)
-        'https://rpc.mainnet.x1.xyz',    // Public RPC 1
-        'https://nexus.fortiblox.com/rpc', // Public RPC 2
-        'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38', // Public RPC 3
-        'https://rpc.x1galaxy.io/'       // Public RPC 4
+        'http://45.94.81.202:8899',
+        'https://rpc.mainnet.x1.xyz',
+        'https://nexus.fortiblox.com/rpc',
+        'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38',
+        'https://rpc.x1galaxy.io/'
       ];
 
       let data = null;
 
-      // Try each RPC endpoint until one works
       for (const endpoint of RPC_ENDPOINTS) {
         try {
           console.log(`  → Trying: ${endpoint}`);
@@ -130,13 +116,13 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
             break;
           }
         } catch (err) {
-          console.log(`  ✗ Failed: ${err.message}`);
+          console.log(`  ✗ Failed`);
           continue;
         }
       }
 
       if (data?.result?.value) {
-        const tokenAccounts = data.result.value
+        const walletTokens = data.result.value
           .map(account => {
             const info = account.account.data.parsed.info;
             return {
@@ -147,32 +133,35 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
           })
           .filter(t => t.amount > 0);
 
-        console.log(`✓ Found ${tokenAccounts.length} tokens in wallet`);
+        console.log(`✓ Found ${walletTokens.length} tokens`);
         
-        // Enrich with metadata from X1Api
-        const enrichedHoldings = tokenAccounts.map(holding => {
-          const metadata = tokenMetadata.get(holding.mint);
+        // Match with database tokens (SAME approach as TokenExplorer)
+        const enrichedHoldings = walletTokens.map(walletToken => {
+          const tokenData = allTokens.find(t => t.mint === walletToken.mint);
           
-          if (metadata) {
-            const currentValue = holding.amount * metadata.price;
+          if (tokenData) {
+            const currentPrice = parseFloat(tokenData.price || 0);
+            const currentValue = walletToken.amount * currentPrice;
+            
             return {
-              ...holding,
-              name: metadata.name,
-              symbol: metadata.symbol,
-              logo: metadata.logo,
-              currentPrice: metadata.price,
+              ...walletToken,
+              name: tokenData.name || 'Unknown Token',
+              symbol: tokenData.symbol || 'UNKNOWN',
+              logo: tokenData.logo_uri || tokenData.logo,
+              currentPrice,
               currentValue,
-              priceChange24h: metadata.priceChange24h,
+              priceChange24h: tokenData.price_change_24h || '0.00',
               purchasePrice: 0,
               profitLoss: 0,
               profitLossPercent: 0,
-              verified: metadata.verified
+              verified: tokenData.verified || false,
+              description: tokenData.description,
+              website: tokenData.website
             };
           } else {
-            // Fallback if token not in X1Api metadata
             return {
-              ...holding,
-              name: holding.mint.slice(0, 8) + '...' + holding.mint.slice(-8),
+              ...walletToken,
+              name: walletToken.mint.slice(0, 8) + '...' + walletToken.mint.slice(-8),
               symbol: 'UNKNOWN',
               logo: null,
               currentPrice: 0,
@@ -187,15 +176,14 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
         });
 
         setHoldings(enrichedHoldings);
-        console.log(`✓ Portfolio loaded with ${enrichedHoldings.length} tokens`);
+        console.log(`✓ Portfolio loaded: ${enrichedHoldings.length} tokens`);
       } else {
-        console.log('⚠ No tokens found for this wallet');
-        setError('No tokens found for this wallet address');
+        setError('Could not fetch wallet tokens');
         setHoldings([]);
       }
     } catch (error) {
-      console.error('❌ Error:', error.message);
-      setError(`Failed to fetch wallet tokens: ${error.message}`);
+      console.error('Error:', error);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
@@ -204,8 +192,8 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
   const addManualToken = () => {
     if (!manualToken.mint || !manualToken.amount) return;
 
-    const metadata = tokenMetadata.get(manualToken.mint);
-    const currentPrice = metadata ? metadata.price : 0;
+    const tokenData = allTokens.find(t => t.mint === manualToken.mint);
+    const currentPrice = tokenData ? parseFloat(tokenData.price || 0) : 0;
     const purchasePrice = parseFloat(manualToken.purchasePrice) || 0;
     const amount = parseFloat(manualToken.amount);
     const currentValue = amount * currentPrice;
@@ -216,17 +204,17 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
     const newHolding = {
       mint: manualToken.mint,
       amount,
-      name: metadata?.name || manualToken.mint.slice(0, 8) + '...',
-      symbol: metadata?.symbol || 'UNKNOWN',
-      logo: metadata?.logo,
+      name: tokenData?.name || manualToken.mint.slice(0, 8) + '...',
+      symbol: tokenData?.symbol || 'UNKNOWN',
+      logo: tokenData?.logo_uri,
       currentPrice,
       currentValue,
       purchasePrice,
       profitLoss,
       profitLossPercent,
-      priceChange24h: metadata?.priceChange24h || '0.00',
+      priceChange24h: tokenData?.price_change_24h || '0.00',
       manual: true,
-      verified: metadata?.verified || false
+      verified: tokenData?.verified || false
     };
 
     setHoldings([...holdings, newHolding]);
@@ -241,17 +229,11 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
   const portfolioStats = useMemo(() => {
     const totalValue = holdings.reduce((sum, h) => sum + h.currentValue, 0);
     const totalProfitLoss = holdings.reduce((sum, h) => sum + h.profitLoss, 0);
-    const topGainer = holdings.reduce((max, h) => 
-      parseFloat(h.priceChange24h) > parseFloat(max?.priceChange24h || 0) ? h : max, holdings[0]);
-    const topLoser = holdings.reduce((min, h) => 
-      parseFloat(h.priceChange24h) < parseFloat(min?.priceChange24h || 0) ? h : min, holdings[0]);
 
     return {
       totalValue: totalValue.toFixed(2),
       totalProfitLoss: totalProfitLoss.toFixed(2),
-      totalProfitLossPercent: holdings.length > 0 ? ((totalProfitLoss / (parseFloat(holdings.reduce((sum, h) => sum + (h.purchasePrice * h.amount), 0) || 1))) * 100).toFixed(2) : '0.00',
-      topGainer,
-      topLoser
+      totalProfitLossPercent: holdings.length > 0 ? ((totalProfitLoss / (parseFloat(holdings.reduce((sum, h) => sum + (h.purchasePrice * h.amount), 0) || 1))) * 100).toFixed(2) : '0.00'
     };
   }, [holdings]);
 
@@ -266,7 +248,7 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
 
   return (
     <div className="space-y-6">
-      {/* Wallet Input Section */}
+      {/* Wallet Input */}
       <div className="bg-[#24384a] rounded-xl p-6">
         <h2 className="text-white font-bold mb-4">Portfolio Tracker</h2>
         <div className="flex gap-2">
@@ -281,7 +263,7 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
             disabled={loading}
             className="bg-cyan-500 hover:bg-cyan-600"
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Load Portfolio'}
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Load'}
           </Button>
         </div>
         {error && (
@@ -291,9 +273,9 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
         )}
       </div>
 
-      {/* Portfolio Stats */}
+      {/* Stats */}
       {holdings.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-[#24384a] rounded-lg p-4">
             <p className="text-gray-400 text-sm mb-1">Total Value</p>
             <p className="text-white font-bold text-lg">${portfolioStats.totalValue}</p>
@@ -302,12 +284,6 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
             <p className="text-gray-400 text-sm mb-1">Total P/L</p>
             <p className={`font-bold text-lg ${parseFloat(portfolioStats.totalProfitLoss) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               ${portfolioStats.totalProfitLoss}
-            </p>
-          </div>
-          <div className="bg-[#24384a] rounded-lg p-4">
-            <p className="text-gray-400 text-sm mb-1">P/L %</p>
-            <p className={`font-bold text-lg ${parseFloat(portfolioStats.totalProfitLossPercent) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {portfolioStats.totalProfitLossPercent}%
             </p>
           </div>
           <div className="bg-[#24384a] rounded-lg p-4">
@@ -327,7 +303,7 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
                 <th className="px-6 py-3 text-right text-gray-400 font-semibold">Balance</th>
                 <th className="px-6 py-3 text-right text-gray-400 font-semibold">Price</th>
                 <th className="px-6 py-3 text-right text-gray-400 font-semibold">Value</th>
-                <th className="px-6 py-3 text-right text-gray-400 font-semibold">24h Change</th>
+                <th className="px-6 py-3 text-right text-gray-400 font-semibold">24h</th>
                 <th className="px-6 py-3 text-center text-gray-400 font-semibold">Action</th>
               </tr>
             </thead>
@@ -347,10 +323,7 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
                   <td className="px-6 py-4 text-right text-white">${holding.currentPrice.toFixed(4)}</td>
                   <td className="px-6 py-4 text-right text-white">${holding.currentValue.toFixed(2)}</td>
                   <td className={`px-6 py-4 text-right font-semibold ${parseFloat(holding.priceChange24h) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    <div className="flex items-center justify-end gap-1">
-                      {parseFloat(holding.priceChange24h) >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                      {holding.priceChange24h}%
-                    </div>
+                    {holding.priceChange24h}%
                   </td>
                   <td className="px-6 py-4 text-center">
                     <Button 
@@ -369,55 +342,9 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
         </div>
       )}
 
-      {/* Add Manual Token Section */}
-      <div className="bg-[#24384a] rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-white font-bold">Add Manual Token</h3>
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => setShowAddToken(!showAddToken)}
-            className="text-cyan-400"
-          >
-            <Plus className="w-4 h-4" />
-          </Button>
-        </div>
-        
-        {showAddToken && (
-          <div className="space-y-3">
-            <Input
-              placeholder="Token Mint"
-              value={manualToken.mint}
-              onChange={(e) => setManualToken({ ...manualToken, mint: e.target.value })}
-              className="bg-[#1d2d3a] border-0 text-white placeholder:text-gray-500"
-            />
-            <Input
-              placeholder="Amount"
-              type="number"
-              value={manualToken.amount}
-              onChange={(e) => setManualToken({ ...manualToken, amount: e.target.value })}
-              className="bg-[#1d2d3a] border-0 text-white placeholder:text-gray-500"
-            />
-            <Input
-              placeholder="Purchase Price (optional)"
-              type="number"
-              value={manualToken.purchasePrice}
-              onChange={(e) => setManualToken({ ...manualToken, purchasePrice: e.target.value })}
-              className="bg-[#1d2d3a] border-0 text-white placeholder:text-gray-500"
-            />
-            <Button 
-              onClick={addManualToken}
-              className="w-full bg-cyan-500 hover:bg-cyan-600"
-            >
-              Add Token
-            </Button>
-          </div>
-        )}
-      </div>
-
       {holdings.length === 0 && !error && (
         <div className="text-center p-8 text-gray-400">
-          <p>Enter a wallet address and click "Load Portfolio" to view your tokens</p>
+          <p>Enter a wallet address to view portfolio</p>
         </div>
       )}
     </div>
