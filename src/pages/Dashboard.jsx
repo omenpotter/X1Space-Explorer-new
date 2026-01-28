@@ -316,8 +316,13 @@ export default function Dashboard() {
     return h > 0 ? `~${h}h ${m}m` : `~${m}m`;
   }, []);
 
-  // Skip loading screen - show dashboard immediately
-  if (!hasLoadedData) return null;
+  // Show dashboard immediately (don't wait for initial load)
+  // This removes the "Connecting..." screen
+  // if (!hasLoadedData) {
+  //   return (... connecting screen code...); 
+  // }
+  
+  // Start showing dashboard structure even before data loads
 
   // From here on, keep old data visible during updates (Stale-While-Revalidate)
   return (
@@ -459,8 +464,7 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-            <MempoolViz
-              key="mempool-stable"
+            <MempoolViz 
               mempoolInterval={mempoolInterval}
               recentBlocks={recentBlocks}
               aggregatedBlocks={aggregatedBlocks}
