@@ -53,23 +53,53 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
     setLoading(true);
 
     try {
-      const response = await fetch('https://rpc.mainnet.x1.xyz', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'getTokenAccountsByOwner',
-          params: [
-            walletAddress,
-            { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' },
-            { encoding: 'jsonParsed' }
-          ]
-        })
-      });
+      console.log('DEBUG: Fetching tokens for wallet:', walletAddress);
+      
+      // Use X1RpcService rpcCall method via direct endpoint since we need getTokenAccountsByOwner
+      const RPC_ENDPOINTS = [
+        'https://rpc.mainnet.x1.xyz',
+        'https://nexus.fortiblox.com/rpc',
+        'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38',
+        'https://rpc.x1galaxy.io/'
+      ];
 
-      const data = await response.json();
-      if (data.result?.value) {
+      let data = null;
+      let lastError = null;
+
+      // Try each RPC endpoint
+      for (const endpoint of RPC_ENDPOINTS) {
+        try {
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'getTokenAccountsByOwner',
+              params: [
+                walletAddress,
+                { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' },
+                { encoding: 'jsonParsed' }
+              ]
+            })
+          });
+
+          data = await response.json();
+          console.log('DEBUG: RPC endpoint tried:', endpoint);
+          console.log('DEBUG: RPC Response:', data);
+          
+          if (data.result) {
+            console.log('DEBUG: Success with endpoint:', endpoint);
+            break; // Success, use this data
+          }
+        } catch (err) {
+          lastError = err;
+          console.log('DEBUG: Endpoint failed:', endpoint, err.message);
+          continue; // Try next endpoint
+        }
+      }
+
+      if (data?.result?.value) {
         const tokenAccounts = data.result.value.map(account => {
           const info = account.account.data.parsed.info;
           return {
@@ -79,15 +109,16 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
           };
         }).filter(t => t.amount > 0);
 
+        console.log('DEBUG: Token accounts found:', tokenAccounts.length);
+        console.log('DEBUG: Token mints:', tokenAccounts.map(t => t.mint));
+        
         const enrichedHoldings = tokenAccounts.map(holding => {
-          // Don't rely on allTokens - just show the token with mint address as fallback
           const tokenData = allTokens?.find(t => t.mint === holding.mint);
           const currentPrice = tokenData ? parseFloat(tokenData.price) : 0;
           const currentValue = holding.amount * currentPrice;
 
           return {
             ...holding,
-            // Use mint address slice if token name not available
             name: tokenData?.name || holding.mint.slice(0, 8) + '...' + holding.mint.slice(-8),
             symbol: tokenData?.symbol || 'TOKEN',
             logo: tokenData?.logo,
@@ -100,10 +131,14 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
           };
         });
 
+        console.log('DEBUG: Enriched holdings set:', enrichedHoldings.length, 'tokens');
         setHoldings(enrichedHoldings);
+      } else {
+        console.log('DEBUG: No tokens found. Response:', data);
+        setHoldings([]);
       }
     } catch (error) {
-      console.error('Failed to fetch holdings:', error);
+      console.error('DEBUG: Failed to fetch holdings:', error);
     } finally {
       setLoading(false);
     }
