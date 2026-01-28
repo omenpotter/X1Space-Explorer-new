@@ -17,7 +17,7 @@ export default function PortfolioTracker() {
   const [error, setError] = useState(null);
   const [portfolioData, setPortfolioData] = useState(null);
   const [hideBalances, setHideBalances] = useState(false);
-  const [allTokens, setAllTokens] = useState([]); // Store all tokens from database
+  const [allTokens, setAllTokens] = useState([]); // Store all tokens with enriched data
 
   // Load wallets from localStorage
   useEffect(() => {
@@ -28,16 +28,50 @@ export default function PortfolioTracker() {
     }
   }, []);
 
-  // Load all tokens from database (same as TokenExplorer) - ONCE on mount
+  // Load all tokens from database - SAME APPROACH AS TOKENEXPLORER
   useEffect(() => {
     const loadAllTokens = async () => {
       try {
-        console.log('📡 Loading all tokens from database (like TokenExplorer)...');
-        const response = await X1Api.listTokens({ limit: 3000, offset: 0, verified: false });
+        console.log('📡 Loading all tokens from database (TokenExplorer approach)...');
+        const allTokensResponse = await X1Api.listTokens({ limit: 3000, offset: 0, verified: false });
         
-        if (response.success && response.data?.tokens) {
-          setAllTokens(response.data.tokens);
-          console.log(`✓ Loaded ${response.data.tokens.length} tokens from database`);
+        if (allTokensResponse.success && allTokensResponse.data?.tokens) {
+          const tokens = allTokensResponse.data.tokens;
+          
+          // ENRICHMENT STEP - SAME AS TOKENEXPLORER
+          // This handles multiple field name formats from the database
+          const enrichedTokens = tokens.map(token => ({
+            mint: token.mint || token.address,
+            name: token.name || 'Unknown Token',
+            symbol: token.symbol || 'UNKNOWN',
+            logo: token.logo_uri || token.logo,
+            decimals: token.decimals || 9,
+            totalSupply: token.total_supply || token.totalSupply || token.supply || 0,
+            tokenType: token.token_type || token.tokenType || 'SPL Token',
+            price: token.price ? parseFloat(token.price) : 0,
+            priceDisplay: token.price ? parseFloat(token.price).toFixed(4) : '0.0000',
+            marketCap: token.market_cap || token.marketCap || 0,
+            priceChange24h: token.price_change_24h || token.priceChange24h ? parseFloat(token.price_change_24h || token.priceChange24h).toFixed(2) : '0.00',
+            mintAuthority: token.mint_authority || token.mintAuthority,
+            freezeAuthority: token.freeze_authority || token.freezeAuthority,
+            website: token.website,
+            twitter: token.twitter,
+            createdBy: token.created_by || token.createdBy,
+            createdAt: token.created_at || token.createdAt,
+            verificationCount: token.verification_count || token.verificationCount || 0,
+            isScam: token.is_scam || token.isScam || false,
+            verified: token.verified || false,
+            priceHistory: token.price_history || token.priceHistory || [],
+            description: token.description,
+            telegram: token.telegram,
+            discord: token.discord
+          }));
+          
+          setAllTokens(enrichedTokens);
+          console.log(`✅ Loaded and enriched ${enrichedTokens.length} tokens`);
+          console.log('Sample token:', enrichedTokens[0]);
+        } else {
+          console.error('Failed to load tokens:', allTokensResponse);
         }
       } catch (err) {
         console.error('Failed to load tokens from database:', err);
@@ -70,7 +104,7 @@ export default function PortfolioTracker() {
     setWallets(wallets.filter(w => w.address !== address));
   };
 
-  // Fetch wallet tokens from RPC and match with database tokens
+  // Fetch wallet tokens from RPC and match with enriched database tokens
   const fetchPortfolio = async () => {
     if (wallets.length === 0) {
       setPortfolioData(null);
@@ -85,15 +119,15 @@ export default function PortfolioTracker() {
         try {
           console.log('🔍 Fetching tokens for wallet:', wallet.address);
           
-          // RPC endpoints - Your server first, then public fallbacks
+          // RPC endpoints - HTTPS only
           const RPC_ENDPOINTS = [
-            'https://rpc.mainnet.x1.xyz',    // HTTPS - no mixed content issues
-            'https://nexus.fortiblox.com/rpc', 
+            'https://rpc.mainnet.x1.xyz',
+            'https://nexus.fortiblox.com/rpc',
             'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38',
             'https://rpc.x1galaxy.io/'
           ];
 
-          let data = null;
+          let rpcData = null;
 
           // Try each RPC endpoint
           for (const endpoint of RPC_ENDPOINTS) {
@@ -115,9 +149,9 @@ export default function PortfolioTracker() {
                 })
               });
 
-              data = await response.json();
+              rpcData = await response.json();
               
-              if (data.result) {
+              if (rpcData.result?.value) {
                 console.log(`✓ Connected to: ${endpoint}`);
                 break;
               }
@@ -127,82 +161,8 @@ export default function PortfolioTracker() {
             }
           }
 
-          if (data?.result?.value) {
-            const walletTokens = data.result.value
-              .map(account => {
-                const info = account.account.data.parsed.info;
-                return {
-                  mint: info.mint,
-                  amount: Number(info.tokenAmount.uiAmount),
-                  decimals: info.tokenAmount.decimals
-                };
-              })
-              .filter(t => t.amount > 0);
-
-            console.log(`✓ Found ${walletTokens.length} tokens in wallet`);
-            console.log(`🔍 Matching ${walletTokens.length} wallet tokens against ${allTokens.length} database tokens`);
-            
-            // Match wallet tokens with database tokens (same approach as TokenExplorer)
-            const enrichedTokens = walletTokens.map((walletToken, idx) => {
-              // Find token data in database - try exact match first
-              let tokenData = allTokens.find(t => t.mint === walletToken.mint);
-              
-              // If no match, try case-insensitive
-              if (!tokenData) {
-                tokenData = allTokens.find(t => 
-                  (t.mint || '').toLowerCase() === (walletToken.mint || '').toLowerCase()
-                );
-              }
-              
-              if (tokenData) {
-                console.log(`✓ Token ${idx+1}: ${tokenData.symbol || 'UNKNOWN'} (${tokenData.name || 'Unknown Token'}) - Price: $${tokenData.price || 0}`);
-                const currentPrice = parseFloat(tokenData.price || 0);
-                const currentValue = walletToken.amount * currentPrice;
-                
-                return {
-                  mint: walletToken.mint,
-                  amount: walletToken.amount,
-                  decimals: walletToken.decimals,
-                  // Database fields
-                  name: tokenData.name || 'Unknown Token',
-                  symbol: tokenData.symbol || 'UNKNOWN',
-                  logo: tokenData.logo_uri || tokenData.logo,
-                  currentPrice: currentPrice,
-                  currentValue: currentValue,
-                  priceChange24h: tokenData.price_change_24h || '0.00',
-                  verified: tokenData.verified || false,
-                  marketCap: tokenData.market_cap || 0,
-                  description: tokenData.description,
-                  website: tokenData.website,
-                  twitter: tokenData.twitter,
-                  telegram: tokenData.telegram,
-                  discord: tokenData.discord
-                };
-              } else {
-                console.log(`✗ Token ${idx+1}: ${walletToken.mint.slice(0, 8)}... NOT FOUND in ${allTokens.length} tokens`);
-                // Fallback if token not in database
-                return {
-                  mint: walletToken.mint,
-                  amount: walletToken.amount,
-                  decimals: walletToken.decimals,
-                  name: walletToken.mint.slice(0, 8) + '...' + walletToken.mint.slice(-8),
-                  symbol: 'UNKNOWN',
-                  logo: null,
-                  currentPrice: 0,
-                  currentValue: 0,
-                  priceChange24h: '0.00',
-                  verified: false
-                };
-              }
-            });
-
-            return {
-              address: wallet.address,
-              label: wallet.label,
-              tokens: enrichedTokens,
-              totalValue: enrichedTokens.reduce((sum, t) => sum + t.currentValue, 0)
-            };
-          } else {
+          if (!rpcData?.result?.value) {
+            console.error('No RPC data received');
             return {
               address: wallet.address,
               label: wallet.label,
@@ -210,8 +170,84 @@ export default function PortfolioTracker() {
               totalValue: 0
             };
           }
+
+          const walletTokens = rpcData.result.value
+            .map(account => {
+              const info = account.account.data.parsed.info;
+              return {
+                mint: info.mint,
+                amount: Number(info.tokenAmount.uiAmount),
+                decimals: info.tokenAmount.decimals
+              };
+            })
+            .filter(t => t.amount > 0);
+
+          console.log(`✓ Found ${walletTokens.length} tokens in wallet`);
+          console.log(`🔍 Matching ${walletTokens.length} wallet tokens against ${allTokens.length} enriched database tokens`);
+          
+          // Match wallet tokens with ENRICHED database tokens
+          const enrichedWalletTokens = walletTokens.map((walletToken, idx) => {
+            // Find in enriched tokens
+            let tokenData = allTokens.find(t => t.mint === walletToken.mint);
+            
+            // Fallback: case-insensitive match
+            if (!tokenData) {
+              tokenData = allTokens.find(t => 
+                (t.mint || '').toLowerCase() === (walletToken.mint || '').toLowerCase()
+              );
+            }
+            
+            if (tokenData) {
+              console.log(`✓ Token ${idx+1}: ${tokenData.symbol} (${tokenData.name}) - Price: $${tokenData.priceDisplay}`);
+              const currentValue = walletToken.amount * tokenData.price;
+              
+              return {
+                mint: walletToken.mint,
+                amount: walletToken.amount,
+                decimals: walletToken.decimals,
+                // Use enriched data fields
+                name: tokenData.name,
+                symbol: tokenData.symbol,
+                logo: tokenData.logo,
+                price: tokenData.price,
+                priceDisplay: tokenData.priceDisplay,
+                currentPrice: tokenData.price,
+                currentValue: currentValue,
+                priceChange24h: tokenData.priceChange24h,
+                verified: tokenData.verified,
+                marketCap: tokenData.marketCap,
+                tokenType: tokenData.tokenType,
+                website: tokenData.website,
+                twitter: tokenData.twitter,
+                description: tokenData.description
+              };
+            } else {
+              console.log(`✗ Token ${idx+1}: ${walletToken.mint.slice(0, 8)}... NOT FOUND (${allTokens.length} tokens in database)`);
+              return {
+                mint: walletToken.mint,
+                amount: walletToken.amount,
+                decimals: walletToken.decimals,
+                name: walletToken.mint.slice(0, 8) + '...' + walletToken.mint.slice(-8),
+                symbol: 'UNKNOWN',
+                logo: null,
+                price: 0,
+                priceDisplay: '0.0000',
+                currentPrice: 0,
+                currentValue: 0,
+                priceChange24h: '0.00',
+                verified: false
+              };
+            }
+          });
+
+          return {
+            address: wallet.address,
+            label: wallet.label,
+            tokens: enrichedWalletTokens,
+            totalValue: enrichedWalletTokens.reduce((sum, t) => sum + t.currentValue, 0)
+          };
         } catch (err) {
-          console.error('Error fetching portfolio:', err);
+          console.error('Error fetching wallet portfolio:', err);
           return {
             address: wallet.address,
             label: wallet.label,
@@ -235,10 +271,13 @@ export default function PortfolioTracker() {
     }
   };
 
-  // Auto-fetch when wallets change
+  // Auto-fetch when BOTH wallets AND allTokens are ready
   useEffect(() => {
     if (wallets.length > 0 && allTokens.length > 0) {
+      console.log(`🔄 Portfolio trigger: ${wallets.length} wallets, ${allTokens.length} enriched tokens available - FETCHING`);
       fetchPortfolio();
+    } else if (wallets.length > 0 && allTokens.length === 0) {
+      console.log(`⏳ Waiting: ${wallets.length} wallets, but enriched tokens still loading...`);
     }
   }, [wallets, allTokens]);
 
@@ -286,10 +325,10 @@ export default function PortfolioTracker() {
         </div>
 
         {/* Loading State */}
-        {!allTokens.length && (
+        {allTokens.length === 0 && (
           <div className="flex items-center justify-center p-8">
             <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mr-2" />
-            <span className="text-gray-400">Loading token database...</span>
+            <span className="text-gray-400">Loading enriched token database...</span>
           </div>
         )}
 
@@ -336,9 +375,7 @@ export default function PortfolioTracker() {
                         <p className="text-gray-400 text-sm">{wallet.address.slice(0, 12)}...{wallet.address.slice(-12)}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-lg font-bold text-cyan-400">
-                          {hideBalances ? '••••' : `$${wallet.totalValue.toFixed(2)}`}
-                        </p>
+                        <p className="text-lg font-bold text-cyan-400">${hideBalances ? '••••' : wallet.totalValue.toFixed(2)}</p>
                         <p className="text-gray-400 text-sm">{wallet.tokens.length} tokens</p>
                       </div>
                       <Button 
@@ -380,7 +417,7 @@ export default function PortfolioTracker() {
                                   </div>
                                 </td>
                                 <td className="text-right py-2 px-2 font-mono text-sm">{token.amount.toFixed(4)}</td>
-                                <td className="text-right py-2 px-2 font-mono text-sm">${token.currentPrice.toFixed(4)}</td>
+                                <td className="text-right py-2 px-2 font-mono text-sm">${token.priceDisplay}</td>
                                 <td className="text-right py-2 px-2 font-mono text-sm">
                                   {hideBalances ? '••••' : `$${token.currentValue.toFixed(2)}`}
                                 </td>
