@@ -3,15 +3,51 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Plus, Trash2, Loader2, DollarSign } from 'lucide-react';
-import X1Rpc from '../x1/X1RpcService';
 import X1Api from '../x1/X1ApiClient';
 
-export default function PortfolioTracker({ walletAddress, allTokens }) {
+export default function PortfolioTracker({ walletAddress: propWalletAddress, allTokens }) {
   const [holdings, setHoldings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAddToken, setShowAddToken] = useState(false);
   const [manualToken, setManualToken] = useState({ mint: '', amount: '', purchasePrice: '' });
+  const [walletAddress, setWalletAddress] = useState(propWalletAddress || '');
+  const [error, setError] = useState(null);
+  const [tokenMetadata, setTokenMetadata] = useState(new Map());
 
+  // Fetch token metadata from X1Api once on component mount
+  useEffect(() => {
+    const loadTokenMetadata = async () => {
+      try {
+        console.log('📡 Loading token metadata from X1Api...');
+        const response = await X1Api.listTokens({ limit: 3000, offset: 0, verified: false });
+        
+        if (response.success && response.data?.tokens) {
+          const metadata = new Map();
+          response.data.tokens.forEach(token => {
+            metadata.set(token.mint, {
+              name: token.name || 'Unknown Token',
+              symbol: token.symbol || 'UNKNOWN',
+              logo: token.logo_uri || token.logo,
+              price: parseFloat(token.price || 0),
+              priceChange24h: token.price_change_24h || '0.00',
+              decimals: token.decimals || 9,
+              verified: token.verified || false
+            });
+          });
+          console.log(`✓ Loaded metadata for ${metadata.size} tokens from X1Api`);
+          setTokenMetadata(metadata);
+        } else {
+          console.warn('Failed to load token metadata from X1Api');
+        }
+      } catch (err) {
+        console.error('Error loading token metadata:', err);
+      }
+    };
+
+    loadTokenMetadata();
+  }, []);
+
+  // Original wallet token fetching and real-time updates
   useEffect(() => {
     if (walletAddress) {
       fetchHoldings();
@@ -20,7 +56,7 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
     // Subscribe to real-time price updates via WebSocket
     const unsubscribe = X1Api.subscribeToTokenUpdates((update) => {
       if (update.type === 'price_update') {
-        console.log('🔴 Portfolio: Real-time price update received');
+        console.log('💰 Real-time price update received');
         setHoldings(prev => prev.map(holding => {
           const priceData = update.data[holding.mint];
           if (priceData) {
@@ -51,24 +87,26 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
   const fetchHoldings = async () => {
     if (!walletAddress) return;
     setLoading(true);
+    setError(null);
 
     try {
-      console.log('DEBUG: Fetching tokens for wallet:', walletAddress);
+      console.log('🔍 Fetching tokens for wallet:', walletAddress);
       
-      // Use X1RpcService rpcCall method via direct endpoint since we need getTokenAccountsByOwner
+      // SSH tunnel to your X1 validator + public RPC fallbacks
       const RPC_ENDPOINTS = [
-        'https://rpc.mainnet.x1.xyz',
-        'https://nexus.fortiblox.com/rpc',
-        'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38',
-        'https://rpc.x1galaxy.io/'
+        'http://localhost:8899',          // Your server via SSH tunnel: ssh -p 16217 -L 8899:localhost:8899 omencult@45.94.81.202
+        'http://localhost:9900',          // Alternate local port
+        'https://rpc.mainnet.x1.xyz',     // Public endpoint
+        'https://rpc.x1galaxy.io/'        // Another public endpoint
       ];
 
       let data = null;
-      let lastError = null;
 
-      // Try each RPC endpoint
+      // Try each RPC endpoint until one works
       for (const endpoint of RPC_ENDPOINTS) {
         try {
+          console.log(`  → Trying: ${endpoint}`);
+          
           const response = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -85,60 +123,78 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
           });
 
           data = await response.json();
-          console.log('DEBUG: RPC endpoint tried:', endpoint);
-          console.log('DEBUG: RPC Response:', data);
           
           if (data.result) {
-            console.log('DEBUG: Success with endpoint:', endpoint);
-            break; // Success, use this data
+            console.log(`✓ Connected to: ${endpoint}`);
+            break;
           }
         } catch (err) {
-          lastError = err;
-          console.log('DEBUG: Endpoint failed:', endpoint, err.message);
-          continue; // Try next endpoint
+          console.log(`  ✗ Failed: ${err.message}`);
+          continue;
         }
       }
 
       if (data?.result?.value) {
-        const tokenAccounts = data.result.value.map(account => {
-          const info = account.account.data.parsed.info;
-          return {
-            mint: info.mint,
-            amount: Number(info.tokenAmount.uiAmount),
-            decimals: info.tokenAmount.decimals
-          };
-        }).filter(t => t.amount > 0);
+        const tokenAccounts = data.result.value
+          .map(account => {
+            const info = account.account.data.parsed.info;
+            return {
+              mint: info.mint,
+              amount: Number(info.tokenAmount.uiAmount),
+              decimals: info.tokenAmount.decimals
+            };
+          })
+          .filter(t => t.amount > 0);
 
-        console.log('DEBUG: Token accounts found:', tokenAccounts.length);
-        console.log('DEBUG: Token mints:', tokenAccounts.map(t => t.mint));
+        console.log(`✓ Found ${tokenAccounts.length} tokens in wallet`);
         
+        // Enrich with metadata from X1Api
         const enrichedHoldings = tokenAccounts.map(holding => {
-          const tokenData = allTokens?.find(t => t.mint === holding.mint);
-          const currentPrice = tokenData ? parseFloat(tokenData.price) : 0;
-          const currentValue = holding.amount * currentPrice;
-
-          return {
-            ...holding,
-            name: tokenData?.name || holding.mint.slice(0, 8) + '...' + holding.mint.slice(-8),
-            symbol: tokenData?.symbol || 'TOKEN',
-            logo: tokenData?.logo,
-            currentPrice,
-            currentValue,
-            priceChange24h: tokenData?.priceChange24h || '0.00',
-            purchasePrice: 0,
-            profitLoss: 0,
-            profitLossPercent: 0
-          };
+          const metadata = tokenMetadata.get(holding.mint);
+          
+          if (metadata) {
+            const currentValue = holding.amount * metadata.price;
+            return {
+              ...holding,
+              name: metadata.name,
+              symbol: metadata.symbol,
+              logo: metadata.logo,
+              currentPrice: metadata.price,
+              currentValue,
+              priceChange24h: metadata.priceChange24h,
+              purchasePrice: 0,
+              profitLoss: 0,
+              profitLossPercent: 0,
+              verified: metadata.verified
+            };
+          } else {
+            // Fallback if token not in X1Api metadata
+            return {
+              ...holding,
+              name: holding.mint.slice(0, 8) + '...' + holding.mint.slice(-8),
+              symbol: 'UNKNOWN',
+              logo: null,
+              currentPrice: 0,
+              currentValue: 0,
+              priceChange24h: '0.00',
+              purchasePrice: 0,
+              profitLoss: 0,
+              profitLossPercent: 0,
+              verified: false
+            };
+          }
         });
 
-        console.log('DEBUG: Enriched holdings set:', enrichedHoldings.length, 'tokens');
         setHoldings(enrichedHoldings);
+        console.log(`✓ Portfolio loaded with ${enrichedHoldings.length} tokens`);
       } else {
-        console.log('DEBUG: No tokens found. Response:', data);
+        console.log('⚠ No tokens found for this wallet');
+        setError('No tokens found for this wallet address');
         setHoldings([]);
       }
     } catch (error) {
-      console.error('DEBUG: Failed to fetch holdings:', error);
+      console.error('❌ Error:', error.message);
+      setError(`Failed to fetch wallet tokens: ${error.message}. Ensure SSH tunnel is open: ssh -p 16217 -L 8899:localhost:8899 omencult@45.94.81.202`);
     } finally {
       setLoading(false);
     }
@@ -147,8 +203,8 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
   const addManualToken = () => {
     if (!manualToken.mint || !manualToken.amount) return;
 
-    const tokenData = allTokens?.find(t => t.mint === manualToken.mint);
-    const currentPrice = tokenData ? parseFloat(tokenData.price) : 0;
+    const metadata = tokenMetadata.get(manualToken.mint);
+    const currentPrice = metadata ? metadata.price : 0;
     const purchasePrice = parseFloat(manualToken.purchasePrice) || 0;
     const amount = parseFloat(manualToken.amount);
     const currentValue = amount * currentPrice;
@@ -159,16 +215,17 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
     const newHolding = {
       mint: manualToken.mint,
       amount,
-      name: tokenData?.name || manualToken.mint.slice(0, 8) + '...' + manualToken.mint.slice(-8),
-      symbol: tokenData?.symbol || 'TOKEN',
-      logo: tokenData?.logo,
+      name: metadata?.name || manualToken.mint.slice(0, 8) + '...',
+      symbol: metadata?.symbol || 'UNKNOWN',
+      logo: metadata?.logo,
       currentPrice,
       currentValue,
       purchasePrice,
       profitLoss,
       profitLossPercent,
-      priceChange24h: tokenData?.priceChange24h || '0.00',
-      manual: true
+      priceChange24h: metadata?.priceChange24h || '0.00',
+      manual: true,
+      verified: metadata?.verified || false
     };
 
     setHoldings([...holdings, newHolding]);
@@ -188,161 +245,180 @@ export default function PortfolioTracker({ walletAddress, allTokens }) {
     const topLoser = holdings.reduce((min, h) => 
       parseFloat(h.priceChange24h) < parseFloat(min?.priceChange24h || 0) ? h : min, holdings[0]);
 
-    return { totalValue, totalProfitLoss, topGainer, topLoser };
+    return {
+      totalValue: totalValue.toFixed(2),
+      totalProfitLoss: totalProfitLoss.toFixed(2),
+      totalProfitLossPercent: holdings.length > 0 ? ((totalProfitLoss / (parseFloat(holdings.reduce((sum, h) => sum + (h.purchasePrice * h.amount), 0) || 1))) * 100).toFixed(2) : '0.00',
+      topGainer,
+      topLoser
+    };
   }, [holdings]);
 
-  const formatNum = (num) => {
-    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
-    if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
-    return num.toFixed(2);
-  };
-
-  if (loading) {
+  if (loading && holdings.length === 0) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="w-6 h-6 animate-spin text-cyan-400" />
+        <span className="ml-2 text-gray-400">Loading portfolio...</span>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Portfolio Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-[#24384a] rounded-lg p-4">
-          <p className="text-gray-400 text-xs mb-1">Total Value</p>
-          <p className="text-2xl font-bold text-white">${formatNum(portfolioStats.totalValue)}</p>
-        </div>
-        <div className="bg-[#24384a] rounded-lg p-4">
-          <p className="text-gray-400 text-xs mb-1">Total P/L</p>
-          <p className={`text-2xl font-bold ${portfolioStats.totalProfitLoss >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {portfolioStats.totalProfitLoss >= 0 ? '+' : ''}${formatNum(portfolioStats.totalProfitLoss)}
-          </p>
-        </div>
-        <div className="bg-[#24384a] rounded-lg p-4">
-          <p className="text-gray-400 text-xs mb-1">Top Gainer</p>
-          <p className="text-white font-bold text-sm">{portfolioStats.topGainer?.symbol || 'N/A'}</p>
-          <p className="text-emerald-400 text-xs">+{portfolioStats.topGainer?.priceChange24h || '0.00'}%</p>
-        </div>
-        <div className="bg-[#24384a] rounded-lg p-4">
-          <p className="text-gray-400 text-xs mb-1">Top Loser</p>
-          <p className="text-white font-bold text-sm">{portfolioStats.topLoser?.symbol || 'N/A'}</p>
-          <p className="text-red-400 text-xs">{portfolioStats.topLoser?.priceChange24h || '0.00'}%</p>
-        </div>
-      </div>
-
-      {/* Holdings Table */}
-      <div className="bg-[#24384a] rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
-          <h3 className="text-white font-medium">Your Holdings ({holdings.length})</h3>
-          <Button size="sm" onClick={() => setShowAddToken(!showAddToken)} className="bg-cyan-500 hover:bg-cyan-600">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Token
+      {/* Wallet Input Section */}
+      <div className="bg-[#24384a] rounded-xl p-6">
+        <h2 className="text-white font-bold mb-4">Portfolio Tracker</h2>
+        <div className="flex gap-2">
+          <Input
+            placeholder="Enter wallet address"
+            value={walletAddress}
+            onChange={(e) => setWalletAddress(e.target.value)}
+            className="bg-[#1d2d3a] border-0 text-white placeholder:text-gray-500"
+          />
+          <Button 
+            onClick={() => fetchHoldings()}
+            disabled={loading}
+            className="bg-cyan-500 hover:bg-cyan-600"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Load Portfolio'}
           </Button>
         </div>
-
-        {showAddToken && (
-          <div className="p-4 border-b border-white/5 bg-[#1d2d3a]">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <Input
-                placeholder="Token mint address"
-                value={manualToken.mint}
-                onChange={(e) => setManualToken({...manualToken, mint: e.target.value})}
-                className="bg-[#24384a] border-0 text-white font-mono text-sm"
-              />
-              <Input
-                type="number"
-                placeholder="Amount"
-                value={manualToken.amount}
-                onChange={(e) => setManualToken({...manualToken, amount: e.target.value})}
-                className="bg-[#24384a] border-0 text-white text-sm"
-              />
-              <Input
-                type="number"
-                placeholder="Purchase price (optional)"
-                value={manualToken.purchasePrice}
-                onChange={(e) => setManualToken({...manualToken, purchasePrice: e.target.value})}
-                className="bg-[#24384a] border-0 text-white text-sm"
-              />
-              <Button onClick={addManualToken} className="bg-emerald-500 hover:bg-emerald-600">
-                Add
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {holdings.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">
-            No tokens found in your wallet
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-white/5">
-                  <th className="text-left text-gray-400 text-xs px-4 py-3">Token</th>
-                  <th className="text-right text-gray-400 text-xs px-4 py-3">Balance</th>
-                  <th className="text-right text-gray-400 text-xs px-4 py-3">Price</th>
-                  <th className="text-right text-gray-400 text-xs px-4 py-3">24h Change</th>
-                  <th className="text-right text-gray-400 text-xs px-4 py-3">Value</th>
-                  <th className="text-right text-gray-400 text-xs px-4 py-3">P/L</th>
-                  <th className="text-center text-gray-400 text-xs px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {holdings.map((holding, i) => (
-                  <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {holding.logo ? (
-                          <img src={holding.logo} alt={holding.symbol} className="w-6 h-6 rounded-full" />
-                        ) : (
-                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-xs">
-                            {holding.symbol.substring(0, 1)}
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-white text-sm font-medium">{holding.symbol}</p>
-                          <p className="text-gray-500 text-xs">{holding.name}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right text-white font-mono text-sm">{holding.amount.toFixed(4)}</td>
-                    <td className="px-4 py-3 text-right text-white font-mono text-sm">${holding.currentPrice.toFixed(4)}</td>
-                    <td className="px-4 py-3 text-right">
-                      <span className={parseFloat(holding.priceChange24h) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                        {parseFloat(holding.priceChange24h) >= 0 ? '+' : ''}{holding.priceChange24h}%
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right text-white font-bold">${holding.currentValue.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-right">
-                      {holding.profitLoss !== 0 ? (
-                        <div>
-                          <p className={`font-bold ${holding.profitLoss >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {holding.profitLoss >= 0 ? '+' : ''}${holding.profitLoss.toFixed(2)}
-                          </p>
-                          <p className={`text-xs ${holding.profitLoss >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {holding.profitLoss >= 0 ? '+' : ''}{holding.profitLossPercent.toFixed(2)}%
-                          </p>
-                        </div>
-                      ) : (
-                        <span className="text-gray-500">-</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {holding.manual && (
-                        <button onClick={() => removeHolding(holding.mint)} className="text-gray-500 hover:text-red-400">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {error && (
+          <div className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-sm">
+            {error}
           </div>
         )}
       </div>
+
+      {/* Portfolio Stats */}
+      {holdings.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-[#24384a] rounded-lg p-4">
+            <p className="text-gray-400 text-sm mb-1">Total Value</p>
+            <p className="text-white font-bold text-lg">${portfolioStats.totalValue}</p>
+          </div>
+          <div className="bg-[#24384a] rounded-lg p-4">
+            <p className="text-gray-400 text-sm mb-1">Total P/L</p>
+            <p className={`font-bold text-lg ${parseFloat(portfolioStats.totalProfitLoss) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              ${portfolioStats.totalProfitLoss}
+            </p>
+          </div>
+          <div className="bg-[#24384a] rounded-lg p-4">
+            <p className="text-gray-400 text-sm mb-1">P/L %</p>
+            <p className={`font-bold text-lg ${parseFloat(portfolioStats.totalProfitLossPercent) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {portfolioStats.totalProfitLossPercent}%
+            </p>
+          </div>
+          <div className="bg-[#24384a] rounded-lg p-4">
+            <p className="text-gray-400 text-sm mb-1">Tokens</p>
+            <p className="text-white font-bold text-lg">{holdings.length}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Holdings Table */}
+      {holdings.length > 0 && (
+        <div className="bg-[#24384a] rounded-xl overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-[#1d2d3a]">
+              <tr>
+                <th className="px-6 py-3 text-left text-gray-400 font-semibold">Token</th>
+                <th className="px-6 py-3 text-right text-gray-400 font-semibold">Balance</th>
+                <th className="px-6 py-3 text-right text-gray-400 font-semibold">Price</th>
+                <th className="px-6 py-3 text-right text-gray-400 font-semibold">Value</th>
+                <th className="px-6 py-3 text-right text-gray-400 font-semibold">24h Change</th>
+                <th className="px-6 py-3 text-center text-gray-400 font-semibold">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {holdings.map((holding) => (
+                <tr key={holding.mint} className="border-t border-white/5 hover:bg-white/[0.02]">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      {holding.logo && <img src={holding.logo} alt={holding.symbol} className="w-8 h-8 rounded-full" />}
+                      <div>
+                        <p className="text-white font-semibold">{holding.symbol}</p>
+                        <p className="text-gray-400 text-sm">{holding.name}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right text-white">{holding.amount.toFixed(4)}</td>
+                  <td className="px-6 py-4 text-right text-white">${holding.currentPrice.toFixed(4)}</td>
+                  <td className="px-6 py-4 text-right text-white">${holding.currentValue.toFixed(2)}</td>
+                  <td className={`px-6 py-4 text-right font-semibold ${parseFloat(holding.priceChange24h) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    <div className="flex items-center justify-end gap-1">
+                      {parseFloat(holding.priceChange24h) >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                      {holding.priceChange24h}%
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => removeHolding(holding.mint)}
+                      className="text-red-400 hover:bg-red-500/10"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Add Manual Token Section */}
+      <div className="bg-[#24384a] rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-white font-bold">Add Manual Token</h3>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => setShowAddToken(!showAddToken)}
+            className="text-cyan-400"
+          >
+            <Plus className="w-4 h-4" />
+          </Button>
+        </div>
+        
+        {showAddToken && (
+          <div className="space-y-3">
+            <Input
+              placeholder="Token Mint"
+              value={manualToken.mint}
+              onChange={(e) => setManualToken({ ...manualToken, mint: e.target.value })}
+              className="bg-[#1d2d3a] border-0 text-white placeholder:text-gray-500"
+            />
+            <Input
+              placeholder="Amount"
+              type="number"
+              value={manualToken.amount}
+              onChange={(e) => setManualToken({ ...manualToken, amount: e.target.value })}
+              className="bg-[#1d2d3a] border-0 text-white placeholder:text-gray-500"
+            />
+            <Input
+              placeholder="Purchase Price (optional)"
+              type="number"
+              value={manualToken.purchasePrice}
+              onChange={(e) => setManualToken({ ...manualToken, purchasePrice: e.target.value })}
+              className="bg-[#1d2d3a] border-0 text-white placeholder:text-gray-500"
+            />
+            <Button 
+              onClick={addManualToken}
+              className="w-full bg-cyan-500 hover:bg-cyan-600"
+            >
+              Add Token
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {holdings.length === 0 && !error && (
+        <div className="text-center p-8 text-gray-400">
+          <p>Enter a wallet address and click "Load Portfolio" to view your tokens</p>
+        </div>
+      )}
     </div>
   );
 }
