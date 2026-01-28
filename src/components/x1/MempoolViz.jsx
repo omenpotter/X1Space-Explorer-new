@@ -309,7 +309,8 @@ const MempoolViz = memo(({ mempoolInterval, recentBlocks, aggregatedBlocks, dash
   }
   
   return (
-    <div className="flex items-center gap-2 overflow-x-auto" key={mempoolInterval + '-' + (recentBlocks[0]?.slot || 0)}>
+    // MODIFIED: REMOVED key from container div - prevents remounting all children on every poll
+    <div className="flex items-center gap-2 overflow-x-auto">
       {showPending && mempoolInterval === 'blocks' && (
         <PendingTxViz pendingCount={pendingCount} />
       )}
@@ -318,8 +319,14 @@ const MempoolViz = memo(({ mempoolInterval, recentBlocks, aggregatedBlocks, dash
           <MempoolBlockViz key={block.slot} block={block} isNew={i === 0} />
         ))
       ) : (
+        // MODIFIED: Changed key from `${mempoolInterval}-${i}-${dashboardSlot}` to stable data-based key
         aggregatedBlocks.map((agg, i) => (
-          <MempoolAggregatedViz key={`${mempoolInterval}-${i}-${dashboardSlot}`} data={agg} label={agg.label} viewMode={mempoolInterval} />
+          <MempoolAggregatedViz 
+            key={`agg-${mempoolInterval}-${agg.slots || i}`}
+            data={agg} 
+            label={agg.label} 
+            viewMode={mempoolInterval} 
+          />
         ))
       )}
     </div>
