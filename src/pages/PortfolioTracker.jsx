@@ -4,11 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { 
   ChevronLeft, Loader2, Wallet, TrendingUp, TrendingDown, RefreshCw,
-  Plus, Trash2, Eye, EyeOff, ArrowUpRight, ArrowDownRight, AlertCircle
+  Plus, Trash2, Eye, EyeOff, AlertCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { PieChart as RechartsPie, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, AreaChart, Area } from 'recharts';
 import X1Api from '../components/x1/X1ApiClient';
 
 export default function PortfolioTracker() {
@@ -18,7 +17,7 @@ export default function PortfolioTracker() {
   const [error, setError] = useState(null);
   const [portfolioData, setPortfolioData] = useState(null);
   const [hideBalances, setHideBalances] = useState(false);
-  const [tokenMetadata, setTokenMetadata] = useState(new Map());
+  const [allTokens, setAllTokens] = useState([]); // Store all tokens from database
 
   // Load wallets from localStorage
   useEffect(() => {
@@ -29,35 +28,23 @@ export default function PortfolioTracker() {
     }
   }, []);
 
-  // Load token metadata from X1Api once on mount
+  // Load all tokens from database (same as TokenExplorer) - ONCE on mount
   useEffect(() => {
-    const loadTokenMetadata = async () => {
+    const loadAllTokens = async () => {
       try {
-        console.log('📡 Loading token metadata from X1Api...');
+        console.log('📡 Loading all tokens from database (like TokenExplorer)...');
         const response = await X1Api.listTokens({ limit: 3000, offset: 0, verified: false });
         
         if (response.success && response.data?.tokens) {
-          const metadata = new Map();
-          response.data.tokens.forEach(token => {
-            metadata.set(token.mint, {
-              name: token.name || 'Unknown Token',
-              symbol: token.symbol || 'UNKNOWN',
-              logo: token.logo_uri || token.logo,
-              price: parseFloat(token.price || 0),
-              priceChange24h: token.price_change_24h || '0.00',
-              decimals: token.decimals || 9,
-              verified: token.verified || false
-            });
-          });
-          console.log(`✓ Loaded metadata for ${metadata.size} tokens from X1Api`);
-          setTokenMetadata(metadata);
+          setAllTokens(response.data.tokens);
+          console.log(`✓ Loaded ${response.data.tokens.length} tokens from database`);
         }
       } catch (err) {
-        console.error('Failed to load token metadata:', err);
+        console.error('Failed to load tokens from database:', err);
       }
     };
 
-    loadTokenMetadata();
+    loadAllTokens();
   }, []);
 
   // Save wallets to localStorage
@@ -83,7 +70,7 @@ export default function PortfolioTracker() {
     setWallets(wallets.filter(w => w.address !== address));
   };
 
-  // Fetch wallet tokens from RPC
+  // Fetch wallet tokens from RPC and match with database tokens
   const fetchPortfolio = async () => {
     if (wallets.length === 0) {
       setPortfolioData(null);
@@ -100,16 +87,16 @@ export default function PortfolioTracker() {
           
           // RPC endpoints - Your server first, then public fallbacks
           const RPC_ENDPOINTS = [
-            'http://45.94.81.202:8899',      // Your validator server - RPC API
-            'https://rpc.mainnet.x1.xyz',    // Public RPC 1
-            'https://nexus.fortiblox.com/rpc', // Public RPC 2
-            'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38', // Public RPC 3
-            'https://rpc.x1galaxy.io/'       // Public RPC 4
+            'http://45.94.81.202:8899',      // Your validator server
+            'https://rpc.mainnet.x1.xyz',    // Public RPC
+            'https://nexus.fortiblox.com/rpc', 
+            'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38',
+            'https://rpc.x1galaxy.io/'
           ];
 
           let data = null;
 
-          // Try each RPC endpoint until one works
+          // Try each RPC endpoint
           for (const endpoint of RPC_ENDPOINTS) {
             try {
               console.log(`  → Trying: ${endpoint}`);
@@ -142,7 +129,7 @@ export default function PortfolioTracker() {
           }
 
           if (data?.result?.value) {
-            const tokenAccounts = data.result.value
+            const walletTokens = data.result.value
               .map(account => {
                 const info = account.account.data.parsed.info;
                 return {
@@ -153,28 +140,43 @@ export default function PortfolioTracker() {
               })
               .filter(t => t.amount > 0);
 
-            console.log(`✓ Found ${tokenAccounts.length} tokens in wallet`);
+            console.log(`✓ Found ${walletTokens.length} tokens in wallet`);
             
-            // Enrich with metadata from X1Api
-            const enrichedTokens = tokenAccounts.map(holding => {
-              const metadata = tokenMetadata.get(holding.mint);
+            // Match wallet tokens with database tokens (same approach as TokenExplorer)
+            const enrichedTokens = walletTokens.map(walletToken => {
+              // Find token data in database
+              const tokenData = allTokens.find(t => t.mint === walletToken.mint);
               
-              if (metadata) {
-                const currentValue = holding.amount * metadata.price;
+              if (tokenData) {
+                const currentPrice = parseFloat(tokenData.price || 0);
+                const currentValue = walletToken.amount * currentPrice;
+                
                 return {
-                  ...holding,
-                  name: metadata.name,
-                  symbol: metadata.symbol,
-                  logo: metadata.logo,
-                  currentPrice: metadata.price,
-                  currentValue,
-                  priceChange24h: metadata.priceChange24h,
-                  verified: metadata.verified
+                  mint: walletToken.mint,
+                  amount: walletToken.amount,
+                  decimals: walletToken.decimals,
+                  // Database fields
+                  name: tokenData.name || 'Unknown Token',
+                  symbol: tokenData.symbol || 'UNKNOWN',
+                  logo: tokenData.logo_uri || tokenData.logo,
+                  currentPrice: currentPrice,
+                  currentValue: currentValue,
+                  priceChange24h: tokenData.price_change_24h || '0.00',
+                  verified: tokenData.verified || false,
+                  marketCap: tokenData.market_cap || 0,
+                  description: tokenData.description,
+                  website: tokenData.website,
+                  twitter: tokenData.twitter,
+                  telegram: tokenData.telegram,
+                  discord: tokenData.discord
                 };
               } else {
+                // Fallback if token not in database
                 return {
-                  ...holding,
-                  name: holding.mint.slice(0, 8) + '...' + holding.mint.slice(-8),
+                  mint: walletToken.mint,
+                  amount: walletToken.amount,
+                  decimals: walletToken.decimals,
+                  name: walletToken.mint.slice(0, 8) + '...' + walletToken.mint.slice(-8),
                   symbol: 'UNKNOWN',
                   logo: null,
                   currentPrice: 0,
@@ -196,8 +198,7 @@ export default function PortfolioTracker() {
               address: wallet.address,
               label: wallet.label,
               tokens: [],
-              totalValue: 0,
-              error: 'Could not fetch tokens'
+              totalValue: 0
             };
           }
         } catch (err) {
@@ -206,26 +207,17 @@ export default function PortfolioTracker() {
             address: wallet.address,
             label: wallet.label,
             tokens: [],
-            totalValue: 0,
-            error: err.message
+            totalValue: 0
           };
         }
       });
 
       const results = await Promise.all(balancePromises);
       
-      // Filter out errors, keep successful results
-      const validResults = results.filter(r => !r.error && r.tokens.length > 0);
-      
-      if (validResults.length > 0) {
-        setPortfolioData({
-          wallets: validResults,
-          totalPortfolioValue: validResults.reduce((sum, w) => sum + w.totalValue, 0)
-        });
-      } else {
-        setError('Could not fetch token data from any RPC endpoint');
-        setPortfolioData(null);
-      }
+      setPortfolioData({
+        wallets: results,
+        totalPortfolioValue: results.reduce((sum, w) => sum + w.totalValue, 0)
+      });
     } catch (error) {
       console.error('Portfolio fetch error:', error);
       setError(error.message);
@@ -236,10 +228,10 @@ export default function PortfolioTracker() {
 
   // Auto-fetch when wallets change
   useEffect(() => {
-    if (wallets.length > 0) {
+    if (wallets.length > 0 && allTokens.length > 0) {
       fetchPortfolio();
     }
-  }, [wallets]);
+  }, [wallets, allTokens]);
 
   return (
     <div className="min-h-screen bg-[#1d2d3a] text-white">
@@ -284,8 +276,16 @@ export default function PortfolioTracker() {
           )}
         </div>
 
+        {/* Loading State */}
+        {!allTokens.length && (
+          <div className="flex items-center justify-center p-8">
+            <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mr-2" />
+            <span className="text-gray-400">Loading token database...</span>
+          </div>
+        )}
+
         {/* Wallets List */}
-        {wallets.length > 0 && (
+        {allTokens.length > 0 && wallets.length > 0 && (
           <div className="bg-[#24384a] rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold">Wallets ({wallets.length})</h2>
@@ -324,10 +324,12 @@ export default function PortfolioTracker() {
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <h3 className="font-bold">{wallet.label}</h3>
-                        <p className="text-gray-400 text-sm">{wallet.address.slice(0, 8)}...{wallet.address.slice(-8)}</p>
+                        <p className="text-gray-400 text-sm">{wallet.address.slice(0, 12)}...{wallet.address.slice(-12)}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-lg font-bold text-cyan-400">${wallet.totalValue.toFixed(2)}</p>
+                        <p className="text-lg font-bold text-cyan-400">
+                          {hideBalances ? '••••' : `$${wallet.totalValue.toFixed(2)}`}
+                        </p>
                         <p className="text-gray-400 text-sm">{wallet.tokens.length} tokens</p>
                       </div>
                       <Button 
@@ -360,16 +362,22 @@ export default function PortfolioTracker() {
                                   <div className="flex items-center gap-2">
                                     {token.logo && <img src={token.logo} alt={token.symbol} className="w-6 h-6 rounded-full" />}
                                     <div>
-                                      <p className="font-semibold">{token.symbol}</p>
+                                      <div className="flex items-center gap-1">
+                                        <p className="font-semibold">{token.symbol}</p>
+                                        {token.verified && <Badge className="bg-cyan-500/20 text-cyan-400 text-xs">Verified</Badge>}
+                                      </div>
                                       <p className="text-gray-400 text-xs">{token.name}</p>
                                     </div>
                                   </div>
                                 </td>
-                                <td className="text-right py-2 px-2">{token.amount.toFixed(4)}</td>
-                                <td className="text-right py-2 px-2">${token.currentPrice.toFixed(4)}</td>
-                                <td className="text-right py-2 px-2">${token.currentValue.toFixed(2)}</td>
+                                <td className="text-right py-2 px-2 font-mono text-sm">{token.amount.toFixed(4)}</td>
+                                <td className="text-right py-2 px-2 font-mono text-sm">${token.currentPrice.toFixed(4)}</td>
+                                <td className="text-right py-2 px-2 font-mono text-sm">
+                                  {hideBalances ? '••••' : `$${token.currentValue.toFixed(2)}`}
+                                </td>
                                 <td className={`text-right py-2 px-2 font-semibold ${parseFloat(token.priceChange24h) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                  {parseFloat(token.priceChange24h) >= 0 ? '↑' : '↓'} {token.priceChange24h}%
+                                  {parseFloat(token.priceChange24h) >= 0 ? <TrendingUp className="w-4 h-4 inline mr-1" /> : <TrendingDown className="w-4 h-4 inline mr-1" />}
+                                  {token.priceChange24h}%
                                 </td>
                               </tr>
                             ))}
@@ -377,30 +385,33 @@ export default function PortfolioTracker() {
                         </table>
                       </div>
                     )}
+
+                    {wallet.tokens.length === 0 && (
+                      <div className="text-center py-4 text-gray-400">
+                        <p>No tokens found in this wallet</p>
+                      </div>
+                    )}
                   </div>
                 ))}
 
                 {/* Portfolio Summary */}
-                <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-4 mt-6">
-                  <p className="text-gray-400 mb-1">Total Portfolio Value</p>
-                  <p className="text-3xl font-bold text-cyan-400">${portfolioData.totalPortfolioValue.toFixed(2)}</p>
-                </div>
-              </div>
-            )}
-
-            {!loading && wallets.length > 0 && !portfolioData && (
-              <div className="text-center py-8 text-gray-400">
-                <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p>Could not load portfolio data. Check RPC connection.</p>
+                {portfolioData.wallets.length > 0 && (
+                  <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-4 mt-6">
+                    <p className="text-gray-400 mb-1">Total Portfolio Value</p>
+                    <p className="text-3xl font-bold text-cyan-400">
+                      {hideBalances ? '••••••••' : `$${portfolioData.totalPortfolioValue.toFixed(2)}`}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
 
-        {wallets.length === 0 && (
+        {allTokens.length > 0 && wallets.length === 0 && (
           <div className="text-center py-12 text-gray-400">
             <Wallet className="w-16 h-16 mx-auto mb-4 opacity-30" />
-            <p>No wallets added yet. Add a wallet to get started!</p>
+            <p>No wallets added yet. Add a wallet above to get started!</p>
           </div>
         )}
       </main>
