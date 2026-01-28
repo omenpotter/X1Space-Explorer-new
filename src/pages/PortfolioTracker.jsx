@@ -9,7 +9,7 @@ import {
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { PieChart as RechartsPie, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, AreaChart, Area } from 'recharts';
-import X1Rpc from '../components/x1/X1RpcService';
+import X1Api from '../components/x1/X1ApiClient';
 
 export default function PortfolioTracker() {
   const [wallets, setWallets] = useState([]);
@@ -18,7 +18,7 @@ export default function PortfolioTracker() {
   const [error, setError] = useState(null);
   const [portfolioData, setPortfolioData] = useState(null);
   const [hideBalances, setHideBalances] = useState(false);
-  const [walletBalances, setWalletBalances] = useState({});
+  const [tokenMetadata, setTokenMetadata] = useState(new Map());
 
   // Load wallets from localStorage
   useEffect(() => {
@@ -27,6 +27,37 @@ export default function PortfolioTracker() {
       const parsed = JSON.parse(saved);
       setWallets(parsed);
     }
+  }, []);
+
+  // Load token metadata from X1Api once on mount
+  useEffect(() => {
+    const loadTokenMetadata = async () => {
+      try {
+        console.log('📡 Loading token metadata from X1Api...');
+        const response = await X1Api.listTokens({ limit: 3000, offset: 0, verified: false });
+        
+        if (response.success && response.data?.tokens) {
+          const metadata = new Map();
+          response.data.tokens.forEach(token => {
+            metadata.set(token.mint, {
+              name: token.name || 'Unknown Token',
+              symbol: token.symbol || 'UNKNOWN',
+              logo: token.logo_uri || token.logo,
+              price: parseFloat(token.price || 0),
+              priceChange24h: token.price_change_24h || '0.00',
+              decimals: token.decimals || 9,
+              verified: token.verified || false
+            });
+          });
+          console.log(`✓ Loaded metadata for ${metadata.size} tokens from X1Api`);
+          setTokenMetadata(metadata);
+        }
+      } catch (err) {
+        console.error('Failed to load token metadata:', err);
+      }
+    };
+
+    loadTokenMetadata();
   }, []);
 
   // Save wallets to localStorage
@@ -50,12 +81,9 @@ export default function PortfolioTracker() {
 
   const removeWallet = (address) => {
     setWallets(wallets.filter(w => w.address !== address));
-    const newBalances = { ...walletBalances };
-    delete newBalances[address];
-    setWalletBalances(newBalances);
   };
 
-  // Fetch real wallet data from RPC
+  // Fetch wallet tokens from RPC
   const fetchPortfolio = async () => {
     if (wallets.length === 0) {
       setPortfolioData(null);
@@ -68,336 +96,312 @@ export default function PortfolioTracker() {
     try {
       const balancePromises = wallets.map(async (wallet) => {
         try {
-          // Get balance
-          const balanceResult = await X1Rpc.getBalance(wallet.address);
-          const balance = (balanceResult?.value || 0) / 1e9;
+          console.log('🔍 Fetching tokens for wallet:', wallet.address);
           
-          // Get stake accounts
-          let stakedAmount = 0;
-          try {
-            const stakeAccounts = await X1Rpc.getStakeAccounts(wallet.address);
-            if (stakeAccounts?.length) {
-              stakedAmount = stakeAccounts.reduce((sum, acc) => {
-                const lamports = acc.account?.lamports || 0;
-                return sum + lamports;
-              }, 0) / 1e9;
+          // RPC endpoints - Your server first, then public fallbacks
+          const RPC_ENDPOINTS = [
+            'http://45.94.81.202:8899',      // Your validator server - RPC API
+            'https://rpc.mainnet.x1.xyz',    // Public RPC 1
+            'https://nexus.fortiblox.com/rpc', // Public RPC 2
+            'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38', // Public RPC 3
+            'https://rpc.x1galaxy.io/'       // Public RPC 4
+          ];
+
+          let data = null;
+
+          // Try each RPC endpoint until one works
+          for (const endpoint of RPC_ENDPOINTS) {
+            try {
+              console.log(`  → Trying: ${endpoint}`);
+              
+              const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  jsonrpc: '2.0',
+                  id: 1,
+                  method: 'getTokenAccountsByOwner',
+                  params: [
+                    wallet.address,
+                    { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' },
+                    { encoding: 'jsonParsed' }
+                  ]
+                })
+              });
+
+              data = await response.json();
+              
+              if (data.result) {
+                console.log(`✓ Connected to: ${endpoint}`);
+                break;
+              }
+            } catch (err) {
+              console.log(`  ✗ Failed: ${err.message}`);
+              continue;
             }
-          } catch (e) {
-            // Stake accounts may not exist
           }
-          
-          // Get recent transactions
-          let recentTxs = [];
-          try {
-            const sigs = await X1Rpc.getSignaturesForAddress(wallet.address, { limit: 10 });
-            recentTxs = sigs || [];
-          } catch (e) {
-            // May fail for new wallets
+
+          if (data?.result?.value) {
+            const tokenAccounts = data.result.value
+              .map(account => {
+                const info = account.account.data.parsed.info;
+                return {
+                  mint: info.mint,
+                  amount: Number(info.tokenAmount.uiAmount),
+                  decimals: info.tokenAmount.decimals
+                };
+              })
+              .filter(t => t.amount > 0);
+
+            console.log(`✓ Found ${tokenAccounts.length} tokens in wallet`);
+            
+            // Enrich with metadata from X1Api
+            const enrichedTokens = tokenAccounts.map(holding => {
+              const metadata = tokenMetadata.get(holding.mint);
+              
+              if (metadata) {
+                const currentValue = holding.amount * metadata.price;
+                return {
+                  ...holding,
+                  name: metadata.name,
+                  symbol: metadata.symbol,
+                  logo: metadata.logo,
+                  currentPrice: metadata.price,
+                  currentValue,
+                  priceChange24h: metadata.priceChange24h,
+                  verified: metadata.verified
+                };
+              } else {
+                return {
+                  ...holding,
+                  name: holding.mint.slice(0, 8) + '...' + holding.mint.slice(-8),
+                  symbol: 'UNKNOWN',
+                  logo: null,
+                  currentPrice: 0,
+                  currentValue: 0,
+                  priceChange24h: '0.00',
+                  verified: false
+                };
+              }
+            });
+
+            return {
+              address: wallet.address,
+              label: wallet.label,
+              tokens: enrichedTokens,
+              totalValue: enrichedTokens.reduce((sum, t) => sum + t.currentValue, 0)
+            };
+          } else {
+            return {
+              address: wallet.address,
+              label: wallet.label,
+              tokens: [],
+              totalValue: 0,
+              error: 'Could not fetch tokens'
+            };
           }
-          
+        } catch (err) {
+          console.error('Error fetching portfolio:', err);
           return {
             address: wallet.address,
             label: wallet.label,
-            balance,
-            stakedAmount,
-            totalBalance: balance + stakedAmount,
-            recentTxs: recentTxs.length
-          };
-        } catch (e) {
-          return {
-            address: wallet.address,
-            label: wallet.label,
-            balance: 0,
-            stakedAmount: 0,
-            totalBalance: 0,
-            error: e.message
+            tokens: [],
+            totalValue: 0,
+            error: err.message
           };
         }
       });
-      
+
       const results = await Promise.all(balancePromises);
       
-      // Update wallet balances
-      const newBalances = {};
-      results.forEach(r => {
-        newBalances[r.address] = r;
-      });
-      setWalletBalances(newBalances);
+      // Filter out errors, keep successful results
+      const validResults = results.filter(r => !r.error && r.tokens.length > 0);
       
-      // Calculate totals
-      const totalBalance = results.reduce((sum, r) => sum + r.totalBalance, 0);
-      const totalStaked = results.reduce((sum, r) => sum + r.stakedAmount, 0);
-      const totalAvailable = results.reduce((sum, r) => sum + r.balance, 0);
-      
-      // Estimate rewards (~8% APY)
-      const dailyReward = (totalStaked * 0.08) / 365;
-      const monthlyReward = dailyReward * 30;
-      
-      // Build historical chart (simulated based on current balance)
-      const history = [];
-      let historicalValue = totalBalance * 0.95;
-      for (let i = 30; i >= 0; i--) {
-        historicalValue += dailyReward + (Math.random() - 0.3) * (totalBalance * 0.001);
-        history.push({
-          day: i === 0 ? 'Today' : `${i}d`,
-          value: Math.max(0, Math.round(historicalValue * 100) / 100)
+      if (validResults.length > 0) {
+        setPortfolioData({
+          wallets: validResults,
+          totalPortfolioValue: validResults.reduce((sum, w) => sum + w.totalValue, 0)
         });
+      } else {
+        setError('Could not fetch token data from any RPC endpoint');
+        setPortfolioData(null);
       }
-      
-      // Get current epoch for rewards estimation
-      const epochInfo = await X1Rpc.getEpochInfo();
-      
-      setPortfolioData({
-        totalBalance,
-        stakedAmount: totalStaked,
-        availableBalance: totalAvailable,
-        dailyReward,
-        monthlyReward,
-        totalRewardsEarned: monthlyReward * 3, // Estimate
-        change24h: dailyReward > 0 ? (dailyReward / totalBalance) * 100 : 0,
-        history,
-        epoch: epochInfo.epoch,
-        walletCount: wallets.length
-      });
-      
-    } catch (err) {
-      console.error('Portfolio fetch error:', err);
-      setError(err.message);
+    } catch (error) {
+      console.error('Portfolio fetch error:', error);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
   };
 
+  // Auto-fetch when wallets change
   useEffect(() => {
-    fetchPortfolio();
-  }, [wallets.length]);
-
-  const formatNumber = (num) => {
-    if (hideBalances) return '••••••';
-    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
-    if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
-    return num?.toFixed(4) || '0';
-  };
-
-  const pieData = portfolioData ? [
-    { name: 'Staked', value: portfolioData.stakedAmount, color: '#06b6d4' },
-    { name: 'Available', value: portfolioData.availableBalance, color: '#10b981' }
-  ].filter(d => d.value > 0) : [];
+    if (wallets.length > 0) {
+      fetchPortfolio();
+    }
+  }, [wallets]);
 
   return (
-    <div className="min-h-screen bg-[#0a0f1a] text-white">
-      <header className="border-b border-white/10">
-        <div className="max-w-[1400px] mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
-                <span className="font-bold text-xl"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
-              </Link>
-              <span className="text-gray-400">|</span>
-              <span className="text-white text-xl font-light">Portfolio Tracker</span>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0">Live RPC</Badge>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" onClick={() => setHideBalances(!hideBalances)}>
-                {hideBalances ? <EyeOff className="w-5 h-5 text-gray-400" /> : <Eye className="w-5 h-5 text-gray-400" />}
+    <div className="min-h-screen bg-[#1d2d3a] text-white">
+      {/* Header */}
+      <header className="bg-[#1d2d3a] border-b border-white/5">
+        <div className="max-w-6xl mx-auto px-4 py-4">
+          <div className="flex items-center gap-3">
+            <Link to={createPageUrl('Dashboard')}>
+              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                <ChevronLeft className="w-4 h-4" />
               </Button>
-              <Button variant="outline" size="sm" onClick={fetchPortfolio} disabled={loading} className="border-white/20">
-                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-            </div>
+            </Link>
+            <Wallet className="w-6 h-6 text-cyan-400" />
+            <h1 className="text-2xl font-bold">Portfolio Tracker</h1>
           </div>
         </div>
       </header>
 
-      <main className="max-w-[1400px] mx-auto px-4 py-6">
-        {/* Error Banner */}
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-6 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-red-400" />
-            <span className="text-red-400 text-sm">{error}</span>
-          </div>
-        )}
-
-        {/* Add Wallet */}
-        <div className="bg-[#0d1525] border border-white/10 rounded-lg p-4 mb-6">
-          <h3 className="text-white font-medium mb-3">Track Wallets</h3>
+      <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+        {/* Add Wallet Section */}
+        <div className="bg-[#24384a] rounded-xl p-6">
+          <h2 className="text-lg font-bold mb-4">Add Wallet</h2>
           <div className="flex gap-2">
-            <Input 
-              placeholder="Enter X1 wallet address (e.g., 7Vhw...)"
+            <Input
+              placeholder="Enter wallet address"
               value={newWallet}
               onChange={(e) => setNewWallet(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addWallet()}
-              className="bg-[#1a2436] border-white/10 text-white font-mono"
+              onKeyPress={(e) => e.key === 'Enter' && addWallet()}
+              className="bg-[#1d2d3a] border-0 text-white placeholder:text-gray-500"
             />
-            <Button onClick={addWallet} className="bg-cyan-500 hover:bg-cyan-600">
-              <Plus className="w-4 h-4 mr-2" /> Add
+            <Button 
+              onClick={addWallet}
+              className="bg-cyan-500 hover:bg-cyan-600"
+            >
+              Add
             </Button>
           </div>
-          
-          {wallets.length > 0 && (
-            <div className="mt-4 space-y-2">
-              {wallets.map((w) => {
-                const data = walletBalances[w.address];
-                return (
-                  <div key={w.address} className="flex items-center justify-between bg-[#1a2436] rounded-lg px-3 py-2">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <Wallet className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                      <span className="text-gray-400 font-mono text-sm truncate">{w.address}</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      {data && !data.error && (
-                        <span className="text-white font-mono text-sm">
-                          {hideBalances ? '••••' : formatNumber(data.totalBalance)} XNT
-                        </span>
-                      )}
-                      {data?.error && (
-                        <span className="text-red-400 text-xs">Error</span>
-                      )}
-                      <Button variant="ghost" size="icon" onClick={() => removeWallet(w.address)}>
-                        <Trash2 className="w-4 h-4 text-red-400" />
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
+          {error && (
+            <div className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-sm">
+              {error}
             </div>
           )}
         </div>
 
-        {wallets.length === 0 ? (
-          <div className="text-center py-20">
-            <Wallet className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <h2 className="text-xl text-gray-400 mb-2">No wallets tracked</h2>
-            <p className="text-gray-500">Add a wallet address above to start tracking your portfolio</p>
-          </div>
-        ) : loading && !portfolioData ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
-          </div>
-        ) : portfolioData && (
-          <>
-            {/* Portfolio Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="bg-[#0d1525] border border-white/10 rounded-lg p-4">
-                <p className="text-gray-400 text-sm mb-1">Total Balance</p>
-                <p className="text-3xl font-bold text-white">{formatNumber(portfolioData.totalBalance)} XNT</p>
-                <div className={`flex items-center gap-1 mt-1 ${portfolioData.change24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {portfolioData.change24h >= 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
-                  <span className="text-sm">+{portfolioData.change24h.toFixed(4)}% (24h est.)</span>
-                </div>
-              </div>
-              <div className="bg-[#0d1525] border border-white/10 rounded-lg p-4">
-                <p className="text-gray-400 text-sm mb-1">Staked Amount</p>
-                <p className="text-3xl font-bold text-cyan-400">{formatNumber(portfolioData.stakedAmount)} XNT</p>
-                <p className="text-gray-500 text-sm mt-1">~8% APY estimated</p>
-              </div>
-              <div className="bg-[#0d1525] border border-white/10 rounded-lg p-4">
-                <p className="text-gray-400 text-sm mb-1">Est. Daily Rewards</p>
-                <p className="text-3xl font-bold text-emerald-400">+{formatNumber(portfolioData.dailyReward)} XNT</p>
-                <p className="text-gray-500 text-sm mt-1">≈ ${hideBalances ? '••••' : (portfolioData.dailyReward * 1).toFixed(4)}</p>
-              </div>
-              <div className="bg-[#0d1525] border border-white/10 rounded-lg p-4">
-                <p className="text-gray-400 text-sm mb-1">Available Balance</p>
-                <p className="text-3xl font-bold text-white">{formatNumber(portfolioData.availableBalance)} XNT</p>
-                <p className="text-gray-500 text-sm mt-1">{portfolioData.walletCount} wallet(s) tracked</p>
+        {/* Wallets List */}
+        {wallets.length > 0 && (
+          <div className="bg-[#24384a] rounded-xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold">Wallets ({wallets.length})</h2>
+              <div className="flex gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setHideBalances(!hideBalances)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  {hideBalances ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={fetchPortfolio}
+                  disabled={loading}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                </Button>
               </div>
             </div>
 
-            {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-              <div className="lg:col-span-2 bg-[#0d1525] border border-white/10 rounded-lg p-4">
-                <h3 className="text-white font-medium mb-4">Portfolio Value (30 days estimate)</h3>
-                <div className="h-[250px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={portfolioData.history}>
-                      <defs>
-                        <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} domain={['auto', 'auto']} />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#0d1525', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
-                        formatter={(value) => [`${value.toFixed(4)} XNT`, 'Balance']}
-                      />
-                      <Area type="monotone" dataKey="value" stroke="#06b6d4" strokeWidth={2} fill="url(#colorValue)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
+            {loading && (
+              <div className="flex items-center justify-center p-8">
+                <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mr-2" />
+                <span className="text-gray-400">Loading portfolio data...</span>
               </div>
-              <div className="bg-[#0d1525] border border-white/10 rounded-lg p-4">
-                <h3 className="text-white font-medium mb-4">Allocation</h3>
-                {pieData.length > 0 ? (
-                  <>
-                    <div className="h-[180px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <RechartsPie>
-                          <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value">
-                            {pieData.map((entry, index) => (
-                              <Cell key={index} fill={entry.color} />
-                            ))}
-                          </Pie>
-                          <Tooltip 
-                            contentStyle={{ backgroundColor: '#0d1525', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
-                            formatter={(value) => [`${value.toFixed(4)} XNT`, '']}
-                          />
-                        </RechartsPie>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="flex justify-center gap-6 mt-2">
-                      {pieData.map((item) => (
-                        <div key={item.name} className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                          <span className="text-gray-400 text-sm">{item.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <div className="h-[200px] flex items-center justify-center text-gray-500">
-                    No allocation data
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
 
-            {/* Wallet Details */}
-            <div className="bg-[#0d1525] border border-white/10 rounded-lg p-4">
-              <h3 className="text-white font-medium mb-4">Wallet Breakdown</h3>
-              <div className="space-y-3">
-                {Object.values(walletBalances).map((data) => (
-                  <div key={data.address} className="flex items-center justify-between bg-[#1a2436] rounded-lg p-3">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <Wallet className="w-5 h-5 text-cyan-400 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-white font-mono text-sm truncate">{data.address}</p>
-                        <p className="text-gray-500 text-xs">{data.recentTxs || 0} recent transactions</p>
+            {!loading && portfolioData && (
+              <div className="space-y-4">
+                {portfolioData.wallets.map((wallet) => (
+                  <div key={wallet.address} className="bg-[#1d2d3a] rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="font-bold">{wallet.label}</h3>
+                        <p className="text-gray-400 text-sm">{wallet.address.slice(0, 8)}...{wallet.address.slice(-8)}</p>
                       </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-cyan-400">${wallet.totalValue.toFixed(2)}</p>
+                        <p className="text-gray-400 text-sm">{wallet.tokens.length} tokens</p>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => removeWallet(wallet.address)}
+                        className="text-red-400 hover:bg-red-500/10"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
-                    <div className="text-right flex-shrink-0 ml-4">
-                      <p className="text-white font-mono">{hideBalances ? '••••••' : formatNumber(data.totalBalance)} XNT</p>
-                      {data.stakedAmount > 0 && (
-                        <p className="text-cyan-400 text-xs">{hideBalances ? '••••' : formatNumber(data.stakedAmount)} staked</p>
-                      )}
-                    </div>
+
+                    {/* Tokens Table */}
+                    {wallet.tokens.length > 0 && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-white/10">
+                              <th className="text-left py-2 px-2 text-gray-400">Token</th>
+                              <th className="text-right py-2 px-2 text-gray-400">Balance</th>
+                              <th className="text-right py-2 px-2 text-gray-400">Price</th>
+                              <th className="text-right py-2 px-2 text-gray-400">Value</th>
+                              <th className="text-right py-2 px-2 text-gray-400">24h Change</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {wallet.tokens.map((token) => (
+                              <tr key={token.mint} className="border-b border-white/5 hover:bg-white/[0.02]">
+                                <td className="py-2 px-2">
+                                  <div className="flex items-center gap-2">
+                                    {token.logo && <img src={token.logo} alt={token.symbol} className="w-6 h-6 rounded-full" />}
+                                    <div>
+                                      <p className="font-semibold">{token.symbol}</p>
+                                      <p className="text-gray-400 text-xs">{token.name}</p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="text-right py-2 px-2">{token.amount.toFixed(4)}</td>
+                                <td className="text-right py-2 px-2">${token.currentPrice.toFixed(4)}</td>
+                                <td className="text-right py-2 px-2">${token.currentValue.toFixed(2)}</td>
+                                <td className={`text-right py-2 px-2 font-semibold ${parseFloat(token.priceChange24h) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  {parseFloat(token.priceChange24h) >= 0 ? '↑' : '↓'} {token.priceChange24h}%
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 ))}
-              </div>
-            </div>
 
-            {/* Info */}
-            <div className="mt-6 bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-              <p className="text-blue-400 text-sm">
-                💡 Data fetched directly from X1 RPC. Rewards are estimated based on ~8% APY. 
-                Historical chart is estimated based on current balance and staking rewards.
-                Current Epoch: {portfolioData.epoch}
-              </p>
-            </div>
-          </>
+                {/* Portfolio Summary */}
+                <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-4 mt-6">
+                  <p className="text-gray-400 mb-1">Total Portfolio Value</p>
+                  <p className="text-3xl font-bold text-cyan-400">${portfolioData.totalPortfolioValue.toFixed(2)}</p>
+                </div>
+              </div>
+            )}
+
+            {!loading && wallets.length > 0 && !portfolioData && (
+              <div className="text-center py-8 text-gray-400">
+                <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>Could not load portfolio data. Check RPC connection.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {wallets.length === 0 && (
+          <div className="text-center py-12 text-gray-400">
+            <Wallet className="w-16 h-16 mx-auto mb-4 opacity-30" />
+            <p>No wallets added yet. Add a wallet to get started!</p>
+          </div>
         )}
       </main>
     </div>
