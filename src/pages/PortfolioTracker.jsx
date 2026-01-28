@@ -10,6 +10,72 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import X1Api from '../components/x1/X1ApiClient';
 
+// Fetch token metadata from Metaplex on-chain
+const fetchMetaplexMetadata = async (mint) => {
+  try {
+    const METADATA_PROGRAM_ID = 'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s';
+    const MetadataAccount = await PublicKey.findProgramAddress(
+      [Buffer.from('metadata'), new PublicKey(METADATA_PROGRAM_ID).toBuffer(), new PublicKey(mint).toBuffer()],
+      new PublicKey(METADATA_PROGRAM_ID)
+    );
+    
+    const endpoint = 'https://rpc.mainnet.x1.xyz';
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'getAccountInfo',
+        params: [MetadataAccount[0].toBase58(), { encoding: 'jsonParsed' }]
+      })
+    });
+    
+    const data = await response.json();
+    if (data.result?.value?.data?.parsed?.info) {
+      return data.result.value.data.parsed.info;
+    }
+  } catch (err) {
+    console.log('Could not fetch Metaplex metadata for:', mint);
+  }
+  return null;
+};
+
+// Fallback: Use Solscan API (works without needing Metaplex parsing)
+const fetchTokenMetadataFromSolscan = async (mint) => {
+  try {
+    const response = await fetch(`https://api.solscan.io/token/meta?tokenAddress=${mint}`);
+    const data = await response.json();
+    if (data.success) {
+      return {
+        name: data.name,
+        symbol: data.symbol,
+        logo: data.icon,
+        decimals: data.decimals
+      };
+    }
+  } catch (err) {
+    console.log('Solscan API failed for:', mint);
+  }
+  return null;
+};
+
+// Try multiple sources to get token metadata
+const getTokenMetadata = async (mint) => {
+  // Try Solscan first (easiest)
+  const solscanData = await fetchTokenMetadataFromSolscan(mint);
+  if (solscanData) {
+    console.log(`✓ Got metadata from Solscan: ${mint.slice(0,8)}`);
+    return solscanData;
+  }
+  
+  // Could try Metaplex here if needed
+  // const metaplexData = await fetchMetaplexMetadata(mint);
+  // if (metaplexData) return metaplexData;
+  
+  return null;
+};
+
 export default function PortfolioTracker() {
   const [wallets, setWallets] = useState([]);
   const [newWallet, setNewWallet] = useState('');
@@ -18,6 +84,7 @@ export default function PortfolioTracker() {
   const [portfolioData, setPortfolioData] = useState(null);
   const [hideBalances, setHideBalances] = useState(false);
   const [allTokens, setAllTokens] = useState([]);
+  const [metadataCache, setMetadataCache] = useState({}); // Cache for on-chain metadata
 
   // Load wallets from localStorage
   useEffect(() => {
@@ -28,7 +95,7 @@ export default function PortfolioTracker() {
     }
   }, []);
 
-  // Load all tokens using EXACT TokenExplorer approach
+  // Load all tokens from database
   useEffect(() => {
     const loadAllTokens = async () => {
       try {
@@ -180,57 +247,79 @@ export default function PortfolioTracker() {
           console.log(`✓ Found ${walletTokens.length} tokens in wallet`);
           console.log(`Matching against ${allTokens.length} enriched tokens`);
           
-          // Match with enriched tokens
-          const enrichedWalletTokens = walletTokens.map((walletToken, idx) => {
-            let tokenData = allTokens.find(t => t.mint === walletToken.mint);
-            
-            if (!tokenData) {
-              tokenData = allTokens.find(t => 
-                (t.mint || '').toLowerCase() === (walletToken.mint || '').toLowerCase()
-              );
-            }
-            
-            if (tokenData) {
-              console.log(`✓ Token ${idx+1}: ${tokenData.symbol} (${tokenData.name}) - $${tokenData.price}`);
-              const currentValue = walletToken.amount * tokenData.priceNum;
+          // Match with enriched tokens + fetch on-chain metadata if needed
+          const enrichedWalletTokens = await Promise.all(
+            walletTokens.map(async (walletToken, idx) => {
+              let tokenData = allTokens.find(t => t.mint === walletToken.mint);
               
-              return {
-                mint: walletToken.mint,
-                amount: walletToken.amount,
-                decimals: walletToken.decimals,
-                name: tokenData.name,
-                symbol: tokenData.symbol,
-                logo: tokenData.logo,
-                price: tokenData.price,
-                priceNum: tokenData.priceNum,
-                currentPrice: tokenData.priceNum,
-                currentValue: currentValue,
-                priceChange24h: tokenData.priceChange24h,
-                verified: tokenData.verified,
-                marketCap: tokenData.marketCap,
-                tokenType: tokenData.tokenType,
-                website: tokenData.website,
-                twitter: tokenData.twitter,
-                description: tokenData.description
-              };
-            } else {
-              console.log(`✗ Token ${idx+1}: ${walletToken.mint.slice(0, 8)}... not found`);
-              return {
-                mint: walletToken.mint,
-                amount: walletToken.amount,
-                decimals: walletToken.decimals,
-                name: walletToken.mint.slice(0, 8) + '...' + walletToken.mint.slice(-8),
-                symbol: 'UNKNOWN',
-                logo: null,
-                price: '0.0000',
-                priceNum: 0,
-                currentPrice: 0,
-                currentValue: 0,
-                priceChange24h: '0.00',
-                verified: false
-              };
-            }
-          });
+              if (!tokenData) {
+                tokenData = allTokens.find(t => 
+                  (t.mint || '').toLowerCase() === (walletToken.mint || '').toLowerCase()
+                );
+              }
+              
+              // If database has UNKNOWN symbol, try to fetch from on-chain
+              if (tokenData && (tokenData.symbol === 'UNKNOWN' || tokenData.name === 'Unknown Token')) {
+                console.log(`⚠️ Token ${idx+1}: Database has UNKNOWN, checking on-chain...`);
+                
+                // Check cache first
+                if (metadataCache[walletToken.mint]) {
+                  tokenData = { ...tokenData, ...metadataCache[walletToken.mint] };
+                  console.log(`✓ Used cached metadata: ${tokenData.symbol}`);
+                } else {
+                  // Fetch from on-chain
+                  const onChainMetadata = await getTokenMetadata(walletToken.mint);
+                  if (onChainMetadata) {
+                    const newData = { ...tokenData, ...onChainMetadata };
+                    setMetadataCache(prev => ({ ...prev, [walletToken.mint]: onChainMetadata }));
+                    tokenData = newData;
+                    console.log(`✓ Fetched on-chain: ${tokenData.symbol}`);
+                  }
+                }
+              }
+              
+              if (tokenData) {
+                console.log(`✓ Token ${idx+1}: ${tokenData.symbol} (${tokenData.name}) - $${tokenData.price}`);
+                const currentValue = walletToken.amount * tokenData.priceNum;
+                
+                return {
+                  mint: walletToken.mint,
+                  amount: walletToken.amount,
+                  decimals: walletToken.decimals,
+                  name: tokenData.name,
+                  symbol: tokenData.symbol,
+                  logo: tokenData.logo,
+                  price: tokenData.price,
+                  priceNum: tokenData.priceNum,
+                  currentPrice: tokenData.priceNum,
+                  currentValue: currentValue,
+                  priceChange24h: tokenData.priceChange24h,
+                  verified: tokenData.verified,
+                  marketCap: tokenData.marketCap,
+                  tokenType: tokenData.tokenType,
+                  website: tokenData.website,
+                  twitter: tokenData.twitter,
+                  description: tokenData.description
+                };
+              } else {
+                console.log(`✗ Token ${idx+1}: ${walletToken.mint.slice(0, 8)}... not found`);
+                return {
+                  mint: walletToken.mint,
+                  amount: walletToken.amount,
+                  decimals: walletToken.decimals,
+                  name: walletToken.mint.slice(0, 8) + '...' + walletToken.mint.slice(-8),
+                  symbol: 'UNKNOWN',
+                  logo: null,
+                  price: '0.0000',
+                  priceNum: 0,
+                  currentPrice: 0,
+                  currentValue: 0,
+                  priceChange24h: '0.00',
+                  verified: false
+                };
+              }
+            })
+          );
 
           return {
             address: wallet.address,
@@ -344,7 +433,7 @@ export default function PortfolioTracker() {
             {loading && (
               <div className="flex items-center justify-center p-8">
                 <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mr-2" />
-                <span className="text-gray-400">Loading portfolio...</span>
+                <span className="text-gray-400">Loading portfolio (fetching token metadata)...</span>
               </div>
             )}
 
@@ -380,7 +469,7 @@ export default function PortfolioTracker() {
                               <th className="text-right py-2 px-2 text-gray-400">Balance</th>
                               <th className="text-right py-2 px-2 text-gray-400">Price</th>
                               <th className="text-right py-2 px-2 text-gray-400">Value</th>
-                              <th className="text-right py-2 px-2 text-gray-400">24h</th>
+                              <th className="text-right py-2 px-2 text-gray-400">24h Change</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -415,7 +504,7 @@ export default function PortfolioTracker() {
 
                     {wallet.tokens.length === 0 && (
                       <div className="text-center py-4 text-gray-400">
-                        <p>No tokens found</p>
+                        <p>No tokens found in this wallet</p>
                       </div>
                     )}
                   </div>
@@ -437,7 +526,7 @@ export default function PortfolioTracker() {
         {allTokens.length > 0 && wallets.length === 0 && (
           <div className="text-center py-12 text-gray-400">
             <Wallet className="w-16 h-16 mx-auto mb-4 opacity-30" />
-            <p>No wallets added yet. Add one above!</p>
+            <p>No wallets added yet. Add one above to get started!</p>
           </div>
         )}
       </main>
