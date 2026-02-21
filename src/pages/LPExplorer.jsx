@@ -38,7 +38,7 @@ import {
   getLPEventStats,
   formatLPAmount,
   formatEventTime
-} from '@/services/lpApi';
+} from '../components/x1/lpApi';
 
 const LPExplorer = () => {
   const [stats, setStats] = useState(null);
