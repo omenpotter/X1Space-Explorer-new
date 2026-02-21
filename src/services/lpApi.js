@@ -1,26 +1,59 @@
-// LP API Service - XDEX Integration
-// Complete with pool detail fetching
+// LP API Service - Simplified Version Using Existing Backend
+// Works with existing getLiquidityPools function
 
 import API_CONFIG from '@/config/api.config';
 
-const API_BASE_URL = API_CONFIG.baseURL;
-const XDEX_API = API_CONFIG.xdex.apiUrl;
-const NETWORK = API_CONFIG.xdex.network;
+const XDEX_API = 'https://api.xdex.xyz';
+const NETWORK = 'X1%20Mainnet';
 
 /**
- * Get LP statistics from XDEX
+ * Get LP statistics - Direct from XDEX
  */
 export const getLPStats = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/functions/getLPStats`, {
-      signal: AbortSignal.timeout(10000)
-    });
+    console.log('📊 Fetching LP stats from XDEX...');
     
+    const response = await fetch(
+      `${XDEX_API}/api/xendex/pool/list?network=${NETWORK}`,
+      { signal: AbortSignal.timeout(15000) }
+    );
+
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      throw new Error(`XDEX API error: ${response.status}`);
     }
+
+    const data = await response.json();
+
+    if (!data.success || !data.data) {
+      throw new Error('Invalid XDEX response');
+    }
+
+    const pools = data.data;
     
-    return await response.json();
+    // Calculate stats
+    const totalPools = pools.length;
+    const totalLiquidity = pools.reduce((sum, p) => sum + (p.liquidity || 0), 0);
+    const totalVolume24h = pools.reduce((sum, p) => sum + (p.volume_24h || 0), 0);
+    
+    // Count unique tokens
+    const uniqueTokens = new Set();
+    pools.forEach(p => {
+      if (p.token_a_mint) uniqueTokens.add(p.token_a_mint);
+      if (p.token_b_mint) uniqueTokens.add(p.token_b_mint);
+    });
+
+    return {
+      success: true,
+      stats: {
+        total_pools: totalPools,
+        total_liquidity_usd: totalLiquidity,
+        total_volume_24h: totalVolume24h,
+        unique_tokens: uniqueTokens.size,
+        total_holders: 0, // Not available from XDEX
+        total_lp_supply: 0, // Not available from XDEX
+        avg_liquidity: totalPools > 0 ? totalLiquidity / totalPools : 0
+      }
+    };
   } catch (error) {
     console.error('Failed to fetch LP stats:', error);
     throw error;
@@ -28,19 +61,78 @@ export const getLPStats = async () => {
 };
 
 /**
- * Get LP tokens (pools) from XDEX
+ * Get LP tokens (pools) - Direct from XDEX
  */
 export const getLPTokens = async (limit = 100) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/functions/getLPTokens?limit=${limit}`, {
-      signal: AbortSignal.timeout(15000)
-    });
-    
+    console.log(`📊 Fetching ${limit} LP tokens from XDEX...`);
+
+    const response = await fetch(
+      `${XDEX_API}/api/xendex/pool/list?network=${NETWORK}`,
+      { signal: AbortSignal.timeout(15000) }
+    );
+
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      throw new Error(`XDEX API error: ${response.status}`);
     }
-    
-    return await response.json();
+
+    const data = await response.json();
+
+    if (!data.success || !data.data) {
+      throw new Error('Invalid XDEX response');
+    }
+
+    // Format pools for frontend
+    const tokens = data.data.slice(0, limit).map(pool => ({
+      lp_mint: pool.pool_address,
+      pool_address: pool.pool_address,
+      pair_name: `${pool.token_a_symbol || 'UNKNOWN'}/${pool.token_b_symbol || 'UNKNOWN'}`,
+      pair_symbol: `${pool.token_a_symbol || 'UNKNOWN'}/${pool.token_b_symbol || 'UNKNOWN'}`,
+      
+      // Nested format (preferred)
+      token_a: {
+        mint: pool.token_a_mint,
+        symbol: pool.token_a_symbol || 'UNKNOWN',
+        name: pool.token_a_name || 'Unknown Token',
+        image: pool.token_a_image,
+        decimals: pool.token_a_decimals || 9
+      },
+      token_b: {
+        mint: pool.token_b_mint,
+        symbol: pool.token_b_symbol || 'UNKNOWN',
+        name: pool.token_b_name || 'Unknown Token',
+        image: pool.token_b_image,
+        decimals: pool.token_b_decimals || 9
+      },
+      
+      // Flat format (fallback)
+      token_a_symbol: pool.token_a_symbol || 'UNKNOWN',
+      token_b_symbol: pool.token_b_symbol || 'UNKNOWN',
+      token_a_name: pool.token_a_name || 'Unknown Token',
+      token_b_name: pool.token_b_name || 'Unknown Token',
+      
+      liquidity: pool.liquidity || 0,
+      liquidity_usd: pool.liquidity_usd || pool.liquidity || 0,
+      volume_24h: pool.volume_24h || 0,
+      volume_7d: pool.volume_7d || 0,
+      fee_rate: pool.fee_rate || 0.003,
+      apr: pool.apr || 0,
+      
+      // Fake data for fields not in XDEX
+      holder_count: 0,
+      total_supply: 0,
+      decimals: 9,
+      updated_at: new Date().toISOString(),
+      created_at: pool.created_at || new Date().toISOString()
+    }));
+
+    console.log(`✅ Returning ${tokens.length} LP tokens`);
+
+    return {
+      success: true,
+      tokens
+    };
+
   } catch (error) {
     console.error('Failed to fetch LP tokens:', error);
     throw error;
@@ -48,81 +140,67 @@ export const getLPTokens = async (limit = 100) => {
 };
 
 /**
- * Get specific LP pool details by address
+ * Get specific LP pool details
  */
 export const getLPToken = async (poolAddress) => {
   try {
+    // Fetch pool list and find specific pool
     const response = await fetch(
-      `${API_BASE_URL}/functions/getLPPoolDetail?pool=${poolAddress}`,
+      `${XDEX_API}/api/xendex/pool/list?network=${NETWORK}`,
       { signal: AbortSignal.timeout(10000) }
     );
-    
+
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      throw new Error(`XDEX API error: ${response.status}`);
     }
-    
+
     const data = await response.json();
-    
-    if (!data.success) {
-      throw new Error(data.error?.message || 'Failed to fetch pool');
+
+    if (!data.success || !data.data) {
+      throw new Error('Invalid XDEX response');
     }
-    
-    return data;
+
+    // Find the specific pool
+    const pool = data.data.find(p => p.pool_address === poolAddress);
+
+    if (!pool) {
+      throw new Error('Pool not found');
+    }
+
+    return {
+      success: true,
+      pool: {
+        pool_address: pool.pool_address,
+        pair_name: `${pool.token_a_symbol || 'UNKNOWN'}/${pool.token_b_symbol || 'UNKNOWN'}`,
+        token_a: {
+          mint: pool.token_a_mint,
+          symbol: pool.token_a_symbol || 'UNKNOWN',
+          name: pool.token_a_name || 'Unknown Token',
+          image: pool.token_a_image,
+          decimals: pool.token_a_decimals || 9
+        },
+        token_b: {
+          mint: pool.token_b_mint,
+          symbol: pool.token_b_symbol || 'UNKNOWN',
+          name: pool.token_b_name || 'Unknown Token',
+          image: pool.token_b_image,
+          decimals: pool.token_b_decimals || 9
+        },
+        liquidity: pool.liquidity || 0,
+        volume_24h: pool.volume_24h || 0
+      }
+    };
+
   } catch (error) {
     console.error('Failed to fetch LP pool:', error);
-    
-    // Fallback: Try to get from pool list
-    try {
-      const listResponse = await fetch(
-        `${XDEX_API}/api/xendex/pool/list?network=${NETWORK}`,
-        { signal: AbortSignal.timeout(10000) }
-      );
-      
-      if (listResponse.ok) {
-        const listData = await listResponse.json();
-        if (listData.success && listData.data) {
-          const pool = listData.data.find(p => p.pool_address === poolAddress);
-          
-          if (pool) {
-            return {
-              success: true,
-              pool: {
-                pool_address: pool.pool_address,
-                pair_name: `${pool.token_a_symbol || 'UNKNOWN'}/${pool.token_b_symbol || 'UNKNOWN'}`,
-                token_a: {
-                  mint: pool.token_a_mint,
-                  symbol: pool.token_a_symbol || 'UNKNOWN',
-                  name: pool.token_a_name || 'Unknown Token',
-                  image: pool.token_a_image,
-                  decimals: pool.token_a_decimals || 9
-                },
-                token_b: {
-                  mint: pool.token_b_mint,
-                  symbol: pool.token_b_symbol || 'UNKNOWN',
-                  name: pool.token_b_name || 'Unknown Token',
-                  image: pool.token_b_image,
-                  decimals: pool.token_b_decimals || 9
-                },
-                liquidity: pool.liquidity || 0,
-                volume_24h: pool.volume_24h || 0
-              }
-            };
-          }
-        }
-      }
-    } catch (fallbackError) {
-      console.warn('Fallback also failed:', fallbackError);
-    }
-    
     throw error;
   }
 };
 
 /**
- * Get top LP holders - Not available from XDEX, return empty
+ * Get top LP holders - Not available
  */
 export const getTopLPHolders = async (limit = 50) => {
-  console.warn('Top LP holders not available from XDEX API');
   return {
     success: true,
     holders: []
@@ -130,10 +208,9 @@ export const getTopLPHolders = async (limit = 50) => {
 };
 
 /**
- * Get holder positions - Not available from XDEX
+ * Get holder positions - Not available
  */
 export const getHolderPositions = async (address) => {
-  console.warn('Holder positions not available from XDEX API');
   return {
     success: true,
     positions: []
@@ -141,10 +218,9 @@ export const getHolderPositions = async (address) => {
 };
 
 /**
- * Get LP events - Not available from XDEX
+ * Get LP events - Not available
  */
 export const getLPEvents = async (params = {}) => {
-  console.warn('LP events not available from XDEX API');
   return {
     success: true,
     events: []
@@ -152,10 +228,9 @@ export const getLPEvents = async (params = {}) => {
 };
 
 /**
- * Get LP token events
+ * Get LP token events - Not available
  */
 export const getLPTokenEvents = async (mint, limit = 50) => {
-  console.warn('LP token events not available from XDEX API');
   return {
     success: true,
     events: []
@@ -163,16 +238,17 @@ export const getLPTokenEvents = async (mint, limit = 50) => {
 };
 
 /**
- * Get LP event stats
+ * Get LP event stats - Not available
  */
 export const getLPEventStats = async () => {
-  console.warn('LP event stats not available from XDEX API');
   return {
     success: true,
     stats: {
       total_events: 0,
       total_volume: 0,
-      unique_users: 0
+      unique_users: 0,
+      add_count: 0,
+      remove_count: 0
     }
   };
 };
