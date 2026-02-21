@@ -1,5 +1,5 @@
 // functions/getLPStats.ts
-// Get aggregated statistics from XDEX pools
+// Fixed version with robust error handling
 
 const XDEX_API = 'https://api.xdex.xyz';
 const NETWORK = 'X1%20Mainnet';
@@ -27,34 +27,53 @@ Deno.serve(async (req) => {
     );
 
     if (!res.ok) {
-      throw new Error(`XDEX API error: ${res.status}`);
+      throw new Error(`XDEX failed: ${res.status}`);
     }
 
-    const pools = await res.json();
+    let pools = await res.json();
+    
+    console.log('Raw response type:', typeof pools);
+    console.log('Is array:', Array.isArray(pools));
 
+    // Handle both plain array and {success: true, data: [...]}
     if (!Array.isArray(pools)) {
-      throw new Error('Invalid response format');
+      if (pools.success && Array.isArray(pools.data)) {
+        pools = pools.data;
+      } else {
+        console.error('Unexpected format:', JSON.stringify(pools).slice(0, 200));
+        throw new Error('Unexpected format from XDEX');
+      }
     }
 
     console.log(`✓ Received ${pools.length} pools`);
 
     // Calculate stats
     const total_pools = pools.length;
-    
     let total_lp_supply = 0n;
     let total_holders = 0;
-    
-    pools.forEach(pool => {
+
+    pools.forEach((pool, index) => {
       const info = pool.pool_info || {};
-      const supply = info.lpSupply || '0';
-      
-      // Parse hex supply
-      try {
-        total_lp_supply += BigInt(supply.startsWith('0x') ? supply : '0x' + supply);
-      } catch (e) {
-        // Skip invalid supply values
+      let supply = info.lpSupply;
+
+      // Handle BigInt-like object
+      if (supply && typeof supply === 'object' && supply.words) {
+        const hexStr = '0x' + supply.words.map((w: number) => w.toString(16).padStart(8, '0')).join('');
+        try {
+          total_lp_supply += BigInt(hexStr);
+        } catch (e) {
+          console.warn(`Failed to parse supply for pool ${index}:`, e);
+        }
+      } else if (supply && typeof supply === 'string') {
+        // Handle hex string
+        try {
+          const hexStr = supply.startsWith('0x') ? supply : '0x' + supply;
+          total_lp_supply += BigInt(hexStr);
+        } catch (e) {
+          console.warn(`Failed to parse supply for pool ${index}:`, e);
+        }
       }
-      
+
       total_holders += pool.lp_token_holder_count || 0;
     });
 
@@ -77,9 +96,11 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('❌ Stats error:', err);
+    console.error('Error stack:', err.stack);
+    
     return new Response(JSON.stringify({
       success: false,
-      error: err.message,
+      error: err.message || 'Internal error',
       stats: {
         total_pools: 0,
         total_holders: 0,
