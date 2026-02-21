@@ -16,6 +16,8 @@ export const API_CONFIG = {
   endpoints: {
     tokens: '/functions/getTokens',
     tokenDetail: '/functions/getTokenByMint',
+    tokenPrice: '/functions/getTokenPrice',        // NEW
+    pools: '/functions/getLiquidityPools',          // NEW
     search: '/functions/searchTokens',
     validators: '/functions/getValidators',
     networkStats: '/functions/getNetworkStats',
@@ -25,13 +27,20 @@ export const API_CONFIG = {
     detectAnomalies: '/functions/detectAnomalies'
   },
   
+  // XDEX API Configuration (for direct frontend calls if needed)
+  xdex: {
+    apiUrl: 'https://api.xdex.xyz',
+    network: 'X1%20Mainnet',
+    swapUrl: 'https://app.xdex.xyz/swap'
+  },
+  
   // X1 Blockchain RPC
   rpcEndpoint: 'https://xolana.xen.network',
   
   // Cache settings
   cache: {
     enabled: true,
-    ttl: 30000,
+    ttl: 30000, // 30 seconds
   },
   
   // Request settings
@@ -43,7 +52,8 @@ export const API_CONFIG = {
     websocket: false,
     aiSearch: true,
     realTimePrices: true,
-    portfolioTracking: true
+    portfolioTracking: true,
+    xdexIntegration: true  // NEW
   }
 };
 
