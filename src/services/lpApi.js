@@ -1,60 +1,135 @@
-// src/services/lpApi.js
+// LP API Service - XDEX Integration
+// Replaces old database backend with XDEX API
+
+import API_CONFIG from '@/config/api.config';
+
+const API_BASE_URL = API_CONFIG.baseURL;
+const XDEX_API = API_CONFIG.xdex.apiUrl;
+const NETWORK = API_CONFIG.xdex.network;
+
+/**
+ * Get LP statistics from XDEX
+ */
 export const getLPStats = async () => {
-  const response = await fetch(`${LP_API_BASE}/stats`);
-  if (!response.ok) throw new Error('Failed to fetch LP stats');
-  return response.json();
+  try {
+    const response = await fetch(`${API_BASE_URL}/functions/getLPStats`, {
+      signal: AbortSignal.timeout(10000)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to fetch LP stats:', error);
+    throw error;
+  }
 };
 
+/**
+ * Get LP tokens (pools) from XDEX
+ */
 export const getLPTokens = async (limit = 100) => {
-  const response = await fetch(`${LP_API_BASE}/tokens?limit=${limit}`);
-  if (!response.ok) throw new Error('Failed to fetch LP tokens');
-  return response.json();
+  try {
+    const response = await fetch(`${API_BASE_URL}/functions/getLPTokens?limit=${limit}`, {
+      signal: AbortSignal.timeout(10000)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to fetch LP tokens:', error);
+    throw error;
+  }
 };
 
+/**
+ * Get specific LP token details
+ */
 export const getLPToken = async (mint) => {
-  const response = await fetch(`${LP_API_BASE}/token/${mint}`);
-  if (!response.ok) throw new Error('Failed to fetch LP token details');
-  return response.json();
+  try {
+    const response = await fetch(
+      `${XDEX_API}/api/xendex/pool/${mint}?network=${NETWORK}`,
+      { signal: AbortSignal.timeout(10000) }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to fetch LP token:', error);
+    throw error;
+  }
 };
 
+/**
+ * Get top LP holders - Not available from XDEX, return empty
+ */
 export const getTopLPHolders = async (limit = 50) => {
-  const response = await fetch(`${LP_API_BASE}/top-holders?limit=${limit}`);
-  if (!response.ok) throw new Error('Failed to fetch top LP holders');
-  return response.json();
+  console.warn('Top LP holders not available from XDEX API');
+  return {
+    success: true,
+    holders: []
+  };
 };
 
+/**
+ * Get holder positions - Not available from XDEX
+ */
 export const getHolderPositions = async (address) => {
-  const response = await fetch(`${LP_API_BASE}/holder/${address}`);
-  if (!response.ok) throw new Error('Failed to fetch holder positions');
-  return response.json();
+  console.warn('Holder positions not available from XDEX API');
+  return {
+    success: true,
+    positions: []
+  };
 };
 
+/**
+ * Get LP events - Not available from XDEX
+ */
 export const getLPEvents = async (params = {}) => {
-  const queryParams = new URLSearchParams();
-  
-  if (params.limit) queryParams.append('limit', params.limit);
-  if (params.lp_mint) queryParams.append('lp_mint', params.lp_mint);
-  if (params.user) queryParams.append('user', params.user);
-  if (params.type) queryParams.append('type', params.type);
-  
-  const url = `${LP_API_BASE}/events${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error('Failed to fetch LP events');
-  return response.json();
+  console.warn('LP events not available from XDEX API');
+  return {
+    success: true,
+    events: []
+  };
 };
 
+/**
+ * Get LP token events
+ */
 export const getLPTokenEvents = async (mint, limit = 50) => {
-  const response = await fetch(`${LP_API_BASE}/events/${mint}?limit=${limit}`);
-  if (!response.ok) throw new Error('Failed to fetch LP token events');
-  return response.json();
+  console.warn('LP token events not available from XDEX API');
+  return {
+    success: true,
+    events: []
+  };
 };
 
+/**
+ * Get LP event stats
+ */
 export const getLPEventStats = async () => {
-  const response = await fetch(`${LP_API_BASE}/events/stats/summary`);
-  if (!response.ok) throw new Error('Failed to fetch LP event stats');
-  return response.json();
+  console.warn('LP event stats not available from XDEX API');
+  return {
+    success: true,
+    stats: {
+      total_events: 0,
+      total_volume: 0,
+      unique_users: 0
+    }
+  };
 };
 
+/**
+ * Format LP amount with decimals
+ */
 export const formatLPAmount = (amount, decimals = 9) => {
   const value = Number(amount) / Math.pow(10, decimals);
   if (value >= 1000000) return `${(value / 1000000).toFixed(2)}M`;
@@ -62,6 +137,9 @@ export const formatLPAmount = (amount, decimals = 9) => {
   return value.toFixed(2);
 };
 
+/**
+ * Format event timestamp
+ */
 export const formatEventTime = (timestamp) => {
   const date = new Date(timestamp * 1000);
   const now = new Date();
