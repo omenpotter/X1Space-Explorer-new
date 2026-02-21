@@ -1,27 +1,17 @@
-// X1 Blockchain Explorer API Client - Base44 Version (Real Data Only)
+// X1 Blockchain Explorer API Client - Base44 Version
+import API_CONFIG from '@/config/api.config';
 
-const API_CONFIG = {
-  baseURL: 'http://localhost:3001',
-  wsURL: 'ws://localhost:3001',
-  timeout: 15000,
-  cache: {
-    enabled: true,
-    ttl: 30000
-  },
-  endpoints: {
-    tokens: '/api/tokens',
-    tokenDetail: '/api/tokens/detail',
-    search: '/api/tokens/search',
-    pools: '/api/pools',
-    health: '/health'
-  },
-  features: {
-    websocket: false
-  }
-};
+// Use config, but override for Base44 production
+const isBase44 = window.location.hostname.includes('base44.app');
+const API_BASE_URL = isBase44 ? window.location.origin : API_CONFIG.baseURL;
+const WS_URL = isBase44 ? `wss://${window.location.host}` : API_CONFIG.wsURL;
 
-const API_BASE_URL = API_CONFIG.baseURL;
-const WS_URL = API_CONFIG.wsURL;
+console.log('🔧 X1ApiClient Config:', {
+  hostname: window.location.hostname,
+  isBase44,
+  API_BASE_URL,
+  configBaseURL: API_CONFIG.baseURL
+});
 
 // Cache for API responses
 const cache = new Map();
@@ -62,6 +52,8 @@ export async function checkHealth() {
 
 // Generic API request handler with retry
 async function apiRequest(url, options = {}, retries = 3) {
+  console.log(`📡 API Request: ${url}`);
+  
   for (let i = 0; i < retries; i++) {
     try {
       const controller = new AbortController();
@@ -71,6 +63,7 @@ async function apiRequest(url, options = {}, retries = 3) {
       if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       return await response.json();
     } catch (error) {
+      console.error(`Request failed (attempt ${i + 1}/${retries}):`, error.message);
       if (i === retries - 1) throw error;
       await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
     }
@@ -82,11 +75,17 @@ export async function listTokens(params = {}) {
   const { limit = 100, offset = 0, verified = true } = params;
   const cacheKey = getCacheKey('tokens', params);
   const cached = getCache(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    console.log('📦 Using cached tokens');
+    return cached;
+  }
 
   try {
     const url = `${API_BASE_URL}${API_CONFIG.endpoints.tokens}?limit=${limit}&offset=${offset}&verified_only=${verified}`;
     const data = await apiRequest(url);
+    
+    console.log('✅ Tokens received:', data.tokens?.length || 0);
+    
     const result = {
       success: data.success !== false,
       data: {
@@ -99,6 +98,7 @@ export async function listTokens(params = {}) {
     setCache(cacheKey, result);
     return result;
   } catch (error) {
+    console.error('❌ Failed to fetch tokens:', error);
     return { success: false, error: error.message, data: { tokens: [], total: 0, verified: 0, discovered: 0 } };
   }
 }
