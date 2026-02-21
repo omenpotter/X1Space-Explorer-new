@@ -1,6 +1,4 @@
 // src/services/lpApi.js
-const LP_API_BASE = import.meta.env.VITE_LP_API_URL || 'http://localhost:3001/api/lp';
-
 export const getLPStats = async () => {
   const response = await fetch(`${LP_API_BASE}/stats`);
   if (!response.ok) throw new Error('Failed to fetch LP stats');
