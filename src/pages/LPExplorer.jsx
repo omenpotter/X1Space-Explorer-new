@@ -1,9 +1,8 @@
 // src/pages/LPExplorer.jsx
-// Complete LP Explorer with correct XDEX data format
+// LP Explorer with debug logging
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -57,7 +56,7 @@ const LPExplorer = () => {
       setLoading(true);
       setError(null);
       
-      console.log('🔄 Loading LP data...');
+      console.log('🔄 Starting LP data load...');
       
       const [statsData, tokensData, holdersData, eventsData, eventStatsData] = await Promise.all([
         getLPStats(),
@@ -67,13 +66,17 @@ const LPExplorer = () => {
         getLPEventStats()
       ]);
 
+      console.log('📊 Stats data:', statsData);
+      console.log('📊 Tokens data:', tokensData);
+      console.log('📊 First 3 tokens:', tokensData.tokens?.slice(0, 3));
+
       setStats(statsData.stats);
       setLpTokens(tokensData.tokens || []);
       setTopHolders(holdersData.holders || []);
       setRecentEvents(eventsData.events || []);
       setEventStats(eventStatsData.stats);
       
-      console.log(`✅ Loaded ${tokensData.tokens?.length || 0} pools`);
+      console.log(`✅ State updated - ${tokensData.tokens?.length || 0} pools`);
       
     } catch (error) {
       console.error('❌ Failed to load LP data:', error);
@@ -92,6 +95,8 @@ const LPExplorer = () => {
       token.pair_symbol?.toLowerCase().includes(searchLower)
     );
   });
+
+  console.log('🔍 Filtered tokens:', filteredTokens.length, 'from', lpTokens.length);
 
   if (loading) {
     return (
@@ -126,9 +131,9 @@ const LPExplorer = () => {
                 <div className="space-y-2 text-sm text-gray-500 mb-6">
                   <p>Possible causes:</p>
                   <ul className="list-disc list-inside">
+                    <li>Backend functions not deployed</li>
                     <li>XDEX API is temporarily unavailable</li>
                     <li>Network connection issue</li>
-                    <li>Backend functions not deployed</li>
                   </ul>
                 </div>
                 <Button onClick={loadData} className="bg-cyan-500 hover:bg-cyan-600">
@@ -159,6 +164,9 @@ const LPExplorer = () => {
               <h1 className="text-4xl font-bold text-white">Liquidity Pools</h1>
               <p className="text-gray-400 mt-1">
                 Explore XDEX liquidity pools on X1 Mainnet
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Debug: {lpTokens.length} pools loaded
               </p>
             </div>
           </div>
@@ -256,73 +264,85 @@ const LPExplorer = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTokens.length > 0 ? filteredTokens.map((token, index) => (
-                  <TableRow key={token.lp_mint || index} className="border-white/5 hover:bg-white/5">
-                    <TableCell className="text-gray-400 font-medium">
-                      {index + 1}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">
-                      <div className="flex items-center space-x-3">
-                        {/* Token Logos */}
-                        {(token.token_a_logo || token.token_b_logo) && (
-                          <div className="flex -space-x-2">
-                            {token.token_a_logo && (
-                              <img 
-                                src={token.token_a_logo} 
-                                alt={token.token_a_symbol}
-                                className="w-6 h-6 rounded-full border-2 border-[#1d2d3a] bg-gray-800"
-                                onError={(e) => e.target.style.display = 'none'}
-                              />
-                            )}
-                            {token.token_b_logo && (
-                              <img 
-                                src={token.token_b_logo} 
-                                alt={token.token_b_symbol}
-                                className="w-6 h-6 rounded-full border-2 border-[#1d2d3a] bg-gray-800"
-                                onError={(e) => e.target.style.display = 'none'}
-                              />
-                            )}
+                {filteredTokens.length > 0 ? filteredTokens.map((token, index) => {
+                  // Debug log first token
+                  if (index === 0) {
+                    console.log('🔍 Rendering first token:', token);
+                  }
+                  
+                  return (
+                    <TableRow key={token.lp_mint || index} className="border-white/5 hover:bg-white/5">
+                      <TableCell className="text-gray-400 font-medium">
+                        {index + 1}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        <div className="flex items-center space-x-3">
+                          {/* Token Logos */}
+                          {(token.token_a_logo || token.token_b_logo) && (
+                            <div className="flex -space-x-2">
+                              {token.token_a_logo && (
+                                <img 
+                                  src={token.token_a_logo} 
+                                  alt={token.token_a_symbol}
+                                  className="w-6 h-6 rounded-full border-2 border-[#1d2d3a] bg-gray-800"
+                                  onError={(e) => e.target.style.display = 'none'}
+                                />
+                              )}
+                              {token.token_b_logo && (
+                                <img 
+                                  src={token.token_b_logo} 
+                                  alt={token.token_b_symbol}
+                                  className="w-6 h-6 rounded-full border-2 border-[#1d2d3a] bg-gray-800"
+                                  onError={(e) => e.target.style.display = 'none'}
+                                />
+                              )}
+                            </div>
+                          )}
+                          
+                          {/* Pair Name */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-cyan-400 font-semibold">
+                              {token.token_a_symbol && token.token_b_symbol && 
+                               token.token_a_symbol !== 'UNKNOWN' && token.token_b_symbol !== 'UNKNOWN'
+                                ? `${token.token_a_symbol} / ${token.token_b_symbol}`
+                                : token.pair_symbol || 
+                                  (token.lp_mint ? `${token.lp_mint.slice(0,6)}…${token.lp_mint.slice(-4)}` : '—')}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 hover:bg-white/10"
+                              onClick={() => window.open(`https://explorer.mainnet.x1.xyz/address/${token.lp_mint}`, '_blank')}
+                              title={`View ${token.lp_mint} on X1 Explorer`}
+                            >
+                              <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
+                            </Button>
                           </div>
-                        )}
-                        
-                        {/* Pair Name */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-cyan-400 font-semibold">
-                            {token.token_a_symbol !== 'UNKNOWN' && token.token_b_symbol !== 'UNKNOWN'
-                              ? `${token.token_a_symbol} / ${token.token_b_symbol}`
-                              : token.lp_mint?.slice(0,6) + '…' + token.lp_mint?.slice(-4) || '—'}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 hover:bg-white/10"
-                            onClick={() => window.open(`https://explorer.mainnet.x1.xyz/address/${token.lp_mint}`, '_blank')}
-                            title={`View ${token.lp_mint} on X1 Explorer`}
-                          >
-                            <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
-                          </Button>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Badge variant="outline" className="border-cyan-400/30 text-cyan-400">
-                        {token.holder_count || 0}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-gray-300">
-                      {formatLPAmount(token.total_supply, token.decimals)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-emerald-400">
-                      ${(token.liquidity_usd || 0).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-right text-sm text-gray-500">
-                      {token.updated_at ? new Date(token.updated_at).toLocaleDateString() : '—'}
-                    </TableCell>
-                  </TableRow>
-                )) : (
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant="outline" className="border-cyan-400/30 text-cyan-400">
+                          {token.holder_count || 0}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-gray-300">
+                        {formatLPAmount(token.total_supply, token.decimals)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-emerald-400">
+                        ${(token.liquidity_usd || 0).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-gray-500">
+                        {token.updated_at ? new Date(token.updated_at).toLocaleDateString() : '—'}
+                      </TableCell>
+                    </TableRow>
+                  );
+                }) : (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-gray-500">
                       {searchTerm ? 'No pools found matching your search' : 'No pools available'}
+                      <div className="text-xs mt-2">
+                        Debug: lpTokens.length = {lpTokens.length}, filteredTokens.length = {filteredTokens.length}
+                      </div>
                     </TableCell>
                   </TableRow>
                 )}
