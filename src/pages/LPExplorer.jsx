@@ -1,5 +1,5 @@
 // src/pages/LPExplorer.jsx
-// Clean version - hides 24h Volume if not available from XDEX
+// With sortable columns for Holders, TVL, and Updated
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,7 +26,8 @@ import {
   ExternalLinkIcon,
   ArrowLeftIcon,
   RefreshCwIcon,
-  AlertCircleIcon
+  AlertCircleIcon,
+  ArrowUpDown
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -49,6 +50,7 @@ const LPExplorer = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [sortConfig, setSortConfig] = useState({ key: 'liquidity_usd', direction: 'desc' });
 
   useEffect(() => {
     loadData();
@@ -80,11 +82,58 @@ const LPExplorer = () => {
     }
   };
 
-  const filteredTokens = lpTokens.filter(token =>
-    token.lp_mint.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    token.token_a_symbol?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    token.token_b_symbol?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Sorting function
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // Filter and sort tokens
+  const filteredTokens = lpTokens
+    .filter(token =>
+      token.lp_mint.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      token.token_a_symbol?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      token.token_b_symbol?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      let aValue, bValue;
+
+      switch (sortConfig.key) {
+        case 'holder_count':
+          aValue = a.holder_count || 0;
+          bValue = b.holder_count || 0;
+          break;
+        case 'liquidity_usd':
+          aValue = a.liquidity_usd || 0;
+          bValue = b.liquidity_usd || 0;
+          break;
+        case 'updated_at':
+          aValue = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+          bValue = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+          break;
+        default:
+          return 0;
+      }
+
+      if (sortConfig.direction === 'asc') {
+        return aValue - bValue;
+      } else {
+        return bValue - aValue;
+      }
+    });
+
+  // Sort indicator component
+  const SortIndicator = ({ columnKey }) => {
+    if (sortConfig.key !== columnKey) {
+      return <ArrowUpDown className="h-3 w-3 ml-1 text-gray-500" />;
+    }
+    return sortConfig.direction === 'asc' 
+      ? <ArrowUpIcon className="h-3 w-3 ml-1 text-cyan-400" />
+      : <ArrowDownIcon className="h-3 w-3 ml-1 text-cyan-400" />;
+  };
 
   if (loading) {
     return (
@@ -217,13 +266,13 @@ const LPExplorer = () => {
             </TabsTrigger>
           </TabsList>
 
-          {/* Pools Tab - Without 24h Volume */}
+          {/* Pools Tab - With Sortable Columns */}
           <TabsContent value="pools" className="space-y-4">
             <Card className="bg-[#1d2d3a] border-white/10">
               <CardHeader>
                 <CardTitle className="text-white">Liquidity Pools</CardTitle>
                 <CardDescription className="text-gray-400">
-                  {lpTokens.length} pools sorted by TVL
+                  {lpTokens.length} pools - Click column headers to sort
                 </CardDescription>
                 <div className="flex items-center space-x-2 pt-4">
                   <SearchIcon className="h-4 w-4 text-gray-500" />
@@ -241,9 +290,33 @@ const LPExplorer = () => {
                     <TableRow className="border-white/5 hover:bg-transparent">
                       <TableHead className="text-gray-400 w-16">#</TableHead>
                       <TableHead className="text-gray-400">Token Pair</TableHead>
-                      <TableHead className="text-right text-gray-400">Holders</TableHead>
-                      <TableHead className="text-right text-gray-400">TVL (USD)</TableHead>
-                      <TableHead className="text-right text-gray-400">Updated</TableHead>
+                      <TableHead 
+                        className="text-right text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
+                        onClick={() => handleSort('holder_count')}
+                      >
+                        <div className="flex items-center justify-end">
+                          Holders
+                          <SortIndicator columnKey="holder_count" />
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className="text-right text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
+                        onClick={() => handleSort('liquidity_usd')}
+                      >
+                        <div className="flex items-center justify-end">
+                          TVL (USD)
+                          <SortIndicator columnKey="liquidity_usd" />
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className="text-right text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
+                        onClick={() => handleSort('updated_at')}
+                      >
+                        <div className="flex items-center justify-end">
+                          Updated
+                          <SortIndicator columnKey="updated_at" />
+                        </div>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -334,59 +407,9 @@ const LPExplorer = () => {
                 <CardDescription className="text-gray-400">Users with most LP positions</CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-white/5 hover:bg-transparent">
-                      <TableHead className="text-gray-400">Rank</TableHead>
-                      <TableHead className="text-gray-400">Holder Address</TableHead>
-                      <TableHead className="text-right text-gray-400">Pool Count</TableHead>
-                      <TableHead className="text-right text-gray-400">Total LP Balance</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {topHolders.length > 0 ? topHolders.map((holder, index) => (
-                      <TableRow key={holder.holder_address} className="border-white/5 hover:bg-white/5">
-                        <TableCell>
-                          <Badge 
-                            variant={index < 3 ? "default" : "outline"}
-                            className={index < 3 ? "bg-cyan-500 text-white" : "border-gray-600 text-gray-400"}
-                          >
-                            #{index + 1}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-mono text-sm text-gray-300">
-                          <div className="flex items-center space-x-2">
-                            <span className="truncate max-w-[300px]" title={holder.holder_address}>
-                              {holder.holder_address.slice(0, 8)}...{holder.holder_address.slice(-8)}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 hover:bg-white/10"
-                              onClick={() => window.open(`https://explorer.mainnet.x1.xyz/address/${holder.holder_address}`, '_blank')}
-                            >
-                              <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge variant="secondary" className="bg-blue-500/20 text-blue-400 border-0">
-                            {holder.pool_count} pools
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-gray-300">
-                          {formatLPAmount(holder.total_lp_balance, 0)}
-                        </TableCell>
-                      </TableRow>
-                    )) : (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-gray-500">
-                          No holders data available
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                <div className="text-center py-8 text-gray-500">
+                  Holder data not available from XDEX API
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -399,68 +422,9 @@ const LPExplorer = () => {
                 <CardDescription className="text-gray-400">Latest add and remove liquidity transactions</CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-white/5 hover:bg-transparent">
-                      <TableHead className="text-gray-400">Type</TableHead>
-                      <TableHead className="text-gray-400">LP Token</TableHead>
-                      <TableHead className="text-gray-400">User</TableHead>
-                      <TableHead className="text-right text-gray-400">Amount</TableHead>
-                      <TableHead className="text-right text-gray-400">Time</TableHead>
-                      <TableHead className="text-gray-400">Tx</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recentEvents.length > 0 ? recentEvents.map((event) => (
-                      <TableRow key={event.signature} className="border-white/5 hover:bg-white/5">
-                        <TableCell>
-                          <Badge 
-                            variant={event.event_type === 'add_liquidity' ? 'default' : 'destructive'}
-                            className={event.event_type === 'add_liquidity' 
-                              ? 'bg-emerald-500/20 text-emerald-400 border-0' 
-                              : 'bg-red-500/20 text-red-400 border-0'
-                            }
-                          >
-                            {event.event_type === 'add_liquidity' ? (
-                              <><ArrowUpIcon className="h-3 w-3 mr-1 inline" /> Add</>
-                            ) : (
-                              <><ArrowDownIcon className="h-3 w-3 mr-1 inline" /> Remove</>
-                            )}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-mono text-sm text-gray-400">
-                          {event.lp_mint.slice(0, 6)}...
-                        </TableCell>
-                        <TableCell className="font-mono text-sm text-gray-400">
-                          {event.user_address.slice(0, 6)}...
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-sm text-gray-300">
-                          {event.event_type === 'add_liquidity' ? '+' : '-'}
-                          {formatLPAmount(event.lp_amount_change)}
-                        </TableCell>
-                        <TableCell className="text-right text-sm text-gray-500">
-                          {formatEventTime(event.block_time)}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 hover:bg-white/10"
-                            onClick={() => window.open(`https://explorer.mainnet.x1.xyz/tx/${event.signature}`, '_blank')}
-                          >
-                            <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    )) : (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                          No recent events available
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                <div className="text-center py-8 text-gray-500">
+                  Event data not available from XDEX API
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
