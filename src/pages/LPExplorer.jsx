@@ -1,9 +1,8 @@
 // src/pages/LPExplorer.jsx
-// With sortable columns for Holders, TVL, and Updated
+// Clean version - Only Pools tab (removed empty Top Holders and Recent Activity tabs)
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -19,34 +18,25 @@ import {
   DropletIcon, 
   TrendingUpIcon, 
   UsersIcon, 
-  ActivityIcon,
   SearchIcon,
-  ArrowUpIcon,
-  ArrowDownIcon,
   ExternalLinkIcon,
   ArrowLeftIcon,
   RefreshCwIcon,
   AlertCircleIcon,
-  ArrowUpDown
+  ArrowUpDown,
+  ArrowUpIcon,
+  ArrowDownIcon
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { 
   getLPStats,
-  getLPTokens,
-  getTopLPHolders,
-  getLPEvents,
-  getLPEventStats,
-  formatLPAmount,
-  formatEventTime
+  getLPTokens
 } from '../components/x1/lpApi';
 
 const LPExplorer = () => {
   const [stats, setStats] = useState(null);
   const [lpTokens, setLpTokens] = useState([]);
-  const [topHolders, setTopHolders] = useState([]);
-  const [recentEvents, setRecentEvents] = useState([]);
-  const [eventStats, setEventStats] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -61,19 +51,13 @@ const LPExplorer = () => {
       setLoading(true);
       setError(null);
       
-      const [statsData, tokensData, holdersData, eventsData, eventStatsData] = await Promise.all([
+      const [statsData, tokensData] = await Promise.all([
         getLPStats(),
-        getLPTokens(500),
-        getTopLPHolders(100),
-        getLPEvents({ limit: 50 }),
-        getLPEventStats()
+        getLPTokens(500)
       ]);
 
       setStats(statsData.stats);
       setLpTokens(tokensData.tokens);
-      setTopHolders(holdersData.holders);
-      setRecentEvents(eventsData.events);
-      setEventStats(eventStatsData.stats);
     } catch (error) {
       console.error('Failed to load LP data:', error);
       setError(error.message);
@@ -252,183 +236,136 @@ const LPExplorer = () => {
           </Card>
         </div>
 
-        {/* Main Content Tabs */}
-        <Tabs defaultValue="pools" className="space-y-4">
-          <TabsList className="bg-[#1d2d3a] border border-white/10">
-            <TabsTrigger value="pools" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400">
-              Pools
-            </TabsTrigger>
-            <TabsTrigger value="holders" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400">
-              Top Holders
-            </TabsTrigger>
-            <TabsTrigger value="activity" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400">
-              Recent Activity
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Pools Tab - With Sortable Columns */}
-          <TabsContent value="pools" className="space-y-4">
-            <Card className="bg-[#1d2d3a] border-white/10">
-              <CardHeader>
-                <CardTitle className="text-white">Liquidity Pools</CardTitle>
-                <CardDescription className="text-gray-400">
-                  {lpTokens.length} pools - Click column headers to sort
-                </CardDescription>
-                <div className="flex items-center space-x-2 pt-4">
-                  <SearchIcon className="h-4 w-4 text-gray-500" />
-                  <Input
-                    placeholder="Search by token pair or address..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="max-w-sm bg-[#0f1419] border-white/10 text-white placeholder:text-gray-500"
-                  />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-white/5 hover:bg-transparent">
-                      <TableHead className="text-gray-400 w-16">#</TableHead>
-                      <TableHead className="text-gray-400">Token Pair</TableHead>
-                      <TableHead 
-                        className="text-right text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
-                        onClick={() => handleSort('holder_count')}
-                      >
-                        <div className="flex items-center justify-end">
-                          Holders
-                          <SortIndicator columnKey="holder_count" />
-                        </div>
-                      </TableHead>
-                      <TableHead 
-                        className="text-right text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
-                        onClick={() => handleSort('liquidity_usd')}
-                      >
-                        <div className="flex items-center justify-end">
-                          TVL (USD)
-                          <SortIndicator columnKey="liquidity_usd" />
-                        </div>
-                      </TableHead>
-                      <TableHead 
-                        className="text-right text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
-                        onClick={() => handleSort('updated_at')}
-                      >
-                        <div className="flex items-center justify-end">
-                          Updated
-                          <SortIndicator columnKey="updated_at" />
-                        </div>
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredTokens.length > 0 ? filteredTokens.map((token, index) => (
-                      <TableRow key={token.lp_mint} className="border-white/5 hover:bg-white/5">
-                        <TableCell className="text-gray-400 font-medium">
-                          {index + 1}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">
-                          <div className="flex items-center space-x-3">
-                            {/* Token Logos */}
-                            {(token.token_a_logo || token.token_b_logo) && (
-                              <div className="flex -space-x-2">
-                                {token.token_a_logo && (
-                                  <img 
-                                    src={token.token_a_logo} 
-                                    alt={token.token_a_symbol}
-                                    className="w-6 h-6 rounded-full border-2 border-[#1d2d3a] bg-gray-800"
-                                    onError={(e) => e.target.style.display = 'none'}
-                                  />
-                                )}
-                                {token.token_b_logo && (
-                                  <img 
-                                    src={token.token_b_logo} 
-                                    alt={token.token_b_symbol}
-                                    className="w-6 h-6 rounded-full border-2 border-[#1d2d3a] bg-gray-800"
-                                    onError={(e) => e.target.style.display = 'none'}
-                                  />
-                                )}
-                              </div>
+        {/* Pools Table - No Tabs */}
+        <Card className="bg-[#1d2d3a] border-white/10">
+          <CardHeader>
+            <CardTitle className="text-white">Liquidity Pools</CardTitle>
+            <CardDescription className="text-gray-400">
+              {lpTokens.length} pools - Click column headers to sort
+            </CardDescription>
+            <div className="flex items-center space-x-2 pt-4">
+              <SearchIcon className="h-4 w-4 text-gray-500" />
+              <Input
+                placeholder="Search by token pair or address..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="max-w-sm bg-[#0f1419] border-white/10 text-white placeholder:text-gray-500"
+              />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow className="border-white/5 hover:bg-transparent">
+                  <TableHead className="text-gray-400 w-16">#</TableHead>
+                  <TableHead className="text-gray-400">Token Pair</TableHead>
+                  <TableHead 
+                    className="text-right text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
+                    onClick={() => handleSort('holder_count')}
+                  >
+                    <div className="flex items-center justify-end">
+                      Holders
+                      <SortIndicator columnKey="holder_count" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="text-right text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
+                    onClick={() => handleSort('liquidity_usd')}
+                  >
+                    <div className="flex items-center justify-end">
+                      TVL (USD)
+                      <SortIndicator columnKey="liquidity_usd" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="text-right text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
+                    onClick={() => handleSort('updated_at')}
+                  >
+                    <div className="flex items-center justify-end">
+                      Updated
+                      <SortIndicator columnKey="updated_at" />
+                    </div>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredTokens.length > 0 ? filteredTokens.map((token, index) => (
+                  <TableRow key={token.lp_mint} className="border-white/5 hover:bg-white/5">
+                    <TableCell className="text-gray-400 font-medium">
+                      {index + 1}
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">
+                      <div className="flex items-center space-x-3">
+                        {/* Token Logos */}
+                        {(token.token_a_logo || token.token_b_logo) && (
+                          <div className="flex -space-x-2">
+                            {token.token_a_logo && (
+                              <img 
+                                src={token.token_a_logo} 
+                                alt={token.token_a_symbol}
+                                className="w-6 h-6 rounded-full border-2 border-[#1d2d3a] bg-gray-800"
+                                onError={(e) => e.target.style.display = 'none'}
+                              />
                             )}
-                            
-                            <div className="flex items-center gap-2">
-                              <span className="text-cyan-400 font-semibold">
-                                {token.pair_symbol || `${token.token_a_symbol}/${token.token_b_symbol}`}
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 hover:bg-white/10"
-                                onClick={() => window.open(`https://explorer.mainnet.x1.xyz/address/${token.lp_mint}`, '_blank')}
-                                title={`View on X1 Explorer`}
-                              >
-                                <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 hover:bg-white/10"
-                                onClick={() => window.open(`https://app.xdex.xyz/liquidity`, '_blank')}
-                                title={`Trade on XDEX`}
-                              >
-                                <ExternalLinkIcon className="h-3 w-3 text-purple-400" />
-                              </Button>
-                            </div>
+                            {token.token_b_logo && (
+                              <img 
+                                src={token.token_b_logo} 
+                                alt={token.token_b_symbol}
+                                className="w-6 h-6 rounded-full border-2 border-[#1d2d3a] bg-gray-800"
+                                onError={(e) => e.target.style.display = 'none'}
+                              />
+                            )}
                           </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge variant="outline" className="border-cyan-400/30 text-cyan-400">
-                            {token.holder_count || 0}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-emerald-400 font-semibold">
-                          ${(token.liquidity_usd || 0).toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right text-sm text-gray-500">
-                          {token.updated_at ? new Date(token.updated_at).toLocaleDateString() : '—'}
-                        </TableCell>
-                      </TableRow>
-                    )) : (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-gray-500">
-                          {searchTerm ? 'No pools found matching your search' : 'No pools available'}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Top Holders Tab */}
-          <TabsContent value="holders" className="space-y-4">
-            <Card className="bg-[#1d2d3a] border-white/10">
-              <CardHeader>
-                <CardTitle className="text-white">Top LP Holders</CardTitle>
-                <CardDescription className="text-gray-400">Users with most LP positions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-gray-500">
-                  Holder data not available from XDEX API
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Recent Activity Tab */}
-          <TabsContent value="activity" className="space-y-4">
-            <Card className="bg-[#1d2d3a] border-white/10">
-              <CardHeader>
-                <CardTitle className="text-white">Recent LP Events</CardTitle>
-                <CardDescription className="text-gray-400">Latest add and remove liquidity transactions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-gray-500">
-                  Event data not available from XDEX API
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                        )}
+                        
+                        <div className="flex items-center gap-2">
+                          <span className="text-cyan-400 font-semibold">
+                            {token.pair_symbol || `${token.token_a_symbol}/${token.token_b_symbol}`}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-white/10"
+                            onClick={() => window.open(`https://explorer.mainnet.x1.xyz/address/${token.lp_mint}`, '_blank')}
+                            title={`View on X1 Explorer`}
+                          >
+                            <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-white/10"
+                            onClick={() => window.open(`https://app.xdex.xyz/liquidity`, '_blank')}
+                            title={`Trade on XDEX`}
+                          >
+                            <ExternalLinkIcon className="h-3 w-3 text-purple-400" />
+                          </Button>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Badge variant="outline" className="border-cyan-400/30 text-cyan-400">
+                        {token.holder_count || 0}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-emerald-400 font-semibold">
+                      ${(token.liquidity_usd || 0).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right text-sm text-gray-500">
+                      {token.updated_at ? new Date(token.updated_at).toLocaleDateString() : '—'}
+                    </TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                      {searchTerm ? 'No pools found matching your search' : 'No pools available'}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
