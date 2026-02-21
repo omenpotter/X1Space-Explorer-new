@@ -1,5 +1,5 @@
 // functions/getTokens.ts
-// CORRECT version - XDEX returns {success: true, data: [...]}
+// DEBUG VERSION - Extensive logging to find the issue
 
 const XDEX_API = 'https://api.xdex.xyz';
 const NETWORK = 'X1%20Mainnet';
@@ -24,38 +24,59 @@ Deno.serve(async (req) => {
   const verifiedOnly = url.searchParams.get('verified_only') === 'true';
 
   try {
-    console.log('📊 Fetching pools from XDEX API...');
+    console.log('═══════════════════════════════════');
+    console.log('📊 STARTING TOKEN FETCH');
+    console.log('═══════════════════════════════════');
     console.log(`Params: limit=${limit}, offset=${offset}, verifiedOnly=${verifiedOnly}`);
 
-    // Fetch all pools from XDEX
+    // Fetch pools from XDEX
     const poolsRes = await fetch(
       `${XDEX_API}/api/xendex/pool/list?network=${NETWORK}`,
       { signal: AbortSignal.timeout(15000) }
     );
 
+    console.log('─── XDEX pool/list RESPONSE ───');
+    console.log('Status:', poolsRes.status);
+    
+    const poolsData = await poolsRes.json();
+    
+    console.log('Response type:', typeof poolsData);
+    console.log('Response starts with:', JSON.stringify(poolsData).slice(0, 300));
+    console.log('success exists?', 'success' in poolsData, poolsData.success);
+    console.log('data is array?', Array.isArray(poolsData?.data));
+    console.log('number of pools:', poolsData?.data?.length ?? 'missing');
+    console.log('First pool (if any):', poolsData?.data?.[0]?.pool_address ?? 'no pools');
+
     if (!poolsRes.ok) {
       throw new Error(`XDEX API error: ${poolsRes.status} ${poolsRes.statusText}`);
     }
 
-    const poolsData = await poolsRes.json();
-    
-    console.log('Response type:', typeof poolsData);
-    console.log('Has success:', poolsData.success);
-    console.log('Has data:', Array.isArray(poolsData.data));
-    
-    // XDEX returns {success: true, data: [...]}
     if (!poolsData.success || !Array.isArray(poolsData.data)) {
+      console.error('❌ Invalid XDEX response format!');
+      console.error('poolsData.success:', poolsData.success);
+      console.error('Array.isArray(poolsData.data):', Array.isArray(poolsData.data));
       throw new Error('Invalid XDEX API response format');
     }
 
     const pools = poolsData.data;
     console.log(`✓ Fetched ${pools.length} pools from XDEX`);
 
-    // Extract unique tokens from all pools
+    // Extract unique tokens
     const tokenMap = new Map();
     
-    pools.forEach(pool => {
-      // Token 1 (XDEX uses token1_address, token1_symbol, etc.)
+    pools.forEach((pool, index) => {
+      if (index === 0) {
+        console.log('─── FIRST POOL STRUCTURE ───');
+        console.log('token1_address:', pool.token1_address);
+        console.log('token1_symbol:', pool.token1_symbol);
+        console.log('token1_logo:', pool.token1_logo);
+        console.log('token2_address:', pool.token2_address);
+        console.log('token2_symbol:', pool.token2_symbol);
+        console.log('token2_logo:', pool.token2_logo);
+        console.log('tvl:', pool.tvl);
+      }
+      
+      // Token 1
       const token1Mint = pool.token1_address;
       const token1Symbol = pool.token1_symbol;
       const token1Logo = pool.token1_logo;
@@ -106,17 +127,24 @@ Deno.serve(async (req) => {
 
     let tokens = Array.from(tokenMap.values());
     console.log(`✓ Extracted ${tokens.length} unique tokens`);
+    
+    if (tokens.length > 0) {
+      console.log('─── FIRST TOKEN ───');
+      console.log(JSON.stringify(tokens[0], null, 2));
+    }
 
     // Filter verified only if requested
     const verifiedCount = tokens.filter(t => t.verified).length;
     const discoveredCount = tokens.length - verifiedCount;
+    
+    console.log(`Verified: ${verifiedCount}, Discovered: ${discoveredCount}`);
     
     if (verifiedOnly) {
       tokens = tokens.filter(t => t.verified);
       console.log(`✓ Filtered to ${tokens.length} verified tokens`);
     }
 
-    // Sort by liquidity (more liquidity = more important)
+    // Sort by liquidity
     tokens.sort((a, b) => (b.liquidity || 0) - (a.liquidity || 0));
 
     // Format for frontend
@@ -133,28 +161,25 @@ Deno.serve(async (req) => {
       is_scam: false,
       website: null,
       twitter: null,
-      telegram: null,
-      discord: null,
-      description: null,
-      metadata_uri: null,
-      price: '0.0000',
-      market_cap: 0,
-      price_change_24h: '0.00',
-      volume_24h: 0,
       liquidity: token.liquidity || 0,
       pool_count: token.pool_count || 0,
       created_at: new Date().toISOString(),
       first_verified_at: token.verified ? new Date().toISOString() : null,
       last_verified_at: token.verified ? new Date().toISOString() : null,
+      price: '0.0000',
+      market_cap: 0,
+      price_change_24h: '0.00',
+      volume_24h: 0,
       price_history: []
     }));
 
     // Apply pagination
     const paginatedTokens = enrichedTokens.slice(offset, offset + limit);
 
-    console.log(`✅ Returning ${paginatedTokens.length} tokens (page ${Math.floor(offset / limit) + 1})`);
+    console.log(`✅ RETURNING ${paginatedTokens.length} tokens (page ${Math.floor(offset / limit) + 1})`);
+    console.log('═══════════════════════════════════');
 
-    return new Response(JSON.stringify({
+    const response = {
       success: true,
       tokens: paginatedTokens,
       total: enrichedTokens.length,
@@ -165,11 +190,25 @@ Deno.serve(async (req) => {
       offset,
       source: 'XDEX API',
       timestamp: new Date().toISOString()
-    }), { headers: corsHeaders() });
+    };
+
+    console.log('Response structure:', {
+      success: response.success,
+      tokensCount: response.tokens.length,
+      total: response.total,
+      verified: response.verified,
+      discovered: response.discovered
+    });
+
+    return new Response(JSON.stringify(response), { 
+      headers: corsHeaders() 
+    });
 
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error('═══════════════════════════════════');
+    console.error('❌ ERROR:', error.message);
     console.error('Stack:', error.stack);
+    console.error('═══════════════════════════════════');
     
     return new Response(JSON.stringify({
       success: false,
