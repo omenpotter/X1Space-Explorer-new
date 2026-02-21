@@ -1,5 +1,5 @@
 // functions/getTokens.ts
-// Fixed version - handles XDEX's plain array response
+// CORRECT version - XDEX returns {success: true, data: [...]}
 
 const XDEX_API = 'https://api.xdex.xyz';
 const NETWORK = 'X1%20Mainnet';
@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
   const verifiedOnly = url.searchParams.get('verified_only') === 'true';
 
   try {
-    console.log('📊 Fetching tokens from XDEX API...');
+    console.log('📊 Fetching pools from XDEX API...');
     console.log(`Params: limit=${limit}, offset=${offset}, verifiedOnly=${verifiedOnly}`);
 
     // Fetch all pools from XDEX
@@ -37,75 +37,68 @@ Deno.serve(async (req) => {
       throw new Error(`XDEX API error: ${poolsRes.status} ${poolsRes.statusText}`);
     }
 
-    let pools = await poolsRes.json();
+    const poolsData = await poolsRes.json();
     
-    // XDEX returns plain array (not {success, data})
-    if (!Array.isArray(pools)) {
-      if (pools.success && Array.isArray(pools.data)) {
-        pools = pools.data;
-      } else {
-        throw new Error('Invalid XDEX API response format');
-      }
+    console.log('Response type:', typeof poolsData);
+    console.log('Has success:', poolsData.success);
+    console.log('Has data:', Array.isArray(poolsData.data));
+    
+    // XDEX returns {success: true, data: [...]}
+    if (!poolsData.success || !Array.isArray(poolsData.data)) {
+      throw new Error('Invalid XDEX API response format');
     }
 
+    const pools = poolsData.data;
     console.log(`✓ Fetched ${pools.length} pools from XDEX`);
 
     // Extract unique tokens from all pools
     const tokenMap = new Map();
     
     pools.forEach(pool => {
-      // Token A (using XDEX field names: token1_symbol, token1_address, etc.)
-      const tokenAMint = pool.token1_address || pool.token_a_mint;
-      const tokenASymbol = pool.token1_symbol || pool.token_a_symbol;
-      const tokenAName = pool.token1_name || pool.token_a_name;
-      const tokenAImage = pool.token1_logo || pool.token_a_image;
+      // Token 1 (XDEX uses token1_address, token1_symbol, etc.)
+      const token1Mint = pool.token1_address;
+      const token1Symbol = pool.token1_symbol;
+      const token1Logo = pool.token1_logo;
       
-      if (tokenAMint && !tokenMap.has(tokenAMint)) {
-        const hasMetadata = tokenAName && 
-                           tokenAName !== 'Unknown Token' && 
-                           tokenASymbol && 
-                           tokenASymbol !== 'UNKNOWN';
+      if (token1Mint && !tokenMap.has(token1Mint)) {
+        const hasMetadata = token1Symbol && token1Symbol !== 'UNKNOWN';
         
-        tokenMap.set(tokenAMint, {
-          mint: tokenAMint,
-          name: tokenAName || 'Unknown Token',
-          symbol: tokenASymbol || 'UNKNOWN',
-          logo_uri: tokenAImage || null,
+        tokenMap.set(token1Mint, {
+          mint: token1Mint,
+          name: token1Symbol || 'Unknown Token',
+          symbol: token1Symbol || 'UNKNOWN',
+          logo_uri: token1Logo || null,
           decimals: 9,
           verified: hasMetadata,
           pool_count: 1,
           liquidity: pool.tvl || 0
         });
-      } else if (tokenAMint) {
-        const token = tokenMap.get(tokenAMint);
+      } else if (token1Mint) {
+        const token = tokenMap.get(token1Mint);
         token.pool_count = (token.pool_count || 0) + 1;
         token.liquidity = (token.liquidity || 0) + (pool.tvl || 0);
       }
       
-      // Token B
-      const tokenBMint = pool.token2_address || pool.token_b_mint;
-      const tokenBSymbol = pool.token2_symbol || pool.token_b_symbol;
-      const tokenBName = pool.token2_name || pool.token_b_name;
-      const tokenBImage = pool.token2_logo || pool.token_b_image;
+      // Token 2
+      const token2Mint = pool.token2_address;
+      const token2Symbol = pool.token2_symbol;
+      const token2Logo = pool.token2_logo;
       
-      if (tokenBMint && !tokenMap.has(tokenBMint)) {
-        const hasMetadata = tokenBName && 
-                           tokenBName !== 'Unknown Token' && 
-                           tokenBSymbol && 
-                           tokenBSymbol !== 'UNKNOWN';
+      if (token2Mint && !tokenMap.has(token2Mint)) {
+        const hasMetadata = token2Symbol && token2Symbol !== 'UNKNOWN';
         
-        tokenMap.set(tokenBMint, {
-          mint: tokenBMint,
-          name: tokenBName || 'Unknown Token',
-          symbol: tokenBSymbol || 'UNKNOWN',
-          logo_uri: tokenBImage || null,
+        tokenMap.set(token2Mint, {
+          mint: token2Mint,
+          name: token2Symbol || 'Unknown Token',
+          symbol: token2Symbol || 'UNKNOWN',
+          logo_uri: token2Logo || null,
           decimals: 9,
           verified: hasMetadata,
           pool_count: 1,
           liquidity: pool.tvl || 0
         });
-      } else if (tokenBMint) {
-        const token = tokenMap.get(tokenBMint);
+      } else if (token2Mint) {
+        const token = tokenMap.get(token2Mint);
         token.pool_count = (token.pool_count || 0) + 1;
         token.liquidity = (token.liquidity || 0) + (pool.tvl || 0);
       }
@@ -176,6 +169,7 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('❌ Error:', error);
+    console.error('Stack:', error.stack);
     
     return new Response(JSON.stringify({
       success: false,
