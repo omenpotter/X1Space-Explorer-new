@@ -1,5 +1,5 @@
 // src/pages/LPExplorer.jsx
-// Clean version without Total LP Supply, Total Supply, and Decimals columns
+// Clean version - hides 24h Volume if not available from XDEX
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -165,7 +165,7 @@ const LPExplorer = () => {
           </Button>
         </div>
 
-        {/* Stats Cards - Only 3 cards now */}
+        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card className="bg-[#1d2d3a] border-white/10">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -217,7 +217,7 @@ const LPExplorer = () => {
             </TabsTrigger>
           </TabsList>
 
-          {/* Pools Tab - Removed Total Supply and Decimals columns */}
+          {/* Pools Tab - Without 24h Volume */}
           <TabsContent value="pools" className="space-y-4">
             <Card className="bg-[#1d2d3a] border-white/10">
               <CardHeader>
@@ -242,8 +242,7 @@ const LPExplorer = () => {
                       <TableHead className="text-gray-400 w-16">#</TableHead>
                       <TableHead className="text-gray-400">Token Pair</TableHead>
                       <TableHead className="text-right text-gray-400">Holders</TableHead>
-                      <TableHead className="text-right text-gray-400">TVL</TableHead>
-                      <TableHead className="text-right text-gray-400">24h Volume</TableHead>
+                      <TableHead className="text-right text-gray-400">TVL (USD)</TableHead>
                       <TableHead className="text-right text-gray-400">Updated</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -307,11 +306,8 @@ const LPExplorer = () => {
                             {token.holder_count || 0}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right font-mono text-emerald-400">
+                        <TableCell className="text-right font-mono text-emerald-400 font-semibold">
                           ${(token.liquidity_usd || 0).toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-gray-300">
-                          ${(token.volume_24h || 0).toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right text-sm text-gray-500">
                           {token.updated_at ? new Date(token.updated_at).toLocaleDateString() : '—'}
@@ -319,7 +315,7 @@ const LPExplorer = () => {
                       </TableRow>
                     )) : (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                        <TableCell colSpan={5} className="text-center py-8 text-gray-500">
                           {searchTerm ? 'No pools found matching your search' : 'No pools available'}
                         </TableCell>
                       </TableRow>
