@@ -2,13 +2,12 @@ import React, { useState, useEffect, useMemo, useCallback, useRef, Fragment } fr
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Coins, Search, Loader2, TrendingUp, TrendingDown, Star, ChevronLeft, RefreshCw, Copy, Check, Clock, Calendar, Filter, Globe, Twitter, Sparkles } from 'lucide-react';
+import { Coins, Search, Loader2, Star, ChevronLeft, RefreshCw, Copy, Check, Filter, Globe, Twitter } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip, XAxis, PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area } from 'recharts';
+import { LineChart, Line, ResponsiveContainer } from 'recharts';
 
 import X1Api from '../components/x1/X1ApiClient';
-import TokenDetailsModal from '../components/TokenDetailsModal';
 
 export default function TokenExplorer() {
   const [loading, setLoading] = useState(true);
@@ -18,18 +17,13 @@ export default function TokenExplorer() {
   const [watchlist, setWatchlist] = useState([]);
   const [selectedToken, setSelectedToken] = useState(null);
   const [tokenDetails, setTokenDetails] = useState(null);
-  const [tokenTransactions, setTokenTransactions] = useState([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
-  const [tokenHolders, setTokenHolders] = useState([]);
   const [tokenMetadata, setTokenMetadata] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('liquidity');
   const [sortDirection, setSortDirection] = useState('desc');
   const [displayLimit, setDisplayLimit] = useState(100);
   const [copiedAddress, setCopiedAddress] = useState(null);
-  const [priceTimeframe, setPriceTimeframe] = useState('7D');
-  const [holderChartData, setHolderChartData] = useState([]);
-  const [txFlowData, setTxFlowData] = useState([]);
   const [advancedFilters, setAdvancedFilters] = useState({
     tokenType: 'all',
     liquidityMin: '',
@@ -37,21 +31,12 @@ export default function TokenExplorer() {
   });
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const searchDebounceRef = useRef(null);
-  const [discoveredTokens, setDiscoveredTokens] = useState([]);
-  const [showDiscovered, setShowDiscovered] = useState(false);
-  const [apiHealthy, setApiHealthy] = useState(false);
   const [expandedToken, setExpandedToken] = useState(null);
   const [modalToken, setModalToken] = useState(null);
 
   useEffect(() => {
     loadWatchlist();
     fetchData();
-    
-    // Check X1 API health
-    X1Api.checkHealth().then(health => {
-      setApiHealthy(health.status === 'online');
-      console.log('X1 API Status:', health.status);
-    });
   }, []);
 
   const loadWatchlist = () => {
@@ -72,7 +57,7 @@ export default function TokenExplorer() {
     try {
       console.log('🔄 Fetching tokens from API...');
       
-      // Fetch tokens from backend
+      // Fetch ALL tokens (verified and unverified)
       const allTokensResponse = await X1Api.listTokens({ limit: 500, offset: 0, verified: false });
 
       console.log('📊 API Response:', allTokensResponse);
@@ -81,43 +66,28 @@ export default function TokenExplorer() {
         const tokens = allTokensResponse.data.tokens;
         
         console.log(`✅ Loaded ${tokens.length} tokens from API`);
-        console.log(`📊 Total: ${allTokensResponse.data.total}, Verified: ${allTokensResponse.data.verified}, Discovered: ${allTokensResponse.data.discovered}`);
         
-        // Separate verified and unverified tokens
-        const verified = [];
-        const unverified = [];
+        const tokenData = tokens.map(token => ({
+          mint: token.mint,
+          name: token.name || 'Unknown Token',
+          symbol: token.symbol || 'UNKNOWN',
+          logo: token.logo_uri,
+          decimals: token.decimals || 9,
+          totalSupply: token.total_supply || 0,
+          tokenType: token.token_type || 'SPL Token',
+          price: token.price ? parseFloat(token.price).toFixed(4) : '0.0000',
+          marketCap: token.market_cap || 0,
+          priceChange24h: token.price_change_24h ? parseFloat(token.price_change_24h).toFixed(2) : '0.00',
+          liquidity: token.liquidity || 0,
+          poolCount: token.pool_count || 0,
+          website: token.website,
+          twitter: token.twitter,
+          verified: token.verification_count > 0,
+          priceHistory: token.price_history || []
+        }));
 
-        tokens.forEach(token => {
-          const tokenData = {
-            mint: token.mint,
-            name: token.name || 'Unknown Token',
-            symbol: token.symbol || 'UNKNOWN',
-            logo: token.logo_uri,
-            decimals: token.decimals || 9,
-            totalSupply: token.total_supply || 0,
-            tokenType: token.token_type || 'SPL Token',
-            price: token.price ? parseFloat(token.price).toFixed(4) : '0.0000',
-            marketCap: token.market_cap || 0,
-            priceChange24h: token.price_change_24h ? parseFloat(token.price_change_24h).toFixed(2) : '0.00',
-            liquidity: token.liquidity || 0,
-            poolCount: token.pool_count || 0,
-            website: token.website,
-            twitter: token.twitter,
-            verified: token.verification_count > 0,
-            priceHistory: token.price_history || []
-          };
-
-          if (token.verification_count > 0) {
-            verified.push(tokenData);
-          } else {
-            unverified.push(tokenData);
-          }
-        });
-
-        setAllTokens(verified);
-        setDiscoveredTokens(unverified);
-        
-        console.log(`✅ Verified: ${verified.length}, Unverified: ${unverified.length}`);
+        setAllTokens(tokenData);
+        console.log(`✅ Total tokens: ${tokenData.length}`);
         
         // Fetch supply and validator stats from RPC
         try {
@@ -148,12 +118,10 @@ export default function TokenExplorer() {
       } else {
         console.log('⚠️ No token data available');
         setAllTokens([]);
-        setDiscoveredTokens([]);
       }
     } catch (err) {
       console.error('❌ Fetch error:', err);
       setAllTokens([]);
-      setDiscoveredTokens([]);
     } finally {
       setLoading(false);
     }
@@ -203,7 +171,6 @@ export default function TokenExplorer() {
     return sorted;
   }, [allTokens, searchQuery, sortBy, sortDirection, advancedFilters]);
   
-  // Debounced search handler
   const handleSearchChange = useCallback((value) => {
     if (searchDebounceRef.current) {
       clearTimeout(searchDebounceRef.current);
@@ -220,7 +187,6 @@ export default function TokenExplorer() {
     setTimeout(() => setCopiedAddress(null), 2000);
   }, []);
   
-  // Infinite scroll handler
   useEffect(() => {
     const handleScroll = () => {
       if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 500) {
@@ -239,9 +205,7 @@ export default function TokenExplorer() {
     setSelectedToken(mint);
     
     try {
-      // Fetch token details from RPC
       const X1Rpc = (await import('../components/x1/X1RpcService')).default;
-      
       const accountInfo = await X1Rpc.getAccountInfo(mint);
       
       if (accountInfo?.value) {
@@ -258,8 +222,7 @@ export default function TokenExplorer() {
         });
       }
       
-      // Get token metadata
-      const tokenData = allTokens.find(t => t.mint === mint) || discoveredTokens.find(t => t.mint === mint);
+      const tokenData = allTokens.find(t => t.mint === mint);
       if (tokenData) {
         setTokenMetadata({
           name: tokenData.name,
@@ -285,15 +248,6 @@ export default function TokenExplorer() {
     if (num >= 0.000001) return num.toFixed(8);
     if (num > 0) return num.toExponential(2);
     return '0.00';
-  };
-
-  const formatTime = (timestamp) => {
-    if (!timestamp) return 'Recently';
-    const diff = (Date.now() / 1000 - timestamp);
-    if (diff < 60) return `${Math.floor(diff)}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return new Date(timestamp * 1000).toLocaleDateString();
   };
 
   const xntHistory = Array.from({ length: 30 }, (_, i) => ({ day: i, price: 1.00 }));
@@ -335,45 +289,17 @@ export default function TokenExplorer() {
           <h1 className="text-2xl font-bold flex items-center gap-3">
             <Coins className="w-7 h-7 text-cyan-400" />
             Token Explorer
-            {apiHealthy && (
-              <Badge className="bg-blue-500/20 text-blue-400 border-0 text-xs ml-2">
-                XDEX Connected
-              </Badge>
-            )}
+            <Badge className="bg-blue-500/20 text-blue-400 border-0 text-xs ml-2">
+              {allTokens.length} Tokens
+            </Badge>
           </h1>
-          <div className="flex gap-2">
-            <Button
-              variant={!showDiscovered ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowDiscovered(false)}
-              className={!showDiscovered ? "bg-cyan-500" : "border-white/20"}
-            >
-              Verified ({allTokens.length})
-            </Button>
-            <Button
-              variant={showDiscovered ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowDiscovered(true)}
-              className={showDiscovered ? "bg-cyan-500" : "border-white/20"}
-            >
-              Discovered ({discoveredTokens.length})
-            </Button>
-          </div>
         </div>
 
-        {/* Top Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        {/* Top Stats - Only 3 cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-[#1d2d3a] border border-white/10 rounded-lg p-4">
             <p className="text-gray-400 text-xs">Total Tokens</p>
-            <p className="text-2xl font-bold text-cyan-400">{allTokens.length + discoveredTokens.length}</p>
-          </div>
-          <div className="bg-[#1d2d3a] border border-white/10 rounded-lg p-4">
-            <p className="text-gray-400 text-xs">Verified</p>
-            <p className="text-2xl font-bold text-emerald-400">{allTokens.length}</p>
-          </div>
-          <div className="bg-[#1d2d3a] border border-white/10 rounded-lg p-4">
-            <p className="text-gray-400 text-xs">Discovered</p>
-            <p className="text-2xl font-bold text-yellow-400">{discoveredTokens.length}</p>
+            <p className="text-2xl font-bold text-cyan-400">{allTokens.length}</p>
           </div>
           <div className="bg-[#1d2d3a] border border-white/10 rounded-lg p-4">
             <p className="text-gray-400 text-xs">Total Staked</p>
@@ -437,10 +363,6 @@ export default function TokenExplorer() {
             >
               <option value="liquidity">Liquidity</option>
               <option value="poolCount">Pool Count</option>
-              <option value="marketCap">Market Cap</option>
-              <option value="price">Price</option>
-              <option value="change">24h Change</option>
-              <option value="supply">Supply</option>
               <option value="name">Name</option>
             </select>
             <Button
@@ -462,21 +384,8 @@ export default function TokenExplorer() {
             </Button>
           </div>
           
-          {/* Advanced Filters */}
           {showAdvancedFilters && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-white/10">
-              <div>
-                <label className="text-gray-400 text-xs mb-1 block">Token Type</label>
-                <select
-                  value={advancedFilters.tokenType}
-                  onChange={(e) => setAdvancedFilters({...advancedFilters, tokenType: e.target.value})}
-                  className="w-full bg-[#0f1419] border border-white/10 text-white rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="all">All Types</option>
-                  <option value="SPL Token">SPL Token</option>
-                  <option value="Token-2022">Token-2022</option>
-                </select>
-              </div>
               <div>
                 <label className="text-gray-400 text-xs mb-1 block">Liquidity Range</label>
                 <div className="flex gap-2">
@@ -508,17 +417,12 @@ export default function TokenExplorer() {
           )}
         </div>
 
-        {/* Top Tokens */}
+        {/* Tokens Table */}
         <div className="bg-[#1d2d3a] border border-white/10 rounded-xl overflow-hidden mb-6">
-          <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-white/5">
             <h3 className="text-white font-medium">
-              {showDiscovered ? 'Discovered Tokens (Unverified)' : 'Verified Tokens'} ({showDiscovered ? discoveredTokens.length : filteredAndSortedTokens.length})
+              All Tokens ({filteredAndSortedTokens.length})
             </h3>
-            {showDiscovered && (
-              <Badge className="bg-yellow-500/20 text-yellow-400 border-0 text-xs">
-                ⚠️ Unverified - DYOR
-              </Badge>
-            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -528,12 +432,11 @@ export default function TokenExplorer() {
                   <th className="text-left text-gray-400 text-xs px-4 py-3">Token</th>
                   <th className="text-right text-gray-400 text-xs px-4 py-3">Liquidity</th>
                   <th className="text-right text-gray-400 text-xs px-4 py-3">Pools</th>
-                  <th className="text-right text-gray-400 text-xs px-4 py-3">Supply</th>
                   <th className="text-center text-gray-400 text-xs px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody>
-                {(showDiscovered ? discoveredTokens : filteredAndSortedTokens).slice(0, displayLimit).map((token, i) => (
+                {filteredAndSortedTokens.slice(0, displayLimit).map((token, i) => (
                   <Fragment key={token.mint}>
                     <tr className="border-b border-white/5 hover:bg-white/[0.02]">
                       <td className="px-4 py-3 text-gray-500">{i + 1}</td>
@@ -574,7 +477,6 @@ export default function TokenExplorer() {
                           {token.poolCount}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-400">{formatNum(token.totalSupply)}</td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-2">
                           <button onClick={() => toggleWatchlist(token.mint)} className={watchlist.includes(token.mint) ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}>
@@ -602,10 +504,9 @@ export default function TokenExplorer() {
                       </td>
                     </tr>
                     
-                    {/* Inline Token Details */}
                     {expandedToken === token.mint && tokenDetails && (
                       <tr>
-                        <td colSpan="6" className="p-0 bg-[#0f1419]">
+                        <td colSpan="5" className="p-0 bg-[#0f1419]">
                           <div className="p-6 border-t border-white/5">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               <div>
@@ -664,9 +565,9 @@ export default function TokenExplorer() {
               </tbody>
             </table>
           </div>
-          {displayLimit < (showDiscovered ? discoveredTokens : filteredAndSortedTokens).length && (
+          {displayLimit < filteredAndSortedTokens.length && (
             <div className="p-4 text-center border-t border-white/5">
-              <p className="text-gray-400 text-sm">Showing {displayLimit} of {(showDiscovered ? discoveredTokens : filteredAndSortedTokens).length} tokens - Scroll for more</p>
+              <p className="text-gray-400 text-sm">Showing {displayLimit} of {filteredAndSortedTokens.length} tokens - Scroll for more</p>
             </div>
           )}
         </div>
