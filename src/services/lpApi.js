@@ -1,24 +1,32 @@
 // src/services/lpApi.js
-// Frontend API client for LP data - calls backend functions
+// Frontend API client - calls Base44 backend functions (NOT direct XDEX)
 
 import API_CONFIG from '@/config/api.config';
 
 const API_BASE_URL = API_CONFIG.baseURL;
 
+/**
+ * Get LP statistics from backend
+ */
 export const getLPStats = async () => {
   try {
+    console.log('📊 Fetching LP stats from backend...');
+    
     const res = await fetch(`${API_BASE_URL}/functions/getLPStats`, {
       signal: AbortSignal.timeout(15000)
     });
     
-    if (!res.ok) throw new Error('Failed to fetch LP stats');
+    if (!res.ok) {
+      throw new Error(`Backend error: ${res.status}`);
+    }
 
     const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'API error');
-
+    
+    console.log('✅ Stats loaded:', data);
+    
     return data;
   } catch (err) {
-    console.error('getLPStats error:', err);
+    console.error('❌ getLPStats error:', err);
     return { 
       success: true,
       stats: { 
@@ -30,23 +38,32 @@ export const getLPStats = async () => {
   }
 };
 
+/**
+ * Get LP tokens from backend
+ */
 export const getLPTokens = async (limit = 500) => {
   try {
+    console.log(`📊 Fetching ${limit} pools from backend...`);
+    
     const res = await fetch(`${API_BASE_URL}/functions/getLPTokens?limit=${limit}`, {
       signal: AbortSignal.timeout(15000)
     });
     
-    if (!res.ok) throw new Error('Failed to fetch LP tokens');
+    if (!res.ok) {
+      throw new Error(`Backend error: ${res.status}`);
+    }
 
     const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'API error');
-
+    
+    console.log('✅ Pools loaded:', data.tokens?.length || 0);
+    console.log('Sample pool:', data.tokens?.[0]);
+    
     return { 
       success: true,
       tokens: data.tokens || [] 
     };
   } catch (err) {
-    console.error('getLPTokens error:', err);
+    console.error('❌ getLPTokens error:', err);
     return { 
       success: true,
       tokens: [] 
@@ -54,7 +71,9 @@ export const getLPTokens = async (limit = 500) => {
   }
 };
 
-// Stubs for features not yet supported by XDEX
+/**
+ * Stubs for features not supported
+ */
 export const getTopLPHolders = async () => ({ 
   success: true,
   holders: [] 
@@ -78,11 +97,16 @@ export const getLPEventStats = async () => ({
  * Format LP amount - handles hex lpSupply from XDEX
  */
 export const formatLPAmount = (rawAmount, decimals = 9) => {
-  if (!rawAmount || rawAmount === '0') return '0';
+  if (!rawAmount || rawAmount === '0' || rawAmount === '0x0') return '0';
 
   try {
-    // Handle hex format from XDEX
-    let amount = BigInt(rawAmount.startsWith('0x') ? rawAmount : '0x' + rawAmount);
+    // Handle hex format
+    let hexStr = rawAmount.toString();
+    if (!hexStr.startsWith('0x')) {
+      hexStr = '0x' + hexStr;
+    }
+    
+    let amount = BigInt(hexStr);
     const divisor = BigInt(10) ** BigInt(decimals);
     const integerPart = amount / divisor;
     let fractionalPart = amount % divisor;
