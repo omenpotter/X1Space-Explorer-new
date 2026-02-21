@@ -1,4 +1,5 @@
-// Get LP (Liquidity Pool) Statistics from XDEX
+// functions/getLPStats.ts
+// Get aggregated statistics from XDEX pools
 
 const XDEX_API = 'https://api.xdex.xyz';
 const NETWORK = 'X1%20Mainnet';
@@ -20,84 +21,73 @@ Deno.serve(async (req) => {
   try {
     console.log('📊 Fetching LP stats from XDEX...');
 
-    // Fetch all pools
-    const poolsRes = await fetch(
+    const res = await fetch(
       `${XDEX_API}/api/xendex/pool/list?network=${NETWORK}`,
-      { signal: AbortSignal.timeout(15000) }
+      { signal: AbortSignal.timeout(20000) }
     );
 
-    if (!poolsRes.ok) {
-      throw new Error(`XDEX API error: ${poolsRes.status}`);
+    if (!res.ok) {
+      throw new Error(`XDEX API error: ${res.status}`);
     }
 
-    const poolsData = await poolsRes.json();
+    const pools = await res.json();
 
-    if (!poolsData.success || !poolsData.data) {
-      throw new Error('Invalid XDEX response');
+    if (!Array.isArray(pools)) {
+      throw new Error('Invalid response format');
     }
 
-    const pools = poolsData.data;
-    console.log(`✓ Fetched ${pools.length} pools`);
+    console.log(`✓ Received ${pools.length} pools`);
 
-    // Calculate statistics
-    const totalPools = pools.length;
-    const totalLiquidity = pools.reduce((sum, p) => sum + (p.liquidity || 0), 0);
-    const totalVolume24h = pools.reduce((sum, p) => sum + (p.volume_24h || 0), 0);
+    // Calculate stats
+    const total_pools = pools.length;
     
-    // Count unique tokens
-    const uniqueTokens = new Set();
-    pools.forEach(p => {
-      if (p.token_a_mint) uniqueTokens.add(p.token_a_mint);
-      if (p.token_b_mint) uniqueTokens.add(p.token_b_mint);
+    let total_lp_supply = 0n;
+    let total_holders = 0;
+    
+    pools.forEach(pool => {
+      const info = pool.pool_info || {};
+      const supply = info.lpSupply || '0';
+      
+      // Parse hex supply
+      try {
+        total_lp_supply += BigInt(supply.startsWith('0x') ? supply : '0x' + supply);
+      } catch (e) {
+        // Skip invalid supply values
+      }
+      
+      total_holders += pool.lp_token_holder_count || 0;
     });
 
-    // Top pools by liquidity
-    const topPools = pools
-      .sort((a, b) => (b.liquidity || 0) - (a.liquidity || 0))
-      .slice(0, 10)
-      .map(pool => ({
-        pool_address: pool.pool_address,
-        pair_name: `${pool.token_a_symbol}/${pool.token_b_symbol}`,
-        liquidity: pool.liquidity || 0,
-        volume_24h: pool.volume_24h || 0,
-        token_a_symbol: pool.token_a_symbol,
-        token_b_symbol: pool.token_b_symbol
-      }));
-
     const stats = {
-      total_pools: totalPools,
-      total_liquidity_usd: totalLiquidity,
-      total_volume_24h: totalVolume24h,
-      unique_tokens: uniqueTokens.size,
-      avg_liquidity: totalPools > 0 ? totalLiquidity / totalPools : 0,
-      top_pools: topPools,
+      total_pools,
+      total_holders,
+      total_lp_supply: total_lp_supply.toString(),
       last_updated: new Date().toISOString()
     };
 
-    console.log('✅ LP Stats:', {
-      pools: stats.total_pools,
-      liquidity: `$${stats.total_liquidity_usd.toLocaleString()}`,
-      volume: `$${stats.total_volume_24h.toLocaleString()}`
-    });
+    console.log('✅ Stats calculated:', stats);
 
     return new Response(JSON.stringify({
       success: true,
-      stats,
-      source: 'XDEX'
-    }), { headers: corsHeaders() });
+      stats
+    }), {
+      status: 200,
+      headers: corsHeaders()
+    });
 
-  } catch (error) {
-    console.error('❌ LP stats error:', error);
-    
+  } catch (err) {
+    console.error('❌ Stats error:', err);
     return new Response(JSON.stringify({
       success: false,
-      error: {
-        message: error.message,
-        timestamp: new Date().toISOString()
+      error: err.message,
+      stats: {
+        total_pools: 0,
+        total_holders: 0,
+        total_lp_supply: '0'
       }
-    }), { 
-      status: 500, 
-      headers: corsHeaders() 
+    }), {
+      status: 500,
+      headers: corsHeaders()
     });
   }
 });
