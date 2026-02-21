@@ -1,180 +1,203 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
-import pg from 'npm:pg';
+// X1 Token Explorer - Get Tokens from XDEX API
+// Replaces PostgreSQL database with XDEX API integration
 
-const { Client } = pg;
+const XDEX_API = 'https://api.xdex.xyz';
+const NETWORK = 'X1%20Mainnet';
+
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Content-Type': 'application/json',
+  };
+}
 
 Deno.serve(async (req) => {
-    // Handle CORS preflight
-    if (req.method === 'OPTIONS') {
-        return new Response(null, {
-            headers: {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-            },
-        });
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders() });
+  }
+
+  const url = new URL(req.url);
+  const limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 500);
+  const offset = parseInt(url.searchParams.get('offset') || '0');
+  const verifiedOnly = url.searchParams.get('verified_only') === 'true';
+
+  try {
+    console.log('📊 Fetching tokens from XDEX API...');
+    console.log(`Params: limit=${limit}, offset=${offset}, verifiedOnly=${verifiedOnly}`);
+
+    // Fetch all pools from XDEX to extract token list
+    const poolsRes = await fetch(
+      `${XDEX_API}/api/xendex/pool/list?network=${NETWORK}`,
+      { signal: AbortSignal.timeout(15000) }
+    );
+
+    if (!poolsRes.ok) {
+      throw new Error(`XDEX API error: ${poolsRes.status} ${poolsRes.statusText}`);
     }
 
-    try {
-        const url = new URL(req.url);
-        
-        const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 5000);
-        const offset = parseInt(url.searchParams.get('offset') || '0');
-        const verifiedParam = url.searchParams.get('verified_only') || url.searchParams.get('verified');
-        const verifiedOnly = verifiedParam === 'true';
-        const tokenStandard = url.searchParams.get('token_standard');
-
-        console.log('📊 Fetching tokens from database...');
-        console.log(`Params: limit=${limit}, offset=${offset}, verified=${verifiedParam}, verifiedOnly=${verifiedOnly}`);
-
-        // Connect to PostgreSQL
-        const client = new Client({
-            user: Deno.env.get('X1_DB_USER') || 'x1user',
-            password: Deno.env.get('X1_DB_PASSWORD') || 'password123',
-            host: Deno.env.get('X1_DB_HOST') || '45.94.81.202',
-            database: Deno.env.get('X1_DB_NAME') || 'x1_explorer',
-            port: 5432,
-        });
-
-        console.log('🔌 Connecting to database...');
-        await client.connect();
-        console.log('✓ Database connected successfully');
-
-        // Build query using the VERIFIED COLUMN
-        let query = `
-            SELECT 
-                mint, name, symbol, decimals, total_supply, logo_uri,
-                token_standard, created_by, created_at, first_verified_at,
-                last_verified_at, verification_count, is_scam, scam_report_count,
-                website, twitter, telegram, discord, description, metadata_uri,
-                price, market_cap, price_updated_at, price_change_24h, verified
-            FROM verified_tokens 
-            WHERE total_supply > 0
-        `;
-        
-        const params = [];
-        let paramCount = 1;
-
-        // Use the verified column instead of name/symbol checks
-        if (verifiedOnly) {
-            query += ` AND verified = true`;
-        }
-
-        if (tokenStandard) {
-            query += ` AND token_standard = $${paramCount}`;
-            params.push(tokenStandard);
-            paramCount++;
-        }
-
-        // Order by verified first, then by supply
-        query += ` ORDER BY verified DESC, total_supply DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
-        params.push(limit, offset);
-
-        console.log('🔍 Executing query...');
-        const result = await client.query(query, params);
-        console.log(`✓ Found ${result.rows.length} tokens`);
-
-        // Get counts using the verified column
-        const verifiedCountResult = await client.query(`
-            SELECT COUNT(*) FROM verified_tokens 
-            WHERE total_supply > 0 AND verified = true
-        `);
-        const verifiedCount = parseInt(verifiedCountResult.rows[0].count);
-
-        const discoveredCountResult = await client.query(`
-            SELECT COUNT(*) FROM verified_tokens 
-            WHERE total_supply > 0 AND verified = false
-        `);
-        const discoveredCount = parseInt(discoveredCountResult.rows[0].count);
-
-        // Count total with filters
-        let countQuery = 'SELECT COUNT(*) FROM verified_tokens WHERE total_supply > 0';
-        
-        if (verifiedOnly) {
-            countQuery += ` AND verified = true`;
-        }
-        
-        if (tokenStandard) {
-            countQuery += ` AND token_standard = '${tokenStandard}'`;
-        }
-        
-        console.log('🔢 Counting total tokens...');
-        const countResult = await client.query(countQuery);
-        const total = parseInt(countResult.rows[0].count);
-        console.log(`✅ Total: ${total}, Verified: ${verifiedCount}, Discovered: ${discoveredCount}`);
-
-        await client.end();
-        console.log('✓ Database connection closed');
-
-        // Format response - Include verified field
-        const tokens = result.rows.map(row => ({
-            mint: row.mint,
-            name: row.name || 'Unknown Token',
-            symbol: row.symbol || 'UNKNOWN',
-            logo_uri: row.logo_uri,
-            decimals: parseInt(row.decimals) || 9,
-            total_supply: parseFloat(row.total_supply) || 0,
-            totalSupply: parseFloat(row.total_supply) || 0,
-            price: parseFloat(row.price) || 0,
-            market_cap: parseFloat(row.market_cap) || 0,
-            price_updated_at: row.price_updated_at,
-            token_type: row.token_standard || 'SPL Token',
-            token_standard: row.token_standard,
-            created_by: row.created_by,
-            created_at: row.created_at,
-            first_verified_at: row.first_verified_at,
-            last_verified_at: row.last_verified_at,
-            verification_count: parseInt(row.verification_count) || 0,
-            verified: row.verified || false, // ✅ INCLUDE VERIFIED FIELD
-            is_scam: row.is_scam || false,
-            scam_report_count: parseInt(row.scam_report_count) || 0,
-            website: row.website,
-            twitter: row.twitter,
-            telegram: row.telegram,
-            discord: row.discord,
-            description: row.description,
-            metadata_uri: row.metadata_uri,
-            price_change_24h: parseFloat(row.price_change_24h) || 0,
-            mint_authority: null,
-            freeze_authority: null,
-            price_history: []
-        }));
-
-        console.log('✅ Returning', tokens.length, 'tokens');
-
-        return new Response(JSON.stringify({
-            success: true,
-            tokens,
-            total,
-            verified: verifiedCount,
-            discovered: discoveredCount,
-            page: Math.floor(offset / limit) + 1,
-            limit,
-            offset
-        }), {
-            headers: {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-            },
-        });
-
-    } catch (error) {
-        console.error('❌ Database error:', error);
-        
-        return new Response(JSON.stringify({
-            success: false,
-            error: {
-                code: 500,
-                message: 'Database query failed',
-                details: error.message,
-                timestamp: new Date().toISOString()
-            }
-        }), { 
-            status: 500,
-            headers: {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-            }
-        });
+    const poolsData = await poolsRes.json();
+    
+    if (!poolsData.success || !poolsData.data) {
+      throw new Error('Invalid XDEX API response');
     }
+
+    console.log(`✓ Fetched ${poolsData.data.length} pools from XDEX`);
+
+    // Extract unique tokens from all pools
+    const tokenMap = new Map();
+    
+    poolsData.data.forEach(pool => {
+      // Add token A if not already in map
+      if (pool.token_a_mint && !tokenMap.has(pool.token_a_mint)) {
+        const hasMetadata = pool.token_a_name && 
+                           pool.token_a_name !== 'Unknown Token' && 
+                           pool.token_a_symbol && 
+                           pool.token_a_symbol !== 'UNKNOWN';
+        
+        tokenMap.set(pool.token_a_mint, {
+          mint: pool.token_a_mint,
+          name: pool.token_a_name || 'Unknown Token',
+          symbol: pool.token_a_symbol || 'UNKNOWN',
+          logo_uri: pool.token_a_image || null,
+          decimals: pool.token_a_decimals || 9,
+          verified: hasMetadata,
+          pool_count: 1
+        });
+      } else if (pool.token_a_mint) {
+        const token = tokenMap.get(pool.token_a_mint);
+        token.pool_count = (token.pool_count || 0) + 1;
+      }
+      
+      // Add token B if not already in map
+      if (pool.token_b_mint && !tokenMap.has(pool.token_b_mint)) {
+        const hasMetadata = pool.token_b_name && 
+                           pool.token_b_name !== 'Unknown Token' && 
+                           pool.token_b_symbol && 
+                           pool.token_b_symbol !== 'UNKNOWN';
+        
+        tokenMap.set(pool.token_b_mint, {
+          mint: pool.token_b_mint,
+          name: pool.token_b_name || 'Unknown Token',
+          symbol: pool.token_b_symbol || 'UNKNOWN',
+          logo_uri: pool.token_b_image || null,
+          decimals: pool.token_b_decimals || 9,
+          verified: hasMetadata,
+          pool_count: 1
+        });
+      } else if (pool.token_b_mint) {
+        const token = tokenMap.get(pool.token_b_mint);
+        token.pool_count = (token.pool_count || 0) + 1;
+      }
+    });
+
+    let tokens = Array.from(tokenMap.values());
+    console.log(`✓ Extracted ${tokens.length} unique tokens`);
+
+    // Filter verified only if requested
+    if (verifiedOnly) {
+      tokens = tokens.filter(t => t.verified);
+      console.log(`✓ Filtered to ${tokens.length} verified tokens`);
+    }
+
+    // Sort by pool count (more pools = more popular)
+    tokens.sort((a, b) => (b.pool_count || 0) - (a.pool_count || 0));
+
+    // Fetch prices for top tokens (batch request)
+    const topTokens = tokens.slice(0, 100);
+    const tokenAddresses = topTokens.map(t => t.mint).join(',');
+    
+    let priceMap = {};
+    if (tokenAddresses) {
+      try {
+        console.log('💰 Fetching prices for top 100 tokens...');
+        const pricesRes = await fetch(
+          `${XDEX_API}/api/token-price/prices?network=${NETWORK}&token_addresses=${tokenAddresses}`,
+          { signal: AbortSignal.timeout(10000) }
+        );
+        
+        if (pricesRes.ok) {
+          const pricesData = await pricesRes.json();
+          if (pricesData.success && pricesData.data) {
+            priceMap = pricesData.data;
+            console.log(`✓ Fetched prices for ${Object.keys(priceMap).length} tokens`);
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Price fetch failed:', e.message);
+      }
+    }
+
+    // Enrich tokens with price data and format for frontend
+    const enrichedTokens = tokens.map(token => {
+      const priceInfo = priceMap[token.mint] || {};
+      
+      return {
+        mint: token.mint,
+        name: token.name,
+        symbol: token.symbol,
+        logo_uri: token.logo_uri,
+        decimals: token.decimals,
+        total_supply: 0, // Not available from XDEX API
+        token_type: 'SPL Token',
+        token_standard: 'SPL Token',
+        verification_count: token.verified ? 1 : 0,
+        is_scam: false,
+        website: null,
+        twitter: null,
+        telegram: null,
+        discord: null,
+        description: null,
+        metadata_uri: null,
+        price: priceInfo.price?.toString() || '0.0000',
+        market_cap: priceInfo.market_cap || 0,
+        price_change_24h: priceInfo.price_change_24h?.toString() || '0.00',
+        volume_24h: priceInfo.volume_24h || 0,
+        liquidity: priceInfo.liquidity || 0,
+        created_at: new Date().toISOString(),
+        first_verified_at: token.verified ? new Date().toISOString() : null,
+        last_verified_at: token.verified ? new Date().toISOString() : null,
+        price_history: []
+      };
+    });
+
+    // Apply pagination
+    const paginatedTokens = enrichedTokens.slice(offset, offset + limit);
+
+    console.log(`✅ Returning ${paginatedTokens.length} tokens (page ${Math.floor(offset / limit) + 1})`);
+
+    return new Response(JSON.stringify({
+      success: true,
+      tokens: paginatedTokens,
+      total: enrichedTokens.length,
+      page: Math.floor(offset / limit) + 1,
+      limit,
+      offset,
+      source: 'XDEX API',
+      timestamp: new Date().toISOString()
+    }), { headers: corsHeaders() });
+
+  } catch (error) {
+    console.error('❌ XDEX API error:', error);
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
+    
+    return new Response(JSON.stringify({
+      success: false,
+      error: {
+        code: 500,
+        message: 'Failed to fetch tokens from XDEX API',
+        details: error.message,
+        timestamp: new Date().toISOString()
+      }
+    }), { 
+      status: 500,
+      headers: corsHeaders()
+    });
+  }
 });
