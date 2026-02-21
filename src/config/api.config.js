@@ -13,19 +13,22 @@ export const API_CONFIG = {
     : `wss://${window.location.host}`,
   
   // API Endpoints - Using /functions/ path for Base44
-  endpoints: {
-    tokens: '/functions/getTokens',
-    tokenDetail: '/functions/getTokenByMint',
-    tokenPrice: '/functions/getTokenPrice',        // NEW
-    pools: '/functions/getLiquidityPools',          // NEW
-    search: '/functions/searchTokens',
-    validators: '/functions/getValidators',
-    networkStats: '/functions/getNetworkStats',
-    networkHistory: '/functions/getNetworkHistory',
-    smartSearch: '/functions/smartSearch',
-    analyzeToken: '/functions/analyzeToken',
-    detectAnomalies: '/functions/detectAnomalies'
-  },
+endpoints: {
+  tokens: '/functions/getTokens',
+  tokenDetail: '/functions/getTokenByMint',
+  tokenPrice: '/functions/getTokenPrice',
+  pools: '/functions/getLiquidityPools',
+  lpStats: '/functions/getLPStats',              // ← LP Explorer stats
+  lpTokens: '/functions/getLPTokens',            // ← LP Explorer token list
+  lpPoolDetail: '/functions/getLPPoolDetail',    // ← Individual pool details
+  search: '/functions/searchTokens',
+  validators: '/functions/getValidators',
+  networkStats: '/functions/getNetworkStats',
+  networkHistory: '/functions/getNetworkHistory',
+  smartSearch: '/functions/smartSearch',
+  analyzeToken: '/functions/analyzeToken',
+  detectAnomalies: '/functions/detectAnomalies'
+},
   
   // XDEX API Configuration (for direct frontend calls if needed)
   xdex: {
