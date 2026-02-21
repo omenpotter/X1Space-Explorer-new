@@ -1,5 +1,5 @@
 // src/pages/LPExplorer.jsx
-// Updated with dark theme matching Dashboard and back button
+// Clean version without Total LP Supply, Total Supply, and Decimals columns
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -81,7 +81,9 @@ const LPExplorer = () => {
   };
 
   const filteredTokens = lpTokens.filter(token =>
-    token.lp_mint.toLowerCase().includes(searchTerm.toLowerCase())
+    token.lp_mint.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    token.token_a_symbol?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    token.token_b_symbol?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (loading) {
@@ -99,7 +101,6 @@ const LPExplorer = () => {
     return (
       <div className="min-h-screen bg-[#0f1419] text-white">
         <div className="max-w-[1800px] mx-auto px-4 py-8">
-          {/* Header with Back Button */}
           <div className="flex items-center gap-4 mb-6">
             <Link to={createPageUrl('Dashboard')}>
               <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
@@ -109,7 +110,6 @@ const LPExplorer = () => {
             </Link>
           </div>
 
-          {/* Error Card */}
           <Card className="bg-[#1d2d3a] border-red-500/20">
             <CardContent className="pt-6">
               <div className="text-center py-12">
@@ -119,8 +119,8 @@ const LPExplorer = () => {
                 <div className="space-y-2 text-sm text-gray-500 mb-6">
                   <p>Please check:</p>
                   <ul className="list-disc list-inside">
-                    <li>Database has LP data</li>
-                    <li>CORS is configured correctly</li>
+                    <li>XDEX API is available</li>
+                    <li>Network connection is stable</li>
                   </ul>
                 </div>
                 <Button onClick={loadData} className="bg-cyan-500 hover:bg-cyan-600">
@@ -138,7 +138,7 @@ const LPExplorer = () => {
   return (
     <div className="min-h-screen bg-[#0f1419] text-white">
       <div className="max-w-[1800px] mx-auto px-4 py-8 space-y-8">
-        {/* Header with Back Button */}
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link to={createPageUrl('Dashboard')}>
@@ -150,7 +150,7 @@ const LPExplorer = () => {
             <div>
               <h1 className="text-4xl font-bold text-white">Liquidity Pools</h1>
               <p className="text-gray-400 mt-1">
-                Explore XDEX liquidity pools, holders, and activity
+                Explore XDEX liquidity pools on X1 Mainnet
               </p>
             </div>
           </div>
@@ -165,8 +165,8 @@ const LPExplorer = () => {
           </Button>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Stats Cards - Only 3 cards now */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card className="bg-[#1d2d3a] border-white/10">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-300">Total Pools</CardTitle>
@@ -191,28 +191,14 @@ const LPExplorer = () => {
 
           <Card className="bg-[#1d2d3a] border-white/10">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Total LP Supply</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-300">Total TVL</CardTitle>
               <TrendingUpIcon className="h-4 w-4 text-emerald-400" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">
-                {stats?.total_lp_supply ? formatLPAmount(stats.total_lp_supply, 0) : '0'}
+                ${lpTokens.reduce((sum, t) => sum + (t.liquidity_usd || 0), 0).toLocaleString()}
               </div>
-              <p className="text-xs text-gray-500">LP tokens issued</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-[#1d2d3a] border-white/10">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">LP Events</CardTitle>
-              <ActivityIcon className="h-4 w-4 text-yellow-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{eventStats?.total_events || 0}</div>
-              <p className="text-xs text-gray-500">
-                <span className="text-emerald-400">{eventStats?.add_count || 0} adds</span> · {' '}
-                <span className="text-red-400">{eventStats?.remove_count || 0} removes</span>
-              </p>
+              <p className="text-xs text-gray-500">Total value locked</p>
             </CardContent>
           </Card>
         </div>
@@ -231,16 +217,18 @@ const LPExplorer = () => {
             </TabsTrigger>
           </TabsList>
 
-          {/* Pools Tab */}
+          {/* Pools Tab - Removed Total Supply and Decimals columns */}
           <TabsContent value="pools" className="space-y-4">
             <Card className="bg-[#1d2d3a] border-white/10">
               <CardHeader>
                 <CardTitle className="text-white">Liquidity Pools</CardTitle>
-                <CardDescription className="text-gray-400">Top pools by holder count</CardDescription>
+                <CardDescription className="text-gray-400">
+                  {lpTokens.length} pools sorted by TVL
+                </CardDescription>
                 <div className="flex items-center space-x-2 pt-4">
                   <SearchIcon className="h-4 w-4 text-gray-500" />
                   <Input
-                    placeholder="Search by LP mint address..."
+                    placeholder="Search by token pair or address..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="max-w-sm bg-[#0f1419] border-white/10 text-white placeholder:text-gray-500"
@@ -252,10 +240,10 @@ const LPExplorer = () => {
                   <TableHeader>
                     <TableRow className="border-white/5 hover:bg-transparent">
                       <TableHead className="text-gray-400 w-16">#</TableHead>
-                      <TableHead className="text-gray-400">LP Token</TableHead>
+                      <TableHead className="text-gray-400">Token Pair</TableHead>
                       <TableHead className="text-right text-gray-400">Holders</TableHead>
-                      <TableHead className="text-right text-gray-400">Total Supply</TableHead>
-                      <TableHead className="text-right text-gray-400">Decimals</TableHead>
+                      <TableHead className="text-right text-gray-400">TVL</TableHead>
+                      <TableHead className="text-right text-gray-400">24h Volume</TableHead>
                       <TableHead className="text-right text-gray-400">Updated</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -266,38 +254,73 @@ const LPExplorer = () => {
                           {index + 1}
                         </TableCell>
                         <TableCell className="font-mono text-sm">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-cyan-400 font-semibold">
-                              {token.pair_symbol || `${token.token_a_symbol}/${token.token_b_symbol}`}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 hover:bg-white/10"
-                              onClick={() => window.open(`https://explorer.mainnet.x1.xyz/address/${token.lp_mint}`, '_blank')}
-                              title={`View ${token.lp_mint} on X1 Explorer`}
-                            >
-                              <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
-                            </Button>
+                          <div className="flex items-center space-x-3">
+                            {/* Token Logos */}
+                            {(token.token_a_logo || token.token_b_logo) && (
+                              <div className="flex -space-x-2">
+                                {token.token_a_logo && (
+                                  <img 
+                                    src={token.token_a_logo} 
+                                    alt={token.token_a_symbol}
+                                    className="w-6 h-6 rounded-full border-2 border-[#1d2d3a] bg-gray-800"
+                                    onError={(e) => e.target.style.display = 'none'}
+                                  />
+                                )}
+                                {token.token_b_logo && (
+                                  <img 
+                                    src={token.token_b_logo} 
+                                    alt={token.token_b_symbol}
+                                    className="w-6 h-6 rounded-full border-2 border-[#1d2d3a] bg-gray-800"
+                                    onError={(e) => e.target.style.display = 'none'}
+                                  />
+                                )}
+                              </div>
+                            )}
+                            
+                            <div className="flex items-center gap-2">
+                              <span className="text-cyan-400 font-semibold">
+                                {token.pair_symbol || `${token.token_a_symbol}/${token.token_b_symbol}`}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 hover:bg-white/10"
+                                onClick={() => window.open(`https://explorer.mainnet.x1.xyz/address/${token.lp_mint}`, '_blank')}
+                                title={`View on X1 Explorer`}
+                              >
+                                <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 hover:bg-white/10"
+                                onClick={() => window.open(`https://app.xdex.xyz/liquidity`, '_blank')}
+                                title={`Trade on XDEX`}
+                              >
+                                <ExternalLinkIcon className="h-3 w-3 text-purple-400" />
+                              </Button>
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <Badge variant="outline" className="border-cyan-400/30 text-cyan-400">
-                            {token.holder_count}
+                            {token.holder_count || 0}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right font-mono text-gray-300">
-                          {formatLPAmount(token.total_supply)}
+                        <TableCell className="text-right font-mono text-emerald-400">
+                          ${(token.liquidity_usd || 0).toLocaleString()}
                         </TableCell>
-                        <TableCell className="text-right text-gray-300">{token.decimals}</TableCell>
+                        <TableCell className="text-right font-mono text-gray-300">
+                          ${(token.volume_24h || 0).toLocaleString()}
+                        </TableCell>
                         <TableCell className="text-right text-sm text-gray-500">
-                          {new Date(token.updated_at).toLocaleDateString()}
+                          {token.updated_at ? new Date(token.updated_at).toLocaleDateString() : '—'}
                         </TableCell>
                       </TableRow>
                     )) : (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-gray-500">
-                          No pools found
+                        <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                          {searchTerm ? 'No pools found matching your search' : 'No pools available'}
                         </TableCell>
                       </TableRow>
                     )}
@@ -362,7 +385,7 @@ const LPExplorer = () => {
                     )) : (
                       <TableRow>
                         <TableCell colSpan={4} className="text-center py-8 text-gray-500">
-                          No holders found
+                          No holders data available
                         </TableCell>
                       </TableRow>
                     )}
@@ -436,7 +459,7 @@ const LPExplorer = () => {
                     )) : (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                          No recent LP events found
+                          No recent events available
                         </TableCell>
                       </TableRow>
                     )}
