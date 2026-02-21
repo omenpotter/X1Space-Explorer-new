@@ -1,5 +1,5 @@
 // LP API Service - XDEX Integration
-// Replaces old database backend with XDEX API
+// Complete with pool detail fetching
 
 import API_CONFIG from '@/config/api.config';
 
@@ -33,7 +33,7 @@ export const getLPStats = async () => {
 export const getLPTokens = async (limit = 100) => {
   try {
     const response = await fetch(`${API_BASE_URL}/functions/getLPTokens?limit=${limit}`, {
-      signal: AbortSignal.timeout(10000)
+      signal: AbortSignal.timeout(15000)
     });
     
     if (!response.ok) {
@@ -48,12 +48,12 @@ export const getLPTokens = async (limit = 100) => {
 };
 
 /**
- * Get specific LP token details
+ * Get specific LP pool details by address
  */
-export const getLPToken = async (mint) => {
+export const getLPToken = async (poolAddress) => {
   try {
     const response = await fetch(
-      `${XDEX_API}/api/xendex/pool/${mint}?network=${NETWORK}`,
+      `${API_BASE_URL}/functions/getLPPoolDetail?pool=${poolAddress}`,
       { signal: AbortSignal.timeout(10000) }
     );
     
@@ -61,9 +61,59 @@ export const getLPToken = async (mint) => {
       throw new Error(`HTTP ${response.status}`);
     }
     
-    return await response.json();
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error(data.error?.message || 'Failed to fetch pool');
+    }
+    
+    return data;
   } catch (error) {
-    console.error('Failed to fetch LP token:', error);
+    console.error('Failed to fetch LP pool:', error);
+    
+    // Fallback: Try to get from pool list
+    try {
+      const listResponse = await fetch(
+        `${XDEX_API}/api/xendex/pool/list?network=${NETWORK}`,
+        { signal: AbortSignal.timeout(10000) }
+      );
+      
+      if (listResponse.ok) {
+        const listData = await listResponse.json();
+        if (listData.success && listData.data) {
+          const pool = listData.data.find(p => p.pool_address === poolAddress);
+          
+          if (pool) {
+            return {
+              success: true,
+              pool: {
+                pool_address: pool.pool_address,
+                pair_name: `${pool.token_a_symbol || 'UNKNOWN'}/${pool.token_b_symbol || 'UNKNOWN'}`,
+                token_a: {
+                  mint: pool.token_a_mint,
+                  symbol: pool.token_a_symbol || 'UNKNOWN',
+                  name: pool.token_a_name || 'Unknown Token',
+                  image: pool.token_a_image,
+                  decimals: pool.token_a_decimals || 9
+                },
+                token_b: {
+                  mint: pool.token_b_mint,
+                  symbol: pool.token_b_symbol || 'UNKNOWN',
+                  name: pool.token_b_name || 'Unknown Token',
+                  image: pool.token_b_image,
+                  decimals: pool.token_b_decimals || 9
+                },
+                liquidity: pool.liquidity || 0,
+                volume_24h: pool.volume_24h || 0
+              }
+            };
+          }
+        }
+      }
+    } catch (fallbackError) {
+      console.warn('Fallback also failed:', fallbackError);
+    }
+    
     throw error;
   }
 };
