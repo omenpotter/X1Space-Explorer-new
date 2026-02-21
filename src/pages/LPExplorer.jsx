@@ -269,7 +269,9 @@ const LPExplorer = () => {
                         <TableCell className="font-mono text-sm">
                           <div className="flex items-center space-x-2">
                             <span className="text-cyan-400 font-semibold">
-                              {token.pair_symbol || `${token.token_a_symbol}/${token.token_b_symbol}`}
+                              {token.pair_name || 
+                               token.pair_symbol || 
+                               `${token.token_a?.symbol || token.token_a_symbol || 'UNKNOWN'}/${token.token_b?.symbol || token.token_b_symbol || 'UNKNOWN'}`}
                             </span>
                             <Button
                               variant="ghost"
