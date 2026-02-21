@@ -1,33 +1,37 @@
+// src/config/api.config.js
 // API Configuration for X1 Space Explorer
-const isDevelopment = import.meta.env.DEV;
-const isProduction = import.meta.env.PROD;
 
-export const API_CONFIG = {
-  // Base URLs - Use Base44's own domain
-  baseURL: isDevelopment 
-    ? 'http://localhost:3000'
-    : window.location.origin,  // https://x1space.base44.app
+// Detect environment - if on base44.app domain, we're in production
+const isBase44Production = window.location.hostname.includes('base44.app');
+
+const API_CONFIG = {
+  // Base URLs
+  baseURL: isBase44Production 
+    ? window.location.origin  // Use Base44's domain
+    : 'http://localhost:3000', // Local development
   
-  wsURL: isDevelopment
-    ? 'ws://localhost:3000'
-    : `wss://${window.location.host}`,
+  wsURL: isBase44Production
+    ? `wss://${window.location.host}`
+    : 'ws://localhost:3000',
   
   // API Endpoints - Using /functions/ path for Base44
   endpoints: {
     tokens: '/functions/getTokens',
     tokenDetail: '/functions/getTokenByMint',
-    tokenPrice: '/functions/getTokenPrice',        // NEW
-    pools: '/functions/getLiquidityPools',          // NEW
+    tokenPrice: '/functions/getTokenPrice',
+    pools: '/functions/getLiquidityPools',
     search: '/functions/searchTokens',
     validators: '/functions/getValidators',
     networkStats: '/functions/getNetworkStats',
     networkHistory: '/functions/getNetworkHistory',
     smartSearch: '/functions/smartSearch',
     analyzeToken: '/functions/analyzeToken',
-    detectAnomalies: '/functions/detectAnomalies'
+    detectAnomalies: '/functions/detectAnomalies',
+    lpStats: '/functions/getLPStats',
+    lpTokens: '/functions/getLPTokens'
   },
   
-  // XDEX API Configuration (for direct frontend calls if needed)
+  // XDEX API Configuration
   xdex: {
     apiUrl: 'https://api.xdex.xyz',
     network: 'X1%20Mainnet',
@@ -44,7 +48,7 @@ export const API_CONFIG = {
   },
   
   // Request settings
-  timeout: 10000,
+  timeout: 15000,
   retries: 3,
   
   // Feature flags
@@ -53,8 +57,15 @@ export const API_CONFIG = {
     aiSearch: true,
     realTimePrices: true,
     portfolioTracking: true,
-    xdexIntegration: true  // NEW
+    xdexIntegration: true
   }
 };
+
+// Debug log to verify correct URL is being used
+console.log('🔧 API CONFIG:', {
+  isBase44Production,
+  baseURL: API_CONFIG.baseURL,
+  hostname: window.location.hostname
+});
 
 export default API_CONFIG;
