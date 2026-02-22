@@ -57,7 +57,7 @@ const LPExplorer = () => {
       ]);
 
       setStats(statsData.stats);
-      setLpTokens(tokensData.tokens || []);
+      setLpTokens(tokensData.tokens);
     } catch (error) {
       console.error('Failed to load LP data:', error);
       setError(error.message);
@@ -76,7 +76,7 @@ const LPExplorer = () => {
   };
 
   // Filter and sort tokens
-  const filteredTokens = (lpTokens || [])
+  const filteredTokens = lpTokens
     .filter(token =>
       token.lp_mint.toLowerCase().includes(searchTerm.toLowerCase()) ||
       token.token_a_symbol?.toLowerCase().includes(searchTerm.toLowerCase()) ||
