@@ -580,6 +580,10 @@ export default function TokenExplorer() {
                                 <h3 className="text-white font-bold mb-4">Token Information</h3>
                                 <div className="space-y-2 text-sm">
                                   <div className="flex justify-between">
+                                    <span className="text-gray-400">Total Supply:</span>
+                                    <span className="text-white font-mono">{formatNum(tokenDetails.supply)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
                                     <span className="text-gray-400">Mint Authority:</span>
                                     <span className="text-white font-mono text-xs">{tokenDetails.mintAuthority === 'None' ? 'None' : `${tokenDetails.mintAuthority.slice(0, 8)}...`}</span>
                                   </div>
