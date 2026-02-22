@@ -159,10 +159,7 @@ export default function TokenExplorer() {
       switch(sortBy) {
         case 'liquidity': return direction * (b.liquidity - a.liquidity);
         case 'poolCount': return direction * (b.poolCount - a.poolCount);
-        case 'marketCap': return direction * (b.marketCap - a.marketCap);
         case 'price': return direction * (parseFloat(b.price) - parseFloat(a.price));
-        case 'change': return direction * (parseFloat(b.priceChange24h) - parseFloat(a.priceChange24h));
-        case 'supply': return direction * (b.totalSupply - a.totalSupply);
         case 'name': return direction * a.name.localeCompare(b.name);
         default: return 0;
       }
@@ -362,6 +359,7 @@ export default function TokenExplorer() {
               className="bg-[#0f1419] border border-white/10 text-white rounded-lg px-3 py-2"
             >
               <option value="liquidity">Liquidity</option>
+              <option value="price">Price</option>
               <option value="poolCount">Pool Count</option>
               <option value="name">Name</option>
             </select>
@@ -430,6 +428,7 @@ export default function TokenExplorer() {
                 <tr className="border-b border-white/5">
                   <th className="text-left text-gray-400 text-xs px-4 py-3">#</th>
                   <th className="text-left text-gray-400 text-xs px-4 py-3">Token</th>
+                  <th className="text-right text-gray-400 text-xs px-4 py-3">Price</th>
                   <th className="text-right text-gray-400 text-xs px-4 py-3">Liquidity</th>
                   <th className="text-right text-gray-400 text-xs px-4 py-3">Pools</th>
                   <th className="text-center text-gray-400 text-xs px-4 py-3"></th>
@@ -471,6 +470,7 @@ export default function TokenExplorer() {
                           </div>
                         </div>
                       </td>
+                      <td className="px-4 py-3 text-right text-white font-mono">${parseFloat(token.price).toFixed(4)}</td>
                       <td className="px-4 py-3 text-right text-emerald-400 font-mono">${formatNum(token.liquidity)}</td>
                       <td className="px-4 py-3 text-right">
                         <Badge variant="outline" className="border-cyan-400/30 text-cyan-400">
@@ -506,7 +506,7 @@ export default function TokenExplorer() {
                     
                     {expandedToken === token.mint && tokenDetails && (
                       <tr>
-                        <td colSpan="5" className="p-0 bg-[#0f1419]">
+                        <td colSpan="6" className="p-0 bg-[#0f1419]">
                           <div className="p-6 border-t border-white/5">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               <div>
