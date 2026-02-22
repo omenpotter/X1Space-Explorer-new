@@ -1,16 +1,17 @@
 // src/config/api.config.js
 // API Configuration for X1 Space Explorer
 
-// Detect environment - if on base44.app domain, we're in production
-const isBase44Production = window.location.hostname.includes('base44.app');
+// Detect environment - support both base44.app and x1space.xyz
+const isProduction = window.location.hostname.includes('base44.app') || 
+                     window.location.hostname.includes('x1space.xyz');
 
 const API_CONFIG = {
-  // Base URLs
-  baseURL: isBase44Production 
-    ? window.location.origin  // Use Base44's domain
+  // Base URLs - works for both domains
+  baseURL: isProduction 
+    ? window.location.origin  // Use current domain (base44.app or x1space.xyz)
     : 'http://localhost:3000', // Local development
   
-  wsURL: isBase44Production
+  wsURL: isProduction
     ? `wss://${window.location.host}`
     : 'ws://localhost:3000',
   
@@ -63,9 +64,9 @@ const API_CONFIG = {
 
 // Debug log to verify correct URL is being used
 console.log('🔧 API CONFIG:', {
-  isBase44Production,
-  baseURL: API_CONFIG.baseURL,
-  hostname: window.location.hostname
+  isProduction,
+  hostname: window.location.hostname,
+  baseURL: API_CONFIG.baseURL
 });
 
 export default API_CONFIG;
