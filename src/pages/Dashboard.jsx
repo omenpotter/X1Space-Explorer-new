@@ -37,6 +37,7 @@ const MiniFallback = memo(() => <div className="w-5 h-5" />);
 
 // Import RPC service directly for faster initial load
 import X1Rpc from '../components/x1/X1RpcService';
+import X1Api from '../components/x1/X1ApiClient';
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,6 +46,7 @@ export default function Dashboard() {
   const [tpsInterval, setTpsInterval] = useState('1m');
   const [mempoolInterval, setMempoolInterval] = useState('1m');
   const [hasLoadedData, setHasLoadedData] = useState(false);
+  const [xntPrice, setXntPrice] = useState(1.00);
   
   // OPTIMIZATION: Use refs for data to prevent object replacement and remounts
   const dashboardRef = React.useRef(null);
@@ -112,6 +114,16 @@ export default function Dashboard() {
       setDataVersion(v => v + 1);
       isInitializedRef.current = true;
       setHasLoadedData(true);
+      
+      // Fetch XNT price from API
+      X1Api.listTokens({ limit: 100, offset: 0, verified: false }).then(response => {
+        if (response.success && response.data?.tokens) {
+          const wxnt = response.data.tokens.find(t => t.symbol === 'WXNT' || t.mint === 'So11111111111111111111111111111111111111112');
+          if (wxnt && wxnt.price) {
+            setXntPrice(parseFloat(wxnt.price));
+          }
+        }
+      }).catch(() => {});
     } catch (err) {
       if (err.name !== 'AbortError') {
         console.error('Failed to fetch data:', err);
@@ -459,8 +471,8 @@ export default function Dashboard() {
               <div className="flex items-center gap-3">
                 <MempoolLegend />
                 <div className="flex items-center gap-2 ml-4">
-                  <span className="text-emerald-400 text-sm font-medium">XNT $1.00</span>
-                  <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">OTC</Badge>
+                  <span className="text-emerald-400 text-sm font-medium">XNT ${xntPrice.toFixed(4)}</span>
+                  <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">LIVE</Badge>
                 </div>
               </div>
             </div>
