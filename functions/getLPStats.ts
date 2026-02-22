@@ -1,9 +1,8 @@
 // functions/getLPStats.ts
-// Fetch LP stats from XDEX - WITH API KEY
+// Fixed version with robust error handling - WITH RATE LIMITING
 
 const XDEX_API = 'https://api.xdex.xyz';
 const NETWORK = 'X1%20Mainnet';
-const XDEX_API_KEY = Deno.env.get('XDEX_API_KEY');
 
 // Rate limiting - in-memory store
 const rateLimits = new Map();
@@ -45,10 +44,13 @@ Deno.serve(async (req) => {
   if (!checkRateLimit(ip)) {
     console.warn(`⚠️ Rate limit exceeded for IP: ${ip}`);
     return new Response(JSON.stringify({
+      success: false,
       error: 'Rate limit exceeded. Please try again in a minute.',
-      total_pools: 0,
-      total_tvl: 0,
-      total_holders: 0
+      stats: {
+        total_pools: 0,
+        total_holders: 0,
+        total_lp_supply: '0'
+      }
     }), {
       status: 429,
       headers: corsHeaders(),
@@ -56,69 +58,96 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('📊 Fetching LP stats from XDEX');
+    console.log('📊 Fetching LP stats from XDEX...');
     
-    // Build headers with API key
-    const headers: Record<string, string> = {
-      'User-Agent': 'X1Space-Explorer/1.0',
-      'Accept': 'application/json'
-    };
-    
-    if (XDEX_API_KEY) {
-      headers['X-API-Key'] = XDEX_API_KEY;
-      console.log('✓ Using XDEX API Key');
-    }
-
-    const response = await fetch(
+    const res = await fetch(
       `${XDEX_API}/api/xendex/pool/list?network=${NETWORK}`,
-      { 
-        headers,
-        signal: AbortSignal.timeout(10000) 
-      }
+      { signal: AbortSignal.timeout(20000) }
     );
 
-    if (!response.ok) {
-      throw new Error(`XDEX API error: ${response.status}`);
+    if (!res.ok) {
+      throw new Error(`XDEX failed: ${res.status}`);
     }
 
-    const data = await response.json();
+    let pools = await res.json();
+    
+    console.log('Raw response type:', typeof pools);
+    console.log('Is array:', Array.isArray(pools));
 
-    if (!data.success || !Array.isArray(data.data)) {
-      throw new Error('Invalid XDEX response');
+    // Handle both plain array and {success: true, data: [...]}
+    if (!Array.isArray(pools)) {
+      if (pools.success && Array.isArray(pools.data)) {
+        pools = pools.data;
+      } else {
+        console.error('Unexpected format:', JSON.stringify(pools).slice(0, 200));
+        throw new Error('Unexpected format from XDEX');
+      }
     }
 
-    const pools = data.data;
+    console.log(`✓ Received ${pools.length} pools`);
 
-    // Calculate aggregate stats
-    const totalPools = pools.length;
-    const totalTVL = pools.reduce((sum: number, pool: any) => sum + (pool.tvl || 0), 0);
-    const totalHolders = pools.reduce((sum: number, pool: any) => sum + (pool.lp_token_holder_count || 0), 0);
+    // Calculate stats
+    const total_pools = pools.length;
+    let total_lp_supply = 0n;
+    let total_holders = 0;
 
-    const stats = {
-      total_pools: totalPools,
-      total_tvl: totalTVL,
-      total_holders: totalHolders,
-      avg_tvl_per_pool: totalPools > 0 ? totalTVL / totalPools : 0,
-      updated_at: new Date().toISOString(),
-    };
+    pools.forEach((pool, index) => {
+      const info = pool.pool_info || {};
+      let supply = info.lpSupply;
 
-    console.log(`✅ Stats: ${totalPools} pools, $${totalTVL.toFixed(2)} TVL`);
+      // Handle BigInt-like object
+      if (supply && typeof supply === 'object' && supply.words) {
+        const hexStr = '0x' + supply.words.map((w: number) => w.toString(16).padStart(8, '0')).join('');
+        try {
+          total_lp_supply += BigInt(hexStr);
+        } catch (e) {
+          console.warn(`Failed to parse supply for pool ${index}:`, e);
+        }
+      } else if (supply && typeof supply === 'string') {
+        // Handle hex string
+        try {
+          const hexStr = supply.startsWith('0x') ? supply : '0x' + supply;
+          total_lp_supply += BigInt(hexStr);
+        } catch (e) {
+          console.warn(`Failed to parse supply for pool ${index}:`, e);
+        }
+      }
 
-    return new Response(JSON.stringify(stats), {
-      headers: corsHeaders(),
+      total_holders += pool.lp_token_holder_count || 0;
     });
 
-  } catch (error) {
-    console.error('❌ Error:', error.message);
+    const stats = {
+      total_pools,
+      total_holders,
+      total_lp_supply: total_lp_supply.toString(),
+      last_updated: new Date().toISOString()
+    };
+
+    console.log('✅ Stats calculated:', stats);
+
+    return new Response(JSON.stringify({
+      success: true,
+      stats
+    }), {
+      status: 200,
+      headers: corsHeaders()
+    });
+
+  } catch (err) {
+    console.error('❌ Stats error:', err);
+    console.error('Error stack:', err.stack);
     
     return new Response(JSON.stringify({
-      error: error.message,
-      total_pools: 0,
-      total_tvl: 0,
-      total_holders: 0,
+      success: false,
+      error: err.message || 'Internal error',
+      stats: {
+        total_pools: 0,
+        total_holders: 0,
+        total_lp_supply: '0'
+      }
     }), {
       status: 500,
-      headers: corsHeaders(),
+      headers: corsHeaders()
     });
   }
 });
