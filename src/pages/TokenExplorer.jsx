@@ -452,6 +452,7 @@ export default function TokenExplorer() {
                   <th className="text-left text-gray-400 text-xs px-4 py-3">#</th>
                   <th className="text-left text-gray-400 text-xs px-4 py-3">Token</th>
                   <th className="text-right text-gray-400 text-xs px-4 py-3">Price</th>
+                  <th className="text-right text-gray-400 text-xs px-4 py-3">Market Cap</th>
                   <th className="text-right text-gray-400 text-xs px-4 py-3">Liquidity</th>
                   <th className="text-right text-gray-400 text-xs px-4 py-3">Pools</th>
                   <th className="text-center text-gray-400 text-xs px-4 py-3"></th>
@@ -494,6 +495,7 @@ export default function TokenExplorer() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right text-white font-mono">${parseFloat(token.price).toFixed(4)}</td>
+                      <td className="px-4 py-3 text-right text-purple-400 font-mono">${formatNum(token.marketCap)}</td>
                       <td className="px-4 py-3 text-right text-emerald-400 font-mono">${formatNum(token.liquidity)}</td>
                       <td className="px-4 py-3 text-right">
                         <Badge variant="outline" className="border-cyan-400/30 text-cyan-400">
@@ -529,7 +531,7 @@ export default function TokenExplorer() {
                     
                     {expandedToken === token.mint && tokenDetails && (
                       <tr>
-                        <td colSpan="6" className="p-0 bg-[#0f1419]">
+                        <td colSpan="7" className="p-0 bg-[#0f1419]">
                           <div className="p-6 border-t border-white/5">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               <div>
