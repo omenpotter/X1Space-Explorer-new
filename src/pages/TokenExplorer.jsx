@@ -247,8 +247,6 @@ export default function TokenExplorer() {
     return '0.00';
   };
 
-  const xntHistory = Array.from({ length: 30 }, (_, i) => ({ day: i, price: 1.00 }));
-
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0f1419] text-white flex items-center justify-center">
@@ -311,36 +309,59 @@ export default function TokenExplorer() {
         </div>
 
         {/* XNT Featured */}
-        <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 rounded-xl p-6 mb-6">
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center">
-                <span className="text-black font-black text-lg">X1</span>
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">X1 Native Token (XNT)</h2>
-                <Badge className="bg-emerald-500/20 text-emerald-400 border-0 mt-1">$1.00 OTC</Badge>
+        {(() => {
+          // Find WXNT token (wrapped XNT) for actual price
+          const xntToken = allTokens.find(t => 
+            t.symbol === 'WXNT' || 
+            t.mint === 'So11111111111111111111111111111111111111112'
+          );
+          const xntPrice = xntToken ? parseFloat(xntToken.price) : 1.00;
+          const xntLiquidity = xntToken ? xntToken.liquidity : 0;
+          const priceHistory = xntToken?.priceHistory?.length > 0 
+            ? xntToken.priceHistory 
+            : Array.from({ length: 30 }, (_, i) => ({ day: i, price: xntPrice }));
+          
+          return (
+            <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 rounded-xl p-6 mb-6">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center">
+                    <span className="text-black font-black text-lg">X1</span>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">X1 Native Token (XNT)</h2>
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-0 mt-1">
+                      ${xntPrice.toFixed(4)}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="flex items-center gap-6">
+                  <div>
+                    <p className="text-gray-400 text-xs">Liquidity</p>
+                    <p className="text-white font-bold">${formatNum(xntLiquidity)}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400 text-xs">Market Cap</p>
+                    <p className="text-white font-bold">${formatNum((supply.circulating / 1e9) * xntPrice)}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400 text-xs">24h Change</p>
+                    <p className={`font-bold ${parseFloat(xntToken?.priceChange24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {parseFloat(xntToken?.priceChange24h || 0) >= 0 ? '+' : ''}{xntToken?.priceChange24h || '0.00'}%
+                    </p>
+                  </div>
+                  <div className="h-16 w-40">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={priceHistory}>
+                        <Line type="monotone" dataKey="price" stroke="#06b6d4" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-6">
-              <div>
-                <p className="text-gray-400 text-xs">Market Cap</p>
-                <p className="text-white font-bold">${formatNum(supply.circulating / 1e9)}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-xs">24h Change</p>
-                <p className="text-gray-400 font-bold">0.00%</p>
-              </div>
-              <div className="h-16 w-40">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={xntHistory}>
-                    <Line type="monotone" dataKey="price" stroke="#06b6d4" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* Search and Filters */}
         <div className="bg-[#1d2d3a] border border-white/10 rounded-xl p-4 mb-6">
