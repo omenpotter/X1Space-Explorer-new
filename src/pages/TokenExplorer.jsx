@@ -159,6 +159,7 @@ export default function TokenExplorer() {
       switch(sortBy) {
         case 'liquidity': return direction * (b.liquidity - a.liquidity);
         case 'poolCount': return direction * (b.poolCount - a.poolCount);
+        case 'marketCap': return direction * (b.marketCap - a.marketCap);
         case 'price': return direction * (parseFloat(b.price) - parseFloat(a.price));
         case 'name': return direction * a.name.localeCompare(b.name);
         default: return 0;
@@ -382,6 +383,7 @@ export default function TokenExplorer() {
               <option value="liquidity">Liquidity</option>
               <option value="price">Price</option>
               <option value="poolCount">Pool Count</option>
+              <option value="marketCap">Market Cap</option>
               <option value="name">Name</option>
             </select>
             <Button
