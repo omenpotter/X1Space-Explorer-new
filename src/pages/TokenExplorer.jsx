@@ -67,77 +67,32 @@ export default function TokenExplorer() {
         
         console.log(`✅ Loaded ${tokens.length} tokens from API`);
         
-        const tokenData = tokens.map(token => {
-          const price = token.price ? parseFloat(token.price) : 0;
-          const totalSupply = token.total_supply || 0;
-          const calculatedMarketCap = price * totalSupply;
-          
-          return {
-            mint: token.mint,
-            name: token.name || 'Unknown Token',
-            symbol: token.symbol || 'UNKNOWN',
-            logo: token.logo_uri,
-            decimals: token.decimals || 9,
-            totalSupply: totalSupply,
-            tokenType: token.token_type || 'SPL Token',
-            price: price.toFixed(4),
-            marketCap: calculatedMarketCap,
-            priceChange24h: token.price_change_24h ? parseFloat(token.price_change_24h).toFixed(2) : '0.00',
-            liquidity: token.liquidity || 0,
-            poolCount: token.pool_count || 0,
-            website: token.website,
-            twitter: token.twitter,
-            verified: token.verification_count > 0,
-            priceHistory: token.price_history || []
-          };
-        });
+        const tokenData = tokens.map(token => ({
+          mint: token.mint,
+          name: token.name || 'Unknown Token',
+          symbol: token.symbol || 'UNKNOWN',
+          logo: token.logo_uri,
+          decimals: token.decimals || 9,
+          totalSupply: token.total_supply || 0,
+          tokenType: token.token_type || 'SPL Token',
+          price: token.price ? parseFloat(token.price).toFixed(4) : '0.0000',
+          marketCap: token.market_cap || 0,
+          priceChange24h: token.price_change_24h ? parseFloat(token.price_change_24h).toFixed(2) : '0.00',
+          liquidity: token.liquidity || 0,
+          poolCount: token.pool_count || 0,
+          website: token.website,
+          twitter: token.twitter,
+          verified: token.verification_count > 0,
+          priceHistory: token.price_history || []
+        }));
 
         setAllTokens(tokenData);
         console.log(`✅ Total tokens: ${tokenData.length}`);
         
-        // Auto-fetch supply for all tokens to calculate market cap
-        console.log('📊 Fetching supplies for market cap calculation...');
-        const X1Rpc = (await import('../components/x1/X1RpcService')).default;
-        
-        // Fetch supplies in batches to avoid overwhelming RPC
-        const batchSize = 20;
-        for (let i = 0; i < Math.min(tokenData.length, 100); i += batchSize) {
-          const batch = tokenData.slice(i, i + batchSize);
-          const supplyPromises = batch.map(async (token) => {
-            try {
-              const accountInfo = await X1Rpc.getAccountInfo(token.mint);
-              if (accountInfo?.value) {
-                const parsed = accountInfo.value.data?.parsed?.info;
-                const supply = Number(parsed?.supply || 0) / Math.pow(10, parsed?.decimals || 9);
-                return { mint: token.mint, supply };
-              }
-            } catch (err) {
-              console.warn(`Failed to fetch supply for ${token.mint.substring(0, 8)}`);
-            }
-            return { mint: token.mint, supply: 0 };
-          });
-          
-          const supplies = await Promise.all(supplyPromises);
-          
-          // Update tokens with real supply and market cap
-          setAllTokens(prev => prev.map(token => {
-            const supplyData = supplies.find(s => s.mint === token.mint);
-            if (supplyData && supplyData.supply > 0) {
-              const calculatedMarketCap = parseFloat(token.price) * supplyData.supply;
-              return {
-                ...token,
-                totalSupply: supplyData.supply,
-                marketCap: calculatedMarketCap
-              };
-            }
-            return token;
-          }));
-        }
-        
-        console.log('✅ Market caps calculated');
-        
         // Fetch supply and validator stats from RPC
         try {
+          const X1Rpc = (await import('../components/x1/X1RpcService')).default;
+          
           const [supplyInfo, voteAccounts] = await Promise.all([
             X1Rpc.getSupply(),
             X1Rpc.getVoteAccounts()
