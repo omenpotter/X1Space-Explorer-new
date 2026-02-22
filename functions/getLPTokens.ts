@@ -1,9 +1,8 @@
 // functions/getLPTokens.ts
-// Fetch LP tokens from XDEX - WITH API KEY
+// Fixed version with robust error handling - WITH RATE LIMITING
 
 const XDEX_API = 'https://api.xdex.xyz';
 const NETWORK = 'X1%20Mainnet';
-const XDEX_API_KEY = Deno.env.get('XDEX_API_KEY');
 
 // Rate limiting - in-memory store
 const rateLimits = new Map();
@@ -45,8 +44,10 @@ Deno.serve(async (req) => {
   if (!checkRateLimit(ip)) {
     console.warn(`⚠️ Rate limit exceeded for IP: ${ip}`);
     return new Response(JSON.stringify({
+      success: false,
       error: 'Rate limit exceeded. Please try again in a minute.',
-      pools: []
+      tokens: [],
+      count: 0
     }), {
       status: 429,
       headers: corsHeaders(),
@@ -54,69 +55,110 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url);
-  const limit = parseInt(url.searchParams.get('limit') || '100');
+  const limit = Math.min(parseInt(url.searchParams.get('limit') || '500'), 500);
 
   try {
-    console.log(`📊 Fetching LP tokens from XDEX (limit: ${limit})`);
+    console.log(`📊 Fetching pools from XDEX (limit: ${limit})...`);
     
-    // Build headers with API key
-    const headers: Record<string, string> = {
-      'User-Agent': 'X1Space-Explorer/1.0',
-      'Accept': 'application/json'
-    };
-    
-    if (XDEX_API_KEY) {
-      headers['X-API-Key'] = XDEX_API_KEY;
-      console.log('✓ Using XDEX API Key');
-    }
-
-    const response = await fetch(
+    const res = await fetch(
       `${XDEX_API}/api/xendex/pool/list?network=${NETWORK}`,
-      { 
-        headers,
-        signal: AbortSignal.timeout(10000) 
-      }
+      { signal: AbortSignal.timeout(20000) }
     );
 
-    if (!response.ok) {
-      throw new Error(`XDEX API error: ${response.status}`);
+    if (!res.ok) {
+      throw new Error(`XDEX failed: ${res.status}`);
     }
 
-    const data = await response.json();
+    let pools = await res.json();
+    
+    console.log('Raw response type:', typeof pools);
+    console.log('Is array:', Array.isArray(pools));
+    console.log('Has success key:', pools?.success);
 
-    if (!data.success || !Array.isArray(data.data)) {
-      throw new Error('Invalid XDEX response');
+    // Handle both plain array and {success: true, data: [...]}
+    if (!Array.isArray(pools)) {
+      if (pools.success && Array.isArray(pools.data)) {
+        pools = pools.data;
+      } else {
+        console.error('Unexpected format:', JSON.stringify(pools).slice(0, 200));
+        throw new Error('Unexpected format from XDEX');
+      }
     }
 
-    const pools = data.data.slice(0, limit).map((pool: any) => ({
-      pool_address: pool.pool_address,
-      lp_mint: pool.lp_mint,
-      token_a_mint: pool.token1_address,
-      token_b_mint: pool.token2_address,
-      token_a_symbol: pool.token1_symbol,
-      token_b_symbol: pool.token2_symbol,
-      token_a_image: pool.token1_logo,
-      token_b_image: pool.token2_logo,
-      tvl: pool.tvl || 0,
-      lp_token_holder_count: pool.lp_token_holder_count || 0,
-      updated_at: new Date().toISOString(),
-    }));
+    console.log(`✓ Received ${pools.length} pools from XDEX`);
 
-    console.log(`✅ Returning ${pools.length} LP tokens`);
+    // Filter and sort
+    const sorted = pools
+      .filter(p => (p.tvl || 0) > 0)
+      .sort((a, b) => (b.tvl || 0) - (a.tvl || 0))
+      .slice(0, limit);
 
-    return new Response(JSON.stringify(pools), {
-      headers: corsHeaders(),
+    console.log(`✓ Filtered to ${sorted.length} pools with TVL`);
+
+    // Format tokens
+    const tokens = sorted.map((pool, index) => {
+      const info = pool.pool_info || {};
+
+      // Handle lpSupply: string (hex) or BigInt-like object
+      let lpSupplyRaw = info.lpSupply;
+      if (lpSupplyRaw && typeof lpSupplyRaw === 'object' && lpSupplyRaw.words) {
+        // Convert BigInt-like to hex string
+        lpSupplyRaw = '0x' + lpSupplyRaw.words.map((w: number) => w.toString(16).padStart(8, '0')).join('');
+      }
+
+      const token = {
+        lp_mint: info.lpMint || pool.pool_address || '',
+        pool_address: pool.pool_address || '',
+        token_a_symbol: pool.token1_symbol || 'UNKNOWN',
+        token_b_symbol: pool.token2_symbol || 'UNKNOWN',
+        pair_symbol: `${pool.token1_symbol || 'UNKNOWN'}/${pool.token2_symbol || 'UNKNOWN'}`,
+        token_a_logo: pool.token1_logo || null,
+        token_b_logo: pool.token2_logo || null,
+        token_a_mint: pool.token1_address || info.token0Mint || '',
+        token_b_mint: pool.token2_address || info.token1Mint || '',
+        holder_count: pool.lp_token_holder_count || 0,
+        total_supply: lpSupplyRaw || '0',
+        decimals: info.lpMintDecimals || 9,
+        updated_at: pool.updatedAt || null,
+        created_at: pool.createdAt || null,
+        liquidity_usd: pool.tvl || 0,
+        fee_rate: pool.fee_rate || 0.003,
+        volume_24h: pool.volume_24h || 0,
+      };
+
+      // Log first token for debugging
+      if (index === 0) {
+        console.log('Sample token:', JSON.stringify(token, null, 2));
+      }
+
+      return token;
     });
 
-  } catch (error) {
-    console.error('❌ Error:', error.message);
+    console.log(`✅ Returning ${tokens.length} formatted tokens`);
+
+    return new Response(JSON.stringify({
+      success: true,
+      tokens,
+      count: tokens.length,
+      total_scanned: pools.length,
+      timestamp: new Date().toISOString()
+    }), {
+      status: 200,
+      headers: corsHeaders()
+    });
+
+  } catch (err) {
+    console.error('❌ Error:', err);
+    console.error('Error stack:', err.stack);
     
     return new Response(JSON.stringify({
-      error: error.message,
-      pools: []
+      success: false,
+      error: err.message || 'Internal error',
+      tokens: [],
+      timestamp: new Date().toISOString()
     }), {
       status: 500,
-      headers: corsHeaders(),
+      headers: corsHeaders()
     });
   }
 });
