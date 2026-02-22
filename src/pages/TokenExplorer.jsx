@@ -185,6 +185,17 @@ export default function TokenExplorer() {
     setTimeout(() => setCopiedAddress(null), 2000);
   }, []);
   
+  const handleSort = useCallback((column) => {
+    if (sortBy === column) {
+      // Toggle direction if clicking same column
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new column with default descending
+      setSortBy(column);
+      setSortDirection('desc');
+    }
+  }, [sortBy]);
+  
   useEffect(() => {
     const handleScroll = () => {
       if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 500) {
@@ -375,25 +386,6 @@ export default function TokenExplorer() {
                 className="bg-[#0f1419] border-white/10 text-white pl-10"
               />
             </div>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="bg-[#0f1419] border border-white/10 text-white rounded-lg px-3 py-2"
-            >
-              <option value="liquidity">Liquidity</option>
-              <option value="price">Price</option>
-              <option value="poolCount">Pool Count</option>
-              <option value="marketCap">Market Cap</option>
-              <option value="name">Name</option>
-            </select>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
-              className="border-white/20"
-            >
-              {sortDirection === 'asc' ? '↑ Asc' : '↓ Desc'}
-            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -450,11 +442,61 @@ export default function TokenExplorer() {
               <thead>
                 <tr className="border-b border-white/5">
                   <th className="text-left text-gray-400 text-xs px-4 py-3">#</th>
-                  <th className="text-left text-gray-400 text-xs px-4 py-3">Token</th>
-                  <th className="text-right text-gray-400 text-xs px-4 py-3">Price</th>
-                  <th className="text-right text-gray-400 text-xs px-4 py-3">Market Cap</th>
-                  <th className="text-right text-gray-400 text-xs px-4 py-3">Liquidity</th>
-                  <th className="text-right text-gray-400 text-xs px-4 py-3">Pools</th>
+                  <th 
+                    className="text-left text-gray-400 text-xs px-4 py-3 cursor-pointer hover:text-white transition-colors select-none"
+                    onClick={() => handleSort('name')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Token
+                      <span className="text-[10px]">
+                        {sortBy === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                      </span>
+                    </div>
+                  </th>
+                  <th 
+                    className="text-right text-gray-400 text-xs px-4 py-3 cursor-pointer hover:text-white transition-colors select-none"
+                    onClick={() => handleSort('price')}
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      Price
+                      <span className="text-[10px]">
+                        {sortBy === 'price' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                      </span>
+                    </div>
+                  </th>
+                  <th 
+                    className="text-right text-gray-400 text-xs px-4 py-3 cursor-pointer hover:text-white transition-colors select-none"
+                    onClick={() => handleSort('marketCap')}
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      Market Cap
+                      <span className="text-[10px]">
+                        {sortBy === 'marketCap' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                      </span>
+                    </div>
+                  </th>
+                  <th 
+                    className="text-right text-gray-400 text-xs px-4 py-3 cursor-pointer hover:text-white transition-colors select-none"
+                    onClick={() => handleSort('liquidity')}
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      Liquidity
+                      <span className="text-[10px]">
+                        {sortBy === 'liquidity' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                      </span>
+                    </div>
+                  </th>
+                  <th 
+                    className="text-right text-gray-400 text-xs px-4 py-3 cursor-pointer hover:text-white transition-colors select-none"
+                    onClick={() => handleSort('poolCount')}
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      Pools
+                      <span className="text-[10px]">
+                        {sortBy === 'poolCount' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                      </span>
+                    </div>
+                  </th>
                   <th className="text-center text-gray-400 text-xs px-4 py-3"></th>
                 </tr>
               </thead>
