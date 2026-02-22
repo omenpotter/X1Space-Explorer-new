@@ -1,14 +1,15 @@
 // X1 Blockchain Explorer API Client - Base44 Version
 import API_CONFIG from '@/config/api.config';
 
-// Use config, but override for Base44 production
-const isBase44 = window.location.hostname.includes('base44.app');
-const API_BASE_URL = isBase44 ? window.location.origin : API_CONFIG.baseURL;
-const WS_URL = isBase44 ? `wss://${window.location.host}` : API_CONFIG.wsURL;
+// Support both base44.app and x1space.xyz domains
+const isProduction = window.location.hostname.includes('base44.app') || 
+                     window.location.hostname.includes('x1space.xyz');
+const API_BASE_URL = isProduction ? window.location.origin : API_CONFIG.baseURL;
+const WS_URL = isProduction ? `wss://${window.location.host}` : API_CONFIG.wsURL;
 
 console.log('🔧 X1ApiClient Config:', {
   hostname: window.location.hostname,
-  isBase44,
+  isProduction,
   API_BASE_URL,
   configBaseURL: API_CONFIG.baseURL
 });
