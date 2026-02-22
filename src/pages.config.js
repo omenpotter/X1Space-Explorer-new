@@ -61,7 +61,6 @@ import NetworkMap from './pages/NetworkMap';
 import PortfolioTracker from './pages/PortfolioTracker';
 import Search from './pages/Search';
 import StakingCalculator from './pages/StakingCalculator';
-import TokenExplorer from './pages/TokenExplorer';
 import TransactionDetail from './pages/TransactionDetail';
 import TransactionFlowPage from './pages/TransactionFlowPage';
 import Transactions from './pages/Transactions';
@@ -71,6 +70,7 @@ import ValidatorDetail from './pages/ValidatorDetail';
 import Validators from './pages/Validators';
 import Watchlist from './pages/Watchlist';
 import WhaleWatcher from './pages/WhaleWatcher';
+import TokenExplorer from './pages/TokenExplorer';
 import __Layout from './Layout.jsx';
 
 
@@ -89,7 +89,6 @@ export const PAGES = {
     "PortfolioTracker": PortfolioTracker,
     "Search": Search,
     "StakingCalculator": StakingCalculator,
-    "TokenExplorer": TokenExplorer,
     "TransactionDetail": TransactionDetail,
     "TransactionFlowPage": TransactionFlowPage,
     "Transactions": Transactions,
@@ -99,6 +98,7 @@ export const PAGES = {
     "Validators": Validators,
     "Watchlist": Watchlist,
     "WhaleWatcher": WhaleWatcher,
+    "TokenExplorer": TokenExplorer,
 }
 
 export const pagesConfig = {

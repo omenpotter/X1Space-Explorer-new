@@ -57,7 +57,7 @@ const LPExplorer = () => {
       ]);
 
       setStats(statsData.stats);
-      setLpTokens(tokensData.tokens);
+      setLpTokens(tokensData.tokens || []);
     } catch (error) {
       console.error('Failed to load LP data:', error);
       setError(error.message);
