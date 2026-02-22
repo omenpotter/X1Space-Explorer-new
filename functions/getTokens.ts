@@ -1,5 +1,5 @@
 // functions/getTokens.ts
-// CORRECT version - XDEX returns {success: true, data: [...]}
+// Extract tokens with PRICES from XDEX pools
 
 const XDEX_API = 'https://api.xdex.xyz';
 const NETWORK = 'X1%20Mainnet';
@@ -19,15 +19,17 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url);
-  const limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 500);
+  const limit = Math.min(parseInt(url.searchParams.get('limit') || '500'), 1000);
   const offset = parseInt(url.searchParams.get('offset') || '0');
   const verifiedOnly = url.searchParams.get('verified_only') === 'true';
 
   try {
-    console.log('📊 Fetching pools from XDEX API...');
+    console.log('═══════════════════════════════════');
+    console.log('📊 STARTING TOKEN FETCH WITH PRICES');
+    console.log('═══════════════════════════════════');
     console.log(`Params: limit=${limit}, offset=${offset}, verifiedOnly=${verifiedOnly}`);
 
-    // Fetch all pools from XDEX
+    // Fetch pools from XDEX
     const poolsRes = await fetch(
       `${XDEX_API}/api/xendex/pool/list?network=${NETWORK}`,
       { signal: AbortSignal.timeout(15000) }
@@ -39,11 +41,6 @@ Deno.serve(async (req) => {
 
     const poolsData = await poolsRes.json();
     
-    console.log('Response type:', typeof poolsData);
-    console.log('Has success:', poolsData.success);
-    console.log('Has data:', Array.isArray(poolsData.data));
-    
-    // XDEX returns {success: true, data: [...]}
     if (!poolsData.success || !Array.isArray(poolsData.data)) {
       throw new Error('Invalid XDEX API response format');
     }
@@ -51,14 +48,22 @@ Deno.serve(async (req) => {
     const pools = poolsData.data;
     console.log(`✓ Fetched ${pools.length} pools from XDEX`);
 
-    // Extract unique tokens from all pools
+    // Extract unique tokens with PRICES
     const tokenMap = new Map();
     
-    pools.forEach(pool => {
-      // Token 1 (XDEX uses token1_address, token1_symbol, etc.)
+    pools.forEach((pool, index) => {
+      if (index === 0) {
+        console.log('─── FIRST POOL PRICE DATA ───');
+        console.log('token1_price:', pool.token1_price);
+        console.log('token2_price:', pool.token2_price);
+        console.log('tvl:', pool.tvl);
+      }
+      
+      // Token 1
       const token1Mint = pool.token1_address;
       const token1Symbol = pool.token1_symbol;
       const token1Logo = pool.token1_logo;
+      const token1Price = pool.token1_price || 0;
       
       if (token1Mint && !tokenMap.has(token1Mint)) {
         const hasMetadata = token1Symbol && token1Symbol !== 'UNKNOWN';
@@ -71,18 +76,24 @@ Deno.serve(async (req) => {
           decimals: 9,
           verified: hasMetadata,
           pool_count: 1,
-          liquidity: pool.tvl || 0
+          liquidity: pool.tvl || 0,
+          price: token1Price
         });
       } else if (token1Mint) {
         const token = tokenMap.get(token1Mint);
         token.pool_count = (token.pool_count || 0) + 1;
         token.liquidity = (token.liquidity || 0) + (pool.tvl || 0);
+        // Update price if this pool has a non-zero price
+        if (token1Price > 0 && token.price === 0) {
+          token.price = token1Price;
+        }
       }
       
       // Token 2
       const token2Mint = pool.token2_address;
       const token2Symbol = pool.token2_symbol;
       const token2Logo = pool.token2_logo;
+      const token2Price = pool.token2_price || 0;
       
       if (token2Mint && !tokenMap.has(token2Mint)) {
         const hasMetadata = token2Symbol && token2Symbol !== 'UNKNOWN';
@@ -95,28 +106,45 @@ Deno.serve(async (req) => {
           decimals: 9,
           verified: hasMetadata,
           pool_count: 1,
-          liquidity: pool.tvl || 0
+          liquidity: pool.tvl || 0,
+          price: token2Price
         });
       } else if (token2Mint) {
         const token = tokenMap.get(token2Mint);
         token.pool_count = (token.pool_count || 0) + 1;
         token.liquidity = (token.liquidity || 0) + (pool.tvl || 0);
+        // Update price if this pool has a non-zero price
+        if (token2Price > 0 && token.price === 0) {
+          token.price = token2Price;
+        }
       }
     });
 
     let tokens = Array.from(tokenMap.values());
     console.log(`✓ Extracted ${tokens.length} unique tokens`);
+    
+    if (tokens.length > 0) {
+      const tokensWithPrice = tokens.filter(t => t.price > 0).length;
+      console.log(`✓ Tokens with price: ${tokensWithPrice}`);
+      console.log('─── FIRST TOKEN WITH PRICE ───');
+      const firstWithPrice = tokens.find(t => t.price > 0);
+      if (firstWithPrice) {
+        console.log(JSON.stringify(firstWithPrice, null, 2));
+      }
+    }
 
     // Filter verified only if requested
     const verifiedCount = tokens.filter(t => t.verified).length;
     const discoveredCount = tokens.length - verifiedCount;
+    
+    console.log(`Verified: ${verifiedCount}, Discovered: ${discoveredCount}`);
     
     if (verifiedOnly) {
       tokens = tokens.filter(t => t.verified);
       console.log(`✓ Filtered to ${tokens.length} verified tokens`);
     }
 
-    // Sort by liquidity (more liquidity = more important)
+    // Sort by liquidity
     tokens.sort((a, b) => (b.liquidity || 0) - (a.liquidity || 0));
 
     // Format for frontend
@@ -133,16 +161,12 @@ Deno.serve(async (req) => {
       is_scam: false,
       website: null,
       twitter: null,
-      telegram: null,
-      discord: null,
-      description: null,
-      metadata_uri: null,
-      price: '0.0000',
+      liquidity: token.liquidity || 0,
+      pool_count: token.pool_count || 0,
+      price: token.price ? token.price.toString() : '0.0000',
       market_cap: 0,
       price_change_24h: '0.00',
       volume_24h: 0,
-      liquidity: token.liquidity || 0,
-      pool_count: token.pool_count || 0,
       created_at: new Date().toISOString(),
       first_verified_at: token.verified ? new Date().toISOString() : null,
       last_verified_at: token.verified ? new Date().toISOString() : null,
@@ -152,9 +176,10 @@ Deno.serve(async (req) => {
     // Apply pagination
     const paginatedTokens = enrichedTokens.slice(offset, offset + limit);
 
-    console.log(`✅ Returning ${paginatedTokens.length} tokens (page ${Math.floor(offset / limit) + 1})`);
+    console.log(`✅ RETURNING ${paginatedTokens.length} tokens (total: ${enrichedTokens.length})`);
+    console.log('═══════════════════════════════════');
 
-    return new Response(JSON.stringify({
+    const response = {
       success: true,
       tokens: paginatedTokens,
       total: enrichedTokens.length,
@@ -165,11 +190,17 @@ Deno.serve(async (req) => {
       offset,
       source: 'XDEX API',
       timestamp: new Date().toISOString()
-    }), { headers: corsHeaders() });
+    };
+
+    return new Response(JSON.stringify(response), { 
+      headers: corsHeaders() 
+    });
 
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error('═══════════════════════════════════');
+    console.error('❌ ERROR:', error.message);
     console.error('Stack:', error.stack);
+    console.error('═══════════════════════════════════');
     
     return new Response(JSON.stringify({
       success: false,
