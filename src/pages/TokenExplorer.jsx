@@ -56,7 +56,6 @@ export default function TokenExplorer() {
     try {
       console.log('🔄 Fetching tokens from API...');
 
-      // Fetch ALL tokens (verified and unverified)
       const allTokensResponse = await X1Api.listTokens({ limit: 500, offset: 0, verified: false });
       console.log('📊 API Response:', allTokensResponse);
 
@@ -67,11 +66,14 @@ export default function TokenExplorer() {
 
         const tokenData = tokens.map(token => {
           const decimals = token.decimals || 9;
-          const supplyNormalized = token.total_supply
-            ? Number(token.total_supply) / (10 ** decimals)
+          const totalSupplyNormalized = token.total_supply
+            ? Number(token.total_supply) / Math.pow(10, decimals)
             : 0;
-          const priceNum = token.price ? parseFloat(token.price) : 0;
-          const realMarketCap = supplyNormalized * priceNum;
+
+          const price = token.price ? parseFloat(token.price) : 0;
+
+          // Simple formula: Market Cap = Price × Total Supply
+          const realMarketCap = price * totalSupplyNormalized;
 
           return {
             mint: token.mint,
@@ -81,9 +83,9 @@ export default function TokenExplorer() {
             decimals,
             totalSupply: token.total_supply || 0,
             tokenType: token.token_type || 'SPL Token',
-            price: priceNum.toFixed(4),
-            marketCap: token.market_cap || 0,       // original API value (kept but not used in UI)
-            realMarketCap,                          // accurate value used everywhere
+            price: price.toFixed(4),
+            marketCap: token.market_cap || 0,      // original API value (kept but not displayed)
+            realMarketCap,                         // what we use now
             priceChange24h: token.price_change_24h ? parseFloat(token.price_change_24h).toFixed(2) : '0.00',
             liquidity: token.liquidity || 0,
             poolCount: token.pool_count || 0,
@@ -97,15 +99,12 @@ export default function TokenExplorer() {
         setAllTokens(tokenData);
         console.log(`✅ Total tokens: ${tokenData.length}`);
 
-        // Fetch supply and validator stats from RPC
         try {
           const X1Rpc = (await import('../components/x1/X1RpcService')).default;
-
           const [supplyInfo, voteAccounts] = await Promise.all([
             X1Rpc.getSupply(),
             X1Rpc.getVoteAccounts()
           ]);
-
           if (supplyInfo) {
             setSupply({
               total: supplyInfo.value.total,
@@ -137,7 +136,6 @@ export default function TokenExplorer() {
   const filteredAndSortedTokens = useMemo(() => {
     let filtered = [...allTokens];
 
-    // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(token =>
@@ -147,7 +145,6 @@ export default function TokenExplorer() {
       );
     }
 
-    // Apply advanced filters
     if (advancedFilters.tokenType !== 'all') {
       filtered = filtered.filter(token => token.tokenType === advancedFilters.tokenType);
     }
@@ -160,10 +157,9 @@ export default function TokenExplorer() {
       filtered = filtered.filter(token => token.liquidity <= parseFloat(advancedFilters.liquidityMax));
     }
 
-    // Apply sorting
     const sorted = [...filtered].sort((a, b) => {
       const direction = sortDirection === 'asc' ? 1 : -1;
-      switch (sortBy) {
+      switch(sortBy) {
         case 'liquidity': return direction * (b.liquidity - a.liquidity);
         case 'poolCount': return direction * (b.poolCount - a.poolCount);
         case 'marketCap': return direction * (b.realMarketCap - a.realMarketCap);
@@ -177,13 +173,8 @@ export default function TokenExplorer() {
   }, [allTokens, searchQuery, sortBy, sortDirection, advancedFilters]);
 
   const handleSearchChange = useCallback((value) => {
-    if (searchDebounceRef.current) {
-      clearTimeout(searchDebounceRef.current);
-    }
-
-    searchDebounceRef.current = setTimeout(() => {
-      setSearchQuery(value);
-    }, 300);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => setSearchQuery(value), 300);
   }, []);
 
   const copyToClipboard = useCallback((address) => {
@@ -209,7 +200,6 @@ export default function TokenExplorer() {
         }
       }
     };
-
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, [displayLimit, filteredAndSortedTokens.length]);
@@ -229,15 +219,12 @@ export default function TokenExplorer() {
         setTokenDetails({
           mint,
           decimals: parsed?.decimals || 9,
-          supply: supply,
+          supply,
           mintAuthority: parsed?.mintAuthority || 'None',
           freezeAuthority: parsed?.freezeAuthority || 'None',
           isInitialized: parsed?.isInitialized || false,
           supplyType: parsed?.mintAuthority ? 'Mintable' : 'Fixed Supply'
         });
-
-        // Optional: you can also update realMarketCap here if RPC supply differs significantly
-        // but usually API total_supply is already correct enough
       }
 
       const tokenData = allTokens.find(t => t.mint === mint);
@@ -311,7 +298,6 @@ export default function TokenExplorer() {
           </h1>
         </div>
 
-        {/* Top Stats - Only 3 cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-[#1d2d3a] border border-white/10 rounded-lg p-4">
             <p className="text-gray-400 text-xs">Total Tokens</p>
@@ -329,7 +315,6 @@ export default function TokenExplorer() {
           </div>
         </div>
 
-        {/* XNT Featured */}
         {(() => {
           const xntToken = allTokens.find(t =>
             t.symbol === 'WXNT' ||
@@ -383,7 +368,6 @@ export default function TokenExplorer() {
           );
         })()}
 
-        {/* Search and Filters */}
         <div className="bg-[#1d2d3a] border border-white/10 rounded-xl p-4 mb-6">
           <div className="flex flex-wrap gap-3 items-center mb-3">
             <div className="relative flex-1 min-w-[200px]">
@@ -414,14 +398,14 @@ export default function TokenExplorer() {
                     type="number"
                     placeholder="Min"
                     value={advancedFilters.liquidityMin}
-                    onChange={(e) => setAdvancedFilters({ ...advancedFilters, liquidityMin: e.target.value })}
+                    onChange={(e) => setAdvancedFilters({...advancedFilters, liquidityMin: e.target.value})}
                     className="bg-[#0f1419] border-white/10 text-white text-sm"
                   />
                   <Input
                     type="number"
                     placeholder="Max"
                     value={advancedFilters.liquidityMax}
-                    onChange={(e) => setAdvancedFilters({ ...advancedFilters, liquidityMax: e.target.value })}
+                    onChange={(e) => setAdvancedFilters({...advancedFilters, liquidityMax: e.target.value})}
                     className="bg-[#0f1419] border-white/10 text-white text-sm"
                   />
                 </div>
@@ -438,7 +422,6 @@ export default function TokenExplorer() {
           )}
         </div>
 
-        {/* Tokens Table */}
         <div className="bg-[#1d2d3a] border border-white/10 rounded-xl overflow-hidden mb-6">
           <div className="px-4 py-3 border-b border-white/5">
             <h3 className="text-white font-medium">
@@ -456,9 +439,7 @@ export default function TokenExplorer() {
                   >
                     <div className="flex items-center gap-1">
                       Token
-                      <span className="text-[10px]">
-                        {sortBy === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
-                      </span>
+                      <span className="text-[10px]">{sortBy === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
                     </div>
                   </th>
                   <th
@@ -467,9 +448,7 @@ export default function TokenExplorer() {
                   >
                     <div className="flex items-center justify-end gap-1">
                       Price
-                      <span className="text-[10px]">
-                        {sortBy === 'price' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
-                      </span>
+                      <span className="text-[10px]">{sortBy === 'price' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
                     </div>
                   </th>
                   <th
@@ -478,9 +457,7 @@ export default function TokenExplorer() {
                   >
                     <div className="flex items-center justify-end gap-1">
                       Market Cap
-                      <span className="text-[10px]">
-                        {sortBy === 'marketCap' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
-                      </span>
+                      <span className="text-[10px]">{sortBy === 'marketCap' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
                     </div>
                   </th>
                   <th
@@ -489,9 +466,7 @@ export default function TokenExplorer() {
                   >
                     <div className="flex items-center justify-end gap-1">
                       Liquidity
-                      <span className="text-[10px]">
-                        {sortBy === 'liquidity' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
-                      </span>
+                      <span className="text-[10px]">{sortBy === 'liquidity' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
                     </div>
                   </th>
                   <th
@@ -500,9 +475,7 @@ export default function TokenExplorer() {
                   >
                     <div className="flex items-center justify-end gap-1">
                       Pools
-                      <span className="text-[10px]">
-                        {sortBy === 'poolCount' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
-                      </span>
+                      <span className="text-[10px]">{sortBy === 'poolCount' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
                     </div>
                   </th>
                   <th className="text-center text-gray-400 text-xs px-4 py-3"></th>
@@ -531,32 +504,25 @@ export default function TokenExplorer() {
                                 className="text-gray-500 hover:text-cyan-400 transition-colors shrink-0"
                                 title="Copy mint address"
                               >
-                                {copiedAddress === token.mint ? (
-                                  <Check className="w-3 h-3 text-emerald-400" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
+                                {copiedAddress === token.mint ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                               </button>
-                              {token.verified && (
-                                <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">✓</Badge>
-                              )}
+                              {token.verified && <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">✓</Badge>}
                             </div>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right text-white font-mono">${parseFloat(token.price).toFixed(4)}</td>
-                      <td className="px-4 py-3 text-right text-purple-400 font-mono">
-                        ${formatNum(token.realMarketCap)}
-                      </td>
+                      <td className="px-4 py-3 text-right text-purple-400 font-mono">${formatNum(token.realMarketCap)}</td>
                       <td className="px-4 py-3 text-right text-emerald-400 font-mono">${formatNum(token.liquidity)}</td>
                       <td className="px-4 py-3 text-right">
-                        <Badge variant="outline" className="border-cyan-400/30 text-cyan-400">
-                          {token.poolCount}
-                        </Badge>
+                        <Badge variant="outline" className="border-cyan-400/30 text-cyan-400">{token.poolCount}</Badge>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => toggleWatchlist(token.mint)} className={watchlist.includes(token.mint) ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}>
+                          <button
+                            onClick={() => toggleWatchlist(token.mint)}
+                            className={watchlist.includes(token.mint) ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}
+                          >
                             <Star className="w-4 h-4" fill={watchlist.includes(token.mint) ? 'currentColor' : 'none'} />
                           </button>
                           <Button
@@ -571,9 +537,7 @@ export default function TokenExplorer() {
                                 await fetchTokenDetails(token.mint);
                               }
                             }}
-                            className={`border-white/20 text-cyan-400 hover:bg-cyan-500/10 text-xs ${
-                              expandedToken === token.mint ? 'bg-cyan-500/20' : ''
-                            }`}
+                            className={`border-white/20 text-cyan-400 hover:bg-cyan-500/10 text-xs ${expandedToken === token.mint ? 'bg-cyan-500/20' : ''}`}
                           >
                             {expandedToken === token.mint ? 'Hide' : 'Details'}
                           </Button>
@@ -595,9 +559,7 @@ export default function TokenExplorer() {
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-400">Market Cap:</span>
-                                    <span className="text-purple-400 font-mono">
-                                      ${formatNum(token.realMarketCap)}
-                                    </span>
+                                    <span className="text-purple-400 font-mono">${formatNum(token.realMarketCap)}</span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-400">Mint Authority:</span>
@@ -630,14 +592,12 @@ export default function TokenExplorer() {
                                   <div className="space-y-2">
                                     {tokenMetadata.website && (
                                       <a href={tokenMetadata.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 text-sm">
-                                        <Globe className="w-4 h-4" />
-                                        Website
+                                        <Globe className="w-4 h-4" /> Website
                                       </a>
                                     )}
                                     {tokenMetadata.twitter && (
                                       <a href={tokenMetadata.twitter} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 text-sm">
-                                        <Twitter className="w-4 h-4" />
-                                        Twitter
+                                        <Twitter className="w-4 h-4" /> Twitter
                                       </a>
                                     )}
                                     <a href={`https://explorer.mainnet.x1.xyz/address/${token.mint}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 text-sm">
@@ -656,6 +616,7 @@ export default function TokenExplorer() {
               </tbody>
             </table>
           </div>
+
           {displayLimit < filteredAndSortedTokens.length && (
             <div className="p-4 text-center border-t border-white/5">
               <p className="text-gray-400 text-sm">Showing {displayLimit} of {filteredAndSortedTokens.length} tokens - Scroll for more</p>
