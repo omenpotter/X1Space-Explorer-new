@@ -219,16 +219,33 @@ export default function TokenExplorer() {
       
       if (accountInfo?.value) {
         const parsed = accountInfo.value.data?.parsed?.info;
+        const supply = Number(parsed?.supply || 0) / Math.pow(10, parsed?.decimals || 9);
         
         setTokenDetails({
           mint,
           decimals: parsed?.decimals || 9,
-          supply: Number(parsed?.supply || 0) / Math.pow(10, parsed?.decimals || 9),
+          supply: supply,
           mintAuthority: parsed?.mintAuthority || 'None',
           freezeAuthority: parsed?.freezeAuthority || 'None',
           isInitialized: parsed?.isInitialized || false,
           supplyType: parsed?.mintAuthority ? 'Mintable' : 'Fixed Supply'
         });
+        
+        // Update market cap in the token list based on real supply
+        const tokenData = allTokens.find(t => t.mint === mint);
+        if (tokenData) {
+          const price = parseFloat(tokenData.price);
+          const calculatedMarketCap = supply * price;
+          
+          // Update the token in the list with calculated market cap
+          setAllTokens(prevTokens => 
+            prevTokens.map(t => 
+              t.mint === mint 
+                ? { ...t, marketCap: calculatedMarketCap, totalSupply: supply }
+                : t
+            )
+          );
+        }
       }
       
       const tokenData = allTokens.find(t => t.mint === mint);
@@ -582,6 +599,10 @@ export default function TokenExplorer() {
                                   <div className="flex justify-between">
                                     <span className="text-gray-400">Total Supply:</span>
                                     <span className="text-white font-mono">{formatNum(tokenDetails.supply)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-400">Market Cap:</span>
+                                    <span className="text-purple-400 font-mono">${formatNum(tokenDetails.supply * parseFloat(token.price))}</span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-400">Mint Authority:</span>
