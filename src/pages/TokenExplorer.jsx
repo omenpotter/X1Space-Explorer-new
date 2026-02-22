@@ -6,7 +6,6 @@ import { Coins, Search, Loader2, Star, ChevronLeft, RefreshCw, Copy, Check, Filt
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
-
 import X1Api from '../components/x1/X1ApiClient';
 
 export default function TokenExplorer() {
@@ -45,7 +44,7 @@ export default function TokenExplorer() {
   };
 
   const toggleWatchlist = (mint) => {
-    const updated = watchlist.includes(mint) 
+    const updated = watchlist.includes(mint)
       ? watchlist.filter(m => m !== mint)
       : [...watchlist, mint];
     setWatchlist(updated);
@@ -56,43 +55,52 @@ export default function TokenExplorer() {
     setLoading(true);
     try {
       console.log('🔄 Fetching tokens from API...');
-      
+
       // Fetch ALL tokens (verified and unverified)
       const allTokensResponse = await X1Api.listTokens({ limit: 500, offset: 0, verified: false });
-
       console.log('📊 API Response:', allTokensResponse);
 
       if (allTokensResponse.success && allTokensResponse.data?.tokens) {
         const tokens = allTokensResponse.data.tokens;
-        
+
         console.log(`✅ Loaded ${tokens.length} tokens from API`);
-        
-        const tokenData = tokens.map(token => ({
-          mint: token.mint,
-          name: token.name || 'Unknown Token',
-          symbol: token.symbol || 'UNKNOWN',
-          logo: token.logo_uri,
-          decimals: token.decimals || 9,
-          totalSupply: token.total_supply || 0,
-          tokenType: token.token_type || 'SPL Token',
-          price: token.price ? parseFloat(token.price).toFixed(4) : '0.0000',
-          marketCap: token.market_cap || 0,
-          priceChange24h: token.price_change_24h ? parseFloat(token.price_change_24h).toFixed(2) : '0.00',
-          liquidity: token.liquidity || 0,
-          poolCount: token.pool_count || 0,
-          website: token.website,
-          twitter: token.twitter,
-          verified: token.verification_count > 0,
-          priceHistory: token.price_history || []
-        }));
+
+        const tokenData = tokens.map(token => {
+          const decimals = token.decimals || 9;
+          const supplyNormalized = token.total_supply
+            ? Number(token.total_supply) / (10 ** decimals)
+            : 0;
+          const priceNum = token.price ? parseFloat(token.price) : 0;
+          const realMarketCap = supplyNormalized * priceNum;
+
+          return {
+            mint: token.mint,
+            name: token.name || 'Unknown Token',
+            symbol: token.symbol || 'UNKNOWN',
+            logo: token.logo_uri,
+            decimals,
+            totalSupply: token.total_supply || 0,
+            tokenType: token.token_type || 'SPL Token',
+            price: priceNum.toFixed(4),
+            marketCap: token.market_cap || 0,       // original API value (kept but not used in UI)
+            realMarketCap,                          // accurate value used everywhere
+            priceChange24h: token.price_change_24h ? parseFloat(token.price_change_24h).toFixed(2) : '0.00',
+            liquidity: token.liquidity || 0,
+            poolCount: token.pool_count || 0,
+            website: token.website,
+            twitter: token.twitter,
+            verified: token.verification_count > 0,
+            priceHistory: token.price_history || []
+          };
+        });
 
         setAllTokens(tokenData);
         console.log(`✅ Total tokens: ${tokenData.length}`);
-        
+
         // Fetch supply and validator stats from RPC
         try {
           const X1Rpc = (await import('../components/x1/X1RpcService')).default;
-          
+
           const [supplyInfo, voteAccounts] = await Promise.all([
             X1Rpc.getSupply(),
             X1Rpc.getVoteAccounts()
@@ -104,7 +112,6 @@ export default function TokenExplorer() {
               circulating: supplyInfo.value.circulating
             });
           }
-
           if (voteAccounts) {
             const totalStake = voteAccounts.current.reduce((sum, v) => sum + v.activatedStake, 0);
             setValidators({
@@ -126,76 +133,74 @@ export default function TokenExplorer() {
       setLoading(false);
     }
   };
-  
+
   const filteredAndSortedTokens = useMemo(() => {
     let filtered = [...allTokens];
-    
+
     // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(token => 
+      filtered = filtered.filter(token =>
         token.name.toLowerCase().includes(query) ||
         token.symbol.toLowerCase().includes(query) ||
         token.mint.toLowerCase().includes(query)
       );
     }
-    
+
     // Apply advanced filters
     if (advancedFilters.tokenType !== 'all') {
       filtered = filtered.filter(token => token.tokenType === advancedFilters.tokenType);
     }
-    
+
     if (advancedFilters.liquidityMin) {
       filtered = filtered.filter(token => token.liquidity >= parseFloat(advancedFilters.liquidityMin));
     }
-    
+
     if (advancedFilters.liquidityMax) {
       filtered = filtered.filter(token => token.liquidity <= parseFloat(advancedFilters.liquidityMax));
     }
-    
+
     // Apply sorting
     const sorted = [...filtered].sort((a, b) => {
       const direction = sortDirection === 'asc' ? 1 : -1;
-      switch(sortBy) {
+      switch (sortBy) {
         case 'liquidity': return direction * (b.liquidity - a.liquidity);
         case 'poolCount': return direction * (b.poolCount - a.poolCount);
-        case 'marketCap': return direction * (b.marketCap - a.marketCap);
+        case 'marketCap': return direction * (b.realMarketCap - a.realMarketCap);
         case 'price': return direction * (parseFloat(b.price) - parseFloat(a.price));
         case 'name': return direction * a.name.localeCompare(b.name);
         default: return 0;
       }
     });
-    
+
     return sorted;
   }, [allTokens, searchQuery, sortBy, sortDirection, advancedFilters]);
-  
+
   const handleSearchChange = useCallback((value) => {
     if (searchDebounceRef.current) {
       clearTimeout(searchDebounceRef.current);
     }
-    
+
     searchDebounceRef.current = setTimeout(() => {
       setSearchQuery(value);
     }, 300);
   }, []);
-  
+
   const copyToClipboard = useCallback((address) => {
     navigator.clipboard.writeText(address);
     setCopiedAddress(address);
     setTimeout(() => setCopiedAddress(null), 2000);
   }, []);
-  
+
   const handleSort = useCallback((column) => {
     if (sortBy === column) {
-      // Toggle direction if clicking same column
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
-      // Set new column with default descending
       setSortBy(column);
       setSortDirection('desc');
     }
   }, [sortBy]);
-  
+
   useEffect(() => {
     const handleScroll = () => {
       if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 500) {
@@ -204,7 +209,7 @@ export default function TokenExplorer() {
         }
       }
     };
-    
+
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, [displayLimit, filteredAndSortedTokens.length]);
@@ -212,15 +217,15 @@ export default function TokenExplorer() {
   const fetchTokenDetails = async (mint) => {
     setLoadingDetails(true);
     setSelectedToken(mint);
-    
+
     try {
       const X1Rpc = (await import('../components/x1/X1RpcService')).default;
       const accountInfo = await X1Rpc.getAccountInfo(mint);
-      
+
       if (accountInfo?.value) {
         const parsed = accountInfo.value.data?.parsed?.info;
         const supply = Number(parsed?.supply || 0) / Math.pow(10, parsed?.decimals || 9);
-        
+
         setTokenDetails({
           mint,
           decimals: parsed?.decimals || 9,
@@ -230,24 +235,11 @@ export default function TokenExplorer() {
           isInitialized: parsed?.isInitialized || false,
           supplyType: parsed?.mintAuthority ? 'Mintable' : 'Fixed Supply'
         });
-        
-        // Update market cap in the token list based on real supply
-        const tokenData = allTokens.find(t => t.mint === mint);
-        if (tokenData) {
-          const price = parseFloat(tokenData.price);
-          const calculatedMarketCap = supply * price;
-          
-          // Update the token in the list with calculated market cap
-          setAllTokens(prevTokens => 
-            prevTokens.map(t => 
-              t.mint === mint 
-                ? { ...t, marketCap: calculatedMarketCap, totalSupply: supply }
-                : t
-            )
-          );
-        }
+
+        // Optional: you can also update realMarketCap here if RPC supply differs significantly
+        // but usually API total_supply is already correct enough
       }
-      
+
       const tokenData = allTokens.find(t => t.mint === mint);
       if (tokenData) {
         setTokenMetadata({
@@ -339,17 +331,16 @@ export default function TokenExplorer() {
 
         {/* XNT Featured */}
         {(() => {
-          // Find WXNT token (wrapped XNT) for actual price
-          const xntToken = allTokens.find(t => 
-            t.symbol === 'WXNT' || 
+          const xntToken = allTokens.find(t =>
+            t.symbol === 'WXNT' ||
             t.mint === 'So11111111111111111111111111111111111111112'
           );
           const xntPrice = xntToken ? parseFloat(xntToken.price) : 1.00;
           const xntLiquidity = xntToken ? xntToken.liquidity : 0;
-          const priceHistory = xntToken?.priceHistory?.length > 0 
-            ? xntToken.priceHistory 
+          const priceHistory = xntToken?.priceHistory?.length > 0
+            ? xntToken.priceHistory
             : Array.from({ length: 30 }, (_, i) => ({ day: i, price: xntPrice }));
-          
+
           return (
             <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 rounded-xl p-6 mb-6">
               <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
@@ -413,7 +404,7 @@ export default function TokenExplorer() {
               Filters
             </Button>
           </div>
-          
+
           {showAdvancedFilters && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-white/10">
               <div>
@@ -423,14 +414,14 @@ export default function TokenExplorer() {
                     type="number"
                     placeholder="Min"
                     value={advancedFilters.liquidityMin}
-                    onChange={(e) => setAdvancedFilters({...advancedFilters, liquidityMin: e.target.value})}
+                    onChange={(e) => setAdvancedFilters({ ...advancedFilters, liquidityMin: e.target.value })}
                     className="bg-[#0f1419] border-white/10 text-white text-sm"
                   />
                   <Input
                     type="number"
                     placeholder="Max"
                     value={advancedFilters.liquidityMax}
-                    onChange={(e) => setAdvancedFilters({...advancedFilters, liquidityMax: e.target.value})}
+                    onChange={(e) => setAdvancedFilters({ ...advancedFilters, liquidityMax: e.target.value })}
                     className="bg-[#0f1419] border-white/10 text-white text-sm"
                   />
                 </div>
@@ -459,7 +450,7 @@ export default function TokenExplorer() {
               <thead>
                 <tr className="border-b border-white/5">
                   <th className="text-left text-gray-400 text-xs px-4 py-3">#</th>
-                  <th 
+                  <th
                     className="text-left text-gray-400 text-xs px-4 py-3 cursor-pointer hover:text-white transition-colors select-none"
                     onClick={() => handleSort('name')}
                   >
@@ -470,7 +461,7 @@ export default function TokenExplorer() {
                       </span>
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="text-right text-gray-400 text-xs px-4 py-3 cursor-pointer hover:text-white transition-colors select-none"
                     onClick={() => handleSort('price')}
                   >
@@ -481,7 +472,7 @@ export default function TokenExplorer() {
                       </span>
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="text-right text-gray-400 text-xs px-4 py-3 cursor-pointer hover:text-white transition-colors select-none"
                     onClick={() => handleSort('marketCap')}
                   >
@@ -492,7 +483,7 @@ export default function TokenExplorer() {
                       </span>
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="text-right text-gray-400 text-xs px-4 py-3 cursor-pointer hover:text-white transition-colors select-none"
                     onClick={() => handleSort('liquidity')}
                   >
@@ -503,7 +494,7 @@ export default function TokenExplorer() {
                       </span>
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="text-right text-gray-400 text-xs px-4 py-3 cursor-pointer hover:text-white transition-colors select-none"
                     onClick={() => handleSort('poolCount')}
                   >
@@ -554,7 +545,9 @@ export default function TokenExplorer() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right text-white font-mono">${parseFloat(token.price).toFixed(4)}</td>
-                      <td className="px-4 py-3 text-right text-purple-400 font-mono">${formatNum(token.marketCap)}</td>
+                      <td className="px-4 py-3 text-right text-purple-400 font-mono">
+                        ${formatNum(token.realMarketCap)}
+                      </td>
                       <td className="px-4 py-3 text-right text-emerald-400 font-mono">${formatNum(token.liquidity)}</td>
                       <td className="px-4 py-3 text-right">
                         <Badge variant="outline" className="border-cyan-400/30 text-cyan-400">
@@ -587,7 +580,7 @@ export default function TokenExplorer() {
                         </div>
                       </td>
                     </tr>
-                    
+
                     {expandedToken === token.mint && tokenDetails && (
                       <tr>
                         <td colSpan="7" className="p-0 bg-[#0f1419]">
@@ -602,15 +595,21 @@ export default function TokenExplorer() {
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-400">Market Cap:</span>
-                                    <span className="text-purple-400 font-mono">${formatNum(tokenDetails.supply * parseFloat(token.price))}</span>
+                                    <span className="text-purple-400 font-mono">
+                                      ${formatNum(token.realMarketCap)}
+                                    </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-400">Mint Authority:</span>
-                                    <span className="text-white font-mono text-xs">{tokenDetails.mintAuthority === 'None' ? 'None' : `${tokenDetails.mintAuthority.slice(0, 8)}...`}</span>
+                                    <span className="text-white font-mono text-xs">
+                                      {tokenDetails.mintAuthority === 'None' ? 'None' : `${tokenDetails.mintAuthority.slice(0, 8)}...`}
+                                    </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-400">Freeze Authority:</span>
-                                    <span className="text-white font-mono text-xs">{tokenDetails.freezeAuthority === 'None' ? 'None' : `${tokenDetails.freezeAuthority.slice(0, 8)}...`}</span>
+                                    <span className="text-white font-mono text-xs">
+                                      {tokenDetails.freezeAuthority === 'None' ? 'None' : `${tokenDetails.freezeAuthority.slice(0, 8)}...`}
+                                    </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-400">Decimals:</span>
@@ -624,7 +623,7 @@ export default function TokenExplorer() {
                                   </div>
                                 </div>
                               </div>
-                              
+
                               {tokenMetadata && (
                                 <div>
                                   <h3 className="text-white font-bold mb-4">Links</h3>
