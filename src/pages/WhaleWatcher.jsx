@@ -6,27 +6,64 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { 
   ChevronLeft, Loader2, RefreshCw, Bell, BellOff, Fish, ArrowRight, 
   TrendingUp, TrendingDown, AlertTriangle, Search, Volume2, VolumeX,
-  ExternalLink, Layers, ArrowUpDown, ArrowUp, ArrowDown
+  ExternalLink, Layers, ArrowUpDown, ArrowUp, ArrowDown, Info, Users, Percent
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import X1Rpc from '../components/x1/X1RpcService';
 
-// Known stake pool addresses
+// Complete X1 Delegation Pool data from delegation.mainnet.x1.xyz/info
 const KNOWN_ADDRESSES = {
   'pXNTyoqQsskHdZ7Q1rnP25FEyHHjissbs7n6RRN2nP5': {
     label: 'X1 Stake Delegation Pool',
+    shortLabel: 'X1 Pool',
     type: 'stake_pool',
-    url: 'https://delegation.mainnet.x1.xyz/', // Stats dashboard
-    infoUrl: 'https://delegation.mainnet.x1.xyz/info', // Pool info
-    color: 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+    tokenSymbol: 'pXNT',
+    url: 'https://delegation.mainnet.x1.xyz/',
+    infoUrl: 'https://delegation.mainnet.x1.xyz/info',
+    color: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+    poolInfo: {
+      totalStaked: '343,546,600.448 XNT',
+      totalSupply: '357,206,329.955 pXNT',
+      exchangeRate: '1 pXNT = 0.9618 XNT',
+      epochFee: '4.00%',
+      withdrawalFee: '0.10%',
+      depositFee: '0.10%',
+      totalValidators: 2108,
+      activeValidators: 2031,
+      activeDelegations: 1881,
+      poolSize: 1915,
+      maxCommission: '10%',
+      minSelfStake: '2 XNT',
+      reserveStake: '10%'
+    }
   },
   'R1PP3RkqTJniWgzJgeymd4rFpdpXcmjywVomMpd8eAY': {
     label: 'R1PPER Stake Pool',
+    shortLabel: 'R1PPER',
     type: 'stake_pool',
-    url: 'https://x1ripper.xyz/dashboard', // Stats dashboard
+    url: 'https://x1ripper.xyz/dashboard',
     infoUrl: 'https://x1ripper.xyz/dashboard',
     color: 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+  },
+  // X1 Pool related addresses (for transaction labeling)
+  'X1SPaMUM1A8E1vKL8XQAB5rxKarJbqtWFFSNFs8f7Av': {
+    label: 'X1 Pool Account',
+    shortLabel: 'X1 Pool',
+    type: 'pool_account',
+    color: 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+  },
+  'Ha194AW38mWCMTGEt3kUQrrvz7eXKpsNRFQx6WrhMQNw': {
+    label: 'X1 Pool Manager',
+    shortLabel: 'X1 Manager',
+    type: 'pool_manager',
+    color: 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+  },
+  '6ndZaqsg4Ps8HBTgdistqQu2GaqLbTGDgULPBYoNtJQt': {
+    label: 'X1 Pool Staker',
+    shortLabel: 'X1 Staker',
+    type: 'pool_staker',
+    color: 'bg-purple-500/20 text-purple-400 border-purple-500/30'
   }
 };
 
@@ -44,6 +81,7 @@ export default function WhaleWatcher() {
   const [sortOrder, setSortOrder] = useState('desc');
   const [stakePoolStats, setStakePoolStats] = useState(null);
   const [loadingStakeStats, setLoadingStakeStats] = useState(false);
+  const [showPoolDetails, setShowPoolDetails] = useState({});
 
   useEffect(() => {
     const saved = localStorage.getItem('x1_whale_settings');
@@ -89,17 +127,24 @@ export default function WhaleWatcher() {
             return {
               address,
               label: KNOWN_ADDRESSES[address].label,
+              shortLabel: KNOWN_ADDRESSES[address].shortLabel,
+              tokenSymbol: KNOWN_ADDRESSES[address].tokenSymbol,
               balance,
               color: KNOWN_ADDRESSES[address].color,
-              url: KNOWN_ADDRESSES[address].url
+              url: KNOWN_ADDRESSES[address].url,
+              infoUrl: KNOWN_ADDRESSES[address].infoUrl,
+              poolInfo: KNOWN_ADDRESSES[address].poolInfo
             };
           } catch (err) {
             return {
               address,
               label: KNOWN_ADDRESSES[address].label,
+              shortLabel: KNOWN_ADDRESSES[address].shortLabel,
               balance: 0,
               color: KNOWN_ADDRESSES[address].color,
-              url: KNOWN_ADDRESSES[address].url
+              url: KNOWN_ADDRESSES[address].url,
+              infoUrl: KNOWN_ADDRESSES[address].infoUrl,
+              poolInfo: KNOWN_ADDRESSES[address].poolInfo
             };
           }
         })
@@ -145,7 +190,7 @@ export default function WhaleWatcher() {
   const getAddressLabel = (address) => {
     if (KNOWN_ADDRESSES[address]) {
       return {
-        label: KNOWN_ADDRESSES[address].label,
+        label: KNOWN_ADDRESSES[address].shortLabel || KNOWN_ADDRESSES[address].label,
         color: KNOWN_ADDRESSES[address].color,
         isKnown: true
       };
@@ -421,7 +466,6 @@ export default function WhaleWatcher() {
       <main className="max-w-[1600px] mx-auto px-4 py-8">
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-          {/* Stats Cards */}
           <Card className="bg-[#1d2d3a] border-white/10">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-300">Whale Txs</CardTitle>
@@ -466,7 +510,6 @@ export default function WhaleWatcher() {
             </CardContent>
           </Card>
 
-          {/* Stake Pools Card */}
           <Card className="bg-[#1d2d3a] border-white/10">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-300">Stake Pools</CardTitle>
@@ -484,28 +527,129 @@ export default function WhaleWatcher() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             {stakePoolStats.map((pool) => (
               <Card key={pool.address} className="bg-[#1d2d3a] border-white/10">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between mb-4">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
                     <Badge className={`${pool.color} text-sm px-3 py-1`}>
                       {pool.label}
                     </Badge>
-                    <a 
-                      href={pool.url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 text-sm"
-                    >
-                      View Stats
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
+                    <div className="flex gap-2">
+                      <a 
+                        href={pool.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 text-xs"
+                      >
+                        Dashboard
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                      {pool.infoUrl && pool.infoUrl !== pool.url && (
+                        <a 
+                          href={pool.infoUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-purple-400 hover:text-purple-300 flex items-center gap-1 text-xs"
+                        >
+                          Info
+                          <Info className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400 text-sm">Balance:</span>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {/* Balance */}
+                    <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                      <span className="text-gray-400 text-sm">Current Balance:</span>
                       <span className="text-white font-mono font-bold">{formatAmount(pool.balance)} XNT</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400 text-sm">Address:</span>
+
+                    {/* Pool Info (X1 Pool Only) */}
+                    {pool.poolInfo && (
+                      <>
+                        <div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowPoolDetails(prev => ({ ...prev, [pool.address]: !prev[pool.address] }))}
+                            className="w-full text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 mb-2"
+                          >
+                            {showPoolDetails[pool.address] ? 'Hide' : 'Show'} Pool Details
+                          </Button>
+                          
+                          {showPoolDetails[pool.address] && (
+                            <div className="space-y-2 text-xs">
+                              <div className="bg-[#0f1419] rounded p-3 space-y-2">
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400">Total Staked:</span>
+                                  <span className="text-white font-mono">{pool.poolInfo.totalStaked}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400">pXNT Supply:</span>
+                                  <span className="text-white font-mono">{pool.poolInfo.totalSupply}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400">Exchange Rate:</span>
+                                  <span className="text-emerald-400 font-mono">{pool.poolInfo.exchangeRate}</span>
+                                </div>
+                              </div>
+
+                              <div className="bg-[#0f1419] rounded p-3 space-y-2">
+                                <div className="text-purple-400 font-semibold mb-1">Fees</div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400">Epoch Fee:</span>
+                                  <span className="text-white">{pool.poolInfo.epochFee}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400">Withdrawal:</span>
+                                  <span className="text-white">{pool.poolInfo.withdrawalFee}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400">Deposit:</span>
+                                  <span className="text-white">{pool.poolInfo.depositFee}</span>
+                                </div>
+                              </div>
+
+                              <div className="bg-[#0f1419] rounded p-3 space-y-2">
+                                <div className="text-blue-400 font-semibold mb-1">Validators</div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400">Total:</span>
+                                  <span className="text-white">{pool.poolInfo.totalValidators}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400">Active:</span>
+                                  <span className="text-emerald-400">{pool.poolInfo.activeValidators}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400">Pool Size:</span>
+                                  <span className="text-cyan-400">{pool.poolInfo.poolSize}</span>
+                                </div>
+                              </div>
+
+                              <div className="bg-[#0f1419] rounded p-3 space-y-2">
+                                <div className="text-orange-400 font-semibold mb-1">Criteria</div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400">Max Commission:</span>
+                                  <span className="text-white">{pool.poolInfo.maxCommission}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400">Min Self Stake:</span>
+                                  <span className="text-white">{pool.poolInfo.minSelfStake}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400">Reserve:</span>
+                                  <span className="text-white">{pool.poolInfo.reserveStake}</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {/* Address */}
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="text-gray-400 text-xs">Address:</span>
                       <span className="text-gray-500 font-mono text-xs">{pool.address.slice(0, 8)}...{pool.address.slice(-8)}</span>
                     </div>
                   </div>
@@ -581,7 +725,7 @@ export default function WhaleWatcher() {
           <CardHeader>
             <CardTitle className="text-white">Whale Transactions</CardTitle>
             <CardDescription className="text-gray-400">
-              {filteredTxs.length} large transactions detected
+              {filteredTxs.length} large transactions detected - Click headers to sort
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
