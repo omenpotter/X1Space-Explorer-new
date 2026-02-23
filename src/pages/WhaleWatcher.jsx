@@ -17,13 +17,15 @@ const KNOWN_ADDRESSES = {
   'pXNTyoqQsskHdZ7Q1rnP25FEyHHjissbs7n6RRN2nP5': {
     label: 'X1 Stake Delegation Pool',
     type: 'stake_pool',
-    url: 'https://delegation.mainnet.x1.xyz/info',
+    url: 'https://delegation.mainnet.x1.xyz/', // Stats dashboard
+    infoUrl: 'https://delegation.mainnet.x1.xyz/info', // Pool info
     color: 'bg-purple-500/20 text-purple-400 border-purple-500/30'
   },
   'R1PP3RkqTJniWgzJgeymd4rFpdpXcmjywVomMpd8eAY': {
     label: 'R1PPER Stake Pool',
     type: 'stake_pool',
-    url: 'https://delegation.mainnet.x1.xyz/info',
+    url: 'https://x1ripper.xyz/dashboard', // Stats dashboard
+    infoUrl: 'https://x1ripper.xyz/dashboard',
     color: 'bg-blue-500/20 text-blue-400 border-blue-500/30'
   }
 };
