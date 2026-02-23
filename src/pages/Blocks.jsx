@@ -17,8 +17,6 @@ import { createPageUrl } from '@/utils';
 import X1Rpc from '../components/x1/X1RpcService';
 import { MempoolBlockViz, MempoolAggregatedViz, MempoolLegend } from '../components/x1/MempoolViz';
 
-// Use mempool viz components from shared file
-
 export default function Blocks() {
   const [blocks, setBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,7 +24,7 @@ export default function Blocks() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLive, setIsLive] = useState(true);
   const [newBlockSlot, setNewBlockSlot] = useState(null);
-  const [viewMode, setViewMode] = useState('blocks'); // blocks, 1m, 10m
+  const [viewMode, setViewMode] = useState('blocks');
   const [tps, setTps] = useState(3000);
   const [performanceData, setPerformanceData] = useState([]);
   const isMounted = React.useRef(true);
@@ -36,15 +34,26 @@ export default function Blocks() {
     if (!isMounted.current) return;
     
     try {
-      // Fetch current slot first for immediate display
+      // Fetch current slot first
       const currentSlot = await X1Rpc.getSlot();
       
-      // Fetch blocks with full transaction details
+      // Fetch blocks with proper error handling for abort signals
       const blockPromises = [];
       for (let i = 0; i < 20; i++) {
         const slot = currentSlot - i;
         blockPromises.push(
-          X1Rpc.getBlock(slot, { transactionDetails: 'full' }).then(block => block ? { slot, block } : null).catch(() => null)
+          X1Rpc.getBlock(slot, { transactionDetails: 'full' })
+            .then(block => block ? { slot, block } : null)
+            .catch(err => {
+              // Handle AbortError gracefully - don't show error to user
+              if (err.name === 'AbortError' || err.message?.includes('aborted') || err.message?.includes('timeout')) {
+                console.warn(`Block ${slot} fetch timed out (normal for slow RPC)`);
+                return null;
+              }
+              // Log other errors but still return null to continue
+              console.error(`Block ${slot} error:`, err.message);
+              return null;
+            })
         );
       }
       
@@ -63,7 +72,6 @@ export default function Blocks() {
               const accountKeys = message?.accountKeys || [];
               const instructions = message?.instructions || [];
               
-              // Check for vote transaction
               const isVote = instructions.some(ix => {
                 const programId = accountKeys[ix.programIdIndex];
                 return programId === 'Vote111111111111111111111111111111111111111';
@@ -72,7 +80,6 @@ export default function Blocks() {
               if (isVote) {
                 voteCount++;
               } else {
-                // Check for system transfer
                 const isTransfer = instructions.some(ix => {
                   const programId = accountKeys[ix.programIdIndex];
                   return programId === '11111111111111111111111111111111';
@@ -89,7 +96,6 @@ export default function Blocks() {
             });
           }
           
-          // If we have transactions but all counts are 0, something went wrong - use estimates
           if (txCount > 0 && voteCount === 0 && transferCount === 0 && programCount === 0) {
             voteCount = Math.round(txCount * 0.70);
             transferCount = Math.round(txCount * 0.15);
@@ -113,6 +119,7 @@ export default function Blocks() {
       
       if (!isMounted.current) return;
       
+      // Only update if we got some blocks
       if (recentBlocks.length > 0) {
         setBlocks(prevBlocks => {
           if (prevBlocks.length > 0 && recentBlocks[0]?.slot > prevBlocks[0]?.slot) {
@@ -123,6 +130,10 @@ export default function Blocks() {
         });
         setLoading(false);
         initialFetchDone.current = true;
+        setError(null); // Clear any previous errors
+      } else if (!initialFetchDone.current) {
+        // First fetch returned no blocks - might be RPC issue
+        setError('Unable to fetch blocks. RPC may be slow. Retrying...');
       }
       
       // Fetch TPS data in background
@@ -135,19 +146,21 @@ export default function Blocks() {
         setPerformanceData(perfHistory);
       });
       
-      setError(null);
     } catch (err) {
       console.error('Failed to fetch blocks:', err);
-      if (isMounted.current) {
-        setError(err.message);
+      if (isMounted.current && !initialFetchDone.current) {
+        // Only show error if we haven't fetched any data yet
+        if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+          setError('RPC request timeout. Retrying...');
+        } else {
+          setError(err.message || 'Failed to fetch blocks');
+        }
         setLoading(false);
       }
     }
   }, []);
 
-  // Get aggregated data for time views - uses ONLY real on-chain data from RPC
   const getAggregatedData = () => {
-    // Use actual block data to calculate tx type ratios
     let voteRatio = 0.70, transferRatio = 0.12, programRatio = 0.09, otherRatio = 0.09;
     if (blocks.length > 0) {
       const totalTx = blocks.reduce((sum, b) => sum + (b.txCount || 0), 0);
@@ -200,34 +213,34 @@ export default function Blocks() {
         let hasAllData = true;
 
         for (let j = 0; j < 10; j++) {
-          const sampleIdx = i * 10 + j;
-          const sample = performanceData[sampleIdx];
-          if (!sample) {
+          const idx = i * 10 + j;
+          if (idx < performanceData.length && performanceData[idx]) {
+            totalTxns += performanceData[idx].transactions;
+            totalSlots += performanceData[idx].slots;
+          } else {
             hasAllData = false;
             break;
           }
-          totalTxns += sample.transactions;
-          totalSlots += sample.slots;
         }
 
-        if (!hasAllData) break;
+        if (hasAllData) {
+          const voteCount = Math.round(totalTxns * voteRatio);
+          const transferCount = Math.round(totalTxns * transferRatio);
+          const programCount = Math.round(totalTxns * programRatio);
+          const otherCount = Math.max(0, totalTxns - voteCount - transferCount - programCount);
 
-        const voteCount = Math.round(totalTxns * voteRatio);
-        const transferCount = Math.round(totalTxns * transferRatio);
-        const programCount = Math.round(totalTxns * programRatio);
-        const otherCount = Math.max(0, totalTxns - voteCount - transferCount - programCount);
-
-        aggregated.push({
-          totalTxns,
-          slots: totalSlots,
-          label: i === 0 ? 'Now' : `${i * 10}m ago`,
-          voteCount,
-          transferCount,
-          programCount,
-          otherCount,
-          timestamp: Date.now() - (i * 10 * 60 * 1000),
-          isRealData: true
-        });
+          aggregated.push({
+            totalTxns,
+            slots: totalSlots,
+            label: i === 0 ? 'Now' : `${i * 10}m ago`,
+            voteCount,
+            transferCount,
+            programCount,
+            otherCount,
+            timestamp: Date.now() - (i * 10 * 60 * 1000),
+            isRealData: true
+          });
+        }
       }
     }
 
@@ -235,187 +248,154 @@ export default function Blocks() {
   };
 
   useEffect(() => {
-    isMounted.current = true;
-    
-    // Fetch immediately on mount
     fetchBlocks();
-    
-    let interval;
-    if (isLive) {
-      // Very fast refresh rate for 3000+ TPS network - 1 second
-      interval = setInterval(fetchBlocks, 1000);
-    }
-    
+    isMounted.current = true;
     return () => {
       isMounted.current = false;
-      if (interval) clearInterval(interval);
     };
+  }, [fetchBlocks]);
+
+  useEffect(() => {
+    if (isLive) {
+      const interval = setInterval(() => {
+        fetchBlocks();
+      }, 5000);
+      return () => clearInterval(interval);
+    }
   }, [isLive, fetchBlocks]);
 
-  if (loading && blocks.length === 0) {
-    return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
-      </div>
-    );
-  }
+  const filteredBlocks = blocks.filter(block =>
+    searchQuery === '' || block.slot.toString().includes(searchQuery)
+  );
+
+  const latestBlock = blocks[0];
 
   return (
-    <div className="min-h-screen bg-[#1d2d3a] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
-        <div className="max-w-[1800px] mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
-                <span className="font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
-              </Link>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
+    <div className="min-h-screen bg-[#0f1419] text-white">
+      <div className="max-w-[1400px] mx-auto p-4 space-y-4">
+        {/* Header with search and live toggle */}
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <Link to={createPageUrl('Dashboard')}>
+              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+            </Link>
+            <h1 className="text-3xl font-bold">Blocks</h1>
+            {latestBlock && (
+              <Badge className="bg-cyan-500/20 text-cyan-400 border-0">
+                Latest: #{latestBlock.slot.toLocaleString()}
+              </Badge>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Search by slot..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 w-[200px] bg-[#1d2d3a] border-white/10 text-white placeholder:text-gray-500"
+              />
             </div>
-            
-            <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('Blocks')}><Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg></Button></Link>
-              <Link to={createPageUrl('Validators')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></svg></Button></Link>
-              <Link to={createPageUrl('Transactions')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg></Button></Link>
-            </nav>
-            
-            <div className="flex-1 max-w-md">
-              <div className="relative">
-                <Input placeholder="Search by slot..." className="w-full bg-[#24384a] border-0 text-white placeholder:text-gray-500 pr-10 rounded-lg" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                <Button size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 bg-cyan-500 hover:bg-cyan-600 h-7 w-7 rounded"><Search className="w-4 h-4 text-black" /></Button>
-              </div>
-            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsLive(!isLive)}
+              className={`${
+                isLive
+                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                  : 'border-white/20 text-gray-400'
+              }`}
+            >
+              {isLive ? (
+                <>
+                  <Pause className="w-4 h-4 mr-2" />
+                  Pause
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 mr-2" />
+                  Resume
+                </>
+              )}
+            </Button>
           </div>
         </div>
-      </header>
 
-      {error && (
-        <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2">
-          <div className="max-w-[1800px] mx-auto flex items-center gap-2 text-red-400 text-sm">
-            <AlertCircle className="w-4 h-4" />
-            <span>{error}</span>
-          </div>
-        </div>
-      )}
-
-      <main className="max-w-[1800px] mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Recent Slots</h1>
-            <p className="text-gray-400 text-sm">Live from X1 mainnet • TPS: {tps.toLocaleString()}</p>
-          </div>
-          
-          <Button onClick={() => setIsLive(!isLive)} variant="outline" className={`border-white/10 ${isLive ? 'text-emerald-400' : 'text-gray-400'}`}>
-            {isLive ? <><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-2" /><Pause className="w-4 h-4 mr-1" /> Live</> : <><Play className="w-4 h-4 mr-1" /> Paused</>}
+        {/* View Mode Selector */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant={viewMode === 'blocks' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('blocks')}
+            className={viewMode === 'blocks' ? 'bg-cyan-500' : 'border-white/20 text-gray-400'}
+          >
+            Blocks
+          </Button>
+          <Button
+            variant={viewMode === '1m' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('1m')}
+            className={viewMode === '1m' ? 'bg-cyan-500' : 'border-white/20 text-gray-400'}
+          >
+            1m View
+          </Button>
+          <Button
+            variant={viewMode === '10m' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('10m')}
+            className={viewMode === '10m' ? 'bg-cyan-500' : 'border-white/20 text-gray-400'}
+          >
+            10m View
           </Button>
         </div>
 
-        {/* Slots View Box */}
-        <div className="bg-[#24384a] rounded-xl p-4 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <span className="text-white font-medium">Slots View</span>
-              <div className="flex gap-1 bg-[#1d2d3a] rounded-lg p-1">
-                {['blocks', '1m', '10m'].map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => setViewMode(mode)}
-                    className={`px-3 py-1.5 text-xs rounded ${viewMode === mode ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
-                  >
-                    {mode === 'blocks' ? 'Blocks' : mode}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <MempoolLegend />
-          </div>
-
-          {/* View Info */}
-          {viewMode !== 'blocks' && (
-            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-2 mb-4">
-              <p className="text-blue-400 text-xs">
-                {viewMode === '1m' 
-                  ? '📊 Actual transaction data from RPC performance samples (1-minute windows).'
-                  : '📊 Actual transaction data aggregated from RPC performance samples (10-minute windows).'}
-              </p>
-            </div>
-          )}
-
-          {/* Block Grid */}
-          <div className="flex gap-2 overflow-x-auto">
-            {viewMode === 'blocks' ? (
-              blocks.length > 0 ? (
-                blocks.slice(0, 10).map((block, i) => (
-                  <MempoolBlockViz key={block.slot} block={block} isNew={block.slot === newBlockSlot || i === 0} />
-                ))
-              ) : (
-                <div className="text-gray-500 py-8 w-full text-center">Loading blocks...</div>
-              )
-            ) : (
-              getAggregatedData().length > 0 ? (
-                getAggregatedData().map((data, i) => (
-                  <MempoolAggregatedViz key={`${viewMode}-${i}`} data={data} label={data.label} viewMode={viewMode} />
-                ))
-              ) : (
-                <div className="text-gray-500 py-8 w-full text-center">
-                  Loading performance data... (requires ~{viewMode === '1m' ? '1' : '10'} minutes of data)
-                </div>
-              )
-            )}
-          </div>
-        </div>
-
-        {/* Additional blocks table for blocks view */}
-        {viewMode === 'blocks' && blocks.length > 10 && (
-          <div className="mt-8 bg-[#24384a] rounded-xl overflow-hidden">
-            <div className="p-4 border-b border-white/5">
-              <h3 className="text-white font-medium">More Recent Slots</h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-white/5">
-                    <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Slot</th>
-                    <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Block Hash</th>
-                    <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Transactions</th>
-                    <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {blocks.slice(10).map((block) => (
-                    <tr key={block.slot} className="border-b border-white/5 hover:bg-white/[0.02]">
-                      <td className="px-4 py-3">
-                        <Link to={createPageUrl('BlockDetail') + `?slot=${block.slot}`} className="text-cyan-400 hover:underline font-mono">
-                          {block.slot?.toLocaleString()}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-gray-400 font-mono text-sm">
-                        {block.blockhash?.substring(0, 24)}...
-                      </td>
-                      <td className="px-4 py-3 text-right text-white font-mono">
-                        {block.txCount?.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-400 text-sm">
-                        {block.blockTime ? new Date(block.blockTime * 1000).toLocaleTimeString() : '-'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* Error Display - Only show meaningful errors */}
+        {error && !loading && blocks.length === 0 && (
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-yellow-400" />
+            <div>
+              <p className="text-yellow-400 font-medium">Connection Issue</p>
+              <p className="text-gray-400 text-sm">{error}</p>
             </div>
           </div>
         )}
 
-        <div className="flex items-center justify-center gap-4 mt-8">
-          <Button variant="outline" className="border-white/10 text-gray-400 hover:text-white">
-            <ChevronLeft className="w-4 h-4 mr-1" /> Older Slots
-          </Button>
-          <Button variant="outline" className="border-white/10 text-gray-400 hover:text-white">
-            Newer Slots <ChevronRight className="w-4 h-4 ml-1" />
-          </Button>
-        </div>
-      </main>
+        {/* Loading State */}
+        {loading && blocks.length === 0 && (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+          </div>
+        )}
+
+        {/* Mempool Visualization */}
+        {!loading && blocks.length > 0 && (
+          <>
+            <MempoolLegend />
+            
+            {viewMode === 'blocks' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {filteredBlocks.map((block) => (
+                  <MempoolBlockViz
+                    key={block.slot}
+                    block={block}
+                    isNew={block.slot === newBlockSlot}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                {getAggregatedData().map((data, idx) => (
+                  <MempoolAggregatedViz key={idx} data={data} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
