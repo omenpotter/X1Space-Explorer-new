@@ -671,7 +671,7 @@ export default function WhaleWatcher() {
             {/* Amount Filters */}
             <div>
               <label className="text-sm text-gray-400 mb-2 block">Minimum Amount</label>
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2 flex-wrap items-center">
                 {[1000, 10000, 50000, 100000, 500000].map((val) => (
                   <Button 
                     key={val} 
@@ -683,6 +683,25 @@ export default function WhaleWatcher() {
                     {formatAmount(val)}+ XNT
                   </Button>
                 ))}
+                <div className="flex gap-2 items-center">
+                  <Input 
+                    type="number"
+                    placeholder="Custom amount"
+                    className="w-36 bg-[#0f1419] border-white/10 text-white placeholder:text-gray-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const value = parseFloat(e.target.value);
+                        if (!isNaN(value) && value > 0) {
+                          setMinAmount(value);
+                        }
+                      }
+                    }}
+                  />
+                  <span className="text-gray-500 text-xs">Press Enter</span>
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-gray-500">
+                Current threshold: <span className="text-cyan-400 font-mono">{formatAmount(minAmount)}+ XNT</span>
               </div>
             </div>
 
