@@ -169,11 +169,12 @@ export default function PortfolioTracker() {
           let rpcData = null;
           let nativeBalance = 0;
 
-          // Fetch native XNT balance + token accounts
+          // Fetch native XNT balance + token accounts from BOTH programs
           for (const endpoint of RPC_ENDPOINTS) {
             try {
-              // Fetch both native balance and token accounts in parallel
-              const [balanceResponse, tokensResponse] = await Promise.all([
+              // Fetch native balance + Token Program + Token-2022 Program in parallel
+              const [balanceResponse, tokenProgramResponse, token2022Response] = await Promise.all([
+                // Get native XNT balance
                 fetch(endpoint, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -185,6 +186,7 @@ export default function PortfolioTracker() {
                   }),
                   signal: AbortSignal.timeout(5000)
                 }),
+                // Get Token Program accounts
                 fetch(endpoint, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -194,7 +196,23 @@ export default function PortfolioTracker() {
                     method: 'getTokenAccountsByOwner',
                     params: [
                       wallet.address,
-                      { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' },
+                      { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' }, // Legacy Token Program
+                      { encoding: 'jsonParsed' }
+                    ]
+                  }),
+                  signal: AbortSignal.timeout(5000)
+                }),
+                // Get Token-2022 Program accounts
+                fetch(endpoint, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    id: 3,
+                    method: 'getTokenAccountsByOwner',
+                    params: [
+                      wallet.address,
+                      { programId: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb' }, // Token-2022 Program
                       { encoding: 'jsonParsed' }
                     ]
                   }),
@@ -203,15 +221,28 @@ export default function PortfolioTracker() {
               ]);
 
               const balanceData = await balanceResponse.json();
-              rpcData = await tokensResponse.json();
+              const tokenProgramData = await tokenProgramResponse.json();
+              const token2022Data = await token2022Response.json();
               
               if (balanceData.result?.value !== undefined) {
                 nativeBalance = balanceData.result.value / 1e9; // Convert lamports to XNT
                 console.log(`✓ Native XNT balance: ${nativeBalance}`);
               }
               
-              if (rpcData.result?.value) {
-                console.log(`✓ RPC success: ${endpoint}`);
+              // Combine tokens from both programs
+              const legacyTokens = tokenProgramData.result?.value || [];
+              const token2022Tokens = token2022Data.result?.value || [];
+              
+              console.log(`✓ Legacy Token Program: ${legacyTokens.length} tokens`);
+              console.log(`✓ Token-2022 Program: ${token2022Tokens.length} tokens`);
+              
+              if (legacyTokens.length > 0 || token2022Tokens.length > 0) {
+                rpcData = {
+                  result: {
+                    value: [...legacyTokens, ...token2022Tokens]
+                  }
+                };
+                console.log(`✓ RPC success: ${endpoint} (Total: ${rpcData.result.value.length} tokens)`);
                 break;
               }
             } catch (err) {
