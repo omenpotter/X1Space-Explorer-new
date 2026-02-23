@@ -216,45 +216,36 @@ export default function PortfolioTracker() {
 
           console.log(`✓ Found ${walletTokens.length} tokens with balance in wallet`);
           
-          // Match with price data from API (ALL tokens shown, even without price)
-          const enrichedWalletTokens = walletTokens.map((walletToken, idx) => {
-            const tokenData = allTokens.find(t => t.mint === walletToken.mint);
-            
-            if (tokenData) {
-              console.log(`✓ Match ${idx+1}: ${tokenData.symbol} @ $${tokenData.price}`);
-              const currentValue = walletToken.amount * tokenData.priceNum;
+          // Match with price data from API (ONLY show tokens with known prices)
+          const enrichedWalletTokens = walletTokens
+            .map((walletToken, idx) => {
+              const tokenData = allTokens.find(t => t.mint === walletToken.mint);
               
-              return {
-                mint: walletToken.mint,
-                amount: walletToken.amount,
-                decimals: walletToken.decimals,
-                name: tokenData.name,
-                symbol: tokenData.symbol,
-                logo: tokenData.logo,
-                price: tokenData.price,
-                priceNum: tokenData.priceNum,
-                currentValue: currentValue,
-                verified: tokenData.verified
-              };
-            } else {
-              // Token not in price database - STILL SHOW IT
-              console.log(`⚠️ No price ${idx+1}: ${walletToken.mint.slice(0, 8)}...`);
-              return {
-                mint: walletToken.mint,
-                amount: walletToken.amount,
-                decimals: walletToken.decimals,
-                name: `${walletToken.mint.slice(0, 4)}...${walletToken.mint.slice(-4)}`,
-                symbol: 'UNKNOWN',
-                logo: null,
-                price: '0.0000',
-                priceNum: 0,
-                currentValue: 0,
-                verified: false
-              };
-            }
-          });
+              if (tokenData) {
+                console.log(`✓ Match ${idx+1}: ${tokenData.symbol} @ $${tokenData.price}`);
+                const currentValue = walletToken.amount * tokenData.priceNum;
+                
+                return {
+                  mint: walletToken.mint,
+                  amount: walletToken.amount,
+                  decimals: walletToken.decimals,
+                  name: tokenData.name,
+                  symbol: tokenData.symbol,
+                  logo: tokenData.logo,
+                  price: tokenData.price,
+                  priceNum: tokenData.priceNum,
+                  currentValue: currentValue,
+                  verified: tokenData.verified
+                };
+              } else {
+                // Token not in price database - SKIP IT
+                console.log(`⚠️ Skipping ${idx+1}: ${walletToken.mint.slice(0, 8)}... (no price data)`);
+                return null;
+              }
+            })
+            .filter(token => token !== null); // Remove null entries (unknown tokens)
 
-          console.log(`✅ Prepared ${enrichedWalletTokens.length} tokens for display`);
+          console.log(`✅ Showing ${enrichedWalletTokens.length} tokens with prices (filtered out unknowns)`);
 
           return {
             address: wallet.address,
