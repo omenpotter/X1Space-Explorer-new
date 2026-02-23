@@ -348,12 +348,85 @@ export default function PortfolioTracker() {
             }
           }
 
+          // Fetch stake accounts for this wallet
+          let stakeBalance = 0;
+          try {
+            for (const endpoint of RPC_ENDPOINTS) {
+              try {
+                const stakeResponse = await fetch(endpoint, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    id: 4,
+                    method: 'getProgramAccounts',
+                    params: [
+                      'Stake11111111111111111111111111111111111111', // Stake program
+                      {
+                        encoding: 'jsonParsed',
+                        filters: [
+                          {
+                            memcmp: {
+                              offset: 12, // Staker authority offset
+                              bytes: wallet.address
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }),
+                  signal: AbortSignal.timeout(5000)
+                });
+
+                const stakeData = await stakeResponse.json();
+                
+                if (stakeData.result && Array.isArray(stakeData.result)) {
+                  stakeData.result.forEach(account => {
+                    const lamports = account.account?.lamports || 0;
+                    stakeBalance += lamports / 1e9;
+                  });
+                  
+                  if (stakeBalance > 0) {
+                    console.log(`✓ Found staked XNT: ${stakeBalance}`);
+                    
+                    // Add staked XNT as a separate entry
+                    const xntToken = allTokens.find(t => 
+                      t.symbol === 'WXNT' || t.symbol === 'XNT'
+                    );
+                    
+                    if (xntToken) {
+                      enrichedWalletTokens.push({
+                        mint: 'staked',
+                        amount: stakeBalance,
+                        decimals: 9,
+                        name: 'Staked XNT',
+                        symbol: '💎 XNT',
+                        logo: xntToken.logo,
+                        price: xntToken.price,
+                        priceNum: xntToken.priceNum,
+                        currentValue: stakeBalance * xntToken.priceNum,
+                        verified: true,
+                        isStaked: true
+                      });
+                    }
+                  }
+                  break;
+                }
+              } catch (err) {
+                continue;
+              }
+            }
+          } catch (err) {
+            console.warn('Failed to fetch stake accounts:', err);
+          }
+
           console.log(`✅ Showing ${enrichedWalletTokens.length} tokens with prices (filtered out unknowns)`);
 
           return {
             address: wallet.address,
             label: wallet.label,
             tokens: enrichedWalletTokens,
+            stakeBalance: stakeBalance,
             totalValue: enrichedWalletTokens.reduce((sum, t) => sum + t.currentValue, 0)
           };
         } catch (err) {
@@ -500,6 +573,14 @@ export default function PortfolioTracker() {
                       <div>
                         <h3 className="font-bold">{wallet.label}</h3>
                         <p className="text-gray-400 text-sm font-mono">{wallet.address.slice(0, 12)}...{wallet.address.slice(-12)}</p>
+                        {wallet.stakeBalance > 0 && (
+                          <div className="mt-2 inline-flex items-center gap-2 bg-purple-500/10 border border-purple-500/30 rounded px-2 py-1">
+                            <span className="text-purple-400 text-xs">💎 Staked:</span>
+                            <span className="text-purple-300 text-xs font-mono font-bold">
+                              {wallet.stakeBalance.toFixed(2)} XNT
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className="text-lg font-bold text-cyan-400">${hideBalances ? '••••' : wallet.totalValue.toFixed(2)}</p>
@@ -546,7 +627,7 @@ export default function PortfolioTracker() {
                           </thead>
                           <tbody>
                             {filteredTokens.map((token) => (
-                              <tr key={token.mint} className="border-b border-white/5 hover:bg-white/[0.02]">
+                              <tr key={token.mint} className={`border-b border-white/5 hover:bg-white/[0.02] ${token.isStaked ? 'bg-purple-500/5' : ''}`}>
                                 <td className="py-2 px-2">
                                   <div className="flex items-center gap-2">
                                     {token.logo ? (
@@ -560,6 +641,7 @@ export default function PortfolioTracker() {
                                       <div className="flex items-center gap-1">
                                         <p className="font-semibold">{token.symbol}</p>
                                         {token.verified && <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">✓</Badge>}
+                                        {token.isStaked && <Badge className="bg-purple-500/20 text-purple-400 border-0 text-xs">Staked</Badge>}
                                       </div>
                                       <p className="text-gray-400 text-xs">{token.name}</p>
                                     </div>
