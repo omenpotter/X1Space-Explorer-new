@@ -167,26 +167,49 @@ export default function PortfolioTracker() {
           ];
 
           let rpcData = null;
+          let nativeBalance = 0;
 
+          // Fetch native XNT balance + token accounts
           for (const endpoint of RPC_ENDPOINTS) {
             try {
-              const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  jsonrpc: '2.0',
-                  id: 1,
-                  method: 'getTokenAccountsByOwner',
-                  params: [
-                    wallet.address,
-                    { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' },
-                    { encoding: 'jsonParsed' }
-                  ]
+              // Fetch both native balance and token accounts in parallel
+              const [balanceResponse, tokensResponse] = await Promise.all([
+                fetch(endpoint, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    id: 1,
+                    method: 'getBalance',
+                    params: [wallet.address]
+                  }),
+                  signal: AbortSignal.timeout(5000)
                 }),
-                signal: AbortSignal.timeout(5000)
-              });
+                fetch(endpoint, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    id: 2,
+                    method: 'getTokenAccountsByOwner',
+                    params: [
+                      wallet.address,
+                      { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' },
+                      { encoding: 'jsonParsed' }
+                    ]
+                  }),
+                  signal: AbortSignal.timeout(5000)
+                })
+              ]);
 
-              rpcData = await response.json();
+              const balanceData = await balanceResponse.json();
+              rpcData = await tokensResponse.json();
+              
+              if (balanceData.result?.value !== undefined) {
+                nativeBalance = balanceData.result.value / 1e9; // Convert lamports to XNT
+                console.log(`✓ Native XNT balance: ${nativeBalance}`);
+              }
+              
               if (rpcData.result?.value) {
                 console.log(`✓ RPC success: ${endpoint}`);
                 break;
@@ -197,24 +220,26 @@ export default function PortfolioTracker() {
             }
           }
 
-          if (!rpcData?.result?.value) {
+          if (!rpcData?.result?.value && nativeBalance === 0) {
             console.warn('No RPC data for wallet:', wallet.address);
             return { address: wallet.address, label: wallet.label, tokens: [], totalValue: 0 };
           }
 
           // Extract wallet token balances
-          const walletTokens = rpcData.result.value
-            .map(account => {
-              const info = account.account.data.parsed.info;
-              return {
-                mint: info.mint,
-                amount: Number(info.tokenAmount.uiAmount),
-                decimals: info.tokenAmount.decimals
-              };
-            })
-            .filter(t => t.amount > 0);
+          const walletTokens = rpcData?.result?.value
+            ? rpcData.result.value
+                .map(account => {
+                  const info = account.account.data.parsed.info;
+                  return {
+                    mint: info.mint,
+                    amount: Number(info.tokenAmount.uiAmount),
+                    decimals: info.tokenAmount.decimals
+                  };
+                })
+                .filter(t => t.amount > 0)
+            : [];
 
-          console.log(`✓ Found ${walletTokens.length} tokens with balance in wallet`);
+          console.log(`✓ Found ${walletTokens.length} SPL tokens + native XNT in wallet`);
           
           // Match with price data from API (ONLY show tokens with known prices)
           const enrichedWalletTokens = walletTokens
@@ -244,6 +269,32 @@ export default function PortfolioTracker() {
               }
             })
             .filter(token => token !== null); // Remove null entries (unknown tokens)
+
+          // Add native XNT if balance > 0
+          if (nativeBalance > 0) {
+            // Find XNT price from token list (WXNT or XNT)
+            const xntToken = allTokens.find(t => 
+              t.symbol === 'WXNT' || 
+              t.symbol === 'XNT' ||
+              t.name.toLowerCase().includes('x1 native')
+            );
+            
+            if (xntToken) {
+              enrichedWalletTokens.unshift({
+                mint: 'native',
+                amount: nativeBalance,
+                decimals: 9,
+                name: 'X1 Native Token',
+                symbol: 'XNT',
+                logo: xntToken.logo || '/assets/images/tokens/x1.webp',
+                price: xntToken.price,
+                priceNum: xntToken.priceNum,
+                currentValue: nativeBalance * xntToken.priceNum,
+                verified: true
+              });
+              console.log(`✓ Added native XNT: ${nativeBalance} @ $${xntToken.price}`);
+            }
+          }
 
           console.log(`✅ Showing ${enrichedWalletTokens.length} tokens with prices (filtered out unknowns)`);
 
