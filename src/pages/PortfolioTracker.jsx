@@ -241,13 +241,24 @@ export default function PortfolioTracker() {
 
           console.log(`✓ Found ${walletTokens.length} SPL tokens + native XNT in wallet`);
           
+          // DEBUG: Log all wallet token mints
+          console.log('═══ WALLET TOKENS ═══');
+          walletTokens.forEach((t, i) => {
+            console.log(`${i+1}. Mint: ${t.mint} | Amount: ${t.amount}`);
+          });
+          
+          // DEBUG: Log total tokens in price database
+          console.log(`═══ PRICE DATABASE ═══`);
+          console.log(`Total tokens in database: ${allTokens.length}`);
+          console.log('Sample mints from database:', allTokens.slice(0, 5).map(t => `${t.symbol}: ${t.mint}`));
+          
           // Match with price data from API (ONLY show tokens with known prices)
           const enrichedWalletTokens = walletTokens
             .map((walletToken, idx) => {
               const tokenData = allTokens.find(t => t.mint === walletToken.mint);
               
               if (tokenData) {
-                console.log(`✓ Match ${idx+1}: ${tokenData.symbol} @ $${tokenData.price}`);
+                console.log(`✓ MATCH ${idx+1}: ${tokenData.symbol} (${tokenData.name}) @ $${tokenData.price} | Wallet: ${walletToken.amount}`);
                 const currentValue = walletToken.amount * tokenData.priceNum;
                 
                 return {
@@ -264,7 +275,17 @@ export default function PortfolioTracker() {
                 };
               } else {
                 // Token not in price database - SKIP IT
-                console.log(`⚠️ Skipping ${idx+1}: ${walletToken.mint.slice(0, 8)}... (no price data)`);
+                console.log(`✗ NO MATCH ${idx+1}: ${walletToken.mint} (not in price database)`);
+                
+                // DEBUG: Try to find similar tokens
+                const similar = allTokens.filter(t => 
+                  t.mint.toLowerCase().includes(walletToken.mint.toLowerCase().slice(0, 8)) ||
+                  walletToken.mint.toLowerCase().includes(t.mint.toLowerCase().slice(0, 8))
+                );
+                if (similar.length > 0) {
+                  console.log(`  → Similar: `, similar.map(t => `${t.symbol}: ${t.mint}`));
+                }
+                
                 return null;
               }
             })
