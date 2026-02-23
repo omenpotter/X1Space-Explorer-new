@@ -30,8 +30,8 @@ export default function PortfolioTracker() {
       try {
         console.log('📡 Loading tokens from Base44 API...');
         
-        // Use same API endpoint as Token Explorer
-        const response = await X1Api.listTokens({ limit: 500, offset: 0, verified: false });
+        // Fetch ALL available tokens (not just 500)
+        const response = await X1Api.listTokens({ limit: 1000, offset: 0, verified: false });
 
         if (response.success && response.data?.tokens) {
           const tokens = response.data.tokens;
@@ -150,10 +150,11 @@ export default function PortfolioTracker() {
           console.log(`✓ Found ${walletTokens.length} tokens in wallet`);
           
           // Match with price data from Base44 API
-          const enrichedWalletTokens = walletTokens.map((walletToken) => {
+          const enrichedWalletTokens = walletTokens.map((walletToken, idx) => {
             const tokenData = allTokens.find(t => t.mint === walletToken.mint);
             
             if (tokenData) {
+              console.log(`✓ Token ${idx+1}: ${tokenData.symbol} - $${tokenData.price}`);
               const currentValue = walletToken.amount * tokenData.priceNum;
               
               return {
@@ -169,12 +170,13 @@ export default function PortfolioTracker() {
                 verified: tokenData.verified
               };
             } else {
-              // Token not found in price database
+              // Token not in price database - show it anyway with unknown price
+              console.log(`⚠️ Token ${idx+1}: ${walletToken.mint.slice(0, 8)}... (not in price DB)`);
               return {
                 mint: walletToken.mint,
                 amount: walletToken.amount,
                 decimals: walletToken.decimals,
-                name: walletToken.mint.slice(0, 8) + '...',
+                name: `${walletToken.mint.slice(0, 4)}...${walletToken.mint.slice(-4)}`,
                 symbol: 'UNKNOWN',
                 logo: null,
                 price: '0.0000',
@@ -184,6 +186,8 @@ export default function PortfolioTracker() {
               };
             }
           });
+
+          console.log(`✅ Showing ${enrichedWalletTokens.length} tokens for wallet`);
 
           return {
             address: wallet.address,
