@@ -113,7 +113,7 @@ Respond with a JSON object.`,
             error: {
                 code: 500,
                 message: 'Internal server error',
-                details: error.message,
+                details: 'Internal server error',
                 timestamp: new Date().toISOString()
             }
         }, { status: 500 });

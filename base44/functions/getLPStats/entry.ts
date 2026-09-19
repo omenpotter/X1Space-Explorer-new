@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
     
     return new Response(JSON.stringify({
       success: false,
-      error: err.message || 'Internal error',
+      error: 'Internal server error',
       stats: {
         total_pools: 0,
         total_holders: 0,

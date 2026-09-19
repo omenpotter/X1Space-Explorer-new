@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
 
     // Fetch specific pool details from XDEX
     const response = await fetch(
-      `${XDEX_API}/api/xendex/pool/${poolAddress}?network=${NETWORK}`,
+      `${XDEX_API}/api/xendex/pool/${encodeURIComponent(poolAddress)}?network=${NETWORK}`,
       { signal: AbortSignal.timeout(10000) }
     );
 
@@ -148,7 +148,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({
       success: false,
       error: {
-        message: error.message,
+        message: 'Internal server error',
         timestamp: new Date().toISOString()
       }
     }), { 

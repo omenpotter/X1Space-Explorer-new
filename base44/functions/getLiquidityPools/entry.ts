@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({
       success: false,
       error: {
-        message: error.message,
+        message: 'Internal server error',
         timestamp: new Date().toISOString()
       },
       pools: []

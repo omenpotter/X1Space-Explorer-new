@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
     
     return new Response(JSON.stringify({
       success: false,
-      error: err.message || 'Internal error',
+      error: 'Internal server error',
       tokens: [],
       timestamp: new Date().toISOString()
     }), {

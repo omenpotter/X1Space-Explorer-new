@@ -43,7 +43,6 @@ Deno.serve(async (req) => {
             error: {
                 code: 500,
                 message: 'Internal server error',
-                details: error.message,
                 timestamp: new Date().toISOString()
             }
         }, { status: 500 });

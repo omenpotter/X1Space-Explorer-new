@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
 
     // Fetch current price
     const priceRes = await fetch(
-      `${XDEX_API}/api/token-price/price?network=${NETWORK}&address=${mint}`,
+      `${XDEX_API}/api/token-price/price?network=${NETWORK}&address=${encodeURIComponent(mint)}`,
       { signal: AbortSignal.timeout(10000) }
     );
 
@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     if (withHistory) {
       try {
         const historyRes = await fetch(
-          `${XDEX_API}/api/xendex/chart/history?network=${NETWORK}&token=${mint}`,
+          `${XDEX_API}/api/xendex/chart/history?network=${NETWORK}&token=${encodeURIComponent(mint)}`,
           { signal: AbortSignal.timeout(10000) }
         );
 
@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({
       success: false,
       error: {
-        message: error.message,
+        message: 'Internal server error',
         timestamp: new Date().toISOString()
       }
     }), { 

@@ -247,7 +247,7 @@ Deno.serve(async (req) => {
       error: {
         code: 500,
         message: 'Failed to fetch tokens from XDEX API',
-        details: error.message,
+        details: 'Internal server error',
         timestamp: new Date().toISOString()
       },
       tokens: [],

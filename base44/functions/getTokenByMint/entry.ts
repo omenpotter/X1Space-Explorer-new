@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
       fetch(`${XDEX_API}/api/xendex/pool/list?network=${NETWORK}`, {
         signal: AbortSignal.timeout(10000)
       }),
-      fetch(`${XDEX_API}/api/token-price/price?network=${NETWORK}&address=${mint}`, {
+      fetch(`${XDEX_API}/api/token-price/price?network=${NETWORK}&address=${encodeURIComponent(mint)}`, {
         signal: AbortSignal.timeout(10000)
       })
     ]);
@@ -171,8 +171,7 @@ Deno.serve(async (req) => {
       success: false,
       error: {
         code: 500,
-        message: 'Failed to fetch token details',
-        details: error.message
+        message: 'Failed to fetch token details'
       }
     }), { 
       status: 500, 
