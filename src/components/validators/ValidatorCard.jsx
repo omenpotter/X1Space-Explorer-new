@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { ExternalLink, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { safeUrl } from '@/lib/safeUrl';
 
 const ValidatorCard = memo(function ValidatorCard({ validator, rank, totalStake }) {
   const stakePercent = useMemo(() => 
@@ -45,8 +46,8 @@ const ValidatorCard = memo(function ValidatorCard({ validator, rank, totalStake 
               </p>
               {validator.website && (
                 <a 
-                  href={validator.website} 
-                  target="_blank" 
+                  href={safeUrl(validator.website)}
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-gray-500 hover:text-cyan-400 transition-colors"
                   onClick={(e) => e.stopPropagation()}

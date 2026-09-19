@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Coins, Search, Loader2, Star, ChevronLeft, RefreshCw, Copy, Check, Filter, Globe, Twitter } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { safeUrl } from '@/lib/safeUrl';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 
 import X1Api from '../components/x1/X1ApiClient';
@@ -630,13 +631,13 @@ export default function TokenExplorer() {
                                   <h3 className="text-white font-bold mb-4">Links</h3>
                                   <div className="space-y-2">
                                     {tokenMetadata.website && (
-                                      <a href={tokenMetadata.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 text-sm">
+                                      <a href={safeUrl(tokenMetadata.website)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 text-sm">
                                         <Globe className="w-4 h-4" />
                                         Website
                                       </a>
                                     )}
                                     {tokenMetadata.twitter && (
-                                      <a href={tokenMetadata.twitter} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 text-sm">
+                                      <a href={safeUrl(tokenMetadata.twitter)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 text-sm">
                                         <Twitter className="w-4 h-4" />
                                         Twitter
                                       </a>

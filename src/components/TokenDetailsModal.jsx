@@ -8,6 +8,7 @@ import {
   ExternalLink, Search
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { safeUrl } from '@/lib/safeUrl';
 import { 
   AreaChart, Area, BarChart, Bar, 
   PieChart, Pie, Cell, ResponsiveContainer, XAxis, 
@@ -356,7 +357,7 @@ export default function TokenDetailsModal({
                 <div className="flex items-center gap-3 mt-3">
                   {tokenData.website && (
                     <a
-                      href={tokenData.website}
+                      href={safeUrl(tokenData.website)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 px-3 py-1.5 bg-[#1d2d3a] rounded-lg hover:bg-[#24384a] transition-colors text-sm"
@@ -367,7 +368,7 @@ export default function TokenDetailsModal({
                   )}
                   {tokenData.twitter && (
                     <a
-                      href={tokenData.twitter}
+                      href={safeUrl(tokenData.twitter)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 px-3 py-1.5 bg-[#1d2d3a] rounded-lg hover:bg-[#24384a] transition-colors text-sm"

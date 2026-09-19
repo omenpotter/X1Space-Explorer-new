@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { X, ExternalLink, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
+import { safeUrl } from '@/lib/safeUrl';
 
 export default function ValidatorCompare({ validators, onRemove, blockProduction }) {
   const formatStake = (stake) => {
@@ -389,8 +390,8 @@ export default function ValidatorCompare({ validators, onRemove, blockProduction
                         </p>
                         {v.website && (
                           <a 
-                            href={v.website} 
-                            target="_blank" 
+                            href={safeUrl(v.website)}
+                            target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 text-cyan-400 text-xs hover:underline mt-1"
                           >

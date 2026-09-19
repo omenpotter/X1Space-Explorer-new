@@ -21,6 +21,7 @@ import {
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import X1Rpc from '../components/x1/X1RpcService';
+import { safeUrl } from '@/lib/safeUrl';
 import PerformanceChart from '../components/validators/PerformanceChart';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 
@@ -207,8 +208,8 @@ export default function ValidatorDetail() {
                 </div>
                 {validator.website && (
                   <a 
-                    href={validator.website} 
-                    target="_blank" 
+                    href={safeUrl(validator.website)}
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 text-cyan-400 hover:underline"
                   >

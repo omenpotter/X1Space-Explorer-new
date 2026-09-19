@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { safeUrl } from '@/lib/safeUrl';
 import X1Rpc from '../components/x1/X1RpcService';
 
 // Complete X1 Delegation Pool data from delegation.mainnet.x1.xyz/info
@@ -534,8 +535,8 @@ export default function WhaleWatcher() {
                     </Badge>
                     <div className="flex gap-2">
                       <a 
-                        href={pool.url} 
-                        target="_blank" 
+                        href={safeUrl(pool.url)}
+                        target="_blank"
                         rel="noopener noreferrer"
                         className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 text-xs"
                       >
@@ -544,8 +545,8 @@ export default function WhaleWatcher() {
                       </a>
                       {pool.infoUrl && pool.infoUrl !== pool.url && (
                         <a 
-                          href={pool.infoUrl} 
-                          target="_blank" 
+                          href={safeUrl(pool.infoUrl)}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="text-purple-400 hover:text-purple-300 flex items-center gap-1 text-xs"
                         >
