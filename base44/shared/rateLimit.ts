@@ -19,8 +19,9 @@ export function checkRateLimit(ip: string, maxRequests = 10, windowMs = 60000): 
 }
 
 export function getClientIp(req: Request): string {
+  // cf-connecting-ip is set by the platform/Cloudflare and is not client-controllable.
+  // Do NOT trust x-forwarded-for for rate-limit keying — callers can spoof it to bypass limits.
   return (
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     req.headers.get('cf-connecting-ip') ||
     'unknown'
   );

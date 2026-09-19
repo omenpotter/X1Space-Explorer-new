@@ -37,9 +37,7 @@ Deno.serve(async (req) => {
   }
 
   // Rate limiting check
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
-             req.headers.get('cf-connecting-ip') || 
-             'unknown';
+  const ip = req.headers.get('cf-connecting-ip') || 'unknown';
   
   if (!checkRateLimit(ip)) {
     console.warn(`⚠️ Rate limit exceeded for IP: ${ip}`);
