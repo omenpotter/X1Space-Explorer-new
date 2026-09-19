@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
 
         const token = tokenResult.rows[0];
 
-        const aiAnalysis = await base44.integrations.Core.InvokeLLM({
+        const aiAnalysis = await base44.asServiceRole.integrations.Core.InvokeLLM({
             prompt: `Analyze this X1 blockchain token and provide a health score and risk assessment:
 
 Token Data:

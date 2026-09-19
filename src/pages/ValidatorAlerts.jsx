@@ -160,17 +160,12 @@ export default function ValidatorAlerts() {
     // Send email notification
     if (config.emailAddress) {
       try {
-        await base44.integrations.Core.SendEmail({
+        await base44.functions.invoke('sendValidatorAlertEmail', {
           to: config.emailAddress,
-          subject: `X1 Alert: ${alertEvent.validatorName}`,
-          body: `
-Alert Type: ${alertEvent.type}
-Validator: ${alertEvent.validatorName}
-Message: ${alertEvent.message}
-Time: ${new Date(alertEvent.timestamp).toLocaleString()}
-
-View details at X1.space
-          `
+          validatorName: alertEvent.validatorName,
+          alertType: alertEvent.type,
+          message: alertEvent.message,
+          timestamp: alertEvent.timestamp
         });
       } catch (err) {
         console.error('Email notification failed:', err);

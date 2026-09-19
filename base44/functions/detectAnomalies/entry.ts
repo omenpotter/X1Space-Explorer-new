@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
         const hourAvg = hourAgoResult.rows[0];
         const dayAvg = dayAgoResult.rows[0];
 
-        const aiAnalysis = await base44.integrations.Core.InvokeLLM({
+        const aiAnalysis = await base44.asServiceRole.integrations.Core.InvokeLLM({
             prompt: `Examine the X1 network statistics and identify any significant anomalies:
 
 Current Stats:

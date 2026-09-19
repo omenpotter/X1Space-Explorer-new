@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
             }, { status: 400 });
         }
 
-        const aiResponse = await base44.integrations.Core.InvokeLLM({
+        const aiResponse = await base44.asServiceRole.integrations.Core.InvokeLLM({
             prompt: `You are an AI assistant for the X1 Blockchain Explorer. Your task is to interpret the user's query and determine the most relevant action.
 
 User Query: "${query}"

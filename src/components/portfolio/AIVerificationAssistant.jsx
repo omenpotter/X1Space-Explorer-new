@@ -35,35 +35,10 @@ export default function AIVerificationAssistant({ tokenMint, onClose }) {
     try {
       const tokenDetails = await X1Api.getTokenDetails(tokenMint);
       
-      const prompt = `Analyze this X1 blockchain token and provide a verification readiness assessment:
-
-Token Details:
-- Mint: ${tokenMint}
-- Name: ${tokenDetails.data?.token?.name || 'Unknown'}
-- Symbol: ${tokenDetails.data?.token?.symbol || 'Unknown'}
-- Total Supply: ${tokenDetails.data?.token?.total_supply || 0}
-- Holders: ${tokenDetails.data?.token?.holder_count || 0}
-- Has Metadata: ${tokenDetails.data?.token?.metadata ? 'Yes' : 'No'}
-
-Provide:
-1. Verification readiness score (0-100)
-2. Missing requirements for verification
-3. Potential red flags or concerns
-4. Recommendations for improving chances of verification
-
-Format as JSON with keys: readiness_score, missing_requirements (array), red_flags (array), recommendations (array)`;
-
-      const analysis = await base44.integrations.Core.InvokeLLM({
-        prompt,
-        response_json_schema: {
-          type: 'object',
-          properties: {
-            readiness_score: { type: 'number' },
-            missing_requirements: { type: 'array', items: { type: 'string' } },
-            red_flags: { type: 'array', items: { type: 'string' } },
-            recommendations: { type: 'array', items: { type: 'string' } }
-          }
-        }
+      const { result: analysis } = await base44.functions.invoke('tokenVerificationAssistant', {
+        action: 'analyze',
+        tokenMint,
+        tokenDetails: tokenDetails.data?.token
       });
 
       setTokenAnalysis(analysis);
@@ -115,18 +90,12 @@ How can I help you prepare your verification request?`
     setLoading(true);
 
     try {
-      const context = `You are an AI assistant helping with X1Space token verification. 
-Current token: ${tokenMint}
-Verification form data: ${JSON.stringify(verificationForm)}
-Previous analysis: ${JSON.stringify(tokenAnalysis)}
-
-User query: ${userMessage}
-
-Provide helpful, specific guidance on token verification. If they ask about documentation, explain what's needed (whitepaper, tokenomics, smart contract verification). If they need help formatting, provide templates. If they mention concerns, address them with factual information.`;
-
-      const response = await base44.integrations.Core.InvokeLLM({
-        prompt: context,
-        add_context_from_internet: false
+      const { result: { response } } = await base44.functions.invoke('tokenVerificationAssistant', {
+        action: 'chat',
+        tokenMint,
+        verificationForm,
+        tokenAnalysis,
+        userMessage
       });
 
       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
@@ -144,27 +113,10 @@ Provide helpful, specific guidance on token verification. If they ask about docu
   const generateVerificationRequest = async () => {
     setLoading(true);
     try {
-      const prompt = `Generate a professional X1Space token verification request based on this information:
-
-${JSON.stringify(verificationForm, null, 2)}
-
-Analysis: ${JSON.stringify(tokenAnalysis)}
-
-Create a well-formatted verification request that includes:
-1. Token overview
-2. Project description
-3. Team information (if available)
-4. Tokenomics summary
-5. Use case and utility
-6. Community and social proof
-7. Technical details
-8. Roadmap (if applicable)
-
-Make it professional, concise, and compelling. Format with markdown.`;
-
-      const request = await base44.integrations.Core.InvokeLLM({
-        prompt,
-        add_context_from_internet: false
+      const { result: { response: request } } = await base44.functions.invoke('tokenVerificationAssistant', {
+        action: 'generate',
+        verificationForm,
+        tokenAnalysis
       });
 
       setMessages(prev => [...prev, {
