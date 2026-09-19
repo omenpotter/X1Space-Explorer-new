@@ -5,15 +5,6 @@ import { X, ExternalLink, TrendingUp, TrendingDown, Activity } from 'lucide-reac
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 
 export default function ValidatorCompare({ validators, onRemove, blockProduction }) {
-  if (validators.length === 0) {
-    return (
-      <div className="bg-[#24384a] rounded-xl p-8 text-center">
-        <p className="text-gray-400">Select validators to compare them side-by-side</p>
-        <p className="text-gray-500 text-sm mt-2">Click the compare button on any validator to add them here</p>
-      </div>
-    );
-  }
-
   const formatStake = (stake) => {
     if (stake >= 1e6) return (stake / 1e6).toFixed(2) + 'M';
     if (stake >= 1e3) return (stake / 1e3).toFixed(2) + 'K';
@@ -118,6 +109,15 @@ export default function ValidatorCompare({ validators, onRemove, blockProduction
       { metric: 'Low Comm', fullMark: 100, ...Object.fromEntries(validators.map((v, i) => [`v${i}`, 100 - v.commission])) },
     ];
   }, [validators]);
+
+  if (validators.length === 0) {
+    return (
+      <div className="bg-[#24384a] rounded-xl p-8 text-center">
+        <p className="text-gray-400">Select validators to compare them side-by-side</p>
+        <p className="text-gray-500 text-sm mt-2">Click the compare button on any validator to add them here</p>
+      </div>
+    );
+  }
 
   // Generate historical trend data (simulated based on current values)
   const generateHistoricalTrend = (validator, metric, days = 7) => {

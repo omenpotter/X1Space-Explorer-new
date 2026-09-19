@@ -1,9 +1,17 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 import pg from 'npm:pg';
+import { enforceRateLimit, corsHeaders } from '../../shared/rateLimit.ts';
 
 const { Client } = pg;
 
 Deno.serve(async (req) => {
+    if (req.method === 'OPTIONS') {
+        return new Response(null, { headers: corsHeaders() });
+    }
+
+    const limited = enforceRateLimit(req, 10);
+    if (limited) return limited;
+
     try {
         const base44 = createClientFromRequest(req);
         const payload = await req.json();

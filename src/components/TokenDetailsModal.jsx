@@ -40,9 +40,7 @@ export default function TokenDetailsModal({
   const [actualHolders, setActualHolders] = useState([]);
   const [loadingHolders, setLoadingHolders] = useState(false);
 
-  if (!token) return null;
-
-  const tokenData = allTokens?.find(t => t.mint === token.mint) || token;
+  const tokenData = token ? (allTokens?.find(t => t.mint === token.mint) || token) : null;
   const details = tokenDetails || tokenData;
 
   // Calculate total supply with proper decimals handling
@@ -225,6 +223,8 @@ export default function TokenDetailsModal({
 
     calculateHealthScore();
   }, [details, actualHolders, tokenData]);
+
+  if (!token) return null;
 
   return (
     <div className="bg-[#24384a] rounded-xl p-6 mb-6">
