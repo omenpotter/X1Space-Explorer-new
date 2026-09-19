@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { base44 } from '@/api/base44Client';
 import X1Rpc from '../components/x1/X1RpcService';
 
 export default function ValidatorAlerts() {
@@ -153,24 +152,9 @@ export default function ValidatorAlerts() {
     }
   };
 
-  // Send notification via email or webhook
+  // Send notification via webhook
   const sendNotification = async (alertEvent) => {
     const config = JSON.parse(localStorage.getItem('x1_alert_config') || '{}');
-    
-    // Send email notification
-    if (config.emailAddress) {
-      try {
-        await base44.functions.invoke('sendValidatorAlertEmail', {
-          to: config.emailAddress,
-          validatorName: alertEvent.validatorName,
-          alertType: alertEvent.type,
-          message: alertEvent.message,
-          timestamp: alertEvent.timestamp
-        });
-      } catch (err) {
-        console.error('Email notification failed:', err);
-      }
-    }
 
     // Send webhook notification
     if (config.webhookUrl) {
