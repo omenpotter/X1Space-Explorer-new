@@ -115,8 +115,6 @@ export default function PortfolioTracker({ walletAddress: propWalletAddress, all
       // RPC endpoints - HTTPS only
       const RPC_ENDPOINTS = [
         'https://rpc.mainnet.x1.xyz',
-        'https://nexus.fortiblox.com/rpc',
-        'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38',
         'https://rpc.x1galaxy.io/'
       ];
 

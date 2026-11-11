@@ -9,8 +9,7 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // RPC endpoints for fetching
 const RPC_ENDPOINTS = [
-  'https://rpc.mainnet.x1.xyz',
-  'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38'
+  'https://rpc.mainnet.x1.xyz'
 ];
 
 // Fetch ALL validator identities from on-chain config accounts

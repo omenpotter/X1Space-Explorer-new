@@ -161,8 +161,6 @@ export default function PortfolioTracker() {
           // Use RPC failover endpoints (same as other explorers)
           const RPC_ENDPOINTS = [
             'https://rpc.mainnet.x1.xyz',
-            'https://nexus.fortiblox.com/rpc',
-            'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38',
             'https://rpc.x1galaxy.io/'
           ];
 

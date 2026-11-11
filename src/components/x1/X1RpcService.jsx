@@ -6,28 +6,15 @@ import { getCached, setCache, debounceRpc } from './RpcCache';
 
 const RPC_ENDPOINTS = [
   'https://rpc.mainnet.x1.xyz',
-  'https://nexus.fortiblox.com/rpc',
-  'https://rpc.owlnet.dev/?api-key=3a792cc7c3df79f2e7bc929757b47c38',
   'https://rpc.x1galaxy.io/'
 ];
-
-// API keys for authenticated endpoints
-const RPC_AUTH = {
-  'https://nexus.fortiblox.com/rpc': {
-    headers: {
-      'X-API-Key': 'pb_live_7d62cd095391ffd14daca14f2f739b06cac5fd182ca48aed9e2b106ba920c6b0',
-      'Authorization': 'Bearer fbx_d4a25e545366fed1ea1582884e62874d6b9fdf94d1f6c4b9889fefa951300dff'
-    }
-  }
-};
 
 // Test all RPCs and log status
 export async function testAllRPCs() {
   const results = {};
   for (const endpoint of RPC_ENDPOINTS) {
     try {
-      const authConfig = RPC_AUTH[endpoint] || {};
-      const headers = { 'Content-Type': 'application/json', ...(authConfig.headers || {}) };
+      const headers = { 'Content-Type': 'application/json' };
       const response = await fetch(endpoint, {
         method: 'POST',
         headers,
@@ -79,12 +66,7 @@ async function rpcCall(method, params = [], cacheKey = null, cacheDuration = 'sh
       const controller = new AbortController();
               const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout for faster failover
 
-              // Get auth headers if this endpoint requires them
-              const authConfig = RPC_AUTH[endpoint] || {};
-              const headers = {
-                'Content-Type': 'application/json',
-                ...(authConfig.headers || {})
-              };
+              const headers = { 'Content-Type': 'application/json' };
 
               const response = await fetch(endpoint, {
                 method: 'POST',
