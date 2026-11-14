@@ -27,6 +27,7 @@ import { fetchImage, imageNotFound, imageResponse } from './image.ts';
 import {
   AI_BODY_LIMIT,
   checkQuota,
+  dataBlock,
   DEFAULT_DAILY_QUOTA,
   pickForm,
   pickTokenDetails,
@@ -442,7 +443,7 @@ export const tokenVerificationHandler = (deps?: Deps) =>
       const raw = await llm({
         prompt: `Assess how ready this X1 token is for a listing review. ${GUARD}
 
-<user_data>${JSON.stringify({ mint, ...t })}</user_data>
+<user_data>${dataBlock({ mint, ...t })}</user_data>
 
 Return JSON with keys: readiness_score (0-100), missing_requirements (array), red_flags (array), recommendations (array). Base the answer only on the data given.`,
         response_json_schema: {
@@ -464,7 +465,7 @@ Return JSON with keys: readiness_score (0-100), missing_requirements (array), re
       const raw = await llm({
         prompt: `You help X1Space users prepare a token listing review request. ${GUARD}
 
-<user_data>${JSON.stringify({ mint, form, previous_analysis: prior, question: message })}</user_data>
+<user_data>${dataBlock({ mint, form, previous_analysis: prior, question: message })}</user_data>
 
 Answer the question in the "question" field with specific, factual guidance about preparing documentation (project description, tokenomics, contract details).`,
       });
@@ -474,7 +475,7 @@ Answer the question in the "question" field with specific, factual guidance abou
     const raw = await llm({
       prompt: `Write a concise, professional token listing review request in markdown. ${GUARD}
 
-<user_data>${JSON.stringify({ form, analysis: prior })}</user_data>
+<user_data>${dataBlock({ form, analysis: prior })}</user_data>
 
 Sections: overview, project description, team (if given), tokenomics, utility, community, technical details, roadmap (if given). Use only the data provided; do not invent facts.`,
     });

@@ -32,7 +32,15 @@ export async function checkQuota(store: KVStore, user: AiUser, dailyLimit: numbe
 
 /** Free text placed in a prompt: cleaned, capped, and JSON-quoted so it cannot close the data block. */
 export function promptData(value: unknown, maxLen: number): string {
-  return JSON.stringify(cleanText(value, maxLen));
+  return dataBlock(cleanText(value, maxLen));
+}
+
+/**
+ * Serialise untrusted data for a prompt. Angle brackets are escaped so the data can never
+ * contain the closing tag of the block it is placed in.
+ */
+export function dataBlock(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
 }
 
 const ACTIONS = ['search_token', 'get_token_details', 'search_validator', 'get_network_stats', 'get_network_history', 'clarify'] as const;
