@@ -159,23 +159,23 @@ export default function AddressLookup() {
   };
 
   return (
-    <div className="min-h-screen bg-[#1d2d3a] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
+    <div className="min-h-screen bg-surface-1 text-white">
+      <header className="bg-surface-1 border-b border-line">
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-gradient-to-br from-brand to-blue-500 rounded-lg flex items-center justify-center">
                   <span className="text-black font-black text-sm">X1</span>
                 </div>
                 <span className="text-white font-bold hidden sm:inline">X1</span>
-                <span className="text-cyan-400 font-bold hidden sm:inline">.space</span>
+                <span className="text-brand font-bold hidden sm:inline">.space</span>
               </Link>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
+              <Badge className="bg-brand/20 text-brand border-0 text-xs">Mainnet</Badge>
             </div>
             <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('AddressLookup')}><Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg"><Wallet className="w-5 h-5" /></Button></Link>
+              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
+              <Link to={createPageUrl('AddressLookup')}><Button variant="ghost" size="icon" className="text-brand bg-brand/10 rounded-lg"><Wallet className="w-5 h-5" /></Button></Link>
             </nav>
           </div>
         </div>
@@ -183,26 +183,26 @@ export default function AddressLookup() {
 
       <main className="max-w-4xl mx-auto px-4 py-6">
         <h1 className="text-2xl font-bold text-white flex items-center gap-3 mb-6">
-          <Wallet className="w-7 h-7 text-cyan-400" />
+          <Wallet className="w-7 h-7 text-brand" />
           Address Lookup
         </h1>
 
         {/* Search */}
-        <div className="bg-[#24384a] rounded-xl p-6 mb-6">
+        <div className="bg-surface-2 rounded-xl p-6 mb-6">
           <div className="flex gap-2">
             <Input
               placeholder="Enter wallet address..."
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              className="bg-[#1d2d3a] border-0 text-white font-mono flex-1"
+              className="bg-surface-1 border-0 text-white font-mono flex-1"
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />
-            <Button onClick={() => handleSearch()} className="bg-cyan-500 hover:bg-cyan-600" disabled={loading}>
+            <Button onClick={() => handleSearch()} className="bg-brand hover:bg-brand-strong" disabled={loading}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             </Button>
           </div>
           {error && (
-            <div className="flex items-center gap-2 mt-3 text-red-400 text-sm">
+            <div className="flex items-center gap-2 mt-3 text-negative text-sm">
               <AlertCircle className="w-4 h-4" />
               <span>{error}</span>
             </div>
@@ -212,27 +212,27 @@ export default function AddressLookup() {
         {result && (
           <>
             {/* Account Overview */}
-            <div className="bg-[#24384a] rounded-xl p-6 mb-6">
+            <div className="bg-surface-2 rounded-xl p-6 mb-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <Badge className="bg-purple-500/20 text-purple-400 border-0 capitalize">{result.type} Account</Badge>
                     {result.type === 'vote' && result.voteAccountData?.commission !== undefined && (
-                      <Badge className="bg-cyan-500/20 text-cyan-400 border-0">
+                      <Badge className="bg-brand/20 text-brand border-0">
                         {result.voteAccountData.commission}% Commission
                       </Badge>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <code className="text-cyan-400 font-mono text-sm md:text-lg break-all">{result.address}</code>
-                    <button onClick={copyAddress} className="text-gray-500 hover:text-white shrink-0">
-                      {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    <code className="text-brand font-mono text-sm md:text-lg break-all">{result.address}</code>
+                    <button onClick={copyAddress} className="text-ink-faint hover:text-white shrink-0">
+                      {copied ? <Check className="w-4 h-4 text-positive" /> : <Copy className="w-4 h-4" />}
                     </button>
                     <a 
                       href={`https://explorer.mainnet.x1.xyz/address/${result.address}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gray-500 hover:text-cyan-400 shrink-0"
+                      className="text-ink-faint hover:text-brand shrink-0"
                     >
                       <ExternalLink className="w-4 h-4" />
                     </a>
@@ -241,17 +241,17 @@ export default function AddressLookup() {
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="bg-[#1d2d3a] rounded-lg p-4">
-                  <p className="text-gray-400 text-xs mb-1">Balance</p>
-                  <p className="text-xl font-bold text-cyan-400">{result.balance.toLocaleString(undefined, { maximumFractionDigits: 9 })} XNT</p>
+                <div className="bg-surface-1 rounded-lg p-4">
+                  <p className="text-ink-muted text-xs mb-1">Balance</p>
+                  <p className="text-xl font-bold text-brand">{result.balance.toLocaleString(undefined, { maximumFractionDigits: 9 })} XNT</p>
                 </div>
-                <div className="bg-[#1d2d3a] rounded-lg p-4">
-                  <p className="text-gray-400 text-xs mb-1">Recent Transactions</p>
+                <div className="bg-surface-1 rounded-lg p-4">
+                  <p className="text-ink-muted text-xs mb-1">Recent Transactions</p>
                   <p className="text-xl font-bold text-white">{result.transactions}</p>
                 </div>
                 {result.firstSeen && (
-                  <div className="bg-[#1d2d3a] rounded-lg p-4">
-                    <p className="text-gray-400 text-xs mb-1">First Activity</p>
+                  <div className="bg-surface-1 rounded-lg p-4">
+                    <p className="text-ink-muted text-xs mb-1">First Activity</p>
                     <p className="text-xl font-bold text-white">{result.firstSeen.toLocaleDateString()}</p>
                   </div>
                 )}
@@ -259,30 +259,30 @@ export default function AddressLookup() {
 
               {/* Vote Account Details */}
               {result.type === 'vote' && result.voteAccountData && (
-                <div className="mt-4 pt-4 border-t border-white/10">
-                  <h4 className="text-gray-400 text-sm mb-3">VOTE ACCOUNT DETAILS</h4>
+                <div className="mt-4 pt-4 border-t border-line">
+                  <h4 className="text-ink-muted text-sm mb-3">VOTE ACCOUNT DETAILS</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     {result.voteAccountData.authorizedVoter && (
                       <div>
-                        <span className="text-gray-500">Authorized Voter:</span>
-                        <p className="text-cyan-400 font-mono text-xs truncate">{result.voteAccountData.authorizedVoter}</p>
+                        <span className="text-ink-faint">Authorized Voter:</span>
+                        <p className="text-brand font-mono text-xs truncate">{result.voteAccountData.authorizedVoter}</p>
                       </div>
                     )}
                     {result.voteAccountData.authorizedWithdrawer && (
                       <div>
-                        <span className="text-gray-500">Authorized Withdrawer:</span>
-                        <p className="text-cyan-400 font-mono text-xs truncate">{result.voteAccountData.authorizedWithdrawer}</p>
+                        <span className="text-ink-faint">Authorized Withdrawer:</span>
+                        <p className="text-brand font-mono text-xs truncate">{result.voteAccountData.authorizedWithdrawer}</p>
                       </div>
                     )}
                     {result.voteAccountData.rootSlot && (
                       <div>
-                        <span className="text-gray-500">Root Slot:</span>
+                        <span className="text-ink-faint">Root Slot:</span>
                         <p className="text-white font-mono">{result.voteAccountData.rootSlot.toLocaleString()}</p>
                       </div>
                     )}
                     {result.voteAccountData.lastTimestamp && (
                       <div>
-                        <span className="text-gray-500">Last Timestamp:</span>
+                        <span className="text-ink-faint">Last Timestamp:</span>
                         <p className="text-white">{new Date(result.voteAccountData.lastTimestamp * 1000).toLocaleString()}</p>
                       </div>
                     )}
@@ -292,57 +292,57 @@ export default function AddressLookup() {
             </div>
 
             {/* Recent Transactions */}
-            <div className="bg-[#24384a] rounded-xl p-6">
+            <div className="bg-surface-2 rounded-xl p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-gray-400 text-sm">RECENT TRANSACTIONS</h3>
+                <h3 className="text-ink-muted text-sm">RECENT TRANSACTIONS</h3>
                 <Link to={createPageUrl('TransactionFlowPage') + `?address=${result.address}`}>
-                  <Button variant="ghost" size="sm" className="text-cyan-400 hover:text-cyan-300">
+                  <Button variant="ghost" size="sm" className="text-brand hover:text-cyan-300">
                     View Flow →
                   </Button>
                 </Link>
               </div>
               {!result.recentTxs || result.recentTxs.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No recent transactions found</p>
+                <p className="text-ink-faint text-center py-8">No recent transactions found</p>
               ) : (
                 <div className="space-y-3">
                   {result.recentTxs.map((tx, i) => (
                     <Link 
                       key={i} 
                       to={createPageUrl('TransactionDetail') + `?sig=${tx.signature}`}
-                      className="flex items-center gap-4 p-3 bg-[#1d2d3a] rounded-lg hover:bg-[#2a4055] transition-colors"
+                      className="flex items-center gap-4 p-3 bg-surface-1 rounded-lg hover:bg-surface-3 transition-colors"
                     >
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                        tx.amount > 0 ? 'bg-emerald-500/20' : tx.amount < 0 ? 'bg-red-500/20' : 'bg-gray-500/20'
+                        tx.amount > 0 ? 'bg-positive/20' : tx.amount < 0 ? 'bg-negative/20' : 'bg-gray-500/20'
                       }`}>
                         {tx.amount > 0 ? (
-                          <ArrowDownLeft className="w-5 h-5 text-emerald-400" />
+                          <ArrowDownLeft className="w-5 h-5 text-positive" />
                         ) : tx.amount < 0 ? (
-                          <ArrowUpRight className="w-5 h-5 text-red-400" />
+                          <ArrowUpRight className="w-5 h-5 text-negative" />
                         ) : (
-                          <Clock className="w-5 h-5 text-gray-400" />
+                          <Clock className="w-5 h-5 text-ink-muted" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-cyan-400 font-mono text-sm truncate">{tx.signature}</p>
+                        <p className="text-brand font-mono text-sm truncate">{tx.signature}</p>
                         <div className="flex items-center gap-2">
                           <Badge className={`text-xs border-0 ${
                             tx.type === 'vote' ? 'bg-purple-500/20 text-purple-400' :
                             tx.type === 'transfer' ? 'bg-blue-500/20 text-blue-400' :
-                            tx.type === 'stake' ? 'bg-emerald-500/20 text-emerald-400' :
-                            'bg-gray-500/20 text-gray-400'
+                            tx.type === 'stake' ? 'bg-positive/20 text-positive' :
+                            'bg-gray-500/20 text-ink-muted'
                           }`}>
                             {tx.type}
                           </Badge>
-                          <span className="text-gray-500 text-xs">Slot {tx.slot?.toLocaleString()}</span>
+                          <span className="text-ink-faint text-xs">Slot {tx.slot?.toLocaleString()}</span>
                         </div>
                       </div>
                       <div className="text-right shrink-0">
                         {tx.amount !== 0 && (
-                          <p className={`font-mono ${tx.amount > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          <p className={`font-mono ${tx.amount > 0 ? 'text-positive' : 'text-negative'}`}>
                             {tx.amount > 0 ? '+' : ''}{tx.amount.toFixed(6)} XNT
                           </p>
                         )}
-                        <p className="text-gray-500 text-xs flex items-center gap-1 justify-end">
+                        <p className="text-ink-faint text-xs flex items-center gap-1 justify-end">
                           <Clock className="w-3 h-3" /> {formatTime(tx.blockTime)}
                         </p>
                       </div>

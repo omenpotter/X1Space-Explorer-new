@@ -27,28 +27,28 @@ const FlowFilters = memo(function FlowFilters({
     searchSignature;
 
   return (
-    <div className="bg-[#24384a] rounded-xl p-4 mb-6">
+    <div className="bg-surface-2 rounded-xl p-4 mb-6">
       {/* Search Bar */}
       <div className="flex gap-2 mb-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-faint" />
           <Input
             placeholder="Search by signature or address..."
             value={searchSignature}
             onChange={(e) => setSearchSignature(e.target.value)}
-            className="pl-10 bg-[#1d2d3a] border-0 text-white"
+            className="pl-10 bg-surface-1 border-0 text-white"
           />
         </div>
         <Button 
           variant="outline" 
           onClick={() => setShowFilters(!showFilters)}
-          className={`border-white/10 ${showFilters ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
+          className={`border-line ${showFilters ? 'bg-brand/20 text-brand' : 'text-ink-muted'}`}
         >
           <Filter className="w-4 h-4 mr-2" /> Filters
-          {hasActiveFilters && <Badge className="ml-2 bg-cyan-500 text-black text-xs px-1">!</Badge>}
+          {hasActiveFilters && <Badge className="ml-2 bg-brand text-black text-xs px-1">!</Badge>}
         </Button>
         {hasActiveFilters && (
-          <Button variant="ghost" size="icon" onClick={onClearFilters} className="text-gray-400 hover:text-white">
+          <Button variant="ghost" size="icon" onClick={onClearFilters} className="text-ink-muted hover:text-white">
             <X className="w-4 h-4" />
           </Button>
         )}
@@ -56,10 +56,10 @@ const FlowFilters = memo(function FlowFilters({
 
       {/* Expanded Filters */}
       {showFilters && (
-        <div className="space-y-4 pt-4 border-t border-white/10">
+        <div className="space-y-4 pt-4 border-t border-line">
           {/* Type Filter */}
           <div>
-            <label className="text-gray-400 text-xs mb-2 block">Transaction Type</label>
+            <label className="text-ink-muted text-xs mb-2 block">Transaction Type</label>
             <div className="flex flex-wrap gap-2">
               {txTypes.map((type) => (
                 <Button 
@@ -67,7 +67,7 @@ const FlowFilters = memo(function FlowFilters({
                   variant="outline" 
                   size="sm"
                   onClick={() => setFilterType(type)}
-                  className={`border-white/10 ${filterType === type ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
+                  className={`border-line ${filterType === type ? 'bg-brand/20 text-brand' : 'text-ink-muted'}`}
                 >
                   {type.charAt(0).toUpperCase() + type.slice(1)}
                 </Button>
@@ -78,39 +78,39 @@ const FlowFilters = memo(function FlowFilters({
           {/* Date Range */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-gray-400 text-xs mb-2 block">From Date</label>
+              <label className="text-ink-muted text-xs mb-2 block">From Date</label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start border-white/10 text-gray-400 hover:text-white">
+                  <Button variant="outline" className="w-full justify-start border-line text-ink-muted hover:text-white">
                     <Calendar className="w-4 h-4 mr-2" />
                     {dateRange.from ? dateRange.from.toLocaleDateString() : 'Select date'}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 bg-[#24384a] border-white/10">
+                <PopoverContent className="w-auto p-0 bg-surface-2 border-line">
                   <CalendarComponent
                     mode="single"
                     selected={dateRange.from}
                     onSelect={(date) => setDateRange(prev => ({ ...prev, from: date }))}
-                    className="bg-[#24384a]"
+                    className="bg-surface-2"
                   />
                 </PopoverContent>
               </Popover>
             </div>
             <div>
-              <label className="text-gray-400 text-xs mb-2 block">To Date</label>
+              <label className="text-ink-muted text-xs mb-2 block">To Date</label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start border-white/10 text-gray-400 hover:text-white">
+                  <Button variant="outline" className="w-full justify-start border-line text-ink-muted hover:text-white">
                     <Calendar className="w-4 h-4 mr-2" />
                     {dateRange.to ? dateRange.to.toLocaleDateString() : 'Select date'}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 bg-[#24384a] border-white/10">
+                <PopoverContent className="w-auto p-0 bg-surface-2 border-line">
                   <CalendarComponent
                     mode="single"
                     selected={dateRange.to}
                     onSelect={(date) => setDateRange(prev => ({ ...prev, to: date }))}
-                    className="bg-[#24384a]"
+                    className="bg-surface-2"
                   />
                 </PopoverContent>
               </Popover>
@@ -120,23 +120,23 @@ const FlowFilters = memo(function FlowFilters({
           {/* Amount Range */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-gray-400 text-xs mb-2 block">Min Amount (XNT)</label>
+              <label className="text-ink-muted text-xs mb-2 block">Min Amount (XNT)</label>
               <Input
                 type="number"
                 placeholder="0"
                 value={amountRange.min}
                 onChange={(e) => setAmountRange(prev => ({ ...prev, min: e.target.value }))}
-                className="bg-[#1d2d3a] border-0 text-white"
+                className="bg-surface-1 border-0 text-white"
               />
             </div>
             <div>
-              <label className="text-gray-400 text-xs mb-2 block">Max Amount (XNT)</label>
+              <label className="text-ink-muted text-xs mb-2 block">Max Amount (XNT)</label>
               <Input
                 type="number"
                 placeholder="∞"
                 value={amountRange.max}
                 onChange={(e) => setAmountRange(prev => ({ ...prev, max: e.target.value }))}
-                className="bg-[#1d2d3a] border-0 text-white"
+                className="bg-surface-1 border-0 text-white"
               />
             </div>
           </div>

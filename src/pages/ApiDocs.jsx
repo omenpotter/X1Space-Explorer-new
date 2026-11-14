@@ -188,32 +188,32 @@ export default function ApiDocs() {
   };
 
   const colorClasses = {
-    cyan: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
-    emerald: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-    yellow: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+    cyan: 'bg-brand/20 text-brand border-brand/30',
+    emerald: 'bg-positive/20 text-positive border-positive/30',
+    yellow: 'bg-warning/20 text-warning border-warning/30',
     purple: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
     orange: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
     blue: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
   };
 
   return (
-    <div className="min-h-screen bg-[#1d2d3a] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
+    <div className="min-h-screen bg-surface-1 text-white">
+      <header className="bg-surface-1 border-b border-line">
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-gradient-to-br from-brand to-blue-500 rounded-lg flex items-center justify-center">
                   <span className="text-black font-black text-sm">X1</span>
                 </div>
                 <span className="text-white font-bold hidden sm:inline">X1</span>
-                <span className="text-cyan-400 font-bold hidden sm:inline">.space</span>
+                <span className="text-brand font-bold hidden sm:inline">.space</span>
               </Link>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
+              <Badge className="bg-brand/20 text-brand border-0 text-xs">Mainnet</Badge>
             </div>
             <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('ApiDocs')}><Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg"><Code className="w-5 h-5" /></Button></Link>
+              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
+              <Link to={createPageUrl('ApiDocs')}><Button variant="ghost" size="icon" className="text-brand bg-brand/10 rounded-lg"><Code className="w-5 h-5" /></Button></Link>
             </nav>
           </div>
         </div>
@@ -222,47 +222,47 @@ export default function ApiDocs() {
       <main className="max-w-5xl mx-auto px-4 py-6">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white flex items-center gap-3 mb-2">
-            <Code className="w-8 h-8 text-cyan-400" />
+            <Code className="w-8 h-8 text-brand" />
             API Documentation
           </h1>
-          <p className="text-gray-400">
+          <p className="text-ink-muted">
             Access X1 network statistics via JSON-RPC. All endpoints use POST method.
           </p>
         </div>
 
         {/* Base URL */}
-        <div className="bg-[#24384a] rounded-xl p-4 mb-6">
-          <p className="text-gray-400 text-sm mb-2">Base URL</p>
+        <div className="bg-surface-2 rounded-xl p-4 mb-6">
+          <p className="text-ink-muted text-sm mb-2">Base URL</p>
           <div className="flex items-center gap-2">
-            <code className="text-cyan-400 font-mono bg-[#1d2d3a] px-4 py-2 rounded flex-1">
+            <code className="text-brand font-mono bg-surface-1 px-4 py-2 rounded flex-1">
               {API_BASE}
             </code>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => copyCode(API_BASE, 'base')}
-              className="text-gray-400 hover:text-white"
+              className="text-ink-muted hover:text-white"
             >
-              {copied === 'base' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+              {copied === 'base' ? <Check className="w-4 h-4 text-positive" /> : <Copy className="w-4 h-4" />}
             </Button>
           </div>
         </div>
 
         {/* Quick Start */}
-        <div className="bg-[#24384a] rounded-xl p-6 mb-8">
+        <div className="bg-surface-2 rounded-xl p-6 mb-8">
           <h2 className="text-lg font-semibold text-white mb-4">Quick Start</h2>
-          <div className="bg-[#1d2d3a] rounded-lg p-4 relative">
+          <div className="bg-surface-1 rounded-lg p-4 relative">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => copyCode(`curl -X POST ${API_BASE} \\
   -H "Content-Type: application/json" \\
   -d '{"jsonrpc":"2.0","id":1,"method":"getEpochInfo","params":[]}'`, 'curl')}
-              className="absolute top-2 right-2 text-gray-400 hover:text-white"
+              className="absolute top-2 right-2 text-ink-muted hover:text-white"
             >
-              {copied === 'curl' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+              {copied === 'curl' ? <Check className="w-4 h-4 text-positive" /> : <Copy className="w-4 h-4" />}
             </Button>
-            <pre className="text-sm text-gray-300 overflow-x-auto">
+            <pre className="text-sm text-ink-soft overflow-x-auto">
 {`curl -X POST ${API_BASE} \\
   -H "Content-Type: application/json" \\
   -d '{"jsonrpc":"2.0","id":1,"method":"getEpochInfo","params":[]}'`}
@@ -274,7 +274,7 @@ export default function ApiDocs() {
         <h2 className="text-lg font-semibold text-white mb-4">Endpoints</h2>
         <div className="space-y-4">
           {ENDPOINTS.map((endpoint) => (
-            <div key={endpoint.id} className="bg-[#24384a] rounded-xl overflow-hidden">
+            <div key={endpoint.id} className="bg-surface-2 rounded-xl overflow-hidden">
               <button
                 onClick={() => toggleExpand(endpoint.id)}
                 className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.02] transition-colors"
@@ -287,27 +287,27 @@ export default function ApiDocs() {
                     <span className="text-white font-medium">{endpoint.name}</span>
                     <Badge className="bg-purple-500/20 text-purple-400 border-0 text-xs">{endpoint.method}</Badge>
                   </div>
-                  <p className="text-gray-500 text-sm">{endpoint.description}</p>
+                  <p className="text-ink-faint text-sm">{endpoint.description}</p>
                 </div>
-                <code className="text-cyan-400/70 font-mono text-sm hidden md:block">{endpoint.rpcMethod}</code>
-                {expanded[endpoint.id] ? <ChevronDown className="w-5 h-5 text-gray-500" /> : <ChevronRight className="w-5 h-5 text-gray-500" />}
+                <code className="text-brand/70 font-mono text-sm hidden md:block">{endpoint.rpcMethod}</code>
+                {expanded[endpoint.id] ? <ChevronDown className="w-5 h-5 text-ink-faint" /> : <ChevronRight className="w-5 h-5 text-ink-faint" />}
               </button>
 
               {expanded[endpoint.id] && (
-                <div className="border-t border-white/5 p-4 space-y-4">
+                <div className="border-t border-line p-4 space-y-4">
                   {/* Request Example */}
                   <div>
-                    <p className="text-gray-400 text-xs mb-2">REQUEST</p>
-                    <div className="bg-[#1d2d3a] rounded-lg p-3 relative">
+                    <p className="text-ink-muted text-xs mb-2">REQUEST</p>
+                    <div className="bg-surface-1 rounded-lg p-3 relative">
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => copyCode(JSON.stringify(endpoint.example.request, null, 2), `req-${endpoint.id}`)}
-                        className="absolute top-2 right-2 text-gray-500 hover:text-white h-6 w-6"
+                        className="absolute top-2 right-2 text-ink-faint hover:text-white h-6 w-6"
                       >
-                        {copied === `req-${endpoint.id}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        {copied === `req-${endpoint.id}` ? <Check className="w-3 h-3 text-positive" /> : <Copy className="w-3 h-3" />}
                       </Button>
-                      <pre className="text-xs text-gray-300 overflow-x-auto">
+                      <pre className="text-xs text-ink-soft overflow-x-auto">
                         {JSON.stringify(endpoint.example.request, null, 2)}
                       </pre>
                     </div>
@@ -315,9 +315,9 @@ export default function ApiDocs() {
 
                   {/* Response Example */}
                   <div>
-                    <p className="text-gray-400 text-xs mb-2">RESPONSE EXAMPLE</p>
-                    <div className="bg-[#1d2d3a] rounded-lg p-3">
-                      <pre className="text-xs text-emerald-400/80 overflow-x-auto">
+                    <p className="text-ink-muted text-xs mb-2">RESPONSE EXAMPLE</p>
+                    <div className="bg-surface-1 rounded-lg p-3">
+                      <pre className="text-xs text-positive/80 overflow-x-auto">
                         {JSON.stringify(endpoint.example.response, null, 2)}
                       </pre>
                     </div>
@@ -328,7 +328,7 @@ export default function ApiDocs() {
                     <Button
                       onClick={() => tryEndpoint(endpoint)}
                       size="sm"
-                      className="bg-cyan-500 hover:bg-cyan-600"
+                      className="bg-brand hover:bg-brand-strong"
                       disabled={loading[endpoint.id]}
                     >
                       {loading[endpoint.id] ? (
@@ -338,15 +338,15 @@ export default function ApiDocs() {
                       )}
                       Try It
                     </Button>
-                    <span className="text-gray-500 text-xs">Execute this request live</span>
+                    <span className="text-ink-faint text-xs">Execute this request live</span>
                   </div>
 
                   {/* Live Response */}
                   {liveData[endpoint.id] && (
                     <div>
-                      <p className="text-gray-400 text-xs mb-2">LIVE RESPONSE</p>
-                      <div className="bg-[#1d2d3a] rounded-lg p-3 max-h-[300px] overflow-auto">
-                        <pre className="text-xs text-cyan-400 overflow-x-auto">
+                      <p className="text-ink-muted text-xs mb-2">LIVE RESPONSE</p>
+                      <div className="bg-surface-1 rounded-lg p-3 max-h-[300px] overflow-auto">
+                        <pre className="text-xs text-brand overflow-x-auto">
                           {JSON.stringify(liveData[endpoint.id], null, 2)}
                         </pre>
                       </div>
@@ -359,14 +359,14 @@ export default function ApiDocs() {
         </div>
 
         {/* Code Examples */}
-        <div className="mt-8 bg-[#24384a] rounded-xl p-6">
+        <div className="mt-8 bg-surface-2 rounded-xl p-6">
           <h2 className="text-lg font-semibold text-white mb-4">Code Examples</h2>
           
           <div className="space-y-4">
             {/* JavaScript */}
             <div>
-              <p className="text-gray-400 text-xs mb-2">JAVASCRIPT</p>
-              <div className="bg-[#1d2d3a] rounded-lg p-4 relative">
+              <p className="text-ink-muted text-xs mb-2">JAVASCRIPT</p>
+              <div className="bg-surface-1 rounded-lg p-4 relative">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -382,11 +382,11 @@ export default function ApiDocs() {
 });
 const data = await response.json();
 console.log(data.result);`, 'js')}
-                  className="absolute top-2 right-2 text-gray-500 hover:text-white"
+                  className="absolute top-2 right-2 text-ink-faint hover:text-white"
                 >
-                  {copied === 'js' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  {copied === 'js' ? <Check className="w-4 h-4 text-positive" /> : <Copy className="w-4 h-4" />}
                 </Button>
-                <pre className="text-xs text-gray-300 overflow-x-auto">
+                <pre className="text-xs text-ink-soft overflow-x-auto">
 {`const response = await fetch('${API_BASE}', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -405,8 +405,8 @@ console.log(data.result);`}
 
             {/* Python */}
             <div>
-              <p className="text-gray-400 text-xs mb-2">PYTHON</p>
-              <div className="bg-[#1d2d3a] rounded-lg p-4 relative">
+              <p className="text-ink-muted text-xs mb-2">PYTHON</p>
+              <div className="bg-surface-1 rounded-lg p-4 relative">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -419,11 +419,11 @@ response = requests.post('${API_BASE}', json={
     'params': []
 })
 print(response.json()['result'])`, 'py')}
-                  className="absolute top-2 right-2 text-gray-500 hover:text-white"
+                  className="absolute top-2 right-2 text-ink-faint hover:text-white"
                 >
-                  {copied === 'py' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  {copied === 'py' ? <Check className="w-4 h-4 text-positive" /> : <Copy className="w-4 h-4" />}
                 </Button>
-                <pre className="text-xs text-gray-300 overflow-x-auto">
+                <pre className="text-xs text-ink-soft overflow-x-auto">
 {`import requests
 
 response = requests.post('${API_BASE}', json={
@@ -440,9 +440,9 @@ print(response.json()['result'])`}
         </div>
 
         {/* Rate Limits */}
-        <div className="mt-6 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
-          <p className="text-yellow-400 text-sm font-medium mb-1">Rate Limits</p>
-          <p className="text-gray-400 text-sm">
+        <div className="mt-6 bg-warning/10 border border-warning/30 rounded-xl p-4">
+          <p className="text-warning text-sm font-medium mb-1">Rate Limits</p>
+          <p className="text-ink-muted text-sm">
             The public RPC endpoint has rate limits. For production use, consider running your own node or using a dedicated RPC provider.
           </p>
         </div>

@@ -132,14 +132,14 @@ How can I help you prepare your verification request?`
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#1d2d3a] rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-        <div className="p-4 border-b border-white/10 flex items-center justify-between">
+      <div className="bg-surface-1 rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+        <div className="p-4 border-b border-line flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-cyan-400" />
+            <Sparkles className="w-5 h-5 text-brand" />
             <h3 className="text-white font-bold">AI Verification Assistant</h3>
             <Badge className="bg-purple-500/20 text-purple-400 border-0 text-xs">Powered by AI</Badge>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose} className="text-gray-400">Close</Button>
+          <Button variant="ghost" size="sm" onClick={onClose} className="text-ink-muted">Close</Button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -147,8 +147,8 @@ How can I help you prepare your verification request?`
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[80%] rounded-lg p-3 ${
                 msg.role === 'user' 
-                  ? 'bg-cyan-500 text-white' 
-                  : 'bg-[#24384a] text-gray-100'
+                  ? 'bg-brand text-white' 
+                  : 'bg-surface-2 text-gray-100'
               }`}>
                 <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
               </div>
@@ -156,32 +156,32 @@ How can I help you prepare your verification request?`
           ))}
           {loading && (
             <div className="flex justify-start">
-              <div className="bg-[#24384a] rounded-lg p-3">
-                <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+              <div className="bg-surface-2 rounded-lg p-3">
+                <Loader2 className="w-4 h-4 animate-spin text-brand" />
               </div>
             </div>
           )}
         </div>
 
         {tokenAnalysis && (
-          <div className="p-4 border-t border-white/10 bg-[#24384a]">
+          <div className="p-4 border-t border-line bg-surface-2">
             <div className="grid grid-cols-3 gap-2 mb-3">
               <div className="text-center">
-                <p className="text-gray-400 text-xs">Readiness</p>
+                <p className="text-ink-muted text-xs">Readiness</p>
                 <p className={`text-2xl font-bold ${
-                  tokenAnalysis.readiness_score >= 80 ? 'text-emerald-400' :
-                  tokenAnalysis.readiness_score >= 50 ? 'text-yellow-400' : 'text-red-400'
+                  tokenAnalysis.readiness_score >= 80 ? 'text-positive' :
+                  tokenAnalysis.readiness_score >= 50 ? 'text-warning' : 'text-negative'
                 }`}>
                   {tokenAnalysis.readiness_score}%
                 </p>
               </div>
               <div className="text-center">
-                <p className="text-gray-400 text-xs">Missing</p>
-                <p className="text-2xl font-bold text-yellow-400">{tokenAnalysis.missing_requirements.length}</p>
+                <p className="text-ink-muted text-xs">Missing</p>
+                <p className="text-2xl font-bold text-warning">{tokenAnalysis.missing_requirements.length}</p>
               </div>
               <div className="text-center">
-                <p className="text-gray-400 text-xs">Red Flags</p>
-                <p className="text-2xl font-bold text-red-400">{tokenAnalysis.red_flags.length}</p>
+                <p className="text-ink-muted text-xs">Red Flags</p>
+                <p className="text-2xl font-bold text-negative">{tokenAnalysis.red_flags.length}</p>
               </div>
             </div>
             <Button onClick={generateVerificationRequest} disabled={loading} className="w-full bg-purple-500 hover:bg-purple-600">
@@ -191,17 +191,17 @@ How can I help you prepare your verification request?`
           </div>
         )}
 
-        <div className="p-4 border-t border-white/10">
+        <div className="p-4 border-t border-line">
           <div className="flex gap-2">
             <Input
               placeholder="Ask me anything about token verification..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-              className="bg-[#24384a] border-0 text-white"
+              className="bg-surface-2 border-0 text-white"
               disabled={loading}
             />
-            <Button onClick={sendMessage} disabled={loading || !input.trim()} className="bg-cyan-500 hover:bg-cyan-600">
+            <Button onClick={sendMessage} disabled={loading || !input.trim()} className="bg-brand hover:bg-brand-strong">
               <Send className="w-4 h-4" />
             </Button>
           </div>

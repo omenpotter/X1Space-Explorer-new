@@ -348,13 +348,13 @@ describe('network functions', () => {
 describe('validator directory and locations', () => {
   it('publishes identity text safely and never exposes addresses', async () => {
     const w = makeWorld();
-    w.geo['203.0.113.10'] = { latitude: '50.1109', longitude: '8.6821', country: 'Germany', country_code: 'DE', accuracy: 20, organization_name: 'Example Hosting' };
+    w.geo['203.0.113.10'] = { latitude: '50.1109', longitude: '8.6821', country: 'Germany', country_code: 'DE', continent_code: 'EU', accuracy: 20, organization_name: 'Example Hosting' };
     const r = await call(H.validatorsHandler(makeDeps(w)), '/getValidators');
     expect(r.status).toBe(200);
     expect(r.body.validators[IDENTITY]).toEqual({ name: 'Node <b>One</b>', website: null, details: 'd', hasIcon: true });
     // An http:// private-address icon is refused.
     expect(r.body.validators[IDENTITY_2]).toMatchObject({ website: 'https://two.example.com/', hasIcon: false });
-    expect(r.body.locations[IDENTITY]).toEqual({ country: 'Germany', countryCode: 'DE', lat: 50.1, lon: 8.7, precision: 'city' });
+    expect(r.body.locations[IDENTITY]).toEqual({ country: 'Germany', countryCode: 'DE', continent: 'EU', lat: 50.1, lon: 8.7, precision: 'city' });
     expect(r.body.locations[IDENTITY_2]).toBeUndefined(); // private address: not looked up, not placed
     expect(r.body.nodes).toEqual({ total: 2, located: 1, unlocated: 1 });
     expect(r.body.providers).toEqual([{ name: 'Example Hosting', nodes: 1 }]);

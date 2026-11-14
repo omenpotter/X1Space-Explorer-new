@@ -208,18 +208,18 @@ export default function TransactionDetail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
+      <div className="min-h-screen bg-surface-1 text-white flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-brand" />
       </div>
     );
   }
 
   if (error || !transaction) {
     return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
+      <div className="min-h-screen bg-surface-1 text-white flex items-center justify-center">
         <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <p className="text-red-400">{error || 'Transaction not found'}</p>
+          <AlertCircle className="w-12 h-12 text-negative mx-auto mb-4" />
+          <p className="text-negative">{error || 'Transaction not found'}</p>
           <Link to={createPageUrl('Transactions')}>
             <Button className="mt-4" variant="outline">Back to Transactions</Button>
           </Link>
@@ -229,19 +229,19 @@ export default function TransactionDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-[#1d2d3a] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
+    <div className="min-h-screen bg-surface-1 text-white">
+      <header className="bg-surface-1 border-b border-line">
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
-                <span className="font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
+                <ChevronLeft className="w-5 h-5 text-ink-muted" />
+                <span className="font-bold"><span className="text-brand">X1</span><span className="text-white">Space</span></span>
               </Link>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
+              <Badge className="bg-brand/20 text-brand border-0 text-xs">Mainnet</Badge>
             </div>
             <Link to={createPageUrl('Transactions')}>
-              <Button variant="outline" size="sm" className="border-white/10 text-gray-400 hover:text-white">
+              <Button variant="outline" size="sm" className="border-line text-ink-muted hover:text-white">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back
               </Button>
             </Link>
@@ -251,16 +251,16 @@ export default function TransactionDetail() {
 
       <main className="max-w-[1800px] mx-auto px-4 py-6">
         {/* Transaction Header */}
-        <div className="bg-[#24384a] rounded-xl p-6 mb-6">
+        <div className="bg-surface-2 rounded-xl p-6 mb-6">
           <div className="flex items-start justify-between mb-4 flex-wrap gap-4">
             <div className="flex items-center gap-3">
               {transaction.success ? (
-                <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                  <CheckCircle className="w-6 h-6 text-emerald-400" />
+                <div className="w-12 h-12 rounded-full bg-positive/20 flex items-center justify-center">
+                  <CheckCircle className="w-6 h-6 text-positive" />
                 </div>
               ) : (
-                <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
-                  <XCircle className="w-6 h-6 text-red-400" />
+                <div className="w-12 h-12 rounded-full bg-negative/20 flex items-center justify-center">
+                  <XCircle className="w-6 h-6 text-negative" />
                 </div>
               )}
               <div>
@@ -271,7 +271,7 @@ export default function TransactionDetail() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge className={transaction.success ? 'bg-emerald-500/20 text-emerald-400 border-0' : 'bg-red-500/20 text-red-400 border-0'}>
+                  <Badge className={transaction.success ? 'bg-positive/20 text-positive border-0' : 'bg-negative/20 text-negative border-0'}>
                     {transaction.success ? 'Success' : 'Failed'}
                   </Badge>
                   {transaction.txType && (
@@ -285,32 +285,32 @@ export default function TransactionDetail() {
           </div>
 
           <div className="flex items-center gap-2 mb-4">
-            <code className="text-cyan-400 font-mono text-sm bg-[#1d2d3a] px-3 py-2 rounded flex-1 truncate">
+            <code className="text-brand font-mono text-sm bg-surface-1 px-3 py-2 rounded flex-1 truncate">
               {transaction.signature}
             </code>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => copyToClipboard(transaction.signature, 'sig')}
-              className="text-gray-400 hover:text-white"
+              className="text-ink-muted hover:text-white"
             >
-              {copied === 'sig' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+              {copied === 'sig' ? <Check className="w-4 h-4 text-positive" /> : <Copy className="w-4 h-4" />}
             </Button>
           </div>
 
           {/* Error Details for Failed Transactions */}
           {!transaction.success && transaction.errorDetails && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-4">
+            <div className="bg-negative/10 border border-negative/30 rounded-lg p-4 mb-4">
               <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-negative flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-red-400 font-medium">{transaction.errorDetails.type}</p>
+                  <p className="text-negative font-medium">{transaction.errorDetails.type}</p>
                   <p className="text-red-300 text-sm mt-1">{transaction.errorDetails.message}</p>
                   {transaction.errorDetails.code && (
-                    <p className="text-red-400/70 text-xs mt-1 font-mono">Error Code: {transaction.errorDetails.code}</p>
+                    <p className="text-negative/70 text-xs mt-1 font-mono">Error Code: {transaction.errorDetails.code}</p>
                   )}
                   {transaction.errorDetails.logHint && (
-                    <p className="text-red-400/60 text-xs mt-2 font-mono bg-red-500/5 p-2 rounded">
+                    <p className="text-negative/60 text-xs mt-2 font-mono bg-negative/5 p-2 rounded">
                       {transaction.errorDetails.logHint}
                     </p>
                   )}
@@ -321,33 +321,33 @@ export default function TransactionDetail() {
 
           {/* Visual Flow Summary */}
           {transaction.stateChanges.length > 0 && (
-            <div className="bg-[#1d2d3a] rounded-lg p-4 mb-4">
-              <p className="text-gray-400 text-xs mb-3">TRANSFER SUMMARY</p>
+            <div className="bg-surface-1 rounded-lg p-4 mb-4">
+              <p className="text-ink-muted text-xs mb-3">TRANSFER SUMMARY</p>
               <div className="flex items-center gap-3 flex-wrap">
                 {transaction.stateChanges.filter(c => c.type === 'debit').map((change, i) => (
                   <div key={`debit-${i}`} className="flex items-center gap-2">
-                    <div className="bg-[#24384a] rounded-lg px-3 py-2">
-                      <p className="text-gray-500 text-[10px]">From</p>
-                      <Link to={createPageUrl('AddressLookup') + `?address=${change.account}`} className="text-cyan-400 font-mono text-xs hover:underline">
+                    <div className="bg-surface-2 rounded-lg px-3 py-2">
+                      <p className="text-ink-faint text-[10px]">From</p>
+                      <Link to={createPageUrl('AddressLookup') + `?address=${change.account}`} className="text-brand font-mono text-xs hover:underline">
                         {shortenAddress(change.account)}
                       </Link>
                     </div>
-                    <ArrowRight className="w-4 h-4 text-gray-500" />
-                    <div className="bg-red-500/10 rounded-lg px-3 py-2 border border-red-500/30">
-                      <p className="text-red-400 font-mono text-sm">-{change.amount} XNT</p>
+                    <ArrowRight className="w-4 h-4 text-ink-faint" />
+                    <div className="bg-negative/10 rounded-lg px-3 py-2 border border-negative/30">
+                      <p className="text-negative font-mono text-sm">-{change.amount} XNT</p>
                     </div>
                   </div>
                 ))}
                 {transaction.stateChanges.filter(c => c.type === 'credit').slice(0, 3).map((change, i) => (
                   <div key={`credit-${i}`} className="flex items-center gap-2">
-                    <ArrowRight className="w-4 h-4 text-gray-500" />
-                    <div className="bg-emerald-500/10 rounded-lg px-3 py-2 border border-emerald-500/30">
-                      <p className="text-emerald-400 font-mono text-sm">+{change.amount} XNT</p>
+                    <ArrowRight className="w-4 h-4 text-ink-faint" />
+                    <div className="bg-positive/10 rounded-lg px-3 py-2 border border-positive/30">
+                      <p className="text-positive font-mono text-sm">+{change.amount} XNT</p>
                     </div>
-                    <ArrowRight className="w-4 h-4 text-gray-500" />
-                    <div className="bg-[#24384a] rounded-lg px-3 py-2">
-                      <p className="text-gray-500 text-[10px]">To</p>
-                      <Link to={createPageUrl('AddressLookup') + `?address=${change.account}`} className="text-cyan-400 font-mono text-xs hover:underline">
+                    <ArrowRight className="w-4 h-4 text-ink-faint" />
+                    <div className="bg-surface-2 rounded-lg px-3 py-2">
+                      <p className="text-ink-faint text-[10px]">To</p>
+                      <Link to={createPageUrl('AddressLookup') + `?address=${change.account}`} className="text-brand font-mono text-xs hover:underline">
                         {shortenAddress(change.account)}
                       </Link>
                     </div>
@@ -359,19 +359,19 @@ export default function TransactionDetail() {
 
           {/* Token Transfers */}
           {transaction.tokenTransfers && transaction.tokenTransfers.length > 0 && (
-            <div className="bg-[#1d2d3a] rounded-lg p-4 mb-4">
-              <p className="text-gray-400 text-xs mb-3">TOKEN TRANSFERS</p>
+            <div className="bg-surface-1 rounded-lg p-4 mb-4">
+              <p className="text-ink-muted text-xs mb-3">TOKEN TRANSFERS</p>
               <div className="space-y-2">
                 {transaction.tokenTransfers.map((transfer, i) => (
-                  <div key={i} className="flex items-center gap-3 bg-[#24384a] rounded-lg p-3">
-                    <Coins className={`w-5 h-5 ${transfer.type === 'receive' ? 'text-emerald-400' : 'text-red-400'}`} />
+                  <div key={i} className="flex items-center gap-3 bg-surface-2 rounded-lg p-3">
+                    <Coins className={`w-5 h-5 ${transfer.type === 'receive' ? 'text-positive' : 'text-negative'}`} />
                     <div className="flex-1">
-                      <p className={`font-mono ${transfer.type === 'receive' ? 'text-emerald-400' : 'text-red-400'}`}>
+                      <p className={`font-mono ${transfer.type === 'receive' ? 'text-positive' : 'text-negative'}`}>
                         {transfer.type === 'receive' ? '+' : '-'}{Math.abs(transfer.amount).toLocaleString()} tokens
                       </p>
-                      <p className="text-gray-500 text-xs font-mono truncate">Mint: {transfer.mint}</p>
+                      <p className="text-ink-faint text-xs font-mono truncate">Mint: {transfer.mint}</p>
                     </div>
-                    <Link to={createPageUrl('AddressLookup') + `?address=${transfer.account}`} className="text-cyan-400 text-xs hover:underline">
+                    <Link to={createPageUrl('AddressLookup') + `?address=${transfer.account}`} className="text-brand text-xs hover:underline">
                       {shortenAddress(transfer.account)}
                     </Link>
                   </div>
@@ -381,24 +381,24 @@ export default function TransactionDetail() {
           )}
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-[#1d2d3a] rounded-lg p-3">
-              <p className="text-gray-400 text-xs mb-1">Slot</p>
-              <Link to={createPageUrl('BlockDetail') + `?slot=${transaction.slot}`} className="text-cyan-400 font-mono hover:underline">
+            <div className="bg-surface-1 rounded-lg p-3">
+              <p className="text-ink-muted text-xs mb-1">Slot</p>
+              <Link to={createPageUrl('BlockDetail') + `?slot=${transaction.slot}`} className="text-brand font-mono hover:underline">
                 {transaction.slot?.toLocaleString()}
               </Link>
             </div>
-            <div className="bg-[#1d2d3a] rounded-lg p-3">
-              <p className="text-gray-400 text-xs mb-1">Timestamp</p>
+            <div className="bg-surface-1 rounded-lg p-3">
+              <p className="text-ink-muted text-xs mb-1">Timestamp</p>
               <p className="text-white text-sm">
                 {transaction.blockTime ? new Date(transaction.blockTime * 1000).toLocaleString() : '-'}
               </p>
             </div>
-            <div className="bg-[#1d2d3a] rounded-lg p-3">
-              <p className="text-gray-400 text-xs mb-1">Fee</p>
+            <div className="bg-surface-1 rounded-lg p-3">
+              <p className="text-ink-muted text-xs mb-1">Fee</p>
               <p className="text-white font-mono">{transaction.fee.toFixed(6)} XNT</p>
             </div>
-            <div className="bg-[#1d2d3a] rounded-lg p-3">
-              <p className="text-gray-400 text-xs mb-1">Compute Units</p>
+            <div className="bg-surface-1 rounded-lg p-3">
+              <p className="text-ink-muted text-xs mb-1">Compute Units</p>
               <p className="text-white font-mono">{transaction.computeUnits?.toLocaleString()}</p>
             </div>
           </div>
@@ -415,7 +415,7 @@ export default function TransactionDetail() {
               key={tab.key}
               variant="outline"
               size="sm"
-              className={`border-white/10 ${activeTab === tab.key ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
+              className={`border-line ${activeTab === tab.key ? 'bg-brand/20 text-brand' : 'text-ink-muted'}`}
               onClick={() => setActiveTab(tab.key)}
             >
               <tab.icon className="w-4 h-4 mr-2" />
@@ -427,8 +427,8 @@ export default function TransactionDetail() {
         {activeTab === 'overview' && (
           <div className="space-y-6">
             {/* Instructions */}
-            <div className="bg-[#24384a] rounded-xl p-6">
-              <h3 className="text-gray-400 text-sm mb-4">INSTRUCTIONS ({transaction.instructions.length})</h3>
+            <div className="bg-surface-2 rounded-xl p-6">
+              <h3 className="text-ink-muted text-sm mb-4">INSTRUCTIONS ({transaction.instructions.length})</h3>
               <div className="space-y-4">
                 {transaction.instructions.map((ix, i) => (
                   <ProgramDecoder 
@@ -441,18 +441,18 @@ export default function TransactionDetail() {
             </div>
 
             {/* Accounts */}
-            <div className="bg-[#24384a] rounded-xl p-6">
-              <h3 className="text-gray-400 text-sm mb-4">ACCOUNTS ({transaction.accounts.length})</h3>
+            <div className="bg-surface-2 rounded-xl p-6">
+              <h3 className="text-ink-muted text-sm mb-4">ACCOUNTS ({transaction.accounts.length})</h3>
               <div className="space-y-2">
                 {transaction.accounts.map((acc, i) => {
                   const change = transaction.stateChanges.find(c => c.account === acc);
                   return (
-                    <div key={i} className="flex items-center gap-3 p-3 bg-[#1d2d3a] rounded-lg">
-                      <span className="text-gray-500 font-mono w-6">{i}</span>
-                      <code className="text-cyan-400 font-mono text-sm flex-1 truncate">{acc}</code>
-                      {i === 0 && <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">Signer</Badge>}
+                    <div key={i} className="flex items-center gap-3 p-3 bg-surface-1 rounded-lg">
+                      <span className="text-ink-faint font-mono w-6">{i}</span>
+                      <code className="text-brand font-mono text-sm flex-1 truncate">{acc}</code>
+                      {i === 0 && <Badge className="bg-positive/20 text-positive border-0 text-xs">Signer</Badge>}
                       {change && (
-                        <span className={`font-mono text-sm ${change.type === 'credit' ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <span className={`font-mono text-sm ${change.type === 'credit' ? 'text-positive' : 'text-negative'}`}>
                           {change.type === 'credit' ? '+' : '-'}{change.amount} XNT
                         </span>
                       )}
@@ -460,9 +460,9 @@ export default function TransactionDetail() {
                         variant="ghost"
                         size="icon"
                         onClick={() => copyToClipboard(acc, `acc-${i}`)}
-                        className="text-gray-500 hover:text-white h-6 w-6"
+                        className="text-ink-faint hover:text-white h-6 w-6"
                       >
-                        {copied === `acc-${i}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        {copied === `acc-${i}` ? <Check className="w-3 h-3 text-positive" /> : <Copy className="w-3 h-3" />}
                       </Button>
                     </div>
                   );
@@ -477,18 +477,18 @@ export default function TransactionDetail() {
         )}
 
         {activeTab === 'logs' && (
-          <div className="bg-[#24384a] rounded-xl p-6">
-            <h3 className="text-gray-400 text-sm mb-4">PROGRAM LOGS</h3>
+          <div className="bg-surface-2 rounded-xl p-6">
+            <h3 className="text-ink-muted text-sm mb-4">PROGRAM LOGS</h3>
             {transaction.logs.length > 0 ? (
-              <div className="bg-[#1d2d3a] rounded-lg p-4 font-mono text-xs space-y-1 max-h-[500px] overflow-y-auto">
+              <div className="bg-surface-1 rounded-lg p-4 font-mono text-xs space-y-1 max-h-[500px] overflow-y-auto">
                 {transaction.logs.map((log, i) => (
-                  <p key={i} className={`${log.includes('success') ? 'text-emerald-400' : log.includes('failed') || log.includes('error') ? 'text-red-400' : 'text-gray-400'}`}>
+                  <p key={i} className={`${log.includes('success') ? 'text-positive' : log.includes('failed') || log.includes('error') ? 'text-negative' : 'text-ink-muted'}`}>
                     {log}
                   </p>
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500">No logs available</p>
+              <p className="text-ink-faint">No logs available</p>
             )}
           </div>
         )}

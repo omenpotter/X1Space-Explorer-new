@@ -64,6 +64,7 @@ export interface Snapshot {
   poolsByMint: Map<string, XdexPool[]>;
   ninjaByMint: Map<string, NinjaPool[]>;
   xdexTotals: XdexTotals | null;
+  summary: { fungible: number; nft: number; lp: number; listed: number; token2022: number; pools: number | null; tvlUsd: number | null; volume24hUsd: number | null };
   sources: { chain: SourceStatus; xdex: SourceStatus; x1ninja: SourceStatus };
   builtAt: string;
 }
@@ -288,8 +289,19 @@ async function buildSnapshot(ctx: TokenCtx): Promise<Snapshot> {
     });
   }
 
+  const count = (f: (t: TokenRow) => boolean) => tokens.reduce((n, t) => n + (f(t) ? 1 : 0), 0);
   return {
     tokens,
+    summary: {
+      fungible: count((t) => t.kind === 'fungible'),
+      nft: count((t) => t.kind === 'nft'),
+      lp: count((t) => t.kind === 'lp'),
+      listed: count((t) => t.listed && t.kind !== 'lp'),
+      token2022: count((t) => t.program === 'token-2022'),
+      pools: xdex.value?.pools.length ?? null,
+      tvlUsd: xdex.value?.totals.tvlUsd ?? null,
+      volume24hUsd: xdex.value?.totals.volume24hUsd ?? null,
+    },
     byMint: new Map(tokens.map((t) => [t.mint, t])),
     poolsByMint,
     ninjaByMint,

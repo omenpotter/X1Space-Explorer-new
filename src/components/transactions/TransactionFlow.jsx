@@ -67,9 +67,9 @@ export default function TransactionFlow({ transaction }) {
 
   const getNodeColor = (type) => {
     switch (type) {
-      case 'wallet': return 'from-emerald-500/30 to-emerald-600/20 border-emerald-500/50';
+      case 'wallet': return 'from-emerald-500/30 to-emerald-600/20 border-positive/50';
       case 'program': return 'from-purple-500/30 to-purple-600/20 border-purple-500/50';
-      case 'account': return 'from-cyan-500/30 to-cyan-600/20 border-cyan-500/50';
+      case 'account': return 'from-brand/30 to-cyan-600/20 border-brand/50';
       default: return 'from-gray-500/30 to-gray-600/20 border-gray-500/50';
     }
   };
@@ -84,23 +84,23 @@ export default function TransactionFlow({ transaction }) {
   };
 
   return (
-    <div className="bg-[#24384a] rounded-xl p-6">
-      <h3 className="text-gray-400 text-sm mb-4">TRANSACTION FLOW</h3>
+    <div className="bg-surface-2 rounded-xl p-6">
+      <h3 className="text-ink-muted text-sm mb-4">TRANSACTION FLOW</h3>
       
       <div className="flex items-start justify-between gap-4 overflow-x-auto pb-4">
         {/* Signer Column */}
         <div className="flex flex-col items-center gap-4 min-w-[150px]">
-          <p className="text-gray-500 text-xs uppercase">Signer</p>
+          <p className="text-ink-faint text-xs uppercase">Signer</p>
           {nodes.filter(n => n.type === 'wallet').map(node => (
             <div 
               key={node.id}
               className={`bg-gradient-to-b ${getNodeColor(node.type)} border rounded-xl p-4 text-center`}
             >
-              <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-2">
+              <div className="w-10 h-10 rounded-full bg-positive/20 flex items-center justify-center mx-auto mb-2">
                 {getNodeIcon(node.type)}
               </div>
               <p className="text-white text-sm font-medium">{node.label}</p>
-              <p className="text-gray-500 font-mono text-[10px] truncate max-w-[120px]">
+              <p className="text-ink-faint font-mono text-[10px] truncate max-w-[120px]">
                 {node.address?.substring(0, 8)}...
               </p>
             </div>
@@ -109,12 +109,12 @@ export default function TransactionFlow({ transaction }) {
 
         {/* Arrow */}
         <div className="flex items-center pt-12">
-          <ArrowRight className="w-6 h-6 text-gray-600" />
+          <ArrowRight className="w-6 h-6 text-ink-faint" />
         </div>
 
         {/* Programs Column */}
         <div className="flex flex-col items-center gap-4 min-w-[150px]">
-          <p className="text-gray-500 text-xs uppercase">Programs</p>
+          <p className="text-ink-faint text-xs uppercase">Programs</p>
           {nodes.filter(n => n.type === 'program').map(node => (
             <div 
               key={node.id}
@@ -124,55 +124,55 @@ export default function TransactionFlow({ transaction }) {
                 {getNodeIcon(node.type)}
               </div>
               <p className="text-white text-sm font-medium">{node.label}</p>
-              <p className="text-gray-500 font-mono text-[10px] truncate max-w-[120px]">
+              <p className="text-ink-faint font-mono text-[10px] truncate max-w-[120px]">
                 {node.address?.substring(0, 8)}...
               </p>
             </div>
           ))}
           {nodes.filter(n => n.type === 'program').length === 0 && (
-            <div className="text-gray-600 text-sm">No programs</div>
+            <div className="text-ink-faint text-sm">No programs</div>
           )}
         </div>
 
         {/* Arrow */}
         <div className="flex items-center pt-12">
-          <ArrowRight className="w-6 h-6 text-gray-600" />
+          <ArrowRight className="w-6 h-6 text-ink-faint" />
         </div>
 
         {/* Accounts Column */}
         <div className="flex flex-col items-center gap-4 min-w-[150px]">
-          <p className="text-gray-500 text-xs uppercase">Accounts</p>
+          <p className="text-ink-faint text-xs uppercase">Accounts</p>
           {nodes.filter(n => n.type === 'account').map(node => (
             <div 
               key={node.id}
               className={`bg-gradient-to-b ${getNodeColor(node.type)} border rounded-xl p-4 text-center`}
             >
-              <div className="w-10 h-10 rounded-full bg-cyan-500/20 flex items-center justify-center mx-auto mb-2">
+              <div className="w-10 h-10 rounded-full bg-brand/20 flex items-center justify-center mx-auto mb-2">
                 {getNodeIcon(node.type)}
               </div>
               <p className="text-white text-sm font-medium">{node.label}</p>
-              <p className="text-gray-500 font-mono text-[10px] truncate max-w-[120px]">
+              <p className="text-ink-faint font-mono text-[10px] truncate max-w-[120px]">
                 {node.address?.substring(0, 8)}...
               </p>
             </div>
           ))}
           {nodes.filter(n => n.type === 'account').length === 0 && (
-            <div className="text-gray-600 text-sm">No accounts</div>
+            <div className="text-ink-faint text-sm">No accounts</div>
           )}
         </div>
       </div>
 
       {/* State Changes */}
       {transaction.stateChanges && transaction.stateChanges.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-white/5">
-          <p className="text-gray-400 text-xs mb-3">SIMULATED STATE CHANGES</p>
+        <div className="mt-4 pt-4 border-t border-line">
+          <p className="text-ink-muted text-xs mb-3">SIMULATED STATE CHANGES</p>
           <div className="space-y-2">
             {transaction.stateChanges.map((change, i) => (
-              <div key={i} className="flex items-center gap-3 text-sm bg-[#1d2d3a] rounded-lg p-3">
-                <span className={`w-2 h-2 rounded-full ${change.type === 'credit' ? 'bg-emerald-400' : 'bg-red-400'}`} />
-                <code className="text-cyan-400/70 font-mono text-xs">{change.account?.substring(0, 12)}...</code>
-                <span className="text-gray-500">→</span>
-                <span className={change.type === 'credit' ? 'text-emerald-400' : 'text-red-400'}>
+              <div key={i} className="flex items-center gap-3 text-sm bg-surface-1 rounded-lg p-3">
+                <span className={`w-2 h-2 rounded-full ${change.type === 'credit' ? 'bg-positive' : 'bg-negative'}`} />
+                <code className="text-brand/70 font-mono text-xs">{change.account?.substring(0, 12)}...</code>
+                <span className="text-ink-faint">→</span>
+                <span className={change.type === 'credit' ? 'text-positive' : 'text-negative'}>
                   {change.type === 'credit' ? '+' : '-'}{change.amount} XNT
                 </span>
               </div>

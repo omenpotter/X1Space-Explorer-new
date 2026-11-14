@@ -301,12 +301,12 @@ export default function ValidatorAlerts() {
 
   const getAlertTypeInfo = (type) => {
     switch (type) {
-      case 'uptime': return { label: 'Uptime drops below', suffix: '%', icon: Activity, color: 'text-yellow-400', bgColor: 'bg-yellow-500/20' };
-      case 'commission': return { label: 'Commission exceeds', suffix: '%', icon: Percent, color: 'text-red-400', bgColor: 'bg-red-500/20' };
-      case 'delinquent': return { label: 'Becomes delinquent', suffix: '', icon: AlertTriangle, color: 'text-red-400', bgColor: 'bg-red-500/20' };
-      case 'stake_increase': return { label: 'Stake increases by', suffix: 'K XNT', icon: TrendingUp, color: 'text-emerald-400', bgColor: 'bg-emerald-500/20' };
+      case 'uptime': return { label: 'Uptime drops below', suffix: '%', icon: Activity, color: 'text-warning', bgColor: 'bg-warning/20' };
+      case 'commission': return { label: 'Commission exceeds', suffix: '%', icon: Percent, color: 'text-negative', bgColor: 'bg-negative/20' };
+      case 'delinquent': return { label: 'Becomes delinquent', suffix: '', icon: AlertTriangle, color: 'text-negative', bgColor: 'bg-negative/20' };
+      case 'stake_increase': return { label: 'Stake increases by', suffix: 'K XNT', icon: TrendingUp, color: 'text-positive', bgColor: 'bg-positive/20' };
       case 'stake_decrease': return { label: 'Stake decreases by', suffix: 'K XNT', icon: TrendingDown, color: 'text-orange-400', bgColor: 'bg-orange-500/20' };
-      default: return { label: type, suffix: '', icon: Bell, color: 'text-gray-400', bgColor: 'bg-gray-500/20' };
+      default: return { label: type, suffix: '', icon: Bell, color: 'text-ink-muted', bgColor: 'bg-gray-500/20' };
     }
   };
 
@@ -319,23 +319,23 @@ export default function ValidatorAlerts() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
+      <div className="min-h-screen bg-surface-1 text-white flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-brand" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#1d2d3a] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
+    <div className="min-h-screen bg-surface-1 text-white">
+      <header className="bg-surface-1 border-b border-line">
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
-                <span className="font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
+                <ChevronLeft className="w-5 h-5 text-ink-muted" />
+                <span className="font-bold"><span className="text-brand">X1</span><span className="text-white">Space</span></span>
               </Link>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
+              <Badge className="bg-brand/20 text-brand border-0 text-xs">Mainnet</Badge>
             </div>
           </div>
         </div>
@@ -344,18 +344,18 @@ export default function ValidatorAlerts() {
       <main className="max-w-4xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-            <Bell className="w-7 h-7 text-yellow-400" />
+            <Bell className="w-7 h-7 text-warning" />
             Validator Alerts
           </h1>
           <div className="flex items-center gap-2">
             <Button 
               onClick={toggleMonitoring} 
               variant="outline" 
-              className={`border-white/10 ${isMonitoring ? 'text-emerald-400 bg-emerald-500/10' : 'text-gray-400'}`}
+              className={`border-line ${isMonitoring ? 'text-positive bg-positive/10' : 'text-ink-muted'}`}
             >
               {isMonitoring ? <><Pause className="w-4 h-4 mr-2" /> Monitoring</> : <><Play className="w-4 h-4 mr-2" /> Start</>}
             </Button>
-            <Button onClick={() => setShowAdd(!showAdd)} className="bg-cyan-500 hover:bg-cyan-600">
+            <Button onClick={() => setShowAdd(!showAdd)} className="bg-brand hover:bg-brand-strong">
               <Plus className="w-4 h-4 mr-2" /> New Alert
             </Button>
           </div>
@@ -363,18 +363,18 @@ export default function ValidatorAlerts() {
 
         {/* Monitoring Status */}
         {isMonitoring && (
-          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 mb-6 flex items-center justify-between">
+          <div className="bg-positive/10 border border-positive/30 rounded-xl p-3 mb-6 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-              <span className="text-emerald-400 text-sm">Real-time monitoring active</span>
+              <span className="w-2 h-2 bg-positive rounded-full animate-pulse" />
+              <span className="text-positive text-sm">Real-time monitoring active</span>
             </div>
-            {lastCheck && <span className="text-gray-500 text-xs">Last check: {lastCheck.toLocaleTimeString()}</span>}
+            {lastCheck && <span className="text-ink-faint text-xs">Last check: {lastCheck.toLocaleTimeString()}</span>}
           </div>
         )}
 
         {/* Notification Config */}
-        <div className="bg-[#24384a] rounded-xl p-4 mb-6">
-          <h3 className="text-gray-400 text-sm mb-4">NOTIFICATION SETUP GUIDES</h3>
+        <div className="bg-surface-2 rounded-xl p-4 mb-6">
+          <h3 className="text-ink-muted text-sm mb-4">NOTIFICATION SETUP GUIDES</h3>
           
           {/* Discord Setup */}
           <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-3">
@@ -382,7 +382,7 @@ export default function ValidatorAlerts() {
               <span className="text-xl">💬</span>
               <h4 className="text-white font-medium">Discord Setup</h4>
             </div>
-            <ol className="text-sm text-gray-300 space-y-1 ml-6 list-decimal">
+            <ol className="text-sm text-ink-soft space-y-1 ml-6 list-decimal">
               <li>Open Discord and go to your server</li>
               <li>Right-click the channel → Edit Channel → Integrations</li>
               <li>Click "Create Webhook" → Copy the Webhook URL</li>
@@ -391,12 +391,12 @@ export default function ValidatorAlerts() {
           </div>
 
           {/* Telegram Setup */}
-          <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-4 mb-4">
+          <div className="bg-brand/10 border border-brand/30 rounded-lg p-4 mb-4">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xl">📱</span>
               <h4 className="text-white font-medium">Telegram Setup</h4>
             </div>
-            <ol className="text-sm text-gray-300 space-y-1 ml-6 list-decimal">
+            <ol className="text-sm text-ink-soft space-y-1 ml-6 list-decimal">
               <li>Search for @BotFather in Telegram</li>
               <li>Send /newbot and follow instructions to create your bot</li>
               <li>Copy the bot token you receive</li>
@@ -409,27 +409,27 @@ export default function ValidatorAlerts() {
           
           <div className="grid grid-cols-1 gap-4">
             <div>
-              <label className="text-gray-500 text-xs mb-1 block">Webhook URL (Discord/Telegram/Slack)</label>
+              <label className="text-ink-faint text-xs mb-1 block">Webhook URL (Discord/Telegram/Slack)</label>
               <div className="flex gap-2">
                 <Input
                   placeholder="https://discord.com/api/webhooks/... or Telegram webhook"
                   value={webhookUrl}
                   onChange={(e) => setWebhookUrl(e.target.value)}
-                  className="bg-[#1d2d3a] border-0 text-white flex-1"
+                  className="bg-surface-1 border-0 text-white flex-1"
                 />
-                <Button variant="ghost" size="icon" className="text-gray-400"><Globe className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="icon" className="text-ink-muted"><Globe className="w-4 h-4" /></Button>
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2 mt-4">
-            <Button onClick={saveConfig} variant="outline" size="sm" className="border-white/10 text-gray-400">
+            <Button onClick={saveConfig} variant="outline" size="sm" className="border-line text-ink-muted">
               Save Settings
             </Button>
             <Button 
               onClick={testNotification} 
               variant="outline" 
               size="sm" 
-              className="border-cyan-500/30 text-cyan-400"
+              className="border-brand/30 text-brand"
               disabled={testingNotification || !webhookUrl}
             >
               {testingNotification ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
@@ -440,35 +440,35 @@ export default function ValidatorAlerts() {
 
         {/* Add Alert Panel */}
         {showAdd && (
-          <div className="bg-[#24384a] rounded-xl p-4 mb-6">
+          <div className="bg-surface-2 rounded-xl p-4 mb-6">
             <h3 className="text-white font-medium mb-3">Create New Alert</h3>
             <Input
               placeholder="Search validators..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-[#1d2d3a] border-0 text-white mb-4"
+              className="bg-surface-1 border-0 text-white mb-4"
             />
             <div className="space-y-2 max-h-[400px] overflow-y-auto">
               {filteredValidators.map((v) => (
-                <div key={v.votePubkey} className="p-3 bg-[#1d2d3a] rounded-lg">
+                <div key={v.votePubkey} className="p-3 bg-surface-1 rounded-lg">
                   <div className="flex items-center gap-3 mb-2">
                     <span className="text-lg">{v.icon || '🔷'}</span>
                     <div className="flex-1">
                       <p className="text-white text-sm font-medium">{v.name || v.votePubkey.substring(0, 16) + '...'}</p>
-                      <p className="text-gray-500 text-xs">{(v.activatedStake / 1000000).toFixed(1)}M XNT • {v.uptime?.toFixed(1)}% uptime</p>
+                      <p className="text-ink-faint text-xs">{(v.activatedStake / 1000000).toFixed(1)}M XNT • {v.uptime?.toFixed(1)}% uptime</p>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    <Button size="sm" variant="outline" className="border-yellow-500/30 text-yellow-400 text-xs h-7" onClick={() => addAlert(v, 'uptime')}>
+                    <Button size="sm" variant="outline" className="border-warning/30 text-warning text-xs h-7" onClick={() => addAlert(v, 'uptime')}>
                       <Activity className="w-3 h-3 mr-1" /> Uptime &lt; 99%
                     </Button>
-                    <Button size="sm" variant="outline" className="border-red-500/30 text-red-400 text-xs h-7" onClick={() => addAlert(v, 'commission')}>
+                    <Button size="sm" variant="outline" className="border-negative/30 text-negative text-xs h-7" onClick={() => addAlert(v, 'commission')}>
                       <Percent className="w-3 h-3 mr-1" /> Commission &gt; 10%
                     </Button>
-                    <Button size="sm" variant="outline" className="border-red-500/30 text-red-400 text-xs h-7" onClick={() => addAlert(v, 'delinquent')}>
+                    <Button size="sm" variant="outline" className="border-negative/30 text-negative text-xs h-7" onClick={() => addAlert(v, 'delinquent')}>
                       <AlertTriangle className="w-3 h-3 mr-1" /> Delinquent
                     </Button>
-                    <Button size="sm" variant="outline" className="border-emerald-500/30 text-emerald-400 text-xs h-7" onClick={() => addAlert(v, 'stake_increase')}>
+                    <Button size="sm" variant="outline" className="border-positive/30 text-positive text-xs h-7" onClick={() => addAlert(v, 'stake_increase')}>
                       <TrendingUp className="w-3 h-3 mr-1" /> +100K Stake
                     </Button>
                     <Button size="sm" variant="outline" className="border-orange-500/30 text-orange-400 text-xs h-7" onClick={() => addAlert(v, 'stake_decrease')}>
@@ -483,16 +483,16 @@ export default function ValidatorAlerts() {
 
         {/* Triggered Alerts History */}
         {triggeredAlerts.length > 0 && (
-          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
-            <h3 className="text-red-400 text-sm mb-3 flex items-center gap-2">
+          <div className="bg-negative/10 border border-negative/20 rounded-xl p-4 mb-6">
+            <h3 className="text-negative text-sm mb-3 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4" /> Recent Alert Events
             </h3>
             <div className="space-y-2 max-h-[200px] overflow-y-auto">
               {triggeredAlerts.slice(0, 10).map((event) => (
-                <div key={event.id} className="flex items-center gap-3 text-sm bg-[#1d2d3a] rounded-lg p-2">
-                  <span className="text-red-400 text-xs">{new Date(event.timestamp).toLocaleTimeString()}</span>
+                <div key={event.id} className="flex items-center gap-3 text-sm bg-surface-1 rounded-lg p-2">
+                  <span className="text-negative text-xs">{new Date(event.timestamp).toLocaleTimeString()}</span>
                   <span className="text-white">{event.validatorName}</span>
-                  <span className="text-gray-400">{event.message}</span>
+                  <span className="text-ink-muted">{event.message}</span>
                 </div>
               ))}
             </div>
@@ -501,19 +501,19 @@ export default function ValidatorAlerts() {
 
         {/* Active Alerts */}
         {alerts.length === 0 ? (
-          <div className="bg-[#24384a] rounded-xl p-8 text-center">
-            <Bell className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400">No alerts configured</p>
-            <p className="text-gray-500 text-sm mt-2">Create alerts to monitor validator performance in real-time</p>
+          <div className="bg-surface-2 rounded-xl p-8 text-center">
+            <Bell className="w-12 h-12 text-ink-faint mx-auto mb-4" />
+            <p className="text-ink-muted">No alerts configured</p>
+            <p className="text-ink-faint text-sm mt-2">Create alerts to monitor validator performance in real-time</p>
           </div>
         ) : (
           <div className="space-y-3">
-            <h3 className="text-gray-400 text-sm">ACTIVE ALERTS ({alerts.length})</h3>
+            <h3 className="text-ink-muted text-sm">ACTIVE ALERTS ({alerts.length})</h3>
             {alerts.map((alert) => {
               const typeInfo = getAlertTypeInfo(alert.type);
               const IconComponent = typeInfo.icon;
               return (
-                <div key={alert.id} className={`bg-[#24384a] rounded-xl p-4 ${!alert.enabled ? 'opacity-50' : ''}`}>
+                <div key={alert.id} className={`bg-surface-2 rounded-xl p-4 ${!alert.enabled ? 'opacity-50' : ''}`}>
                   <div className="flex items-center gap-4">
                     <span className="text-xl">{alert.icon || '🔷'}</span>
                     <div className="flex-1">
@@ -523,20 +523,20 @@ export default function ValidatorAlerts() {
                           <IconComponent className="w-3 h-3" />
                           {alert.type.replace('_', ' ')}
                         </Badge>
-                        <span className="text-gray-500 text-sm">{typeInfo.label}</span>
+                        <span className="text-ink-faint text-sm">{typeInfo.label}</span>
                         {alert.type !== 'delinquent' && (
                           <Input
                             type="number"
                             value={alert.threshold}
                             onChange={(e) => updateThreshold(alert.id, e.target.value)}
-                            className="bg-[#1d2d3a] border-0 text-white w-20 h-6 text-sm"
+                            className="bg-surface-1 border-0 text-white w-20 h-6 text-sm"
                           />
                         )}
-                        <span className="text-gray-500 text-sm">{typeInfo.suffix}</span>
+                        <span className="text-ink-faint text-sm">{typeInfo.suffix}</span>
                       </div>
                     </div>
                     <Switch checked={alert.enabled} onCheckedChange={() => toggleAlert(alert.id)} />
-                    <Button variant="ghost" size="icon" onClick={() => removeAlert(alert.id)} className="text-gray-500 hover:text-red-400">
+                    <Button variant="ghost" size="icon" onClick={() => removeAlert(alert.id)} className="text-ink-faint hover:text-negative">
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>

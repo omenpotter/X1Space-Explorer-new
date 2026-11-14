@@ -41,7 +41,7 @@ export default function ExportButton({ data, filename = 'export', label = 'Expor
       variant="outline"
       size="sm"
       onClick={exportToCSV}
-      className="border-white/10 text-gray-400 hover:text-white"
+      className="border-line text-ink-muted hover:text-white"
     >
       <Download className="w-4 h-4 mr-2" />
       {label}

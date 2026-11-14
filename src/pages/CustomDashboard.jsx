@@ -51,20 +51,20 @@ const DEFAULT_LAYOUTS = {
 // Widget components
 const NetworkStatsWidget = ({ data }) => (
   <div className="grid grid-cols-2 gap-3">
-    <div className="bg-[#1a2436] rounded-lg p-3">
-      <p className="text-gray-400 text-xs">Current Slot</p>
+    <div className="bg-surface-2 rounded-lg p-3">
+      <p className="text-ink-muted text-xs">Current Slot</p>
       <p className="text-white font-bold text-lg font-mono">{data?.slot?.toLocaleString() || '-'}</p>
     </div>
-    <div className="bg-[#1a2436] rounded-lg p-3">
-      <p className="text-gray-400 text-xs">Block Height</p>
+    <div className="bg-surface-2 rounded-lg p-3">
+      <p className="text-ink-muted text-xs">Block Height</p>
       <p className="text-white font-bold text-lg font-mono">{data?.blockHeight?.toLocaleString() || '-'}</p>
     </div>
-    <div className="bg-[#1a2436] rounded-lg p-3">
-      <p className="text-gray-400 text-xs">TPS</p>
-      <p className="text-cyan-400 font-bold text-lg">{data?.tps?.toLocaleString() || '-'}</p>
+    <div className="bg-surface-2 rounded-lg p-3">
+      <p className="text-ink-muted text-xs">TPS</p>
+      <p className="text-brand font-bold text-lg">{data?.tps?.toLocaleString() || '-'}</p>
     </div>
-    <div className="bg-[#1a2436] rounded-lg p-3">
-      <p className="text-gray-400 text-xs">Total TXs</p>
+    <div className="bg-surface-2 rounded-lg p-3">
+      <p className="text-ink-muted text-xs">Total TXs</p>
       <p className="text-white font-bold text-lg">{data?.transactionCount ? (data.transactionCount / 1e9).toFixed(2) + 'B' : '-'}</p>
     </div>
   </div>
@@ -73,16 +73,16 @@ const NetworkStatsWidget = ({ data }) => (
 const EpochWidget = ({ data }) => (
   <div>
     <div className="flex items-center justify-between mb-2">
-      <span className="text-gray-400 text-sm">Epoch {data?.epoch || '-'}</span>
+      <span className="text-ink-muted text-sm">Epoch {data?.epoch || '-'}</span>
       <span className="text-white font-bold">{data?.epochProgress || 0}%</span>
     </div>
-    <div className="h-3 bg-[#1a2436] rounded-full overflow-hidden">
+    <div className="h-3 bg-surface-2 rounded-full overflow-hidden">
       <div 
-        className="h-full bg-gradient-to-r from-cyan-500 to-emerald-500 rounded-full transition-all duration-500" 
+        className="h-full bg-gradient-to-r from-brand to-emerald-500 rounded-full transition-all duration-500" 
         style={{ width: `${data?.epochProgress || 0}%` }} 
       />
     </div>
-    <div className="flex justify-between mt-2 text-xs text-gray-500">
+    <div className="flex justify-between mt-2 text-xs text-ink-faint">
       <span>{data?.slotsRemaining?.toLocaleString() || '-'} slots remaining</span>
       <span>~{Math.round((data?.timeRemaining || 0) / 60)}m</span>
     </div>
@@ -92,16 +92,16 @@ const EpochWidget = ({ data }) => (
 const ValidatorsWidget = ({ data }) => (
   <div className="grid grid-cols-3 gap-3">
     <div className="text-center">
-      <p className="text-emerald-400 font-bold text-2xl">{data?.validators?.current || '-'}</p>
-      <p className="text-gray-400 text-xs">Active</p>
+      <p className="text-positive font-bold text-2xl">{data?.validators?.current || '-'}</p>
+      <p className="text-ink-muted text-xs">Active</p>
     </div>
     <div className="text-center">
-      <p className="text-red-400 font-bold text-2xl">{data?.validators?.delinquent || '-'}</p>
-      <p className="text-gray-400 text-xs">Delinquent</p>
+      <p className="text-negative font-bold text-2xl">{data?.validators?.delinquent || '-'}</p>
+      <p className="text-ink-muted text-xs">Delinquent</p>
     </div>
     <div className="text-center">
       <p className="text-white font-bold text-2xl">{data?.validators?.totalStake ? (data.validators.totalStake / 1e6).toFixed(0) + 'M' : '-'}</p>
-      <p className="text-gray-400 text-xs">Total Stake</p>
+      <p className="text-ink-muted text-xs">Total Stake</p>
     </div>
   </div>
 );
@@ -109,11 +109,11 @@ const ValidatorsWidget = ({ data }) => (
 const SupplyWidget = ({ data }) => (
   <div className="space-y-2">
     <div className="flex justify-between">
-      <span className="text-gray-400 text-sm">Circulating</span>
-      <span className="text-cyan-400 font-mono">{data?.supply?.circulating ? (data.supply.circulating / 1e6).toFixed(0) + 'M' : '-'}</span>
+      <span className="text-ink-muted text-sm">Circulating</span>
+      <span className="text-brand font-mono">{data?.supply?.circulating ? (data.supply.circulating / 1e6).toFixed(0) + 'M' : '-'}</span>
     </div>
     <div className="flex justify-between">
-      <span className="text-gray-400 text-sm">Total</span>
+      <span className="text-ink-muted text-sm">Total</span>
       <span className="text-white font-mono">{data?.supply?.total ? (data.supply.total / 1e6).toFixed(0) + 'M' : '-'}</span>
     </div>
   </div>
@@ -142,7 +142,7 @@ const TpsChartWidget = ({ data }) => {
           </AreaChart>
         </ResponsiveContainer>
       ) : (
-        <div className="h-full flex items-center justify-center text-gray-500">Loading...</div>
+        <div className="h-full flex items-center justify-center text-ink-faint">Loading...</div>
       )}
     </div>
   );
@@ -151,15 +151,15 @@ const TpsChartWidget = ({ data }) => {
 const RecentBlocksWidget = ({ blocks }) => (
   <div className="space-y-2 max-h-[200px] overflow-y-auto">
     {(blocks || []).slice(0, 5).map(block => (
-      <div key={block.slot} className="flex items-center justify-between bg-[#1a2436] rounded-lg p-2">
-        <Link to={createPageUrl('BlockDetail') + `?slot=${block.slot}`} className="text-cyan-400 font-mono text-sm hover:underline">
+      <div key={block.slot} className="flex items-center justify-between bg-surface-2 rounded-lg p-2">
+        <Link to={createPageUrl('BlockDetail') + `?slot=${block.slot}`} className="text-brand font-mono text-sm hover:underline">
           #{block.slot?.toLocaleString()}
         </Link>
-        <span className="text-gray-400 text-sm">{block.txCount} txs</span>
+        <span className="text-ink-muted text-sm">{block.txCount} txs</span>
       </div>
     ))}
     {(!blocks || blocks.length === 0) && (
-      <div className="text-gray-500 text-center py-4">Loading blocks...</div>
+      <div className="text-ink-faint text-center py-4">Loading blocks...</div>
     )}
   </div>
 );
@@ -186,7 +186,7 @@ const PerformanceWidget = ({ perfData }) => {
           </BarChart>
         </ResponsiveContainer>
       ) : (
-        <div className="h-full flex items-center justify-center text-gray-500">Loading...</div>
+        <div className="h-full flex items-center justify-center text-ink-faint">Loading...</div>
       )}
     </div>
   );
@@ -194,8 +194,8 @@ const PerformanceWidget = ({ perfData }) => {
 
 const BlockTimeWidget = ({ data }) => (
   <div className="text-center">
-    <p className="text-gray-400 text-xs mb-2">Avg Block Time</p>
-    <p className="text-2xl font-bold text-cyan-400">~400ms</p>
+    <p className="text-ink-muted text-xs mb-2">Avg Block Time</p>
+    <p className="text-2xl font-bold text-brand">~400ms</p>
   </div>
 );
 
@@ -208,15 +208,15 @@ const TxTypesWidget = ({ blocks }) => {
     <div className="grid grid-cols-3 gap-2 text-center">
       <div>
         <p className="text-purple-400 font-bold text-lg">{Math.round((votes/total)*100) || 0}%</p>
-        <p className="text-gray-500 text-xs">Votes</p>
+        <p className="text-ink-faint text-xs">Votes</p>
       </div>
       <div>
         <p className="text-blue-400 font-bold text-lg">{Math.round((transfers/total)*100) || 0}%</p>
-        <p className="text-gray-500 text-xs">Transfers</p>
+        <p className="text-ink-faint text-xs">Transfers</p>
       </div>
       <div>
-        <p className="text-emerald-400 font-bold text-lg">{Math.round(((total-votes-transfers)/total)*100) || 0}%</p>
-        <p className="text-gray-500 text-xs">Programs</p>
+        <p className="text-positive font-bold text-lg">{Math.round(((total-votes-transfers)/total)*100) || 0}%</p>
+        <p className="text-ink-faint text-xs">Programs</p>
       </div>
     </div>
   );
@@ -224,19 +224,19 @@ const TxTypesWidget = ({ blocks }) => {
 
 const NetworkHealthWidget = ({ data }) => (
   <div className="text-center">
-    <div className="w-16 h-16 mx-auto mb-2 rounded-full bg-emerald-500/20 flex items-center justify-center">
+    <div className="w-16 h-16 mx-auto mb-2 rounded-full bg-positive/20 flex items-center justify-center">
       <span className="text-2xl">✓</span>
     </div>
-    <p className="text-emerald-400 font-bold">Healthy</p>
-    <p className="text-gray-500 text-xs mt-1">{data?.tps || 0} TPS</p>
+    <p className="text-positive font-bold">Healthy</p>
+    <p className="text-ink-faint text-xs mt-1">{data?.tps || 0} TPS</p>
   </div>
 );
 
 const PriceWidget = () => (
   <div className="text-center">
-    <p className="text-gray-400 text-xs mb-2">XNT Price</p>
+    <p className="text-ink-muted text-xs mb-2">XNT Price</p>
     <p className="text-2xl font-bold text-white">$1.00</p>
-    <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs mt-1">OTC</Badge>
+    <Badge className="bg-positive/20 text-positive border-0 text-xs mt-1">OTC</Badge>
   </div>
 );
 
@@ -247,30 +247,30 @@ const StakePoolWidget = ({ data }) => {
   return (
     <div>
       <div className="flex justify-between mb-2">
-        <span className="text-gray-400 text-sm">Staked</span>
-        <span className="text-cyan-400 font-bold">{stakeRatio}%</span>
+        <span className="text-ink-muted text-sm">Staked</span>
+        <span className="text-brand font-bold">{stakeRatio}%</span>
       </div>
-      <div className="h-2 bg-[#1a2436] rounded-full overflow-hidden">
-        <div className="h-full bg-gradient-to-r from-purple-500 to-cyan-500" style={{ width: `${stakeRatio}%` }} />
+      <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
+        <div className="h-full bg-gradient-to-r from-purple-500 to-brand" style={{ width: `${stakeRatio}%` }} />
       </div>
-      <p className="text-gray-500 text-xs mt-1">{data?.validators?.current || 0} validators</p>
+      <p className="text-ink-faint text-xs mt-1">{data?.validators?.current || 0} validators</p>
     </div>
   );
 };
 
 const WhaleWatcherWidget = () => (
   <div className="space-y-2">
-    <Link to={createPageUrl('WhaleWatcher')} className="flex items-center justify-between p-2 bg-[#1a2436] rounded-lg hover:bg-[#1d2d3a] transition-colors">
+    <Link to={createPageUrl('WhaleWatcher')} className="flex items-center justify-between p-2 bg-surface-2 rounded-lg hover:bg-surface-1 transition-colors">
       <div className="flex items-center gap-2">
         <span className="text-2xl">🐋</span>
         <div>
           <p className="text-white text-sm">Large Transfer</p>
-          <p className="text-gray-500 text-xs">1.2M XNT</p>
+          <p className="text-ink-faint text-xs">1.2M XNT</p>
         </div>
       </div>
-      <span className="text-cyan-400 text-xs">2m ago</span>
+      <span className="text-brand text-xs">2m ago</span>
     </Link>
-    <Link to={createPageUrl('WhaleWatcher')} className="text-cyan-400 text-xs hover:underline">View all whale activity →</Link>
+    <Link to={createPageUrl('WhaleWatcher')} className="text-brand text-xs hover:underline">View all whale activity →</Link>
   </div>
 );
 
@@ -280,11 +280,11 @@ const ValidatorAlertsWidget = () => {
   return (
     <div className="text-center">
       <Link to={createPageUrl('ValidatorAlerts')} className="block">
-        <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-yellow-500/20 flex items-center justify-center">
-          <Bell className="w-6 h-6 text-yellow-400" />
+        <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-warning/20 flex items-center justify-center">
+          <Bell className="w-6 h-6 text-warning" />
         </div>
         <p className="text-white font-bold text-lg">{activeAlerts}</p>
-        <p className="text-gray-400 text-xs">Active Alerts</p>
+        <p className="text-ink-muted text-xs">Active Alerts</p>
       </Link>
     </div>
   );
@@ -298,14 +298,14 @@ const AddressLookupWidget = () => {
         placeholder="Enter address..."
         value={address}
         onChange={(e) => setAddress(e.target.value)}
-        className="bg-[#1a2436] border-0 text-white mb-2"
+        className="bg-surface-2 border-0 text-white mb-2"
         onKeyDown={(e) => {
           if (e.key === 'Enter' && address) {
             window.location.href = createPageUrl('AddressLookup') + `?address=${address}`;
           }
         }}
       />
-      <Link to={createPageUrl('AddressLookup')} className="text-cyan-400 text-xs hover:underline">
+      <Link to={createPageUrl('AddressLookup')} className="text-brand text-xs hover:underline">
         Open Address Lookup →
       </Link>
     </div>
@@ -318,13 +318,13 @@ const TxFlowWidget = ({ blocks }) => {
     <div className="space-y-2">
       {recentTxs.map((block, i) => (
         <div key={i} className="flex items-center gap-2 text-xs">
-          <div className="w-2 h-2 rounded-full bg-cyan-400" />
-          <span className="text-gray-400">Slot {block.slot?.toLocaleString()}</span>
-          <span className="text-gray-600">→</span>
-          <span className="text-emerald-400">{block.txCount} txs</span>
+          <div className="w-2 h-2 rounded-full bg-brand" />
+          <span className="text-ink-muted">Slot {block.slot?.toLocaleString()}</span>
+          <span className="text-ink-faint">→</span>
+          <span className="text-positive">{block.txCount} txs</span>
         </div>
       ))}
-      <Link to={createPageUrl('TransactionFlowPage')} className="text-cyan-400 text-xs hover:underline">
+      <Link to={createPageUrl('TransactionFlowPage')} className="text-brand text-xs hover:underline">
         View transaction flow →
       </Link>
     </div>
@@ -339,15 +339,15 @@ const Widget = ({ type, data, blocks, perfData, onRemove, isEditing }) => {
   const Icon = widgetInfo.icon;
   
   return (
-    <div className={`bg-[#0d1525] border border-white/10 rounded-xl p-4 ${widgetInfo.size === 'large' ? 'col-span-2' : ''}`}>
+    <div className={`bg-surface-1 border border-line rounded-xl p-4 ${widgetInfo.size === 'large' ? 'col-span-2' : ''}`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          {isEditing && <GripVertical className="w-4 h-4 text-gray-600 cursor-move" />}
-          <Icon className="w-4 h-4 text-cyan-400" />
+          {isEditing && <GripVertical className="w-4 h-4 text-ink-faint cursor-move" />}
+          <Icon className="w-4 h-4 text-brand" />
           <span className="text-white font-medium text-sm">{widgetInfo.name}</span>
         </div>
         {isEditing && (
-          <Button variant="ghost" size="icon" onClick={onRemove} className="h-6 w-6 text-red-400 hover:text-red-300">
+          <Button variant="ghost" size="icon" onClick={onRemove} className="h-6 w-6 text-negative hover:text-red-300">
             <X className="w-4 h-4" />
           </Button>
         )}
@@ -479,25 +479,25 @@ export default function CustomDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0f1a] text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
+      <div className="min-h-screen bg-canvas text-white flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-brand" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0f1a] text-white">
-      <header className="border-b border-white/10">
+    <div className="min-h-screen bg-canvas text-white">
+      <header className="border-b border-line">
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
-                <span className="font-bold text-xl"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
+                <ChevronLeft className="w-5 h-5 text-ink-muted" />
+                <span className="font-bold text-xl"><span className="text-brand">X1</span><span className="text-white">Space</span></span>
               </Link>
-              <span className="text-gray-400">|</span>
+              <span className="text-ink-muted">|</span>
               <span className="text-white text-xl font-light">Custom Dashboard</span>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0">{currentLayout}</Badge>
+              <Badge className="bg-brand/20 text-brand border-0">{currentLayout}</Badge>
             </div>
             
             <div className="flex items-center gap-2">
@@ -505,12 +505,12 @@ export default function CustomDashboard() {
                 variant="outline" 
                 size="sm" 
                 onClick={() => setIsEditing(!isEditing)}
-                className={`border-white/20 ${isEditing ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
+                className={`border-line-strong ${isEditing ? 'bg-brand/20 text-brand' : 'text-ink-muted'}`}
               >
                 <Settings className="w-4 h-4 mr-2" />
                 {isEditing ? 'Done' : 'Edit'}
               </Button>
-              <Button variant="outline" size="sm" onClick={fetchData} className="border-white/20 text-gray-400">
+              <Button variant="outline" size="sm" onClick={fetchData} className="border-line-strong text-ink-muted">
                 <RefreshCw className="w-4 h-4" />
               </Button>
             </div>
@@ -521,7 +521,7 @@ export default function CustomDashboard() {
       <main className="max-w-[1800px] mx-auto px-4 py-6">
         {/* Layout Selector */}
         {isEditing && (
-          <div className="bg-[#0d1525] border border-white/10 rounded-xl p-4 mb-6">
+          <div className="bg-surface-1 border border-line rounded-xl p-4 mb-6">
             <h3 className="text-white font-medium mb-3">Layouts</h3>
             <div className="flex flex-wrap gap-2 mb-4">
               {Object.keys(DEFAULT_LAYOUTS).map(key => (
@@ -530,7 +530,7 @@ export default function CustomDashboard() {
                   variant="outline" 
                   size="sm"
                   onClick={() => loadLayout(key)}
-                  className={`border-white/20 ${currentLayout === key ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
+                  className={`border-line-strong ${currentLayout === key ? 'bg-brand/20 text-brand' : 'text-ink-muted'}`}
                 >
                   {DEFAULT_LAYOUTS[key].name}
                 </Button>
@@ -541,11 +541,11 @@ export default function CustomDashboard() {
                     variant="outline" 
                     size="sm"
                     onClick={() => loadLayout(key)}
-                    className={`border-white/20 ${currentLayout === key ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
+                    className={`border-line-strong ${currentLayout === key ? 'bg-brand/20 text-brand' : 'text-ink-muted'}`}
                   >
                     {savedLayouts[key].name}
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => deleteLayout(key)} className="h-7 w-7 text-red-400">
+                  <Button variant="ghost" size="icon" onClick={() => deleteLayout(key)} className="h-7 w-7 text-negative">
                     <Trash2 className="w-3 h-3" />
                   </Button>
                 </div>
@@ -557,12 +557,12 @@ export default function CustomDashboard() {
                 placeholder="New layout name..." 
                 value={newLayoutName}
                 onChange={(e) => setNewLayoutName(e.target.value)}
-                className="bg-[#1a2436] border-white/10 text-white w-48"
+                className="bg-surface-2 border-line text-white w-48"
               />
-              <Button onClick={saveLayout} className="bg-cyan-500 hover:bg-cyan-600">
+              <Button onClick={saveLayout} className="bg-brand hover:bg-brand-strong">
                 <Save className="w-4 h-4 mr-2" /> Save Layout
               </Button>
-              <Button variant="outline" onClick={() => setShowAddWidget(!showAddWidget)} className="border-white/20 text-gray-400">
+              <Button variant="outline" onClick={() => setShowAddWidget(!showAddWidget)} className="border-line-strong text-ink-muted">
                 <Plus className="w-4 h-4 mr-2" /> Add Widget
               </Button>
             </div>
@@ -579,7 +579,7 @@ export default function CustomDashboard() {
                       variant="outline"
                       onClick={() => addWidget(key)}
                       disabled={isAdded}
-                      className={`border-white/10 justify-start ${isAdded ? 'opacity-50' : 'text-gray-400 hover:text-white'}`}
+                      className={`border-line justify-start ${isAdded ? 'opacity-50' : 'text-ink-muted hover:text-white'}`}
                     >
                       <Icon className="w-4 h-4 mr-2" />
                       {info.name}
@@ -609,9 +609,9 @@ export default function CustomDashboard() {
 
         {widgets.length === 0 && (
           <div className="text-center py-20">
-            <LayoutGrid className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400">No widgets added</p>
-            <p className="text-gray-500 text-sm mt-2">Click Edit to add widgets to your dashboard</p>
+            <LayoutGrid className="w-16 h-16 text-ink-faint mx-auto mb-4" />
+            <p className="text-ink-muted">No widgets added</p>
+            <p className="text-ink-faint text-sm mt-2">Click Edit to add widgets to your dashboard</p>
           </div>
         )}
       </main>

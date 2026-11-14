@@ -328,9 +328,9 @@ export default function WhaleWatcher() {
   const getTypeColor = (type) => {
     switch (type) {
       case 'transfer': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      case 'stake': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-      case 'unstake': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+      case 'stake': return 'bg-positive/20 text-positive border-positive/30';
+      case 'unstake': return 'bg-negative/20 text-negative border-negative/30';
+      default: return 'bg-gray-500/20 text-ink-muted border-gray-500/30';
     }
   };
 
@@ -383,32 +383,32 @@ export default function WhaleWatcher() {
 
   const SortIndicator = ({ columnKey }) => {
     if (sortField !== columnKey) {
-      return <ArrowUpDown className="h-3 w-3 ml-1 inline text-gray-500" />;
+      return <ArrowUpDown className="h-3 w-3 ml-1 inline text-ink-faint" />;
     }
     return sortOrder === 'asc' 
-      ? <ArrowUp className="h-3 w-3 ml-1 inline text-cyan-400" />
-      : <ArrowDown className="h-3 w-3 ml-1 inline text-cyan-400" />;
+      ? <ArrowUp className="h-3 w-3 ml-1 inline text-brand" />
+      : <ArrowDown className="h-3 w-3 ml-1 inline text-brand" />;
   };
 
   return (
-    <div className="min-h-screen bg-[#0f1419] text-white">
+    <div className="min-h-screen bg-canvas text-white">
       {/* Header */}
-      <div className="border-b border-white/10 bg-[#1d2d3a]">
+      <div className="border-b border-line bg-surface-1">
         <div className="max-w-[1600px] mx-auto px-4 py-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <Link to={createPageUrl('Dashboard')}>
-                <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                <Button variant="ghost" size="sm" className="text-ink-muted hover:text-white">
                   <ChevronLeft className="w-4 h-4 mr-2" />
                   Back
                 </Button>
               </Link>
               <div>
                 <h1 className="text-4xl font-bold text-white flex items-center gap-3">
-                  <Fish className="w-8 h-8 text-cyan-400" />
+                  <Fish className="w-8 h-8 text-brand" />
                   Whale Watcher
                 </h1>
-                <p className="text-gray-400 mt-1">Track large XNT transactions in real-time</p>
+                <p className="text-ink-muted mt-1">Track large XNT transactions in real-time</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -416,7 +416,7 @@ export default function WhaleWatcher() {
                 variant="outline" 
                 size="sm" 
                 onClick={() => setSoundEnabled(!soundEnabled)}
-                className={`border-white/20 ${soundEnabled ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : 'text-gray-400'}`}
+                className={`border-line-strong ${soundEnabled ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : 'text-ink-muted'}`}
               >
                 {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
               </Button>
@@ -424,7 +424,7 @@ export default function WhaleWatcher() {
                 variant="outline" 
                 size="sm" 
                 onClick={() => setAlertsEnabled(!alertsEnabled)}
-                className={`border-white/20 ${alertsEnabled ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' : 'text-gray-400'}`}
+                className={`border-line-strong ${alertsEnabled ? 'bg-warning/20 text-warning border-warning/30' : 'text-ink-muted'}`}
               >
                 {alertsEnabled ? <Bell className="w-4 h-4 mr-2" /> : <BellOff className="w-4 h-4 mr-2" />}
                 Alerts
@@ -434,9 +434,9 @@ export default function WhaleWatcher() {
                   variant="outline" 
                   size="sm" 
                   onClick={() => setIsLive(false)}
-                  className="border-white/20 text-red-400 border-red-500/30 hover:bg-red-500/10"
+                  className="border-line-strong text-negative border-negative/30 hover:bg-negative/10"
                 >
-                  <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse mr-2" />
+                  <span className="w-2 h-2 rounded-full bg-negative animate-pulse mr-2" />
                   Stop
                 </Button>
               ) : (
@@ -444,9 +444,9 @@ export default function WhaleWatcher() {
                   variant="outline" 
                   size="sm" 
                   onClick={() => setIsLive(true)}
-                  className="border-white/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                  className="border-line-strong text-positive border-positive/30 hover:bg-positive/10"
                 >
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 mr-2" />
+                  <span className="w-2 h-2 rounded-full bg-positive mr-2" />
                   Start
                 </Button>
               )}
@@ -454,7 +454,7 @@ export default function WhaleWatcher() {
                 variant="outline" 
                 size="sm"
                 onClick={() => { fetchWhaleTransactions(); fetchStakePoolStats(); }}
-                className="border-gray-600 text-gray-300 hover:bg-gray-800"
+                className="border-gray-600 text-ink-soft hover:bg-gray-800"
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Refresh
@@ -467,58 +467,58 @@ export default function WhaleWatcher() {
       <main className="max-w-[1600px] mx-auto px-4 py-8">
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-          <Card className="bg-[#1d2d3a] border-white/10">
+          <Card className="bg-surface-1 border-line">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Whale Txs</CardTitle>
-              <Fish className="h-4 w-4 text-cyan-400" />
+              <CardTitle className="text-sm font-medium text-ink-soft">Whale Txs</CardTitle>
+              <Fish className="h-4 w-4 text-brand" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">{filteredTxs.length}</div>
-              <p className="text-xs text-gray-500">Transactions found</p>
+              <p className="text-xs text-ink-faint">Transactions found</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-[#1d2d3a] border-white/10">
+          <Card className="bg-surface-1 border-line">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Total Volume</CardTitle>
-              <TrendingUp className="h-4 w-4 text-cyan-400" />
+              <CardTitle className="text-sm font-medium text-ink-soft">Total Volume</CardTitle>
+              <TrendingUp className="h-4 w-4 text-brand" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-cyan-400">{formatAmount(totalVolume)}</div>
-              <p className="text-xs text-gray-500">XNT transferred</p>
+              <div className="text-2xl font-bold text-brand">{formatAmount(totalVolume)}</div>
+              <p className="text-xs text-ink-faint">XNT transferred</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-[#1d2d3a] border-white/10">
+          <Card className="bg-surface-1 border-line">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Stake Inflow</CardTitle>
-              <TrendingUp className="h-4 w-4 text-emerald-400" />
+              <CardTitle className="text-sm font-medium text-ink-soft">Stake Inflow</CardTitle>
+              <TrendingUp className="h-4 w-4 text-positive" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-emerald-400">+{formatAmount(stakeVolume)}</div>
-              <p className="text-xs text-gray-500">XNT staked</p>
+              <div className="text-2xl font-bold text-positive">+{formatAmount(stakeVolume)}</div>
+              <p className="text-xs text-ink-faint">XNT staked</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-[#1d2d3a] border-white/10">
+          <Card className="bg-surface-1 border-line">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Unstake Outflow</CardTitle>
-              <TrendingDown className="h-4 w-4 text-red-400" />
+              <CardTitle className="text-sm font-medium text-ink-soft">Unstake Outflow</CardTitle>
+              <TrendingDown className="h-4 w-4 text-negative" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-400">-{formatAmount(unstakeVolume)}</div>
-              <p className="text-xs text-gray-500">XNT unstaked</p>
+              <div className="text-2xl font-bold text-negative">-{formatAmount(unstakeVolume)}</div>
+              <p className="text-xs text-ink-faint">XNT unstaked</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-[#1d2d3a] border-white/10">
+          <Card className="bg-surface-1 border-line">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Stake Pools</CardTitle>
+              <CardTitle className="text-sm font-medium text-ink-soft">Stake Pools</CardTitle>
               <Layers className="h-4 w-4 text-purple-400" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-purple-400">{formatAmount(totalStaked)}</div>
-              <p className="text-xs text-gray-500">Total staked</p>
+              <p className="text-xs text-ink-faint">Total staked</p>
             </CardContent>
           </Card>
         </div>
@@ -527,7 +527,7 @@ export default function WhaleWatcher() {
         {stakePoolStats && stakePoolStats.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             {stakePoolStats.map((pool) => (
-              <Card key={pool.address} className="bg-[#1d2d3a] border-white/10">
+              <Card key={pool.address} className="bg-surface-1 border-line">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <Badge className={`${pool.color} text-sm px-3 py-1`}>
@@ -538,7 +538,7 @@ export default function WhaleWatcher() {
                         href={safeUrl(pool.url)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 text-xs"
+                        className="text-brand hover:text-cyan-300 flex items-center gap-1 text-xs"
                       >
                         Dashboard
                         <ExternalLink className="w-3 h-3" />
@@ -560,8 +560,8 @@ export default function WhaleWatcher() {
                 <CardContent>
                   <div className="space-y-3">
                     {/* Balance */}
-                    <div className="flex justify-between items-center pb-2 border-b border-white/5">
-                      <span className="text-gray-400 text-sm">Current Balance:</span>
+                    <div className="flex justify-between items-center pb-2 border-b border-line">
+                      <span className="text-ink-muted text-sm">Current Balance:</span>
                       <span className="text-white font-mono font-bold">{formatAmount(pool.balance)} XNT</span>
                     </div>
 
@@ -573,72 +573,72 @@ export default function WhaleWatcher() {
                             variant="ghost"
                             size="sm"
                             onClick={() => setShowPoolDetails(prev => ({ ...prev, [pool.address]: !prev[pool.address] }))}
-                            className="w-full text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 mb-2"
+                            className="w-full text-brand hover:text-cyan-300 hover:bg-brand/10 mb-2"
                           >
                             {showPoolDetails[pool.address] ? 'Hide' : 'Show'} Pool Details
                           </Button>
                           
                           {showPoolDetails[pool.address] && (
                             <div className="space-y-2 text-xs">
-                              <div className="bg-[#0f1419] rounded p-3 space-y-2">
+                              <div className="bg-canvas rounded p-3 space-y-2">
                                 <div className="flex justify-between">
-                                  <span className="text-gray-400">Total Staked:</span>
+                                  <span className="text-ink-muted">Total Staked:</span>
                                   <span className="text-white font-mono">{pool.poolInfo.totalStaked}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                  <span className="text-gray-400">pXNT Supply:</span>
+                                  <span className="text-ink-muted">pXNT Supply:</span>
                                   <span className="text-white font-mono">{pool.poolInfo.totalSupply}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                  <span className="text-gray-400">Exchange Rate:</span>
-                                  <span className="text-emerald-400 font-mono">{pool.poolInfo.exchangeRate}</span>
+                                  <span className="text-ink-muted">Exchange Rate:</span>
+                                  <span className="text-positive font-mono">{pool.poolInfo.exchangeRate}</span>
                                 </div>
                               </div>
 
-                              <div className="bg-[#0f1419] rounded p-3 space-y-2">
+                              <div className="bg-canvas rounded p-3 space-y-2">
                                 <div className="text-purple-400 font-semibold mb-1">Fees</div>
                                 <div className="flex justify-between">
-                                  <span className="text-gray-400">Epoch Fee:</span>
+                                  <span className="text-ink-muted">Epoch Fee:</span>
                                   <span className="text-white">{pool.poolInfo.epochFee}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                  <span className="text-gray-400">Withdrawal:</span>
+                                  <span className="text-ink-muted">Withdrawal:</span>
                                   <span className="text-white">{pool.poolInfo.withdrawalFee}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                  <span className="text-gray-400">Deposit:</span>
+                                  <span className="text-ink-muted">Deposit:</span>
                                   <span className="text-white">{pool.poolInfo.depositFee}</span>
                                 </div>
                               </div>
 
-                              <div className="bg-[#0f1419] rounded p-3 space-y-2">
+                              <div className="bg-canvas rounded p-3 space-y-2">
                                 <div className="text-blue-400 font-semibold mb-1">Validators</div>
                                 <div className="flex justify-between">
-                                  <span className="text-gray-400">Total:</span>
+                                  <span className="text-ink-muted">Total:</span>
                                   <span className="text-white">{pool.poolInfo.totalValidators}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                  <span className="text-gray-400">Active:</span>
-                                  <span className="text-emerald-400">{pool.poolInfo.activeValidators}</span>
+                                  <span className="text-ink-muted">Active:</span>
+                                  <span className="text-positive">{pool.poolInfo.activeValidators}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                  <span className="text-gray-400">Pool Size:</span>
-                                  <span className="text-cyan-400">{pool.poolInfo.poolSize}</span>
+                                  <span className="text-ink-muted">Pool Size:</span>
+                                  <span className="text-brand">{pool.poolInfo.poolSize}</span>
                                 </div>
                               </div>
 
-                              <div className="bg-[#0f1419] rounded p-3 space-y-2">
+                              <div className="bg-canvas rounded p-3 space-y-2">
                                 <div className="text-orange-400 font-semibold mb-1">Criteria</div>
                                 <div className="flex justify-between">
-                                  <span className="text-gray-400">Max Commission:</span>
+                                  <span className="text-ink-muted">Max Commission:</span>
                                   <span className="text-white">{pool.poolInfo.maxCommission}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                  <span className="text-gray-400">Min Self Stake:</span>
+                                  <span className="text-ink-muted">Min Self Stake:</span>
                                   <span className="text-white">{pool.poolInfo.minSelfStake}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                  <span className="text-gray-400">Reserve:</span>
+                                  <span className="text-ink-muted">Reserve:</span>
                                   <span className="text-white">{pool.poolInfo.reserveStake}</span>
                                 </div>
                               </div>
@@ -650,8 +650,8 @@ export default function WhaleWatcher() {
 
                     {/* Address */}
                     <div className="flex justify-between items-center pt-2">
-                      <span className="text-gray-400 text-xs">Address:</span>
-                      <span className="text-gray-500 font-mono text-xs">{pool.address.slice(0, 8)}...{pool.address.slice(-8)}</span>
+                      <span className="text-ink-muted text-xs">Address:</span>
+                      <span className="text-ink-faint font-mono text-xs">{pool.address.slice(0, 8)}...{pool.address.slice(-8)}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -661,17 +661,17 @@ export default function WhaleWatcher() {
         )}
 
         {/* Filters */}
-        <Card className="bg-[#1d2d3a] border-white/10 mb-8">
+        <Card className="bg-surface-1 border-line mb-8">
           <CardHeader>
             <CardTitle className="text-white">Filters</CardTitle>
-            <CardDescription className="text-gray-400">
+            <CardDescription className="text-ink-muted">
               Customize whale transaction search parameters
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Amount Filters */}
             <div>
-              <label className="text-sm text-gray-400 mb-2 block">Minimum Amount</label>
+              <label className="text-sm text-ink-muted mb-2 block">Minimum Amount</label>
               <div className="flex gap-2 flex-wrap items-center">
                 {[1000, 10000, 50000, 100000, 500000].map((val) => (
                   <Button 
@@ -679,7 +679,7 @@ export default function WhaleWatcher() {
                     variant="outline" 
                     size="sm"
                     onClick={() => setMinAmount(val)}
-                    className={`border-white/20 ${minAmount === val ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' : 'text-gray-400'}`}
+                    className={`border-line-strong ${minAmount === val ? 'bg-brand/20 text-brand border-brand/30' : 'text-ink-muted'}`}
                   >
                     {formatAmount(val)}+ XNT
                   </Button>
@@ -688,7 +688,7 @@ export default function WhaleWatcher() {
                   <Input 
                     type="number"
                     placeholder="Custom amount"
-                    className="w-36 bg-[#0f1419] border-white/10 text-white placeholder:text-gray-500"
+                    className="w-36 bg-canvas border-line text-white placeholder:text-ink-faint"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         const value = parseFloat(e.target.value);
@@ -698,17 +698,17 @@ export default function WhaleWatcher() {
                       }
                     }}
                   />
-                  <span className="text-gray-500 text-xs">Press Enter</span>
+                  <span className="text-ink-faint text-xs">Press Enter</span>
                 </div>
               </div>
-              <div className="mt-2 text-xs text-gray-500">
-                Current threshold: <span className="text-cyan-400 font-mono">{formatAmount(minAmount)}+ XNT</span>
+              <div className="mt-2 text-xs text-ink-faint">
+                Current threshold: <span className="text-brand font-mono">{formatAmount(minAmount)}+ XNT</span>
               </div>
             </div>
 
             {/* Type Filters */}
             <div>
-              <label className="text-sm text-gray-400 mb-2 block">Transaction Type</label>
+              <label className="text-sm text-ink-muted mb-2 block">Transaction Type</label>
               <div className="flex gap-2 flex-wrap">
                 {['all', 'transfer', 'stake', 'unstake'].map((type) => (
                   <Button 
@@ -716,7 +716,7 @@ export default function WhaleWatcher() {
                     variant="outline" 
                     size="sm"
                     onClick={() => setFilterType(type)}
-                    className={`border-white/20 ${filterType === type ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' : 'text-gray-400'}`}
+                    className={`border-line-strong ${filterType === type ? 'bg-brand/20 text-brand border-brand/30' : 'text-ink-muted'}`}
                   >
                     {type === 'all' ? 'All Types' : type.charAt(0).toUpperCase() + type.slice(1)}
                   </Button>
@@ -726,14 +726,14 @@ export default function WhaleWatcher() {
 
             {/* Address Filter */}
             <div>
-              <label className="text-sm text-gray-400 mb-2 block">Filter by Address</label>
+              <label className="text-sm text-ink-muted mb-2 block">Filter by Address</label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted" />
                 <Input 
                   placeholder="Enter wallet address..."
                   value={filterAddress}
                   onChange={(e) => setFilterAddress(e.target.value)}
-                  className="pl-10 bg-[#0f1419] border-white/10 text-white placeholder:text-gray-500"
+                  className="pl-10 bg-canvas border-line text-white placeholder:text-ink-faint"
                 />
               </div>
             </div>
@@ -741,46 +741,46 @@ export default function WhaleWatcher() {
         </Card>
 
         {/* Transactions Table */}
-        <Card className="bg-[#1d2d3a] border-white/10">
+        <Card className="bg-surface-1 border-line">
           <CardHeader>
             <CardTitle className="text-white">Whale Transactions</CardTitle>
-            <CardDescription className="text-gray-400">
+            <CardDescription className="text-ink-muted">
               {filteredTxs.length} large transactions detected - Click headers to sort
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             {loading ? (
               <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+                <Loader2 className="w-8 h-8 animate-spin text-brand" />
               </div>
             ) : filteredTxs.length === 0 ? (
               <div className="text-center py-20">
-                <Fish className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                <h3 className="text-xl text-gray-400 mb-2">No whale transactions found</h3>
-                <p className="text-gray-500">Try lowering the minimum amount or wait for new activity</p>
+                <Fish className="w-16 h-16 text-ink-faint mx-auto mb-4" />
+                <h3 className="text-xl text-ink-muted mb-2">No whale transactions found</h3>
+                <p className="text-ink-faint">Try lowering the minimum amount or wait for new activity</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-white/10">
-                      <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Type</th>
+                    <tr className="border-b border-line">
+                      <th className="text-left text-ink-muted text-xs font-medium px-4 py-3">Type</th>
                       <th 
-                        className="text-left text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-cyan-400 select-none"
+                        className="text-left text-ink-muted text-xs font-medium px-4 py-3 cursor-pointer hover:text-brand select-none"
                         onClick={() => { setSortField('amount'); setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc'); }}
                       >
                         Amount <SortIndicator columnKey="amount" />
                       </th>
-                      <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">From</th>
-                      <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">To</th>
+                      <th className="text-left text-ink-muted text-xs font-medium px-4 py-3">From</th>
+                      <th className="text-left text-ink-muted text-xs font-medium px-4 py-3">To</th>
                       <th 
-                        className="text-left text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-cyan-400 select-none"
+                        className="text-left text-ink-muted text-xs font-medium px-4 py-3 cursor-pointer hover:text-brand select-none"
                         onClick={() => { setSortField('slot'); setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc'); }}
                       >
                         Slot <SortIndicator columnKey="slot" />
                       </th>
                       <th 
-                        className="text-right text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-cyan-400 select-none"
+                        className="text-right text-ink-muted text-xs font-medium px-4 py-3 cursor-pointer hover:text-brand select-none"
                         onClick={() => { setSortField('timestamp'); setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc'); }}
                       >
                         Time <SortIndicator columnKey="timestamp" />
@@ -795,7 +795,7 @@ export default function WhaleWatcher() {
                       return (
                       <tr 
                         key={tx.id} 
-                        className={`border-b border-white/5 hover:bg-white/[0.02] ${tx.isNew ? 'bg-cyan-500/5' : ''}`}
+                        className={`border-b border-line hover:bg-white/[0.02] ${tx.isNew ? 'bg-brand/5' : ''}`}
                       >
                         <td className="px-4 py-3">
                           <Badge className={`${getTypeColor(tx.type)} flex items-center gap-1 w-fit`}>
@@ -805,7 +805,7 @@ export default function WhaleWatcher() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            {tx.amount >= 1000000 && <Fish className="w-4 h-4 text-yellow-400" />}
+                            {tx.amount >= 1000000 && <Fish className="w-4 h-4 text-warning" />}
                             <span className="text-white font-mono font-bold">{formatAmount(tx.amount)} XNT</span>
                           </div>
                         </td>
@@ -815,12 +815,12 @@ export default function WhaleWatcher() {
                               <Badge className={`${fromLabel.color} text-xs mb-1`}>
                                 {fromLabel.label}
                               </Badge>
-                              <div className="text-gray-500 text-xs font-mono">
+                              <div className="text-ink-faint text-xs font-mono">
                                 {tx.from.substring(0, 8)}...
                               </div>
                             </div>
                           ) : (
-                            <span className="text-cyan-400 font-mono text-sm">
+                            <span className="text-brand font-mono text-sm">
                               {tx.from.substring(0, 12)}...{tx.from.slice(-6)}
                             </span>
                           )}
@@ -831,24 +831,24 @@ export default function WhaleWatcher() {
                               <Badge className={`${toLabel.color} text-xs mb-1`}>
                                 {toLabel.label}
                               </Badge>
-                              <div className="text-gray-500 text-xs font-mono">
+                              <div className="text-ink-faint text-xs font-mono">
                                 {tx.to.substring(0, 8)}...
                               </div>
                             </div>
                           ) : (
-                            <span className="text-emerald-400 font-mono text-sm">
+                            <span className="text-positive font-mono text-sm">
                               {tx.to.substring(0, 12)}...{tx.to.slice(-6)}
                             </span>
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-gray-400 font-mono text-sm">
+                          <span className="text-ink-muted font-mono text-sm">
                             {tx.slot?.toLocaleString()}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className={`text-sm ${tx.isNew ? 'text-cyan-400' : 'text-gray-400'}`}>
-                            {tx.isNew && <span className="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse mr-2" />}
+                          <span className={`text-sm ${tx.isNew ? 'text-brand' : 'text-ink-muted'}`}>
+                            {tx.isNew && <span className="inline-block w-2 h-2 rounded-full bg-brand animate-pulse mr-2" />}
                             {formatTime(tx.timestamp)}
                           </span>
                         </td>
@@ -863,13 +863,13 @@ export default function WhaleWatcher() {
 
         {/* Alert Status */}
         {alertsEnabled && (
-          <Card className="bg-yellow-500/10 border-yellow-500/30 mt-6">
+          <Card className="bg-warning/10 border-warning/30 mt-6">
             <CardContent className="py-4">
               <div className="flex items-center gap-3">
-                <AlertTriangle className="w-5 h-5 text-yellow-400" />
+                <AlertTriangle className="w-5 h-5 text-warning" />
                 <div>
-                  <span className="text-yellow-400 font-medium">Whale Alert Active</span>
-                  <p className="text-gray-400 text-sm mt-1">
+                  <span className="text-warning font-medium">Whale Alert Active</span>
+                  <p className="text-ink-muted text-sm mt-1">
                     Browser notifications enabled for transactions ≥{formatAmount(minAmount)} XNT
                     {soundEnabled && ' · Sound alerts enabled'}
                   </p>

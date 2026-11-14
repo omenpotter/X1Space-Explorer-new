@@ -261,36 +261,36 @@ export default function Blocks() {
 
   if (loading && blocks.length === 0) {
     return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
+      <div className="min-h-screen bg-surface-1 text-white flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-brand" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#1d2d3a] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
+    <div className="min-h-screen bg-surface-1 text-white">
+      <header className="bg-surface-1 border-b border-line">
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
-                <span className="font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
+                <ChevronLeft className="w-5 h-5 text-ink-muted" />
+                <span className="font-bold"><span className="text-brand">X1</span><span className="text-white">Space</span></span>
               </Link>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
+              <Badge className="bg-brand/20 text-brand border-0 text-xs">Mainnet</Badge>
             </div>
             
             <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('Blocks')}><Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg></Button></Link>
-              <Link to={createPageUrl('Validators')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></svg></Button></Link>
-              <Link to={createPageUrl('Transactions')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg></Button></Link>
+              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
+              <Link to={createPageUrl('Blocks')}><Button variant="ghost" size="icon" className="text-brand bg-brand/10 rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg></Button></Link>
+              <Link to={createPageUrl('Validators')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></svg></Button></Link>
+              <Link to={createPageUrl('Transactions')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg></Button></Link>
             </nav>
             
             <div className="flex-1 max-w-md">
               <div className="relative">
-                <Input placeholder="Search by slot..." className="w-full bg-[#24384a] border-0 text-white placeholder:text-gray-500 pr-10 rounded-lg" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                <Button size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 bg-cyan-500 hover:bg-cyan-600 h-7 w-7 rounded"><Search className="w-4 h-4 text-black" /></Button>
+                <Input placeholder="Search by slot..." className="w-full bg-surface-2 border-0 text-white placeholder:text-ink-faint pr-10 rounded-lg" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                <Button size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 bg-brand hover:bg-brand-strong h-7 w-7 rounded"><Search className="w-4 h-4 text-black" /></Button>
               </div>
             </div>
           </div>
@@ -301,25 +301,25 @@ export default function Blocks() {
         <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-bold text-white">Recent Slots</h1>
-            <p className="text-gray-400 text-sm">Live from X1 mainnet • TPS: {tps.toLocaleString()}</p>
+            <p className="text-ink-muted text-sm">Live from X1 mainnet • TPS: {tps.toLocaleString()}</p>
           </div>
           
-          <Button onClick={() => setIsLive(!isLive)} variant="outline" className={`border-white/10 ${isLive ? 'text-emerald-400' : 'text-gray-400'}`}>
-            {isLive ? <><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-2" /><Pause className="w-4 h-4 mr-1" /> Live</> : <><Play className="w-4 h-4 mr-1" /> Paused</>}
+          <Button onClick={() => setIsLive(!isLive)} variant="outline" className={`border-line ${isLive ? 'text-positive' : 'text-ink-muted'}`}>
+            {isLive ? <><span className="w-2 h-2 rounded-full bg-positive animate-pulse mr-2" /><Pause className="w-4 h-4 mr-1" /> Live</> : <><Play className="w-4 h-4 mr-1" /> Paused</>}
           </Button>
         </div>
 
         {/* Slots View Box */}
-        <div className="bg-[#24384a] rounded-xl p-4 mb-6">
+        <div className="bg-surface-2 rounded-xl p-4 mb-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <span className="text-white font-medium">Slots View</span>
-              <div className="flex gap-1 bg-[#1d2d3a] rounded-lg p-1">
+              <div className="flex gap-1 bg-surface-1 rounded-lg p-1">
                 {['blocks', '1m', '10m'].map((mode) => (
                   <button
                     key={mode}
                     onClick={() => setViewMode(mode)}
-                    className={`px-3 py-1.5 text-xs rounded ${viewMode === mode ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
+                    className={`px-3 py-1.5 text-xs rounded ${viewMode === mode ? 'bg-brand/20 text-brand' : 'text-ink-faint hover:text-ink-soft'}`}
                   >
                     {mode === 'blocks' ? 'Blocks' : mode}
                   </button>
@@ -348,7 +348,7 @@ export default function Blocks() {
                   <MempoolBlockViz key={block.slot} block={block} isNew={block.slot === newBlockSlot || i === 0} />
                 ))
               ) : (
-                <div className="text-gray-500 py-8 w-full text-center">Loading blocks...</div>
+                <div className="text-ink-faint py-8 w-full text-center">Loading blocks...</div>
               )
             ) : (
               getAggregatedData().length > 0 ? (
@@ -356,7 +356,7 @@ export default function Blocks() {
                   <MempoolAggregatedViz key={`${viewMode}-${i}`} data={data} label={data.label} viewMode={viewMode} />
                 ))
               ) : (
-                <div className="text-gray-500 py-8 w-full text-center">
+                <div className="text-ink-faint py-8 w-full text-center">
                   Loading performance data... (requires ~{viewMode === '1m' ? '1' : '10'} minutes of data)
                 </div>
               )
@@ -366,35 +366,35 @@ export default function Blocks() {
 
         {/* Additional blocks table for blocks view */}
         {viewMode === 'blocks' && blocks.length > 10 && (
-          <div className="mt-8 bg-[#24384a] rounded-xl overflow-hidden">
-            <div className="p-4 border-b border-white/5">
+          <div className="mt-8 bg-surface-2 rounded-xl overflow-hidden">
+            <div className="p-4 border-b border-line">
               <h3 className="text-white font-medium">More Recent Slots</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-white/5">
-                    <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Slot</th>
-                    <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Block Hash</th>
-                    <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Transactions</th>
-                    <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Time</th>
+                  <tr className="border-b border-line">
+                    <th className="text-left text-ink-muted text-xs font-medium px-4 py-3">Slot</th>
+                    <th className="text-left text-ink-muted text-xs font-medium px-4 py-3">Block Hash</th>
+                    <th className="text-right text-ink-muted text-xs font-medium px-4 py-3">Transactions</th>
+                    <th className="text-right text-ink-muted text-xs font-medium px-4 py-3">Time</th>
                   </tr>
                 </thead>
                 <tbody>
                   {blocks.slice(10).map((block) => (
-                    <tr key={block.slot} className="border-b border-white/5 hover:bg-white/[0.02]">
+                    <tr key={block.slot} className="border-b border-line hover:bg-white/[0.02]">
                       <td className="px-4 py-3">
-                        <Link to={createPageUrl('BlockDetail') + `?slot=${block.slot}`} className="text-cyan-400 hover:underline font-mono">
+                        <Link to={createPageUrl('BlockDetail') + `?slot=${block.slot}`} className="text-brand hover:underline font-mono">
                           {block.slot?.toLocaleString()}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-gray-400 font-mono text-sm">
+                      <td className="px-4 py-3 text-ink-muted font-mono text-sm">
                         {block.blockhash?.substring(0, 24)}...
                       </td>
                       <td className="px-4 py-3 text-right text-white font-mono">
                         {block.txCount?.toLocaleString()}
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-400 text-sm">
+                      <td className="px-4 py-3 text-right text-ink-muted text-sm">
                         {block.blockTime ? new Date(block.blockTime * 1000).toLocaleTimeString() : '-'}
                       </td>
                     </tr>
@@ -406,10 +406,10 @@ export default function Blocks() {
         )}
 
         <div className="flex items-center justify-center gap-4 mt-8">
-          <Button variant="outline" className="border-white/10 text-gray-400 hover:text-white">
+          <Button variant="outline" className="border-line text-ink-muted hover:text-white">
             <ChevronLeft className="w-4 h-4 mr-1" /> Older Slots
           </Button>
-          <Button variant="outline" className="border-white/10 text-gray-400 hover:text-white">
+          <Button variant="outline" className="border-line text-ink-muted hover:text-white">
             Newer Slots <ChevronRight className="w-4 h-4 ml-1" />
           </Button>
         </div>

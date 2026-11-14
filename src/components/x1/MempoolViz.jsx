@@ -8,8 +8,8 @@ import { createPageUrl } from '@/utils';
 const TxBlock = memo(({ type, size = 'sm' }) => {
   const colors = {
     vote: 'bg-purple-500',
-    transfer: 'bg-emerald-500',
-    token: 'bg-yellow-500',
+    transfer: 'bg-positive',
+    token: 'bg-warning',
     other: 'bg-orange-500'
   };
   
@@ -97,12 +97,12 @@ export const MempoolAggregatedViz = memo(({ data, label, onClick, viewMode = '1m
 
   return (
     <div 
-      className="relative flex-1 min-w-[100px] max-w-[160px] h-[140px] bg-gradient-to-b from-slate-800/50 to-slate-900/50 border border-white/10 rounded-lg overflow-hidden cursor-pointer hover:border-cyan-500/50 transition-all flex flex-col"
+      className="relative flex-1 min-w-[100px] max-w-[160px] h-[140px] bg-gradient-to-b from-slate-800/50 to-slate-900/50 border border-line rounded-lg overflow-hidden cursor-pointer hover:border-brand/50 transition-all flex flex-col"
       onClick={onClick}
     >
       <div className="px-2 py-1 bg-black/40 flex items-center justify-between flex-shrink-0">
-        <span className="text-cyan-400 font-bold text-xs">{label}</span>
-        <span className="text-gray-500 text-[8px]">{slots?.toLocaleString()} slots</span>
+        <span className="text-brand font-bold text-xs">{label}</span>
+        <span className="text-ink-faint text-[8px]">{slots?.toLocaleString()} slots</span>
       </div>
       
       <div className="flex-1 px-1.5 py-1 flex flex-wrap gap-[1px] content-start overflow-hidden">
@@ -115,8 +115,8 @@ export const MempoolAggregatedViz = memo(({ data, label, onClick, viewMode = '1m
         <p className="text-white font-bold text-sm">{totalTxns?.toLocaleString()}</p>
         <div className="flex gap-1 text-[7px]">
           <span className="text-purple-400" title="Votes">{voteCount?.toLocaleString() || 0}</span>
-          <span className="text-emerald-400" title="Transfers">{transferCount?.toLocaleString() || 0}</span>
-          <span className="text-yellow-400" title="Token/Program">{programCount?.toLocaleString() || 0}</span>
+          <span className="text-positive" title="Transfers">{transferCount?.toLocaleString() || 0}</span>
+          <span className="text-warning" title="Token/Program">{programCount?.toLocaleString() || 0}</span>
           <span className="text-orange-400" title="Other">{otherCount?.toLocaleString() || 0}</span>
         </div>
       </div>
@@ -180,13 +180,13 @@ export const MempoolBlockViz = memo(({ block, isNew }) => {
       <div className={`
         relative flex-1 min-w-[100px] max-w-[140px] h-[140px]
         bg-gradient-to-b from-purple-900/30 to-slate-900/50
-        border border-white/10 rounded-lg overflow-hidden cursor-pointer
-        hover:border-cyan-500/50 transition-all flex flex-col
-        ${isNew ? 'ring-2 ring-cyan-500/50 animate-pulse' : ''}
+        border border-line rounded-lg overflow-hidden cursor-pointer
+        hover:border-brand/50 transition-all flex flex-col
+        ${isNew ? 'ring-2 ring-brand/50 animate-pulse' : ''}
       `}>
         <div className="px-2 py-1 bg-black/40 flex items-center justify-between flex-shrink-0">
-          <span className="text-cyan-400 font-mono text-[9px]">#{slot?.toLocaleString()}</span>
-          <span className="text-gray-500 text-[8px]">{formatTimeAgo(blockTime)}</span>
+          <span className="text-brand font-mono text-[9px]">#{slot?.toLocaleString()}</span>
+          <span className="text-ink-faint text-[8px]">{formatTimeAgo(blockTime)}</span>
         </div>
         
         <div className="flex-1 px-1.5 py-1 flex flex-wrap gap-[1px] content-start overflow-hidden">
@@ -199,8 +199,8 @@ export const MempoolBlockViz = memo(({ block, isNew }) => {
           <p className="text-white font-bold text-sm">{txCount?.toLocaleString()}</p>
           <div className="flex gap-1 text-[7px]">
             <span className="text-purple-400">{voteCount || 0}</span>
-            <span className="text-emerald-400">{transferCount || 0}</span>
-            <span className="text-yellow-400">{(programCount || 0) + (otherCount || 0)}</span>
+            <span className="text-positive">{transferCount || 0}</span>
+            <span className="text-warning">{(programCount || 0) + (otherCount || 0)}</span>
           </div>
         </div>
       </div>
@@ -215,19 +215,19 @@ export const MempoolLegend = memo(() => (
   <div className="flex items-center gap-4 text-xs">
     <div className="flex items-center gap-1.5">
       <div className="w-3 h-3 bg-purple-500 rounded-sm" />
-      <span className="text-gray-400">Vote</span>
+      <span className="text-ink-muted">Vote</span>
     </div>
     <div className="flex items-center gap-1.5">
-      <div className="w-3 h-3 bg-emerald-500 rounded-sm" />
-      <span className="text-gray-400">Transfer</span>
+      <div className="w-3 h-3 bg-positive rounded-sm" />
+      <span className="text-ink-muted">Transfer</span>
     </div>
     <div className="flex items-center gap-1.5">
-      <div className="w-3 h-3 bg-yellow-500 rounded-sm" />
-      <span className="text-gray-400">Token/Program</span>
+      <div className="w-3 h-3 bg-warning rounded-sm" />
+      <span className="text-ink-muted">Token/Program</span>
     </div>
     <div className="flex items-center gap-1.5">
       <div className="w-3 h-3 bg-orange-500 rounded-sm" />
-      <span className="text-gray-400">Other</span>
+      <span className="text-ink-muted">Other</span>
     </div>
   </div>
 ));
@@ -260,10 +260,10 @@ const PendingTxViz = memo(({ pendingCount = 0 }) => {
   }, [pendingCount, animTrigger]);
 
   return (
-    <div className="relative flex-1 min-w-[100px] max-w-[140px] h-[140px] bg-gradient-to-b from-cyan-900/30 to-slate-900/50 border border-dashed border-cyan-500/30 rounded-lg overflow-hidden flex flex-col">
-      <div className="px-2 py-1 bg-cyan-500/10 flex items-center justify-between flex-shrink-0">
-        <span className="text-cyan-400 font-mono text-[9px] animate-pulse">⏳ PENDING</span>
-        <span className="text-gray-500 text-[8px]">now</span>
+    <div className="relative flex-1 min-w-[100px] max-w-[140px] h-[140px] bg-gradient-to-b from-cyan-900/30 to-slate-900/50 border border-dashed border-brand/30 rounded-lg overflow-hidden flex flex-col">
+      <div className="px-2 py-1 bg-brand/10 flex items-center justify-between flex-shrink-0">
+        <span className="text-brand font-mono text-[9px] animate-pulse">⏳ PENDING</span>
+        <span className="text-ink-faint text-[8px]">now</span>
       </div>
       
       <div className="flex-1 px-1.5 py-1 flex flex-wrap gap-[1px] content-start overflow-hidden">
@@ -272,9 +272,9 @@ const PendingTxViz = memo(({ pendingCount = 0 }) => {
         ))}
       </div>
       
-      <div className="bg-cyan-500/10 px-2 py-1.5 flex-shrink-0">
-        <p className="text-cyan-400 font-bold text-sm">{pendingCount || '...'}</p>
-        <p className="text-gray-500 text-[7px]">pending txs</p>
+      <div className="bg-brand/10 px-2 py-1.5 flex-shrink-0">
+        <p className="text-brand font-bold text-sm">{pendingCount || '...'}</p>
+        <p className="text-ink-faint text-[7px]">pending txs</p>
       </div>
     </div>
   );
@@ -290,7 +290,7 @@ const MempoolViz = memo(({ mempoolInterval, recentBlocks, aggregatedBlocks, dash
   if (mempoolInterval !== 'blocks' && (!aggregatedBlocks || aggregatedBlocks.length === 0)) {
     return (
       <div className="flex items-center gap-2 overflow-x-auto">
-        <div className="text-gray-500 py-8 w-full text-center">
+        <div className="text-ink-faint py-8 w-full text-center">
           Loading {mempoolInterval} performance data...
         </div>
       </div>
@@ -301,7 +301,7 @@ const MempoolViz = memo(({ mempoolInterval, recentBlocks, aggregatedBlocks, dash
   if (mempoolInterval === 'blocks' && (!recentBlocks || recentBlocks.length === 0)) {
     return (
       <div className="flex items-center gap-2 overflow-x-auto">
-        <div className="text-gray-500 py-8 w-full text-center">
+        <div className="text-ink-faint py-8 w-full text-center">
           Loading blocks...
         </div>
       </div>

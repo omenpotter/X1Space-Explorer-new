@@ -43,6 +43,8 @@ export async function fetchIdentities(rpc: RpcCall): Promise<Map<string, Validat
 export interface NodeLocation {
   country: string | null;
   countryCode: string | null;
+  /** Two-letter continent code from the provider (NA, SA, EU, AF, AS, OC, AN), when known. */
+  continent: string | null;
   lat: number;
   lon: number;
   /** 'city' when the provider reports a tight radius, otherwise 'country' (a country centroid). */
@@ -84,6 +86,7 @@ function toRecord(g: any): GeoRecord {
     loc: {
       country: typeof g.country === 'string' ? cleanString(g.country, 60) : null,
       countryCode: typeof g.country_code === 'string' ? cleanString(g.country_code, 2).toUpperCase() : null,
+      continent: typeof g.continent_code === 'string' && /^[A-Za-z]{2}$/.test(g.continent_code) ? g.continent_code.toUpperCase() : null,
       // One decimal place (about 11 km): enough for a map, not enough to pinpoint a site.
       lat: Math.round(lat * 10) / 10,
       lon: Math.round(lon * 10) / 10,

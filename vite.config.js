@@ -12,5 +12,23 @@ export default defineConfig({
       legacySDKImports: process.env.BASE44_LEGACY_SDK_IMPORTS === 'true'
     }),
     react(),
-  ]
+  ],
+  build: {
+    // No source maps in production bundles.
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        // Stable vendor chunks: they change rarely, so browsers keep them cached across releases.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id)) return 'react';
+          if (/[\\/]node_modules[\\/](recharts|d3-[^\\/]+|victory-vendor)[\\/]/.test(id)) return 'charts';
+          if (/[\\/]node_modules[\\/](@radix-ui|cmdk|vaul|lucide-react)[\\/]/.test(id)) return 'ui';
+          if (/[\\/]node_modules[\\/](framer-motion|motion-dom|motion-utils)[\\/]/.test(id)) return 'motion';
+          if (/[\\/]node_modules[\\/](html2canvas|jspdf|fflate|canvg|dompurify)[\\/]/.test(id)) return 'export';
+          return undefined;
+        },
+      },
+    },
+  },
 });

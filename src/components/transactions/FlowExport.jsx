@@ -84,18 +84,18 @@ const FlowExport = memo(function FlowExport({ flowData, transactions, graphRef }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="border-white/10 text-gray-400 hover:text-white">
+        <Button variant="outline" size="sm" className="border-line text-ink-muted hover:text-white">
           <Download className="w-4 h-4 mr-2" /> Export
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="bg-[#24384a] border-white/10">
-        <DropdownMenuItem onClick={exportAsJSON} className="text-gray-300 hover:text-white cursor-pointer">
+      <DropdownMenuContent className="bg-surface-2 border-line">
+        <DropdownMenuItem onClick={exportAsJSON} className="text-ink-soft hover:text-white cursor-pointer">
           <FileJson className="w-4 h-4 mr-2" /> Export as JSON
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={exportAsImage} className="text-gray-300 hover:text-white cursor-pointer">
+        <DropdownMenuItem onClick={exportAsImage} className="text-ink-soft hover:text-white cursor-pointer">
           <Image className="w-4 h-4 mr-2" /> Export as SVG
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={exportAsCSV} className="text-gray-300 hover:text-white cursor-pointer">
+        <DropdownMenuItem onClick={exportAsCSV} className="text-ink-soft hover:text-white cursor-pointer">
           <Download className="w-4 h-4 mr-2" /> Export as CSV
         </DropdownMenuItem>
       </DropdownMenuContent>

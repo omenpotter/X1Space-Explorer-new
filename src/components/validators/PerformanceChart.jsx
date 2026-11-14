@@ -23,8 +23,8 @@ export default function PerformanceChart({
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-[#1d2d3a] border border-white/10 rounded-lg p-2 text-sm">
-          <p className="text-gray-400">{label}</p>
+        <div className="bg-surface-1 border border-line rounded-lg p-2 text-sm">
+          <p className="text-ink-muted">{label}</p>
           <p className="text-white font-medium">
             {formatValue(payload[0].value)}{unit}
           </p>
@@ -38,8 +38,8 @@ export default function PerformanceChart({
   const DataComponent = type === 'area' ? Area : Line;
 
   return (
-    <div className="bg-[#24384a] rounded-xl p-4">
-      <h3 className="text-gray-400 text-xs mb-3">{title}</h3>
+    <div className="bg-surface-2 rounded-xl p-4">
+      <h3 className="text-ink-muted text-xs mb-3">{title}</h3>
       <div style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
           <ChartComponent data={data} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>

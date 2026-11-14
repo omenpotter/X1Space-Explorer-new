@@ -102,36 +102,36 @@ export default function Validators() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
+      <div className="min-h-screen bg-surface-1 text-white flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-brand" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#1d2d3a] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
+    <div className="min-h-screen bg-surface-1 text-white">
+      <header className="bg-surface-1 border-b border-line">
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
-                <span className="font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
+                <ChevronLeft className="w-5 h-5 text-ink-muted" />
+                <span className="font-bold"><span className="text-brand">X1</span><span className="text-white">Space</span></span>
               </Link>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
+              <Badge className="bg-brand/20 text-brand border-0 text-xs">Mainnet</Badge>
             </div>
             
             <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('Blocks')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg></Button></Link>
-              <Link to={createPageUrl('Validators')}><Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></svg></Button></Link>
-              <Link to={createPageUrl('Transactions')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg></Button></Link>
+              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
+              <Link to={createPageUrl('Blocks')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg></Button></Link>
+              <Link to={createPageUrl('Validators')}><Button variant="ghost" size="icon" className="text-brand bg-brand/10 rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></svg></Button></Link>
+              <Link to={createPageUrl('Transactions')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg></Button></Link>
             </nav>
             
             <div className="flex-1 max-w-md">
               <div className="relative">
-                <Input placeholder="Search validators..." className="w-full bg-[#24384a] border-0 text-white placeholder:text-gray-500 pr-10 rounded-lg" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                <Button size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 bg-cyan-500 hover:bg-cyan-600 h-7 w-7 rounded"><Search className="w-4 h-4 text-black" /></Button>
+                <Input placeholder="Search validators..." className="w-full bg-surface-2 border-0 text-white placeholder:text-ink-faint pr-10 rounded-lg" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                <Button size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 bg-brand hover:bg-brand-strong h-7 w-7 rounded"><Search className="w-4 h-4 text-black" /></Button>
               </div>
             </div>
           </div>
@@ -139,8 +139,8 @@ export default function Validators() {
       </header>
 
       {error && (
-        <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2">
-          <div className="max-w-[1800px] mx-auto flex items-center gap-2 text-red-400 text-sm">
+        <div className="bg-negative/10 border-b border-negative/20 px-4 py-2">
+          <div className="max-w-[1800px] mx-auto flex items-center gap-2 text-negative text-sm">
             <AlertCircle className="w-4 h-4" /><span>{error}</span>
           </div>
         </div>
@@ -149,25 +149,25 @@ export default function Validators() {
       <main className="max-w-[1800px] mx-auto px-4 py-6">
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Total Validators</p>
+          <div className="bg-surface-2 rounded-xl p-4">
+            <p className="text-ink-muted text-xs mb-1">Total Validators</p>
             <p className="text-2xl font-bold text-white">{stats.total}</p>
           </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Active</p>
-            <p className="text-2xl font-bold text-emerald-400">{stats.active}</p>
+          <div className="bg-surface-2 rounded-xl p-4">
+            <p className="text-ink-muted text-xs mb-1">Active</p>
+            <p className="text-2xl font-bold text-positive">{stats.active}</p>
           </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Delinquent</p>
-            <p className="text-2xl font-bold text-red-400">{stats.delinquent}</p>
+          <div className="bg-surface-2 rounded-xl p-4">
+            <p className="text-ink-muted text-xs mb-1">Delinquent</p>
+            <p className="text-2xl font-bold text-negative">{stats.delinquent}</p>
           </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Total Stake</p>
-            <p className="text-2xl font-bold text-cyan-400">{formatStake(stats.totalStake)} XNT</p>
+          <div className="bg-surface-2 rounded-xl p-4">
+            <p className="text-ink-muted text-xs mb-1">Total Stake</p>
+            <p className="text-2xl font-bold text-brand">{formatStake(stats.totalStake)} XNT</p>
           </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Avg Uptime</p>
-            <p className="text-2xl font-bold text-emerald-400">{stats.avgUptime}%</p>
+          <div className="bg-surface-2 rounded-xl p-4">
+            <p className="text-ink-muted text-xs mb-1">Avg Uptime</p>
+            <p className="text-2xl font-bold text-positive">{stats.avgUptime}%</p>
           </div>
         </div>
 
@@ -181,19 +181,19 @@ export default function Validators() {
           <h2 className="text-lg font-semibold text-white">All Validators</h2>
           <div className="flex items-center gap-2 flex-wrap">
             <Link to={createPageUrl('Leaderboard')}>
-              <Button variant="outline" size="sm" className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10">
+              <Button variant="outline" size="sm" className="border-warning/30 text-warning hover:bg-warning/10">
                 <Trophy className="w-4 h-4 mr-2" />
                 Leaderboard
               </Button>
             </Link>
             <Link to={createPageUrl('Watchlist')}>
-              <Button variant="outline" size="sm" className="border-white/10 text-gray-400 hover:text-white">
+              <Button variant="outline" size="sm" className="border-line text-ink-muted hover:text-white">
                 <Star className="w-4 h-4 mr-2" />
                 Watchlist
               </Button>
             </Link>
             <Link to={createPageUrl('ValidatorCompare')}>
-              <Button variant="outline" size="sm" className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10">
+              <Button variant="outline" size="sm" className="border-brand/30 text-brand hover:bg-brand/10">
                 <Scale className="w-4 h-4 mr-2" />
                 Compare
               </Button>
@@ -215,7 +215,7 @@ export default function Validators() {
               onClick={() => fetchValidators(true)} 
               variant="outline" 
               size="sm" 
-              className="border-white/10 text-gray-400 hover:text-white"
+              className="border-line text-ink-muted hover:text-white"
               disabled={refreshing}
             >
               <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
@@ -224,29 +224,29 @@ export default function Validators() {
           </div>
         </div>
 
-        <div className="bg-[#24384a] rounded-xl overflow-hidden">
+        <div className="bg-surface-2 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-white/5">
-                  <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">#</th>
-                  <th className="text-left text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('name')}>
+                <tr className="border-b border-line">
+                  <th className="text-left text-ink-muted text-xs font-medium px-4 py-3">#</th>
+                  <th className="text-left text-ink-muted text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('name')}>
                     <div className="flex items-center gap-1">Validator <ArrowUpDown className="w-3 h-3" /></div>
                   </th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('activatedStake')}>
+                  <th className="text-right text-ink-muted text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('activatedStake')}>
                     <div className="flex items-center justify-end gap-1">Stake <ArrowUpDown className="w-3 h-3" /></div>
                   </th>
-                  <th className="text-center text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('commission')}>
+                  <th className="text-center text-ink-muted text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('commission')}>
                     <div className="flex items-center justify-center gap-1">Commission <ArrowUpDown className="w-3 h-3" /></div>
                   </th>
-                  <th className="text-center text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('uptime')}>
+                  <th className="text-center text-ink-muted text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('uptime')}>
                     <div className="flex items-center justify-center gap-1">Performance <ArrowUpDown className="w-3 h-3" /></div>
                   </th>
-                  <th className="text-center text-gray-400 text-xs font-medium px-4 py-3">Version</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('lastVote')}>
+                  <th className="text-center text-ink-muted text-xs font-medium px-4 py-3">Version</th>
+                  <th className="text-right text-ink-muted text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('lastVote')}>
                     <div className="flex items-center justify-end gap-1">Last Vote <ArrowUpDown className="w-3 h-3" /></div>
                   </th>
-                  <th className="text-center text-gray-400 text-xs font-medium px-4 py-3">Status</th>
+                  <th className="text-center text-ink-muted text-xs font-medium px-4 py-3">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -264,14 +264,14 @@ export default function Validators() {
         </div>
 
         <div className="flex items-center justify-between mt-6">
-          <p className="text-gray-400 text-sm">
+          <p className="text-ink-muted text-sm">
             Showing <span className="text-white">{(page - 1) * perPage + 1}-{Math.min(page * perPage, filteredValidators.length)}</span> of <span className="text-white">{filteredValidators.length}</span>
           </p>
           <div className="flex items-center gap-2">
             <Button 
               variant="outline" 
               size="sm" 
-              className="border-white/10 text-gray-400 disabled:opacity-30"
+              className="border-line text-ink-muted disabled:opacity-30"
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
             >
@@ -293,7 +293,7 @@ export default function Validators() {
                   key={pageNum}
                   variant="outline" 
                   size="sm" 
-                  className={`border-white/10 ${page === pageNum ? 'bg-cyan-500/10 text-cyan-400' : 'text-gray-400'}`}
+                  className={`border-line ${page === pageNum ? 'bg-brand/10 text-brand' : 'text-ink-muted'}`}
                   onClick={() => setPage(pageNum)}
                 >
                   {pageNum}
@@ -303,7 +303,7 @@ export default function Validators() {
             <Button 
               variant="outline" 
               size="sm" 
-              className="border-white/10 text-gray-400 disabled:opacity-30"
+              className="border-line text-ink-muted disabled:opacity-30"
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
             >

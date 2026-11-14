@@ -118,23 +118,23 @@ export default function ProgramDecoder({ instruction, accounts }) {
   const decoded = decodeInstruction(programId, instruction?.data);
   
   const colorClasses = {
-    cyan: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
-    yellow: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+    cyan: 'bg-brand/20 text-brand border-brand/30',
+    yellow: 'bg-warning/20 text-warning border-warning/30',
     amber: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
     purple: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-    red: 'bg-red-500/20 text-red-400 border-red-500/30',
+    red: 'bg-negative/20 text-negative border-negative/30',
     blue: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
     green: 'bg-green-500/20 text-green-400 border-green-500/30',
-    gray: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+    gray: 'bg-gray-500/20 text-ink-muted border-gray-500/30',
   };
 
   return (
-    <div className="bg-[#1d2d3a] rounded-lg p-4 border border-white/5">
+    <div className="bg-surface-1 rounded-lg p-4 border border-line">
       <div className="flex items-center gap-3 mb-3">
         <span className="text-xl">{programInfo.icon}</span>
         <div>
           <p className="text-white font-medium">{programInfo.name}</p>
-          <p className="text-gray-500 font-mono text-xs">{programId.substring(0, 16)}...</p>
+          <p className="text-ink-faint font-mono text-xs">{programId.substring(0, 16)}...</p>
         </div>
         <Badge className={`ml-auto border ${colorClasses[programInfo.color]}`}>
           {decoded.type}
@@ -142,12 +142,12 @@ export default function ProgramDecoder({ instruction, accounts }) {
       </div>
       
       {Object.keys(decoded.details).length > 0 && (
-        <div className="bg-[#24384a] rounded p-3 mb-3">
-          <p className="text-gray-400 text-xs mb-2">Decoded Data</p>
+        <div className="bg-surface-2 rounded p-3 mb-3">
+          <p className="text-ink-muted text-xs mb-2">Decoded Data</p>
           {Object.entries(decoded.details).map(([key, value]) => (
             <div key={key} className="flex justify-between text-sm">
-              <span className="text-gray-500 capitalize">{key}:</span>
-              <span className="text-cyan-400 font-mono">
+              <span className="text-ink-faint capitalize">{key}:</span>
+              <span className="text-brand font-mono">
                 {typeof value === 'number' ? value.toLocaleString() : value}
                 {key === 'lamports' && ' XNT'}
               </span>
@@ -158,17 +158,17 @@ export default function ProgramDecoder({ instruction, accounts }) {
       
       {accounts && accounts.length > 0 && (
         <div>
-          <p className="text-gray-400 text-xs mb-2">Accounts ({accounts.length})</p>
+          <p className="text-ink-muted text-xs mb-2">Accounts ({accounts.length})</p>
           <div className="space-y-1">
             {accounts.slice(0, 5).map((acc, i) => (
               <div key={i} className="flex items-center gap-2 text-xs">
-                <span className="text-gray-500 w-4">{i}</span>
-                <code className="text-cyan-400/70 font-mono flex-1 truncate">{acc}</code>
-                {i === 0 && <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-[10px]">Signer</Badge>}
+                <span className="text-ink-faint w-4">{i}</span>
+                <code className="text-brand/70 font-mono flex-1 truncate">{acc}</code>
+                {i === 0 && <Badge className="bg-positive/20 text-positive border-0 text-[10px]">Signer</Badge>}
               </div>
             ))}
             {accounts.length > 5 && (
-              <p className="text-gray-500 text-xs">+{accounts.length - 5} more accounts</p>
+              <p className="text-ink-faint text-xs">+{accounts.length - 5} more accounts</p>
             )}
           </div>
         </div>

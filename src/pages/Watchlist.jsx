@@ -175,29 +175,29 @@ export default function Watchlist() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
+      <div className="min-h-screen bg-surface-1 text-white flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-brand" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#1d2d3a] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
+    <div className="min-h-screen bg-surface-1 text-white">
+      <header className="bg-surface-1 border-b border-line">
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-gradient-to-br from-brand to-blue-500 rounded-lg flex items-center justify-center">
                   <span className="text-black font-black text-sm">X1</span>
                 </div>
-                <span className="font-bold hidden sm:inline"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
+                <span className="font-bold hidden sm:inline"><span className="text-brand">X1</span><span className="text-white">Space</span></span>
               </Link>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
+              <Badge className="bg-brand/20 text-brand border-0 text-xs">Mainnet</Badge>
             </div>
             <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('Watchlist')}><Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg"><Star className="w-5 h-5" /></Button></Link>
+              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
+              <Link to={createPageUrl('Watchlist')}><Button variant="ghost" size="icon" className="text-brand bg-brand/10 rounded-lg"><Star className="w-5 h-5" /></Button></Link>
             </nav>
           </div>
         </div>
@@ -206,17 +206,17 @@ export default function Watchlist() {
       <main className="max-w-4xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-            <Star className="w-7 h-7 text-yellow-400" />
+            <Star className="w-7 h-7 text-warning" />
             Watchlist
           </h1>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-          <TabsList className="bg-[#24384a] border-0">
-            <TabsTrigger value="validators" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400">
+          <TabsList className="bg-surface-2 border-0">
+            <TabsTrigger value="validators" className="data-[state=active]:bg-brand/20 data-[state=active]:text-brand">
               Validators ({watchlist.length})
             </TabsTrigger>
-            <TabsTrigger value="addresses" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400">
+            <TabsTrigger value="addresses" className="data-[state=active]:bg-brand/20 data-[state=active]:text-brand">
               Addresses ({addressWatchlist.length})
             </TabsTrigger>
           </TabsList>
@@ -225,7 +225,7 @@ export default function Watchlist() {
             <div className="flex justify-end mb-4">
               <Button 
                 onClick={() => setShowAdd(!showAdd)} 
-                className="bg-cyan-500 hover:bg-cyan-600"
+                className="bg-brand hover:bg-brand-strong"
               >
                 <Plus className="w-4 h-4 mr-2" /> Add Validator
               </Button>
@@ -233,12 +233,12 @@ export default function Watchlist() {
 
             {/* Add Validator Panel */}
             {showAdd && (
-          <div className="bg-[#24384a] rounded-xl p-4 mb-6">
+          <div className="bg-surface-2 rounded-xl p-4 mb-6">
             <Input
               placeholder="Search validators..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-[#1d2d3a] border-0 text-white mb-4"
+              className="bg-surface-1 border-0 text-white mb-4"
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[300px] overflow-y-auto">
               {filteredValidators.slice(0, 20).map((v) => {
@@ -248,14 +248,14 @@ export default function Watchlist() {
                   <button
                     key={v.votePubkey}
                     onClick={() => addToWatchlist({...v, name: displayName, icon})}
-                    className="flex items-center gap-3 p-3 bg-[#1d2d3a] rounded-lg hover:bg-[#263d50] transition-colors text-left"
+                    className="flex items-center gap-3 p-3 bg-surface-1 rounded-lg hover:bg-surface-3 transition-colors text-left"
                   >
                     <span>{icon}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-white text-sm truncate">{displayName}</p>
-                      <p className="text-gray-500 text-xs">{formatStake(v.activatedStake)} XNT</p>
+                      <p className="text-ink-faint text-xs">{formatStake(v.activatedStake)} XNT</p>
                     </div>
-                    <Plus className="w-4 h-4 text-cyan-400" />
+                    <Plus className="w-4 h-4 text-brand" />
                   </button>
                 );
               })}
@@ -265,34 +265,34 @@ export default function Watchlist() {
 
             {/* Watchlist */}
             {watchlist.length === 0 ? (
-              <div className="bg-[#24384a] rounded-xl p-8 text-center">
-                <Star className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400">Your watchlist is empty</p>
-                <p className="text-gray-500 text-sm mt-2">Add validators to track their performance</p>
+              <div className="bg-surface-2 rounded-xl p-8 text-center">
+                <Star className="w-12 h-12 text-ink-faint mx-auto mb-4" />
+                <p className="text-ink-muted">Your watchlist is empty</p>
+                <p className="text-ink-faint text-sm mt-2">Add validators to track their performance</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {watchlist.map((item) => {
                   const data = getValidatorData(item.votePubkey);
                   return (
-                    <div key={item.votePubkey} className="bg-[#24384a] rounded-xl p-4">
+                    <div key={item.votePubkey} className="bg-surface-2 rounded-xl p-4">
                       <div className="flex items-center gap-4">
                         <span className="text-2xl">{item.icon || '🔷'}</span>
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <p className="text-white font-medium">{item.name || item.votePubkey.substring(0, 12) + '...'}</p>
                             {data?.delinquent && (
-                              <Badge className="bg-red-500/20 text-red-400 border-0 text-xs">Delinquent</Badge>
+                              <Badge className="bg-negative/20 text-negative border-0 text-xs">Delinquent</Badge>
                             )}
                           </div>
                           {data && (
                             <div className="flex items-center gap-4 mt-1 text-sm">
-                              <span className="text-cyan-400">{formatStake(data.activatedStake)} XNT</span>
-                              <span className={`flex items-center gap-1 ${data.uptime >= 99 ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                              <span className="text-brand">{formatStake(data.activatedStake)} XNT</span>
+                              <span className={`flex items-center gap-1 ${data.uptime >= 99 ? 'text-positive' : 'text-warning'}`}>
                                 {data.uptime >= 99 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                                 {data.uptime?.toFixed(1)}% uptime
                               </span>
-                              <span className="text-gray-500">{data.commission}% comm</span>
+                              <span className="text-ink-faint">{data.commission}% comm</span>
                             </div>
                           )}
                         </div>
@@ -301,12 +301,12 @@ export default function Watchlist() {
                             variant="ghost"
                             size="icon"
                             onClick={() => toggleAlerts(item.votePubkey)}
-                            className={item.alerts ? 'text-yellow-400' : 'text-gray-500'}
+                            className={item.alerts ? 'text-warning' : 'text-ink-faint'}
                           >
                             {item.alerts ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
                           </Button>
                           <Link to={createPageUrl('ValidatorDetail') + `?id=${item.votePubkey}`}>
-                            <Button variant="ghost" size="icon" className="text-gray-400 hover:text-cyan-400">
+                            <Button variant="ghost" size="icon" className="text-ink-muted hover:text-brand">
                               <ExternalLink className="w-4 h-4" />
                             </Button>
                           </Link>
@@ -314,7 +314,7 @@ export default function Watchlist() {
                             variant="ghost"
                             size="icon"
                             onClick={() => removeFromWatchlist(item.votePubkey)}
-                            className="text-gray-500 hover:text-red-400"
+                            className="text-ink-faint hover:text-negative"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -329,22 +329,22 @@ export default function Watchlist() {
 
           <TabsContent value="addresses" className="mt-4">
             {/* Add Address */}
-            <div className="bg-[#24384a] rounded-xl p-4 mb-4">
+            <div className="bg-surface-2 rounded-xl p-4 mb-4">
               <div className="flex gap-2">
                 <Input
                   placeholder="Enter X1 address to watch..."
                   value={addressInput}
                   onChange={(e) => setAddressInput(e.target.value)}
-                  className="bg-[#1d2d3a] border-0 text-white flex-1 font-mono text-sm"
+                  className="bg-surface-1 border-0 text-white flex-1 font-mono text-sm"
                 />
-                <Button onClick={addAddress} className="bg-cyan-500 hover:bg-cyan-600">
+                <Button onClick={addAddress} className="bg-brand hover:bg-brand-strong">
                   <Plus className="w-4 h-4 mr-2" /> Add
                 </Button>
                 {addressWatchlist.length > 0 && (
                   <Button 
                     onClick={refreshAddressData} 
                     variant="outline" 
-                    className="border-white/10"
+                    className="border-line"
                     disabled={refreshingAddresses}
                   >
                     <RefreshCw className={`w-4 h-4 ${refreshingAddresses ? 'animate-spin' : ''}`} />
@@ -355,19 +355,19 @@ export default function Watchlist() {
 
             {/* Address Watchlist */}
             {addressWatchlist.length === 0 ? (
-              <div className="bg-[#24384a] rounded-xl p-8 text-center">
-                <Wallet className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400">No addresses tracked</p>
-                <p className="text-gray-500 text-sm mt-2">Add X1 addresses to monitor their balance and activity</p>
+              <div className="bg-surface-2 rounded-xl p-8 text-center">
+                <Wallet className="w-12 h-12 text-ink-faint mx-auto mb-4" />
+                <p className="text-ink-muted">No addresses tracked</p>
+                <p className="text-ink-faint text-sm mt-2">Add X1 addresses to monitor their balance and activity</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {addressWatchlist.map((item) => {
                   const data = addressData[item.address] || {};
                   return (
-                    <div key={item.address} className="bg-[#24384a] rounded-xl p-4">
+                    <div key={item.address} className="bg-surface-2 rounded-xl p-4">
                       <div className="flex items-center gap-4">
-                        <Wallet className="w-8 h-8 text-cyan-400" />
+                        <Wallet className="w-8 h-8 text-brand" />
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <Input
@@ -376,18 +376,18 @@ export default function Watchlist() {
                               onChange={(e) => updateAddressLabel(item.address, e.target.value)}
                               className="bg-transparent border-0 text-white font-medium p-0 h-auto w-40"
                             />
-                            <p className="text-gray-500 font-mono text-xs">
+                            <p className="text-ink-faint font-mono text-xs">
                               {item.address.substring(0, 8)}...{item.address.substring(item.address.length - 6)}
                             </p>
                           </div>
                           <div className="flex items-center gap-4 mt-1 text-sm">
-                            <span className="text-cyan-400 font-bold">{data.balance?.toFixed(4) || '...'} XNT</span>
-                            <span className="text-gray-500 flex items-center gap-1">
+                            <span className="text-brand font-bold">{data.balance?.toFixed(4) || '...'} XNT</span>
+                            <span className="text-ink-faint flex items-center gap-1">
                               <History className="w-3 h-3" />
                               {data.recentTxCount || 0} recent txs
                             </span>
                             {data.lastTx && (
-                              <span className="text-gray-500 text-xs">
+                              <span className="text-ink-faint text-xs">
                                 Last: {data.lastTx.toLocaleDateString()}
                               </span>
                             )}
@@ -395,7 +395,7 @@ export default function Watchlist() {
                         </div>
                         <div className="flex items-center gap-2">
                           <Link to={createPageUrl('AddressLookup') + `?address=${item.address}`}>
-                            <Button variant="ghost" size="icon" className="text-gray-400 hover:text-cyan-400">
+                            <Button variant="ghost" size="icon" className="text-ink-muted hover:text-brand">
                               <ExternalLink className="w-4 h-4" />
                             </Button>
                           </Link>
@@ -403,7 +403,7 @@ export default function Watchlist() {
                             variant="ghost"
                             size="icon"
                             onClick={() => removeAddress(item.address)}
-                            className="text-gray-500 hover:text-red-400"
+                            className="text-ink-faint hover:text-negative"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>

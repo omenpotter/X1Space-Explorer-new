@@ -123,18 +123,18 @@ export default function ValidatorDetail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
+      <div className="min-h-screen bg-surface-1 text-white flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-brand" />
       </div>
     );
   }
 
   if (error || !validator) {
     return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
+      <div className="min-h-screen bg-surface-1 text-white flex items-center justify-center">
         <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <p className="text-red-400">{error || 'Validator not found'}</p>
+          <AlertCircle className="w-12 h-12 text-negative mx-auto mb-4" />
+          <p className="text-negative">{error || 'Validator not found'}</p>
           <Link to={createPageUrl('Validators')}>
             <Button className="mt-4" variant="outline">Back to Validators</Button>
           </Link>
@@ -144,27 +144,27 @@ export default function ValidatorDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-[#1d2d3a] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
+    <div className="min-h-screen bg-surface-1 text-white">
+      <header className="bg-surface-1 border-b border-line">
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-gradient-to-br from-brand to-blue-500 rounded-lg flex items-center justify-center">
                   <span className="text-black font-black text-sm">X1</span>
                 </div>
-                <span className="font-bold hidden sm:inline"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
+                <span className="font-bold hidden sm:inline"><span className="text-brand">X1</span><span className="text-white">Space</span></span>
               </Link>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
+              <Badge className="bg-brand/20 text-brand border-0 text-xs">Mainnet</Badge>
             </div>
             
             <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('Validators')}><Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></svg></Button></Link>
+              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
+              <Link to={createPageUrl('Validators')}><Button variant="ghost" size="icon" className="text-brand bg-brand/10 rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></svg></Button></Link>
             </nav>
 
             <Link to={createPageUrl('Validators')}>
-              <Button variant="outline" size="sm" className="border-white/10 text-gray-400 hover:text-white">
+              <Button variant="outline" size="sm" className="border-line text-ink-muted hover:text-white">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back
               </Button>
             </Link>
@@ -174,9 +174,9 @@ export default function ValidatorDetail() {
 
       <main className="max-w-[1800px] mx-auto px-4 py-6">
         {/* Validator Header */}
-        <div className="bg-[#24384a] rounded-xl p-6 mb-6">
+        <div className="bg-surface-2 rounded-xl p-6 mb-6">
           <div className="flex flex-col md:flex-row md:items-center gap-6">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-500/30 flex items-center justify-center text-3xl shrink-0">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-brand/30 to-blue-500/30 flex items-center justify-center text-3xl shrink-0">
               {validator.icon || '🔷'}
             </div>
             <div className="flex-1">
@@ -185,25 +185,25 @@ export default function ValidatorDetail() {
                   {validator.name || `Validator ${validator.votePubkey.substring(0, 8)}...`}
                 </h1>
                 {validator.delinquent ? (
-                  <Badge className="bg-red-500/20 text-red-400 border-0">Delinquent</Badge>
+                  <Badge className="bg-negative/20 text-negative border-0">Delinquent</Badge>
                 ) : (
-                  <Badge className="bg-emerald-500/20 text-emerald-400 border-0">Active</Badge>
+                  <Badge className="bg-positive/20 text-positive border-0">Active</Badge>
                 )}
               </div>
               
               <div className="flex flex-wrap items-center gap-4 text-sm">
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-400">Vote:</span>
-                  <code className="text-cyan-400 font-mono">{validator.votePubkey.substring(0, 16)}...</code>
-                  <button onClick={() => copyToClipboard(validator.votePubkey, 'vote')} className="text-gray-500 hover:text-white">
-                    {copied === 'vote' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  <span className="text-ink-muted">Vote:</span>
+                  <code className="text-brand font-mono">{validator.votePubkey.substring(0, 16)}...</code>
+                  <button onClick={() => copyToClipboard(validator.votePubkey, 'vote')} className="text-ink-faint hover:text-white">
+                    {copied === 'vote' ? <Check className="w-4 h-4 text-positive" /> : <Copy className="w-4 h-4" />}
                   </button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-400">Node:</span>
-                  <code className="text-cyan-400 font-mono">{validator.nodePubkey.substring(0, 16)}...</code>
-                  <button onClick={() => copyToClipboard(validator.nodePubkey, 'node')} className="text-gray-500 hover:text-white">
-                    {copied === 'node' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  <span className="text-ink-muted">Node:</span>
+                  <code className="text-brand font-mono">{validator.nodePubkey.substring(0, 16)}...</code>
+                  <button onClick={() => copyToClipboard(validator.nodePubkey, 'node')} className="text-ink-faint hover:text-white">
+                    {copied === 'node' ? <Check className="w-4 h-4 text-positive" /> : <Copy className="w-4 h-4" />}
                   </button>
                 </div>
                 {validator.website && (
@@ -211,7 +211,7 @@ export default function ValidatorDetail() {
                     href={safeUrl(validator.website)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-cyan-400 hover:underline"
+                    className="flex items-center gap-1 text-brand hover:underline"
                   >
                     <ExternalLink className="w-4 h-4" /> Website
                   </a>
@@ -223,45 +223,45 @@ export default function ValidatorDetail() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <div className="flex items-center gap-2 text-gray-400 text-xs mb-2">
+          <div className="bg-surface-2 rounded-xl p-4">
+            <div className="flex items-center gap-2 text-ink-muted text-xs mb-2">
               <Award className="w-4 h-4" /> Stake
             </div>
-            <p className="text-xl font-bold text-cyan-400">{formatStake(validator.activatedStake)} XNT</p>
-            <p className="text-gray-500 text-xs">{validator.stakePercent}% of network</p>
+            <p className="text-xl font-bold text-brand">{formatStake(validator.activatedStake)} XNT</p>
+            <p className="text-ink-faint text-xs">{validator.stakePercent}% of network</p>
           </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <div className="flex items-center gap-2 text-gray-400 text-xs mb-2">
+          <div className="bg-surface-2 rounded-xl p-4">
+            <div className="flex items-center gap-2 text-ink-muted text-xs mb-2">
               <Activity className="w-4 h-4" /> Uptime
             </div>
-            <p className={`text-xl font-bold ${validator.uptime >= 99 ? 'text-emerald-400' : validator.uptime >= 95 ? 'text-yellow-400' : 'text-red-400'}`}>
+            <p className={`text-xl font-bold ${validator.uptime >= 99 ? 'text-positive' : validator.uptime >= 95 ? 'text-warning' : 'text-negative'}`}>
               {validator.uptime?.toFixed(1)}%
             </p>
           </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <div className="flex items-center gap-2 text-gray-400 text-xs mb-2">
-              {validator.skipRate < 1 ? <TrendingUp className="w-4 h-4 text-emerald-400" /> : <TrendingDown className="w-4 h-4 text-red-400" />}
+          <div className="bg-surface-2 rounded-xl p-4">
+            <div className="flex items-center gap-2 text-ink-muted text-xs mb-2">
+              {validator.skipRate < 1 ? <TrendingUp className="w-4 h-4 text-positive" /> : <TrendingDown className="w-4 h-4 text-negative" />}
               Skip Rate
             </div>
             <p className="text-xl font-bold text-white">{validator.skipRate?.toFixed(2)}%</p>
           </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <div className="flex items-center gap-2 text-gray-400 text-xs mb-2">
+          <div className="bg-surface-2 rounded-xl p-4">
+            <div className="flex items-center gap-2 text-ink-muted text-xs mb-2">
               Commission
             </div>
-            <p className={`text-xl font-bold ${validator.commission === 0 ? 'text-emerald-400' : 'text-white'}`}>
+            <p className={`text-xl font-bold ${validator.commission === 0 ? 'text-positive' : 'text-white'}`}>
               {validator.commission}%
             </p>
           </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <div className="flex items-center gap-2 text-gray-400 text-xs mb-2">
+          <div className="bg-surface-2 rounded-xl p-4">
+            <div className="flex items-center gap-2 text-ink-muted text-xs mb-2">
               <Clock className="w-4 h-4" /> Last Vote
             </div>
             <p className="text-xl font-bold text-white font-mono">{validator.lastVote?.toLocaleString()}</p>
-            <p className="text-gray-500 text-xs">Lag: {validator.voteLag}</p>
+            <p className="text-ink-faint text-xs">Lag: {validator.voteLag}</p>
           </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <div className="flex items-center gap-2 text-gray-400 text-xs mb-2">
+          <div className="bg-surface-2 rounded-xl p-4">
+            <div className="flex items-center gap-2 text-ink-muted text-xs mb-2">
               <Server className="w-4 h-4" /> Version
             </div>
             <p className="text-xl font-bold text-blue-400 font-mono">{validator.version}</p>
@@ -270,13 +270,13 @@ export default function ValidatorDetail() {
 
         {/* Time Range Selector */}
         <div className="flex items-center gap-2 mb-4">
-          <span className="text-gray-400 text-sm">Time Range:</span>
+          <span className="text-ink-muted text-sm">Time Range:</span>
           {['7d', '30d', 'epoch'].map((range) => (
             <Button
               key={range}
               variant="outline"
               size="sm"
-              className={`border-white/10 ${timeRange === range ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
+              className={`border-line ${timeRange === range ? 'bg-brand/20 text-brand' : 'text-ink-muted'}`}
               onClick={() => setTimeRange(range)}
             >
               {range === 'epoch' ? 'By Epoch' : range}
@@ -285,11 +285,11 @@ export default function ValidatorDetail() {
         </div>
 
         {/* Combined Historical Chart */}
-        <div className="bg-[#24384a] rounded-xl p-4 mb-6">
+        <div className="bg-surface-2 rounded-xl p-4 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-gray-400 text-sm">HISTORICAL PERFORMANCE</h3>
+            <h3 className="text-ink-muted text-sm">HISTORICAL PERFORMANCE</h3>
             <Link to={createPageUrl('ValidatorAlerts') + `?validator=${validator.votePubkey}`}>
-              <Button variant="outline" size="sm" className="border-yellow-500/30 text-yellow-400">
+              <Button variant="outline" size="sm" className="border-warning/30 text-warning">
                 <Bell className="w-4 h-4 mr-2" /> Set Alert
               </Button>
             </Link>
@@ -352,20 +352,20 @@ export default function ValidatorDetail() {
         </div>
 
         {/* Epoch Credits Details */}
-        <div className="bg-[#24384a] rounded-xl p-6">
-          <h3 className="text-gray-400 text-sm mb-4">EPOCH PERFORMANCE</h3>
+        <div className="bg-surface-2 rounded-xl p-6">
+          <h3 className="text-ink-muted text-sm mb-4">EPOCH PERFORMANCE</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <p className="text-gray-500 text-xs mb-1">Current Epoch Credits</p>
+              <p className="text-ink-faint text-xs mb-1">Current Epoch Credits</p>
               <p className="text-2xl font-bold text-white font-mono">{validator.creditsThisEpoch?.toLocaleString() || 0}</p>
             </div>
             <div>
-              <p className="text-gray-500 text-xs mb-1">Previous Epoch Credits</p>
+              <p className="text-ink-faint text-xs mb-1">Previous Epoch Credits</p>
               <p className="text-2xl font-bold text-white font-mono">{validator.creditsPrevEpoch?.toLocaleString() || 0}</p>
             </div>
             <div>
-              <p className="text-gray-500 text-xs mb-1">Total Credits</p>
-              <p className="text-2xl font-bold text-cyan-400 font-mono">{validator.credits?.toLocaleString() || 0}</p>
+              <p className="text-ink-faint text-xs mb-1">Total Credits</p>
+              <p className="text-2xl font-bold text-brand font-mono">{validator.credits?.toLocaleString() || 0}</p>
             </div>
           </div>
         </div>

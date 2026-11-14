@@ -13,27 +13,27 @@ export default function ValidatorCompare({ validators, onRemove, blockProduction
   };
 
   const getUptimeColor = (uptime) => {
-    if (uptime >= 99) return 'text-emerald-400';
-    if (uptime >= 95) return 'text-yellow-400';
-    return 'text-red-400';
+    if (uptime >= 99) return 'text-positive';
+    if (uptime >= 95) return 'text-warning';
+    return 'text-negative';
   };
 
   const getCommissionColor = (commission) => {
-    if (commission === 0) return 'bg-emerald-500/20 text-emerald-400';
-    if (commission <= 5) return 'bg-yellow-500/20 text-yellow-400';
-    return 'bg-red-500/20 text-red-400';
+    if (commission === 0) return 'bg-positive/20 text-positive';
+    if (commission <= 5) return 'bg-warning/20 text-warning';
+    return 'bg-negative/20 text-negative';
   };
 
   const getSkipRateColor = (skipRate) => {
-    if (skipRate < 1) return 'text-emerald-400';
-    if (skipRate < 5) return 'text-yellow-400';
-    return 'text-red-400';
+    if (skipRate < 1) return 'text-positive';
+    if (skipRate < 5) return 'text-warning';
+    return 'text-negative';
   };
 
   const getPerformanceIcon = (skipRate) => {
-    if (skipRate < 1) return <TrendingUp className="w-4 h-4 text-emerald-400" />;
-    if (skipRate < 5) return <Activity className="w-4 h-4 text-yellow-400" />;
-    return <TrendingDown className="w-4 h-4 text-red-400" />;
+    if (skipRate < 1) return <TrendingUp className="w-4 h-4 text-positive" />;
+    if (skipRate < 5) return <Activity className="w-4 h-4 text-warning" />;
+    return <TrendingDown className="w-4 h-4 text-negative" />;
   };
 
   // Find best values for highlighting
@@ -113,9 +113,9 @@ export default function ValidatorCompare({ validators, onRemove, blockProduction
 
   if (validators.length === 0) {
     return (
-      <div className="bg-[#24384a] rounded-xl p-8 text-center">
-        <p className="text-gray-400">Select validators to compare them side-by-side</p>
-        <p className="text-gray-500 text-sm mt-2">Click the compare button on any validator to add them here</p>
+      <div className="bg-surface-2 rounded-xl p-8 text-center">
+        <p className="text-ink-muted">Select validators to compare them side-by-side</p>
+        <p className="text-ink-faint text-sm mt-2">Click the compare button on any validator to add them here</p>
       </div>
     );
   }
@@ -197,20 +197,20 @@ export default function ValidatorCompare({ validators, onRemove, blockProduction
       getValue: (v) => v.delinquent ? 'Delinquent' : 'Active',
       getSubValue: () => null,
       isBest: (v) => !v.delinquent,
-      getStatusClass: (v) => v.delinquent ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'
+      getStatusClass: (v) => v.delinquent ? 'bg-negative/20 text-negative' : 'bg-positive/20 text-positive'
     },
   ];
 
   return (
     <div className="space-y-6">
       {/* Overall Radar Comparison */}
-      <div className="bg-[#24384a] rounded-xl p-4">
-        <h3 className="text-gray-400 text-sm mb-4">OVERALL PERFORMANCE COMPARISON</h3>
+      <div className="bg-surface-2 rounded-xl p-4">
+        <h3 className="text-ink-muted text-sm mb-4">OVERALL PERFORMANCE COMPARISON</h3>
         <div className="flex items-center gap-4 mb-4 flex-wrap">
           {validators.map((v, i) => (
             <div key={v.votePubkey} className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i] }} />
-              <span className="text-gray-400 text-sm">{v.name || v.votePubkey.substring(0, 8)}</span>
+              <span className="text-ink-muted text-sm">{v.name || v.votePubkey.substring(0, 8)}</span>
             </div>
           ))}
         </div>
@@ -242,8 +242,8 @@ export default function ValidatorCompare({ validators, onRemove, blockProduction
 
       {/* Metric Comparison Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="bg-[#24384a] rounded-xl p-4">
-          <h3 className="text-gray-400 text-sm mb-4">STAKE COMPARISON (M XNT)</h3>
+        <div className="bg-surface-2 rounded-xl p-4">
+          <h3 className="text-ink-muted text-sm mb-4">STAKE COMPARISON (M XNT)</h3>
           <div className="h-[180px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stakeChartData} layout="vertical">
@@ -259,8 +259,8 @@ export default function ValidatorCompare({ validators, onRemove, blockProduction
           </div>
         </div>
 
-        <div className="bg-[#24384a] rounded-xl p-4">
-          <h3 className="text-gray-400 text-sm mb-4">COMMISSION RATES (%)</h3>
+        <div className="bg-surface-2 rounded-xl p-4">
+          <h3 className="text-ink-muted text-sm mb-4">COMMISSION RATES (%)</h3>
           <div className="h-[180px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={commissionChartData} layout="vertical">
@@ -276,8 +276,8 @@ export default function ValidatorCompare({ validators, onRemove, blockProduction
           </div>
         </div>
 
-        <div className="bg-[#24384a] rounded-xl p-4">
-          <h3 className="text-gray-400 text-sm mb-4">SKIP RATE (%) - ACTUAL ON-CHAIN</h3>
+        <div className="bg-surface-2 rounded-xl p-4">
+          <h3 className="text-ink-muted text-sm mb-4">SKIP RATE (%) - ACTUAL ON-CHAIN</h3>
           <div className="h-[180px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={skipRateChartData} layout="vertical">
@@ -293,8 +293,8 @@ export default function ValidatorCompare({ validators, onRemove, blockProduction
           </div>
         </div>
 
-        <div className="bg-[#24384a] rounded-xl p-4">
-          <h3 className="text-gray-400 text-sm mb-4">UPTIME (%)</h3>
+        <div className="bg-surface-2 rounded-xl p-4">
+          <h3 className="text-ink-muted text-sm mb-4">UPTIME (%)</h3>
           <div className="h-[180px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={uptimeChartData} layout="vertical">
@@ -310,8 +310,8 @@ export default function ValidatorCompare({ validators, onRemove, blockProduction
           </div>
         </div>
 
-        <div className="bg-[#24384a] rounded-xl p-4">
-          <h3 className="text-gray-400 text-sm mb-4">EPOCH CREDITS (K)</h3>
+        <div className="bg-surface-2 rounded-xl p-4">
+          <h3 className="text-ink-muted text-sm mb-4">EPOCH CREDITS (K)</h3>
           <div className="h-[180px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={creditsChartData} layout="vertical">
@@ -327,8 +327,8 @@ export default function ValidatorCompare({ validators, onRemove, blockProduction
           </div>
         </div>
 
-        <div className="bg-[#24384a] rounded-xl p-4">
-          <h3 className="text-gray-400 text-sm mb-4">ESTIMATED APY (%)</h3>
+        <div className="bg-surface-2 rounded-xl p-4">
+          <h3 className="text-ink-muted text-sm mb-4">ESTIMATED APY (%)</h3>
           <div className="h-[180px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart 
@@ -353,15 +353,15 @@ export default function ValidatorCompare({ validators, onRemove, blockProduction
       </div>
 
       {/* Detailed Metrics Table */}
-      <div className="bg-[#24384a] rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-white/10">
-          <h3 className="text-gray-400 text-sm">DETAILED METRICS</h3>
+      <div className="bg-surface-2 rounded-xl overflow-hidden">
+        <div className="p-4 border-b border-line">
+          <h3 className="text-ink-muted text-sm">DETAILED METRICS</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-white/10">
-                <th className="text-left text-gray-400 text-sm font-medium px-4 py-4 min-w-[120px] bg-[#1d2d3a] sticky left-0">
+              <tr className="border-b border-line">
+                <th className="text-left text-ink-muted text-sm font-medium px-4 py-4 min-w-[120px] bg-surface-1 sticky left-0">
                   Metric
                 </th>
                 {validators.map((v, i) => (
@@ -370,7 +370,7 @@ export default function ValidatorCompare({ validators, onRemove, blockProduction
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="absolute top-2 right-2 h-6 w-6 text-gray-500 hover:text-red-400"
+                        className="absolute top-2 right-2 h-6 w-6 text-ink-faint hover:text-negative"
                         onClick={() => onRemove(v.votePubkey)}
                       >
                         <X className="w-4 h-4" />
@@ -385,7 +385,7 @@ export default function ValidatorCompare({ validators, onRemove, blockProduction
                         <p className="text-white font-medium text-sm">
                           {v.name || `${v.votePubkey.substring(0, 6)}...`}
                         </p>
-                        <p className="text-cyan-400/70 font-mono text-xs">
+                        <p className="text-brand/70 font-mono text-xs">
                           {v.votePubkey.substring(0, 8)}...
                         </p>
                         {v.website && (
@@ -393,7 +393,7 @@ export default function ValidatorCompare({ validators, onRemove, blockProduction
                             href={safeUrl(v.website)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-cyan-400 text-xs hover:underline mt-1"
+                            className="inline-flex items-center gap-1 text-brand text-xs hover:underline mt-1"
                           >
                             <ExternalLink className="w-3 h-3" /> Website
                           </a>
@@ -406,15 +406,15 @@ export default function ValidatorCompare({ validators, onRemove, blockProduction
             </thead>
             <tbody>
               {metrics.map((metric, i) => (
-                <tr key={metric.label} className={`border-b border-white/5 ${i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                  <td className="text-left text-gray-400 text-sm font-medium px-4 py-3 bg-[#1d2d3a] sticky left-0">
+                <tr key={metric.label} className={`border-b border-line ${i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
+                  <td className="text-left text-ink-muted text-sm font-medium px-4 py-3 bg-surface-1 sticky left-0">
                     {metric.label}
                   </td>
                   {validators.map((v) => (
                     <td key={v.votePubkey} className="text-center px-4 py-3">
                       <div className={`flex flex-col items-center gap-1 ${metric.isBest(v) ? 'relative' : ''}`}>
                         {metric.isBest(v) && (
-                          <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-400 rounded-full" title="Best" />
+                          <div className="absolute -top-1 -right-1 w-2 h-2 bg-positive rounded-full" title="Best" />
                         )}
                         <div className="flex items-center gap-2">
                           {metric.getIcon && metric.getIcon(v)}
@@ -433,7 +433,7 @@ export default function ValidatorCompare({ validators, onRemove, blockProduction
                           )}
                         </div>
                         {metric.getSubValue && metric.getSubValue(v) && (
-                          <span className="text-gray-500 text-xs">{metric.getSubValue(v)}</span>
+                          <span className="text-ink-faint text-xs">{metric.getSubValue(v)}</span>
                         )}
                       </div>
                     </td>

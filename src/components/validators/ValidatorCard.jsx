@@ -18,30 +18,30 @@ const ValidatorCard = memo(function ValidatorCard({ validator, rank, totalStake 
   };
 
   const getUptimeColor = (uptime) => {
-    if (uptime >= 99) return 'text-emerald-400';
-    if (uptime >= 95) return 'text-yellow-400';
-    return 'text-red-400';
+    if (uptime >= 99) return 'text-positive';
+    if (uptime >= 95) return 'text-warning';
+    return 'text-negative';
   };
 
   const getPerformanceIcon = (skipRate) => {
-    if (skipRate < 1) return <TrendingUp className="w-3 h-3 text-emerald-400" />;
-    if (skipRate < 5) return <Activity className="w-3 h-3 text-yellow-400" />;
-    return <TrendingDown className="w-3 h-3 text-red-400" />;
+    if (skipRate < 1) return <TrendingUp className="w-3 h-3 text-positive" />;
+    if (skipRate < 5) return <Activity className="w-3 h-3 text-warning" />;
+    return <TrendingDown className="w-3 h-3 text-negative" />;
   };
 
   return (
-    <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-      <td className="px-4 py-4 text-gray-500 text-sm font-mono">{rank}</td>
+    <tr className="border-b border-line hover:bg-white/[0.02] transition-colors">
+      <td className="px-4 py-4 text-ink-faint text-sm font-mono">{rank}</td>
       <td className="px-4 py-4">
         <Link to={createPageUrl('ValidatorDetail') + `?id=${validator.votePubkey}`} className="flex items-center gap-3 group">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-500/30 flex items-center justify-center text-sm shrink-0">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand/30 to-blue-500/30 flex items-center justify-center text-sm shrink-0">
             {validator.icon || (
-              <span className="font-bold text-cyan-400">{rank}</span>
+              <span className="font-bold text-brand">{rank}</span>
             )}
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <p className="text-white font-medium truncate group-hover:text-cyan-400 transition-colors">
+              <p className="text-white font-medium truncate group-hover:text-brand transition-colors">
                 {validator.name || `Validator ${validator.votePubkey.substring(0, 4)}...${validator.votePubkey.slice(-4)}`}
               </p>
               {validator.website && (
@@ -49,14 +49,14 @@ const ValidatorCard = memo(function ValidatorCard({ validator, rank, totalStake 
                   href={safeUrl(validator.website)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-gray-500 hover:text-cyan-400 transition-colors"
+                  className="text-ink-faint hover:text-brand transition-colors"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <ExternalLink className="w-3 h-3" />
                 </a>
               )}
             </div>
-            <p className="text-cyan-400/70 font-mono text-xs truncate">
+            <p className="text-brand/70 font-mono text-xs truncate">
               {validator.votePubkey.substring(0, 12)}...{validator.votePubkey.slice(-4)}
             </p>
           </div>
@@ -68,16 +68,16 @@ const ValidatorCard = memo(function ValidatorCard({ validator, rank, totalStake 
           <div className="flex items-center justify-end gap-2 mt-1">
             <div className="w-20 h-1.5 bg-white/10 rounded-full overflow-hidden">
               <div 
-                className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full"
+                className="h-full bg-gradient-to-r from-brand to-blue-500 rounded-full"
                 style={{ width: `${Math.min(100, stakePercent * 10)}%` }}
               />
             </div>
-            <span className="text-gray-500 text-xs">{stakePercent}%</span>
+            <span className="text-ink-faint text-xs">{stakePercent}%</span>
           </div>
         </div>
       </td>
       <td className="px-4 py-4 text-center">
-        <Badge className={`${validator.commission === 0 ? 'bg-emerald-500/20 text-emerald-400' : validator.commission <= 5 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'} border-0`}>
+        <Badge className={`${validator.commission === 0 ? 'bg-positive/20 text-positive' : validator.commission <= 5 ? 'bg-warning/20 text-warning' : 'bg-negative/20 text-negative'} border-0`}>
           {validator.commission}%
         </Badge>
       </td>
@@ -88,7 +88,7 @@ const ValidatorCard = memo(function ValidatorCard({ validator, rank, totalStake 
           </span>
           <div className="flex items-center gap-1 mt-0.5">
             {getPerformanceIcon(validator.skipRate)}
-            <span className="text-gray-500 text-xs">{validator.skipRate?.toFixed(1)}% skip</span>
+            <span className="text-ink-faint text-xs">{validator.skipRate?.toFixed(1)}% skip</span>
           </div>
         </div>
       </td>
@@ -99,15 +99,15 @@ const ValidatorCard = memo(function ValidatorCard({ validator, rank, totalStake 
       </td>
       <td className="px-4 py-4 text-right">
         <div>
-          <span className="text-gray-400 font-mono text-sm">{validator.lastVote?.toLocaleString()}</span>
-          <p className="text-gray-600 text-xs">lag: {validator.voteLag}</p>
+          <span className="text-ink-muted font-mono text-sm">{validator.lastVote?.toLocaleString()}</span>
+          <p className="text-ink-faint text-xs">lag: {validator.voteLag}</p>
         </div>
       </td>
       <td className="px-4 py-4 text-center">
         {validator.delinquent ? (
-          <Badge className="bg-red-500/20 text-red-400 border-0">Delinquent</Badge>
+          <Badge className="bg-negative/20 text-negative border-0">Delinquent</Badge>
         ) : (
-          <Badge className="bg-emerald-500/20 text-emerald-400 border-0">Active</Badge>
+          <Badge className="bg-positive/20 text-positive border-0">Active</Badge>
         )}
       </td>
     </tr>

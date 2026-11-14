@@ -319,29 +319,29 @@ export default function TransactionFlowPage() {
   const getTypeColor = (type) => {
     const colors = {
       transfer: 'bg-blue-500/20 text-blue-400',
-      stake: 'bg-emerald-500/20 text-emerald-400',
-      token: 'bg-yellow-500/20 text-yellow-400',
+      stake: 'bg-positive/20 text-positive',
+      token: 'bg-warning/20 text-warning',
       vote: 'bg-purple-500/20 text-purple-400',
-      other: 'bg-gray-500/20 text-gray-400'
+      other: 'bg-gray-500/20 text-ink-muted'
     };
     return colors[type] || colors.other;
   };
 
   return (
-    <div className="min-h-screen bg-[#1d2d3a] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
+    <div className="min-h-screen bg-surface-1 text-white">
+      <header className="bg-surface-1 border-b border-line">
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
-                <span className="font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
+                <ChevronLeft className="w-5 h-5 text-ink-muted" />
+                <span className="font-bold"><span className="text-brand">X1</span><span className="text-white">Space</span></span>
               </Link>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
+              <Badge className="bg-brand/20 text-brand border-0 text-xs">Mainnet</Badge>
             </div>
             <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('TransactionFlowPage')}><Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg"><ArrowLeftRight className="w-5 h-5" /></Button></Link>
+              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
+              <Link to={createPageUrl('TransactionFlowPage')}><Button variant="ghost" size="icon" className="text-brand bg-brand/10 rounded-lg"><ArrowLeftRight className="w-5 h-5" /></Button></Link>
             </nav>
           </div>
         </div>
@@ -349,21 +349,21 @@ export default function TransactionFlowPage() {
 
       <main className="max-w-[1800px] mx-auto px-4 py-6">
         <h1 className="text-2xl font-bold text-white flex items-center gap-3 mb-6">
-          <ArrowLeftRight className="w-7 h-7 text-cyan-400" />
+          <ArrowLeftRight className="w-7 h-7 text-brand" />
           Transaction Flow
         </h1>
 
         {/* Search */}
-        <div className="bg-[#24384a] rounded-xl p-4 mb-6">
+        <div className="bg-surface-2 rounded-xl p-4 mb-6">
           <div className="flex gap-2">
             <Input
               placeholder="Enter X1 address to visualize transaction flow..."
               value={inputAddress}
               onChange={(e) => setInputAddress(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="bg-[#1d2d3a] border-0 text-white flex-1 font-mono"
+              className="bg-surface-1 border-0 text-white flex-1 font-mono"
             />
-            <Button onClick={handleSearch} className="bg-cyan-500 hover:bg-cyan-600">
+            <Button onClick={handleSearch} className="bg-brand hover:bg-brand-strong">
               <Search className="w-4 h-4 mr-2" /> Analyze
             </Button>
           </div>
@@ -371,13 +371,13 @@ export default function TransactionFlowPage() {
 
         {loading && (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+            <Loader2 className="w-8 h-8 animate-spin text-brand" />
           </div>
         )}
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6">
-            <p className="text-red-400">{error}</p>
+          <div className="bg-negative/10 border border-negative/30 rounded-xl p-4 mb-6">
+            <p className="text-negative">{error}</p>
           </div>
         )}
 
@@ -385,31 +385,31 @@ export default function TransactionFlowPage() {
           <>
             {/* Summary Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-[#24384a] rounded-xl p-4">
-                <p className="text-gray-400 text-xs mb-1">Total Transactions</p>
+              <div className="bg-surface-2 rounded-xl p-4">
+                <p className="text-ink-muted text-xs mb-1">Total Transactions</p>
                 <p className="text-2xl font-bold text-white">{transactions.length}</p>
               </div>
-              <div className="bg-[#24384a] rounded-xl p-4">
-                <p className="text-gray-400 text-xs mb-1">Connected Addresses</p>
-                <p className="text-2xl font-bold text-cyan-400">{flowData.nodes.length - 1}</p>
+              <div className="bg-surface-2 rounded-xl p-4">
+                <p className="text-ink-muted text-xs mb-1">Connected Addresses</p>
+                <p className="text-2xl font-bold text-brand">{flowData.nodes.length - 1}</p>
               </div>
-              <div className="bg-[#24384a] rounded-xl p-4">
-                <p className="text-gray-400 text-xs mb-1">Total Inflow</p>
-                <p className="text-2xl font-bold text-emerald-400">+{formatAmount(flowData.nodes[0]?.inflow || 0)} XNT</p>
+              <div className="bg-surface-2 rounded-xl p-4">
+                <p className="text-ink-muted text-xs mb-1">Total Inflow</p>
+                <p className="text-2xl font-bold text-positive">+{formatAmount(flowData.nodes[0]?.inflow || 0)} XNT</p>
               </div>
-              <div className="bg-[#24384a] rounded-xl p-4">
-                <p className="text-gray-400 text-xs mb-1">Total Outflow</p>
-                <p className="text-2xl font-bold text-red-400">-{formatAmount(flowData.nodes[0]?.outflow || 0)} XNT</p>
+              <div className="bg-surface-2 rounded-xl p-4">
+                <p className="text-ink-muted text-xs mb-1">Total Outflow</p>
+                <p className="text-2xl font-bold text-negative">-{formatAmount(flowData.nodes[0]?.outflow || 0)} XNT</p>
               </div>
             </div>
 
             {/* Flow Graph */}
-            <div className="bg-[#24384a] rounded-xl p-4 mb-6" ref={graphRef}>
+            <div className="bg-surface-2 rounded-xl p-4 mb-6" ref={graphRef}>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-gray-400 text-sm">TRANSACTION FLOW VISUALIZATION</h3>
+                <h3 className="text-ink-muted text-sm">TRANSACTION FLOW VISUALIZATION</h3>
                 <div className="flex items-center gap-2">
                   <FlowExport flowData={flowData} transactions={transactions} graphRef={graphRef} />
-                  <Button variant="ghost" size="sm" onClick={fetchTransactions} className="text-gray-400">
+                  <Button variant="ghost" size="sm" onClick={fetchTransactions} className="text-ink-muted">
                     <RefreshCw className="w-4 h-4 mr-2" /> Refresh
                   </Button>
                 </div>
@@ -432,27 +432,27 @@ export default function TransactionFlowPage() {
 
             {/* Filter results count */}
             <div className="flex items-center justify-between mb-4">
-              <span className="text-gray-400 text-sm">
+              <span className="text-ink-muted text-sm">
                 Showing {filteredTxs.length} of {transactions.length} transactions
               </span>
             </div>
 
             {/* Transaction List */}
-            <div className="bg-[#24384a] rounded-xl overflow-hidden">
+            <div className="bg-surface-2 rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-white/10">
-                      <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Type</th>
-                      <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Signature</th>
-                      <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Amount</th>
-                      <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Counterparty</th>
-                      <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Time</th>
+                    <tr className="border-b border-line">
+                      <th className="text-left text-ink-muted text-xs font-medium px-4 py-3">Type</th>
+                      <th className="text-left text-ink-muted text-xs font-medium px-4 py-3">Signature</th>
+                      <th className="text-right text-ink-muted text-xs font-medium px-4 py-3">Amount</th>
+                      <th className="text-left text-ink-muted text-xs font-medium px-4 py-3">Counterparty</th>
+                      <th className="text-right text-ink-muted text-xs font-medium px-4 py-3">Time</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredTxs.slice(0, 20).map((tx) => (
-                      <tr key={tx.signature} className="border-b border-white/5 hover:bg-white/[0.02]">
+                      <tr key={tx.signature} className="border-b border-line hover:bg-white/[0.02]">
                         <td className="px-4 py-3">
                           <Badge className={`${getTypeColor(tx.type)} border-0`}>
                             {tx.type}
@@ -461,25 +461,25 @@ export default function TransactionFlowPage() {
                         <td className="px-4 py-3">
                           <Link 
                             to={createPageUrl('TransactionDetail') + `?sig=${tx.signature}`}
-                            className="text-cyan-400 hover:underline font-mono text-sm"
+                            className="text-brand hover:underline font-mono text-sm"
                           >
                             {tx.signature.substring(0, 16)}...
                           </Link>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className={tx.from === address ? 'text-red-400' : 'text-emerald-400'}>
+                          <span className={tx.from === address ? 'text-negative' : 'text-positive'}>
                             {tx.from === address ? '-' : '+'}{formatAmount(tx.amount)} XNT
                           </span>
                         </td>
                         <td className="px-4 py-3">
                           <Link 
                             to={createPageUrl('AddressLookup') + `?address=${tx.from === address ? tx.to : tx.from}`}
-                            className="text-gray-400 hover:text-cyan-400 font-mono text-sm"
+                            className="text-ink-muted hover:text-brand font-mono text-sm"
                           >
                             {(tx.from === address ? tx.to : tx.from)?.substring(0, 12)}...
                           </Link>
                         </td>
-                        <td className="px-4 py-3 text-right text-gray-400 text-sm">
+                        <td className="px-4 py-3 text-right text-ink-muted text-sm">
                           {tx.blockTime ? new Date(tx.blockTime * 1000).toLocaleString() : '-'}
                         </td>
                       </tr>
@@ -492,10 +492,10 @@ export default function TransactionFlowPage() {
         )}
 
         {!loading && !address && (
-          <div className="bg-[#24384a] rounded-xl p-12 text-center">
-            <Wallet className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <h2 className="text-xl text-gray-400 mb-2">Enter an address to visualize</h2>
-            <p className="text-gray-500">See the flow of transactions to and from any X1 address</p>
+          <div className="bg-surface-2 rounded-xl p-12 text-center">
+            <Wallet className="w-16 h-16 text-ink-faint mx-auto mb-4" />
+            <h2 className="text-xl text-ink-muted mb-2">Enter an address to visualize</h2>
+            <p className="text-ink-faint">See the flow of transactions to and from any X1 address</p>
           </div>
         )}
       </main>

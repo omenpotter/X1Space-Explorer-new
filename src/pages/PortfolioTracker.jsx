@@ -455,27 +455,27 @@ export default function PortfolioTracker() {
 
   const SortIndicator = ({ columnKey }) => {
     if (sortBy !== columnKey) {
-      return <ArrowUpDown className="h-3 w-3 ml-1 inline text-gray-500" />;
+      return <ArrowUpDown className="h-3 w-3 ml-1 inline text-ink-faint" />;
     }
     return sortDirection === 'asc' 
-      ? <ArrowUp className="h-3 w-3 ml-1 inline text-cyan-400" />
-      : <ArrowDown className="h-3 w-3 ml-1 inline text-cyan-400" />;
+      ? <ArrowUp className="h-3 w-3 ml-1 inline text-brand" />
+      : <ArrowDown className="h-3 w-3 ml-1 inline text-brand" />;
   };
 
   return (
-    <div className="min-h-screen bg-[#0f1419] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
+    <div className="min-h-screen bg-canvas text-white">
+      <header className="bg-surface-1 border-b border-line">
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
             <Link to={createPageUrl('Dashboard')}>
-              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+              <Button variant="ghost" size="sm" className="text-ink-muted hover:text-white">
                 <ChevronLeft className="w-4 h-4" />
               </Button>
             </Link>
-            <Wallet className="w-6 h-6 text-cyan-400" />
+            <Wallet className="w-6 h-6 text-brand" />
             <h1 className="text-2xl font-bold">Portfolio Tracker</h1>
             {allTokens.length > 0 && (
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">
+              <Badge className="bg-brand/20 text-brand border-0 text-xs">
                 {allTokens.length} Tokens Loaded
               </Badge>
             )}
@@ -484,7 +484,7 @@ export default function PortfolioTracker() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-        <div className="bg-[#1d2d3a] border border-white/10 rounded-xl p-6">
+        <div className="bg-surface-1 border border-line rounded-xl p-6">
           <h2 className="text-lg font-bold mb-4">Add Wallet</h2>
           <div className="flex gap-2">
             <Input
@@ -492,29 +492,29 @@ export default function PortfolioTracker() {
               value={newWallet}
               onChange={(e) => setNewWallet(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && addWallet()}
-              className="bg-[#0f1419] border-white/10 text-white placeholder:text-gray-500"
+              className="bg-canvas border-line text-white placeholder:text-ink-faint"
             />
-            <Button onClick={addWallet} className="bg-cyan-500 hover:bg-cyan-600">Add</Button>
+            <Button onClick={addWallet} className="bg-brand hover:bg-brand-strong">Add</Button>
           </div>
-          {error && <div className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-sm">{error}</div>}
+          {error && <div className="mt-3 p-3 bg-negative/10 border border-negative/30 rounded text-negative text-sm">{error}</div>}
         </div>
 
         {loadingTokens && (
           <div className="flex items-center justify-center p-8">
-            <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mr-2" />
-            <span className="text-gray-400">Loading token prices from XDEX...</span>
+            <Loader2 className="w-6 h-6 animate-spin text-brand mr-2" />
+            <span className="text-ink-muted">Loading token prices from XDEX...</span>
           </div>
         )}
 
         {!loadingTokens && allTokens.length > 0 && wallets.length > 0 && (
-          <div className="bg-[#1d2d3a] border border-white/10 rounded-xl p-6">
+          <div className="bg-surface-1 border border-line rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold">Wallets ({wallets.length})</h2>
               <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setHideBalances(!hideBalances)} className="text-gray-400 hover:text-white">
+                <Button variant="ghost" size="sm" onClick={() => setHideBalances(!hideBalances)} className="text-ink-muted hover:text-white">
                   {hideBalances ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={fetchPortfolio} disabled={loading} className="text-gray-400 hover:text-white">
+                <Button variant="ghost" size="sm" onClick={fetchPortfolio} disabled={loading} className="text-ink-muted hover:text-white">
                   <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                 </Button>
               </div>
@@ -522,29 +522,29 @@ export default function PortfolioTracker() {
 
             {loading && (
               <div className="flex items-center justify-center p-8">
-                <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mr-2" />
-                <span className="text-gray-400">Loading portfolio...</span>
+                <Loader2 className="w-6 h-6 animate-spin text-brand mr-2" />
+                <span className="text-ink-muted">Loading portfolio...</span>
               </div>
             )}
 
             {!loading && portfolioData && (
               <div className="space-y-4">
                 {/* Search and Sort Controls */}
-                <div className="bg-[#0f1419] border border-white/5 rounded-lg p-4">
+                <div className="bg-canvas border border-line rounded-lg p-4">
                   <div className="flex gap-3 items-center flex-wrap">
                     <div className="relative flex-1 min-w-[200px]">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted" />
                       <Input
                         placeholder="Search tokens..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="bg-[#1d2d3a] border-white/10 text-white placeholder:text-gray-500 pl-10"
+                        className="bg-surface-1 border-line text-white placeholder:text-ink-faint pl-10"
                       />
                     </div>
                     <select
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value)}
-                      className="bg-[#1d2d3a] border border-white/10 text-white rounded px-3 py-2"
+                      className="bg-surface-1 border border-line text-white rounded px-3 py-2"
                     >
                       <option value="value">Sort by Value</option>
                       <option value="balance">Sort by Balance</option>
@@ -555,7 +555,7 @@ export default function PortfolioTracker() {
                       variant="ghost"
                       size="sm"
                       onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
-                      className="text-gray-400 hover:text-white"
+                      className="text-ink-muted hover:text-white"
                     >
                       {sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
                     </Button>
@@ -566,11 +566,11 @@ export default function PortfolioTracker() {
                   const filteredTokens = filterAndSortTokens(wallet.tokens);
                   
                   return (
-                  <div key={wallet.address} className="bg-[#0f1419] border border-white/5 rounded-lg p-4">
+                  <div key={wallet.address} className="bg-canvas border border-line rounded-lg p-4">
                     <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                       <div>
                         <h3 className="font-bold">{wallet.label}</h3>
-                        <p className="text-gray-400 text-sm font-mono">{wallet.address.slice(0, 12)}...{wallet.address.slice(-12)}</p>
+                        <p className="text-ink-muted text-sm font-mono">{wallet.address.slice(0, 12)}...{wallet.address.slice(-12)}</p>
                         {wallet.stakeBalance > 0 && (
                           <div className="mt-2 inline-flex items-center gap-2 bg-purple-500/10 border border-purple-500/30 rounded px-2 py-1">
                             <span className="text-purple-400 text-xs">💎 Staked:</span>
@@ -581,13 +581,13 @@ export default function PortfolioTracker() {
                         )}
                       </div>
                       <div className="text-right">
-                        <p className="text-lg font-bold text-cyan-400">${hideBalances ? '••••' : wallet.totalValue.toFixed(2)}</p>
-                        <p className="text-gray-400 text-sm">
+                        <p className="text-lg font-bold text-brand">${hideBalances ? '••••' : wallet.totalValue.toFixed(2)}</p>
+                        <p className="text-ink-muted text-sm">
                           {wallet.tokens.length} tokens
                           {filteredTokens.length !== wallet.tokens.length && ` (${filteredTokens.length} shown)`}
                         </p>
                       </div>
-                      <Button variant="ghost" size="sm" onClick={() => removeWallet(wallet.address)} className="text-red-400 hover:bg-red-500/10">
+                      <Button variant="ghost" size="sm" onClick={() => removeWallet(wallet.address)} className="text-negative hover:bg-negative/10">
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
@@ -596,27 +596,27 @@ export default function PortfolioTracker() {
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="border-b border-white/10">
+                            <tr className="border-b border-line">
                               <th 
-                                className="text-left py-2 px-2 text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
+                                className="text-left py-2 px-2 text-ink-muted cursor-pointer hover:text-brand transition-colors select-none"
                                 onClick={() => handleSort('symbol')}
                               >
                                 Token <SortIndicator columnKey="symbol" />
                               </th>
                               <th 
-                                className="text-right py-2 px-2 text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
+                                className="text-right py-2 px-2 text-ink-muted cursor-pointer hover:text-brand transition-colors select-none"
                                 onClick={() => handleSort('balance')}
                               >
                                 Balance <SortIndicator columnKey="balance" />
                               </th>
                               <th 
-                                className="text-right py-2 px-2 text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
+                                className="text-right py-2 px-2 text-ink-muted cursor-pointer hover:text-brand transition-colors select-none"
                                 onClick={() => handleSort('price')}
                               >
                                 Price <SortIndicator columnKey="price" />
                               </th>
                               <th 
-                                className="text-right py-2 px-2 text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
+                                className="text-right py-2 px-2 text-ink-muted cursor-pointer hover:text-brand transition-colors select-none"
                                 onClick={() => handleSort('value')}
                               >
                                 Value <SortIndicator columnKey="value" />
@@ -625,7 +625,7 @@ export default function PortfolioTracker() {
                           </thead>
                           <tbody>
                             {filteredTokens.map((token) => (
-                              <tr key={token.mint} className={`border-b border-white/5 hover:bg-white/[0.02] ${token.isStaked ? 'bg-purple-500/5' : ''}`}>
+                              <tr key={token.mint} className={`border-b border-line hover:bg-white/[0.02] ${token.isStaked ? 'bg-purple-500/5' : ''}`}>
                                 <td className="py-2 px-2">
                                   <div className="flex items-center gap-2">
                                     {token.logo ? (
@@ -638,16 +638,16 @@ export default function PortfolioTracker() {
                                     <div>
                                       <div className="flex items-center gap-1">
                                         <p className="font-semibold">{token.symbol}</p>
-                                        {token.verified && <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">✓</Badge>}
+                                        {token.verified && <Badge className="bg-positive/20 text-positive border-0 text-xs">✓</Badge>}
                                         {token.isStaked && <Badge className="bg-purple-500/20 text-purple-400 border-0 text-xs">Staked</Badge>}
                                       </div>
-                                      <p className="text-gray-400 text-xs">{token.name}</p>
+                                      <p className="text-ink-muted text-xs">{token.name}</p>
                                     </div>
                                   </div>
                                 </td>
                                 <td className="text-right py-2 px-2 font-mono text-sm">{token.amount.toFixed(4)}</td>
                                 <td className="text-right py-2 px-2 font-mono text-sm">${token.price}</td>
-                                <td className="text-right py-2 px-2 font-mono text-sm text-cyan-400">
+                                <td className="text-right py-2 px-2 font-mono text-sm text-brand">
                                   {hideBalances ? '••••' : `$${token.currentValue.toFixed(2)}`}
                                 </td>
                               </tr>
@@ -658,13 +658,13 @@ export default function PortfolioTracker() {
                     )}
 
                     {filteredTokens.length === 0 && wallet.tokens.length > 0 && (
-                      <div className="text-center py-4 text-gray-400">
+                      <div className="text-center py-4 text-ink-muted">
                         <p>No tokens found matching "{searchQuery}"</p>
                       </div>
                     )}
 
                     {wallet.tokens.length === 0 && (
-                      <div className="text-center py-4 text-gray-400">
+                      <div className="text-center py-4 text-ink-muted">
                         <p>No tokens found in this wallet</p>
                       </div>
                     )}
@@ -672,9 +672,9 @@ export default function PortfolioTracker() {
                 )})}
 
                 {portfolioData.wallets.length > 0 && (
-                  <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 rounded-lg p-6 mt-6">
-                    <p className="text-gray-400 mb-1">Total Portfolio Value</p>
-                    <p className="text-3xl font-bold text-cyan-400">
+                  <div className="bg-gradient-to-r from-brand/20 to-blue-500/20 border border-brand/30 rounded-lg p-6 mt-6">
+                    <p className="text-ink-muted mb-1">Total Portfolio Value</p>
+                    <p className="text-3xl font-bold text-brand">
                       {hideBalances ? '••••••••' : `$${portfolioData.totalPortfolioValue.toFixed(2)}`}
                     </p>
                   </div>
@@ -685,7 +685,7 @@ export default function PortfolioTracker() {
         )}
 
         {!loadingTokens && allTokens.length > 0 && wallets.length === 0 && (
-          <div className="text-center py-12 text-gray-400">
+          <div className="text-center py-12 text-ink-muted">
             <Wallet className="w-16 h-16 mx-auto mb-4 opacity-30" />
             <p>No wallets added yet. Add one above to get started!</p>
           </div>

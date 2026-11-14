@@ -4,12 +4,42 @@ module.exports = {
     content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
   	extend: {
+  		fontFamily: {
+  			sans: ['"Inter Variable"', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+  			display: ['"Space Grotesk Variable"', '"Inter Variable"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+  			mono: ['"JetBrains Mono Variable"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
+  		},
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
   		},
   		colors: {
+  			canvas: 'hsl(var(--canvas) / <alpha-value>)',
+  			surface: {
+  				1: 'hsl(var(--surface-1) / <alpha-value>)',
+  				2: 'hsl(var(--surface-2) / <alpha-value>)',
+  				3: 'hsl(var(--surface-3) / <alpha-value>)'
+  			},
+  			line: {
+  				DEFAULT: 'hsl(var(--line) / <alpha-value>)',
+  				strong: 'hsl(var(--line-strong) / <alpha-value>)'
+  			},
+  			ink: {
+  				DEFAULT: 'hsl(var(--ink) / <alpha-value>)',
+  				soft: 'hsl(var(--ink-soft) / <alpha-value>)',
+  				muted: 'hsl(var(--ink-muted) / <alpha-value>)',
+  				faint: 'hsl(var(--ink-faint) / <alpha-value>)'
+  			},
+  			brand: {
+  				DEFAULT: 'hsl(var(--brand) / <alpha-value>)',
+  				strong: 'hsl(var(--brand-strong) / <alpha-value>)',
+  				ink: 'hsl(var(--brand-ink) / <alpha-value>)'
+  			},
+  			positive: 'hsl(var(--positive) / <alpha-value>)',
+  			negative: 'hsl(var(--negative) / <alpha-value>)',
+  			warning: 'hsl(var(--warning) / <alpha-value>)',
+  			violet: 'hsl(var(--violet) / <alpha-value>)',
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {

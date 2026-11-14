@@ -120,44 +120,44 @@ export default function Leaderboard() {
   };
 
   const getRankIcon = (rank) => {
-    if (rank === 1) return <Crown className="w-6 h-6 text-yellow-400" />;
-    if (rank === 2) return <Medal className="w-6 h-6 text-gray-300" />;
+    if (rank === 1) return <Crown className="w-6 h-6 text-warning" />;
+    if (rank === 2) return <Medal className="w-6 h-6 text-ink-soft" />;
     if (rank === 3) return <Medal className="w-6 h-6 text-amber-600" />;
-    return <span className="text-gray-500 font-mono">{rank}</span>;
+    return <span className="text-ink-faint font-mono">{rank}</span>;
   };
 
   const getRankBg = (rank) => {
-    if (rank === 1) return 'bg-gradient-to-r from-yellow-500/20 to-transparent border-yellow-500/30';
+    if (rank === 1) return 'bg-gradient-to-r from-yellow-500/20 to-transparent border-warning/30';
     if (rank === 2) return 'bg-gradient-to-r from-gray-400/20 to-transparent border-gray-400/30';
     if (rank === 3) return 'bg-gradient-to-r from-amber-600/20 to-transparent border-amber-600/30';
-    return 'bg-[#24384a] border-white/5';
+    return 'bg-surface-2 border-line';
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
+      <div className="min-h-screen bg-surface-1 text-white flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-brand" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#1d2d3a] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
+    <div className="min-h-screen bg-surface-1 text-white">
+      <header className="bg-surface-1 border-b border-line">
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-gradient-to-br from-brand to-blue-500 rounded-lg flex items-center justify-center">
                   <span className="text-black font-black text-sm">X1</span>
                 </div>
-                <span className="font-bold hidden sm:inline"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
+                <span className="font-bold hidden sm:inline"><span className="text-brand">X1</span><span className="text-white">Space</span></span>
               </Link>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
+              <Badge className="bg-brand/20 text-brand border-0 text-xs">Mainnet</Badge>
             </div>
             <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('Leaderboard')}><Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg"><Trophy className="w-5 h-5" /></Button></Link>
+              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
+              <Link to={createPageUrl('Leaderboard')}><Button variant="ghost" size="icon" className="text-brand bg-brand/10 rounded-lg"><Trophy className="w-5 h-5" /></Button></Link>
             </nav>
           </div>
         </div>
@@ -165,35 +165,35 @@ export default function Leaderboard() {
 
       <main className="max-w-4xl mx-auto px-4 py-6">
         <h1 className="text-2xl font-bold text-white flex items-center gap-3 mb-6">
-          <Trophy className="w-7 h-7 text-yellow-400" />
+          <Trophy className="w-7 h-7 text-warning" />
           Validator Leaderboard
         </h1>
 
         {/* Search and Filters */}
-        <div className="bg-[#24384a] rounded-xl p-4 mb-6">
+        <div className="bg-surface-2 rounded-xl p-4 mb-6">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
               <Input
                 placeholder="Search by name or pubkey..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-[#1d2d3a] border-0 text-white pl-10"
+                className="bg-surface-1 border-0 text-white pl-10"
               />
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-faint" />
             </div>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setShowFollowedOnly(!showFollowedOnly)}
-              className={`border-white/10 ${showFollowedOnly ? 'bg-yellow-500/20 text-yellow-400' : 'text-gray-400'}`}
+              className={`border-line ${showFollowedOnly ? 'bg-warning/20 text-warning' : 'text-ink-muted'}`}
             >
-              <Star className={`w-4 h-4 mr-2 ${showFollowedOnly ? 'fill-yellow-400' : ''}`} />
+              <Star className={`w-4 h-4 mr-2 ${showFollowedOnly ? 'fill-warning' : ''}`} />
               Following ({followedValidators.length})
             </Button>
           </div>
           
           <div className="flex flex-wrap gap-2 mt-4">
-            <span className="text-gray-400 text-sm flex items-center gap-2">
+            <span className="text-ink-muted text-sm flex items-center gap-2">
               <Filter className="w-4 h-4" /> Commission:
             </span>
             {[
@@ -208,7 +208,7 @@ export default function Leaderboard() {
                 variant="outline"
                 size="sm"
                 onClick={() => setFilterCommission(opt.key)}
-                className={`border-white/10 h-7 text-xs ${filterCommission === opt.key ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
+                className={`border-line h-7 text-xs ${filterCommission === opt.key ? 'bg-brand/20 text-brand' : 'text-ink-muted'}`}
               >
                 {opt.label}
               </Button>
@@ -229,7 +229,7 @@ export default function Leaderboard() {
               key={option.key}
               variant="outline"
               size="sm"
-              className={`border-white/10 ${sortBy === option.key ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
+              className={`border-line ${sortBy === option.key ? 'bg-brand/20 text-brand' : 'text-ink-muted'}`}
               onClick={() => setSortBy(option.key)}
             >
               {option.label}
@@ -237,7 +237,7 @@ export default function Leaderboard() {
           ))}
         </div>
 
-        <p className="text-gray-500 text-sm mb-4">
+        <p className="text-ink-faint text-sm mb-4">
           Showing {filteredAndSortedValidators.length} of {validators.length} validators
         </p>
 
@@ -261,41 +261,41 @@ export default function Leaderboard() {
                     e.preventDefault();
                     toggleFollow(v.votePubkey);
                   }}
-                  className="text-gray-500 hover:text-yellow-400 transition-colors"
+                  className="text-ink-faint hover:text-warning transition-colors"
                 >
-                  <Star className={`w-5 h-5 ${isFollowed ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+                  <Star className={`w-5 h-5 ${isFollowed ? 'fill-warning text-warning' : ''}`} />
                 </button>
                 <Link to={createPageUrl('ValidatorDetail') + `?id=${v.votePubkey}`} className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-500/30 flex items-center justify-center text-lg shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand/30 to-blue-500/30 flex items-center justify-center text-lg shrink-0">
                     {validatorIcon}
                   </div>
                   <div className="min-w-0">
                     <p className="text-white font-medium truncate">
                       {displayName}
                     </p>
-                    <p className="text-gray-500 text-xs font-mono truncate">{v.votePubkey}</p>
+                    <p className="text-ink-faint text-xs font-mono truncate">{v.votePubkey}</p>
                   </div>
                 </Link>
                 <div className="grid grid-cols-4 gap-4 text-sm shrink-0">
                   <div className="text-right">
-                    <p className="text-cyan-400 font-mono">{formatStake(v.activatedStake)}</p>
-                    <p className="text-gray-600 text-xs">XNT</p>
+                    <p className="text-brand font-mono">{formatStake(v.activatedStake)}</p>
+                    <p className="text-ink-faint text-xs">XNT</p>
                   </div>
                   <div className="text-right">
-                    <p className={`font-mono ${v.uptime >= 99 ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                    <p className={`font-mono ${v.uptime >= 99 ? 'text-positive' : 'text-warning'}`}>
                       {v.uptime?.toFixed(1) || '99.0'}%
                     </p>
-                    <p className="text-gray-600 text-xs">uptime</p>
+                    <p className="text-ink-faint text-xs">uptime</p>
                   </div>
                   <div className="text-right">
-                    <p className={`font-mono ${skipRate < 2 ? 'text-emerald-400' : skipRate < 5 ? 'text-yellow-400' : 'text-red-400'}`}>
+                    <p className={`font-mono ${skipRate < 2 ? 'text-positive' : skipRate < 5 ? 'text-warning' : 'text-negative'}`}>
                       {skipRate.toFixed(2)}%
                     </p>
-                    <p className="text-gray-600 text-xs">skip</p>
+                    <p className="text-ink-faint text-xs">skip</p>
                   </div>
                   <div className="text-right">
                     <p className="text-purple-400 font-mono">{v.commission}%</p>
-                    <p className="text-gray-600 text-xs">comm</p>
+                    <p className="text-ink-faint text-xs">comm</p>
                   </div>
                 </div>
               </div>

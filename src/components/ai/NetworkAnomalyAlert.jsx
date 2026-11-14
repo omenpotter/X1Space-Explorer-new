@@ -31,9 +31,9 @@ export default function NetworkAnomalyAlert() {
     if (!anomaly) return null;
 
     const severityColors = {
-        'Low': 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400',
+        'Low': 'bg-warning/10 border-warning/30 text-warning',
         'Medium': 'bg-orange-500/10 border-orange-500/30 text-orange-400',
-        'High': 'bg-red-500/10 border-red-500/30 text-red-400'
+        'High': 'bg-negative/10 border-negative/30 text-negative'
     };
 
     const colorClass = severityColors[anomaly.severity] || severityColors.Medium;

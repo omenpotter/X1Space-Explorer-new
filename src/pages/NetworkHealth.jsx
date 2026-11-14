@@ -89,8 +89,8 @@ export default function NetworkHealth() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
+      <div className="min-h-screen bg-surface-1 text-white flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-brand" />
       </div>
     );
   }
@@ -172,29 +172,29 @@ export default function NetworkHealth() {
   const COLORS = ['#06b6d4', '#8b5cf6', '#f59e0b', '#ef4444', '#10b981'];
 
   return (
-    <div className="min-h-screen bg-[#1d2d3a] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
+    <div className="min-h-screen bg-surface-1 text-white">
+      <header className="bg-surface-1 border-b border-line">
         <div className="max-w-[1800px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
-                <span className="font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
+                <ChevronLeft className="w-5 h-5 text-ink-muted" />
+                <span className="font-bold"><span className="text-brand">X1</span><span className="text-white">Space</span></span>
               </Link>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
+              <Badge className="bg-brand/20 text-brand border-0 text-xs">Mainnet</Badge>
             </div>
             <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('NetworkHealth')}><Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg"><Globe className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('Validators')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><Server className="w-5 h-5" /></Button></Link>
+              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
+              <Link to={createPageUrl('NetworkHealth')}><Button variant="ghost" size="icon" className="text-brand bg-brand/10 rounded-lg"><Globe className="w-5 h-5" /></Button></Link>
+              <Link to={createPageUrl('Validators')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><Server className="w-5 h-5" /></Button></Link>
             </nav>
           </div>
         </div>
       </header>
 
       {error && (
-        <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2">
-          <div className="max-w-[1800px] mx-auto flex items-center gap-2 text-red-400 text-sm">
+        <div className="bg-negative/10 border-b border-negative/20 px-4 py-2">
+          <div className="max-w-[1800px] mx-auto flex items-center gap-2 text-negative text-sm">
             <AlertCircle className="w-4 h-4" /><span>{error}</span>
           </div>
         </div>
@@ -202,66 +202,66 @@ export default function NetworkHealth() {
 
       <main className="max-w-[1800px] mx-auto px-4 py-6">
         <h1 className="text-2xl font-bold text-white flex items-center gap-3 mb-6">
-          <Globe className="w-7 h-7 text-cyan-400" />
+          <Globe className="w-7 h-7 text-brand" />
           Network Health
         </h1>
 
         {/* Health Overview - Extended */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
-          <div className="bg-[#24384a] rounded-xl p-4">
+          <div className="bg-surface-2 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Wifi className="w-4 h-4 text-emerald-400" />
-              <span className="text-gray-400 text-xs">Network Status</span>
+              <Wifi className="w-4 h-4 text-positive" />
+              <span className="text-ink-muted text-xs">Network Status</span>
             </div>
-            <p className="text-xl font-bold text-emerald-400">Healthy</p>
+            <p className="text-xl font-bold text-positive">Healthy</p>
           </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
+          <div className="bg-surface-2 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Activity className="w-4 h-4 text-cyan-400" />
-              <span className="text-gray-400 text-xs">Current TPS</span>
+              <Activity className="w-4 h-4 text-brand" />
+              <span className="text-ink-muted text-xs">Current TPS</span>
             </div>
-            <p className="text-xl font-bold text-cyan-400">{data?.tps?.toLocaleString() || 0}</p>
+            <p className="text-xl font-bold text-brand">{data?.tps?.toLocaleString() || 0}</p>
           </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
+          <div className="bg-surface-2 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <Network className="w-4 h-4 text-purple-400" />
-              <span className="text-gray-400 text-xs">Total Nodes</span>
+              <span className="text-ink-muted text-xs">Total Nodes</span>
             </div>
             <p className="text-xl font-bold text-white">{clusterNodes.length}</p>
           </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
+          <div className="bg-surface-2 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
-              <CheckCircle className="w-4 h-4 text-emerald-400" />
-              <span className="text-gray-400 text-xs">Active Validators</span>
+              <CheckCircle className="w-4 h-4 text-positive" />
+              <span className="text-ink-muted text-xs">Active Validators</span>
             </div>
             <p className="text-xl font-bold text-white">{activeCount}</p>
           </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
+          <div className="bg-surface-2 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Shield className="w-4 h-4 text-yellow-400" />
-              <span className="text-gray-400 text-xs">BFT Participation</span>
+              <Shield className="w-4 h-4 text-warning" />
+              <span className="text-ink-muted text-xs">BFT Participation</span>
             </div>
-            <p className="text-xl font-bold text-yellow-400">{bftParticipation.toFixed(1)}%</p>
+            <p className="text-xl font-bold text-warning">{bftParticipation.toFixed(1)}%</p>
           </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
+          <div className="bg-surface-2 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Database className="w-4 h-4 text-red-400" />
-              <span className="text-gray-400 text-xs">Skip Rate</span>
+              <Database className="w-4 h-4 text-negative" />
+              <span className="text-ink-muted text-xs">Skip Rate</span>
             </div>
-            <p className="text-xl font-bold text-red-400">{skipRate.toFixed(2)}%</p>
+            <p className="text-xl font-bold text-negative">{skipRate.toFixed(2)}%</p>
           </div>
         </div>
 
         {/* Time Range Selector */}
         <div className="flex items-center gap-2 mb-4">
-          <span className="text-gray-400 text-sm">Time Range:</span>
+          <span className="text-ink-muted text-sm">Time Range:</span>
           {['1h', '24h', '7d'].map((range) => (
             <Button 
               key={range}
               variant="outline" 
               size="sm"
               onClick={() => setTimeRange(range)}
-              className={`border-white/10 ${timeRange === range ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
+              className={`border-line ${timeRange === range ? 'bg-brand/20 text-brand' : 'text-ink-muted'}`}
             >
               {range === '1h' ? 'Last Hour' : range === '24h' ? 'Last 24h' : 'Last 7 Days'}
             </Button>
@@ -269,8 +269,8 @@ export default function NetworkHealth() {
         </div>
 
         {/* TPS Historical Chart */}
-        <div className="bg-[#24384a] rounded-xl p-4 mb-6">
-          <h3 className="text-gray-400 text-sm mb-4">TPS HISTORY ({timeRange === '1h' ? 'LAST HOUR' : timeRange === '24h' ? 'LAST 24 HOURS' : 'LAST 7 DAYS'})</h3>
+        <div className="bg-surface-2 rounded-xl p-4 mb-6">
+          <h3 className="text-ink-muted text-sm mb-4">TPS HISTORY ({timeRange === '1h' ? 'LAST HOUR' : timeRange === '24h' ? 'LAST 24 HOURS' : 'LAST 7 DAYS'})</h3>
           <div className="h-[200px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={historicalData.length > 0 ? historicalData : tpsChartData}>
@@ -294,8 +294,8 @@ export default function NetworkHealth() {
 
         {/* P2P Traffic & Node Count Historical */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <h3 className="text-gray-400 text-sm mb-4">P2P TRAFFIC TREND</h3>
+          <div className="bg-surface-2 rounded-xl p-4">
+            <h3 className="text-ink-muted text-sm mb-4">P2P TRAFFIC TREND</h3>
             <div className="h-[180px]">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={historicalData}>
@@ -317,8 +317,8 @@ export default function NetworkHealth() {
             </div>
           </div>
 
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <h3 className="text-gray-400 text-sm mb-4">NODE COUNT TREND</h3>
+          <div className="bg-surface-2 rounded-xl p-4">
+            <h3 className="text-ink-muted text-sm mb-4">NODE COUNT TREND</h3>
             <div className="h-[180px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={historicalData}>
@@ -337,8 +337,8 @@ export default function NetworkHealth() {
 
         {/* BFT Participation & Consensus Rate Historical */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <h3 className="text-gray-400 text-sm mb-4">BFT PARTICIPATION RATE TREND</h3>
+          <div className="bg-surface-2 rounded-xl p-4">
+            <h3 className="text-ink-muted text-sm mb-4">BFT PARTICIPATION RATE TREND</h3>
             <div className="h-[180px]">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={historicalData}>
@@ -360,8 +360,8 @@ export default function NetworkHealth() {
             </div>
           </div>
 
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <h3 className="text-gray-400 text-sm mb-4">ACTIVE VALIDATORS TREND</h3>
+          <div className="bg-surface-2 rounded-xl p-4">
+            <h3 className="text-ink-muted text-sm mb-4">ACTIVE VALIDATORS TREND</h3>
             <div className="h-[180px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={historicalData}>
@@ -380,59 +380,59 @@ export default function NetworkHealth() {
 
         {/* Node Infrastructure Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <h3 className="text-gray-400 text-sm mb-3">NODE INFRASTRUCTURE</h3>
-            <p className="text-gray-500 text-xs mb-3">From getClusterNodes RPC</p>
+          <div className="bg-surface-2 rounded-xl p-4">
+            <h3 className="text-ink-muted text-sm mb-3">NODE INFRASTRUCTURE</h3>
+            <p className="text-ink-faint text-xs mb-3">From getClusterNodes RPC</p>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-gray-400 text-sm">Total Cluster Nodes</span>
+                <span className="text-ink-muted text-sm">Total Cluster Nodes</span>
                 <span className="text-white font-bold">{clusterNodes.length}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-400 text-sm">With RPC</span>
-                <span className="text-cyan-400 font-bold">{rpcNodes}</span>
+                <span className="text-ink-muted text-sm">With RPC</span>
+                <span className="text-brand font-bold">{rpcNodes}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-400 text-sm">With Gossip</span>
+                <span className="text-ink-muted text-sm">With Gossip</span>
                 <span className="text-purple-400 font-bold">{gossipNodes}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-400 text-sm">With TPU</span>
-                <span className="text-emerald-400 font-bold">{tpuNodes}</span>
+                <span className="text-ink-muted text-sm">With TPU</span>
+                <span className="text-positive font-bold">{tpuNodes}</span>
               </div>
             </div>
           </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <h3 className="text-gray-400 text-sm mb-3">BLOCK PRODUCTION</h3>
+          <div className="bg-surface-2 rounded-xl p-4">
+            <h3 className="text-ink-muted text-sm mb-3">BLOCK PRODUCTION</h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-gray-400 text-sm">Leader Slots</span>
+                <span className="text-ink-muted text-sm">Leader Slots</span>
                 <span className="text-white font-bold">{totalLeader.toLocaleString()}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-400 text-sm">Blocks Produced</span>
-                <span className="text-emerald-400 font-bold">{totalProduced.toLocaleString()}</span>
+                <span className="text-ink-muted text-sm">Blocks Produced</span>
+                <span className="text-positive font-bold">{totalProduced.toLocaleString()}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-400 text-sm">Skipped Slots</span>
-                <span className="text-red-400 font-bold">{(totalLeader - totalProduced).toLocaleString()}</span>
+                <span className="text-ink-muted text-sm">Skipped Slots</span>
+                <span className="text-negative font-bold">{(totalLeader - totalProduced).toLocaleString()}</span>
               </div>
             </div>
           </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <h3 className="text-gray-400 text-sm mb-3">CONSENSUS HEALTH</h3>
+          <div className="bg-surface-2 rounded-xl p-4">
+            <h3 className="text-ink-muted text-sm mb-3">CONSENSUS HEALTH</h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-gray-400 text-sm">Active Stake</span>
-                <span className="text-emerald-400 font-bold">{(activeStake / 1e6).toFixed(1)}M XNT</span>
+                <span className="text-ink-muted text-sm">Active Stake</span>
+                <span className="text-positive font-bold">{(activeStake / 1e6).toFixed(1)}M XNT</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-400 text-sm">Participation Rate</span>
-                <span className="text-yellow-400 font-bold">{bftParticipation.toFixed(2)}%</span>
+                <span className="text-ink-muted text-sm">Participation Rate</span>
+                <span className="text-warning font-bold">{bftParticipation.toFixed(2)}%</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-400 text-sm">Delinquent Stake</span>
-                <span className="text-red-400 font-bold">{((totalStake - activeStake) / 1e6).toFixed(1)}M XNT</span>
+                <span className="text-ink-muted text-sm">Delinquent Stake</span>
+                <span className="text-negative font-bold">{((totalStake - activeStake) / 1e6).toFixed(1)}M XNT</span>
               </div>
             </div>
           </div>
@@ -440,8 +440,8 @@ export default function NetworkHealth() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Version Distribution */}
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <h3 className="text-gray-400 text-sm mb-4">VERSION DISTRIBUTION</h3>
+          <div className="bg-surface-2 rounded-xl p-4">
+            <h3 className="text-ink-muted text-sm mb-4">VERSION DISTRIBUTION</h3>
             <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -455,8 +455,8 @@ export default function NetworkHealth() {
           </div>
 
           {/* Validator Status */}
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <h3 className="text-gray-400 text-sm mb-4">VALIDATOR STATUS</h3>
+          <div className="bg-surface-2 rounded-xl p-4">
+            <h3 className="text-ink-muted text-sm mb-4">VALIDATOR STATUS</h3>
             <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -470,8 +470,8 @@ export default function NetworkHealth() {
           </div>
 
           {/* Uptime Distribution */}
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <h3 className="text-gray-400 text-sm mb-4">VALIDATOR UPTIME</h3>
+          <div className="bg-surface-2 rounded-xl p-4">
+            <h3 className="text-ink-muted text-sm mb-4">VALIDATOR UPTIME</h3>
             <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={uptimeData} layout="vertical">
@@ -485,8 +485,8 @@ export default function NetworkHealth() {
           </div>
 
           {/* Commission Distribution */}
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <h3 className="text-gray-400 text-sm mb-4">STAKE BY COMMISSION</h3>
+          <div className="bg-surface-2 rounded-xl p-4">
+            <h3 className="text-ink-muted text-sm mb-4">STAKE BY COMMISSION</h3>
             <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={commissionData}>

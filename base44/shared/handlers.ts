@@ -145,6 +145,7 @@ export const tokensHandler = (deps?: Deps) =>
         limit: q.limit,
         offset: q.offset,
         indexed: snap.tokens.length,
+        summary: snap.summary,
         sources: snap.sources,
         fetchedAt: snap.builtAt,
       },

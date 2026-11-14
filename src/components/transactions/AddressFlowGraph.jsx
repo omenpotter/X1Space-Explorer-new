@@ -54,9 +54,9 @@ export default function AddressFlowGraph({ flowData }) {
   const getTypeColor = (type) => {
     const colors = {
       transfer: 'border-blue-500/50 bg-blue-500/10',
-      stake: 'border-emerald-500/50 bg-emerald-500/10',
-      token: 'border-yellow-500/50 bg-yellow-500/10',
-      center: 'border-cyan-500 bg-cyan-500/20',
+      stake: 'border-positive/50 bg-positive/10',
+      token: 'border-warning/50 bg-warning/10',
+      center: 'border-brand bg-brand/20',
       other: 'border-gray-500/50 bg-gray-500/10'
     };
     return colors[type] || colors.other;
@@ -68,20 +68,20 @@ export default function AddressFlowGraph({ flowData }) {
       className={`block p-3 rounded-lg border-2 ${getTypeColor(node.type)} transition-all ${!isCenter && 'hover:scale-105 cursor-pointer'}`}
     >
       <div className="flex items-center gap-2 mb-1">
-        <Wallet className={`w-4 h-4 ${isCenter ? 'text-cyan-400' : 'text-gray-400'}`} />
-        <span className={`font-mono text-xs ${isCenter ? 'text-cyan-400' : 'text-gray-300'}`}>
+        <Wallet className={`w-4 h-4 ${isCenter ? 'text-brand' : 'text-ink-muted'}`} />
+        <span className={`font-mono text-xs ${isCenter ? 'text-brand' : 'text-ink-soft'}`}>
           {node.id.substring(0, 8)}...{node.id.slice(-4)}
         </span>
       </div>
       {isCenter ? (
         <div className="flex gap-4 text-xs mt-2">
-          <span className="text-emerald-400">↓ {formatAmount(node.inflow)} XNT</span>
-          <span className="text-red-400">↑ {formatAmount(node.outflow)} XNT</span>
+          <span className="text-positive">↓ {formatAmount(node.inflow)} XNT</span>
+          <span className="text-negative">↑ {formatAmount(node.outflow)} XNT</span>
         </div>
       ) : (
         <div className="text-xs mt-1">
           <span className="text-white font-bold">{formatAmount(node.totalAmount)} XNT</span>
-          <span className="text-gray-500 ml-2">({node.txCount} txs)</span>
+          <span className="text-ink-faint ml-2">({node.txCount} txs)</span>
         </div>
       )}
     </Link>
@@ -92,11 +92,11 @@ export default function AddressFlowGraph({ flowData }) {
       {direction === 'in' ? (
         <>
           <div className="h-[2px] w-8 bg-gradient-to-r from-emerald-500/50 to-emerald-500" />
-          <ArrowRight className="w-4 h-4 text-emerald-500" />
+          <ArrowRight className="w-4 h-4 text-positive" />
         </>
       ) : (
         <>
-          <ArrowRight className="w-4 h-4 text-red-400" />
+          <ArrowRight className="w-4 h-4 text-negative" />
           <div className="h-[2px] w-8 bg-gradient-to-r from-red-400 to-red-400/50" />
         </>
       )}
@@ -111,11 +111,11 @@ export default function AddressFlowGraph({ flowData }) {
         {/* Incoming Nodes */}
         <div className="flex flex-col gap-3 items-end">
           <div className="flex items-center gap-2 mb-2">
-            <Download className="w-4 h-4 text-emerald-400" />
-            <span className="text-emerald-400 text-sm font-medium">Incoming ({incomingNodes.length})</span>
+            <Download className="w-4 h-4 text-positive" />
+            <span className="text-positive text-sm font-medium">Incoming ({incomingNodes.length})</span>
           </div>
           {incomingNodes.length === 0 ? (
-            <div className="text-gray-500 text-sm p-4">No incoming transactions</div>
+            <div className="text-ink-faint text-sm p-4">No incoming transactions</div>
           ) : (
             incomingNodes.map(node => (
               <div key={node.id} className="flex items-center gap-2">
@@ -129,12 +129,12 @@ export default function AddressFlowGraph({ flowData }) {
         {/* Center Node */}
         <div className="mx-8">
           <div className="text-center mb-2">
-            <span className="text-cyan-400 text-sm font-medium">Analyzed Address</span>
+            <span className="text-brand text-sm font-medium">Analyzed Address</span>
           </div>
           <div className="transform scale-110">
             <NodeCard node={centerNode} isCenter />
           </div>
-          <div className="text-center mt-3 text-gray-500 text-xs">
+          <div className="text-center mt-3 text-ink-faint text-xs">
             {centerNode.txCount} total transactions
           </div>
         </div>
@@ -142,11 +142,11 @@ export default function AddressFlowGraph({ flowData }) {
         {/* Outgoing Nodes */}
         <div className="flex flex-col gap-3 items-start">
           <div className="flex items-center gap-2 mb-2">
-            <Send className="w-4 h-4 text-red-400" />
-            <span className="text-red-400 text-sm font-medium">Outgoing ({outgoingNodes.length})</span>
+            <Send className="w-4 h-4 text-negative" />
+            <span className="text-negative text-sm font-medium">Outgoing ({outgoingNodes.length})</span>
           </div>
           {outgoingNodes.length === 0 ? (
-            <div className="text-gray-500 text-sm p-4">No outgoing transactions</div>
+            <div className="text-ink-faint text-sm p-4">No outgoing transactions</div>
           ) : (
             outgoingNodes.map(node => (
               <div key={node.id} className="flex items-center gap-2">
@@ -159,18 +159,18 @@ export default function AddressFlowGraph({ flowData }) {
       </div>
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-6 mt-8 pt-4 border-t border-white/10">
+      <div className="flex items-center justify-center gap-6 mt-8 pt-4 border-t border-line">
         <div className="flex items-center gap-2 text-xs">
           <div className="w-3 h-3 rounded border-2 border-blue-500/50 bg-blue-500/10" />
-          <span className="text-gray-400">Transfer</span>
+          <span className="text-ink-muted">Transfer</span>
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <div className="w-3 h-3 rounded border-2 border-emerald-500/50 bg-emerald-500/10" />
-          <span className="text-gray-400">Stake</span>
+          <div className="w-3 h-3 rounded border-2 border-positive/50 bg-positive/10" />
+          <span className="text-ink-muted">Stake</span>
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <div className="w-3 h-3 rounded border-2 border-yellow-500/50 bg-yellow-500/10" />
-          <span className="text-gray-400">Token</span>
+          <div className="w-3 h-3 rounded border-2 border-warning/50 bg-warning/10" />
+          <span className="text-ink-muted">Token</span>
         </div>
       </div>
     </div>

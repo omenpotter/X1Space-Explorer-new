@@ -112,19 +112,19 @@ const LPExplorer = () => {
   // Sort indicator component
   const SortIndicator = ({ columnKey }) => {
     if (sortConfig.key !== columnKey) {
-      return <ArrowUpDown className="h-3 w-3 ml-1 text-gray-500" />;
+      return <ArrowUpDown className="h-3 w-3 ml-1 text-ink-faint" />;
     }
     return sortConfig.direction === 'asc' 
-      ? <ArrowUpIcon className="h-3 w-3 ml-1 text-cyan-400" />
-      : <ArrowDownIcon className="h-3 w-3 ml-1 text-cyan-400" />;
+      ? <ArrowUpIcon className="h-3 w-3 ml-1 text-brand" />
+      : <ArrowDownIcon className="h-3 w-3 ml-1 text-brand" />;
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0f1419] text-white flex items-center justify-center">
+      <div className="min-h-screen bg-canvas text-white flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-cyan-400/20 border-t-cyan-400 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading LP data...</p>
+          <div className="w-12 h-12 border-4 border-brand/20 border-t-cyan-400 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-ink-muted">Loading LP data...</p>
         </div>
       </div>
     );
@@ -132,31 +132,31 @@ const LPExplorer = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#0f1419] text-white">
+      <div className="min-h-screen bg-canvas text-white">
         <div className="max-w-[1800px] mx-auto px-4 py-8">
           <div className="flex items-center gap-4 mb-6">
             <Link to={createPageUrl('Dashboard')}>
-              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+              <Button variant="ghost" size="sm" className="text-ink-muted hover:text-white">
                 <ArrowLeftIcon className="w-4 h-4 mr-2" />
                 Back to Dashboard
               </Button>
             </Link>
           </div>
 
-          <Card className="bg-[#1d2d3a] border-red-500/20">
+          <Card className="bg-surface-1 border-negative/20">
             <CardContent className="pt-6">
               <div className="text-center py-12">
-                <AlertCircleIcon className="w-16 h-16 text-red-400 mx-auto mb-4" />
+                <AlertCircleIcon className="w-16 h-16 text-negative mx-auto mb-4" />
                 <h3 className="text-xl font-bold text-white mb-2">Failed to Load LP Data</h3>
-                <p className="text-gray-400 mb-4">{error}</p>
-                <div className="space-y-2 text-sm text-gray-500 mb-6">
+                <p className="text-ink-muted mb-4">{error}</p>
+                <div className="space-y-2 text-sm text-ink-faint mb-6">
                   <p>Please check:</p>
                   <ul className="list-disc list-inside">
                     <li>XDEX API is available</li>
                     <li>Network connection is stable</li>
                   </ul>
                 </div>
-                <Button onClick={loadData} className="bg-cyan-500 hover:bg-cyan-600">
+                <Button onClick={loadData} className="bg-brand hover:bg-brand-strong">
                   <RefreshCwIcon className="w-4 h-4 mr-2" />
                   Try Again
                 </Button>
@@ -169,20 +169,20 @@ const LPExplorer = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f1419] text-white">
+    <div className="min-h-screen bg-canvas text-white">
       <div className="max-w-[1800px] mx-auto px-4 py-8 space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link to={createPageUrl('Dashboard')}>
-              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+              <Button variant="ghost" size="sm" className="text-ink-muted hover:text-white">
                 <ArrowLeftIcon className="w-4 h-4 mr-2" />
                 Back
               </Button>
             </Link>
             <div>
               <h1 className="text-4xl font-bold text-white">Liquidity Pools</h1>
-              <p className="text-gray-400 mt-1">
+              <p className="text-ink-muted mt-1">
                 Explore XDEX liquidity pools on X1 Mainnet
               </p>
             </div>
@@ -191,7 +191,7 @@ const LPExplorer = () => {
             onClick={loadData} 
             variant="outline" 
             size="sm"
-            className="border-gray-600 text-gray-300 hover:bg-gray-800"
+            className="border-gray-600 text-ink-soft hover:bg-gray-800"
           >
             <RefreshCwIcon className="w-4 h-4 mr-2" />
             Refresh
@@ -200,67 +200,67 @@ const LPExplorer = () => {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="bg-[#1d2d3a] border-white/10">
+          <Card className="bg-surface-1 border-line">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Total Pools</CardTitle>
-              <DropletIcon className="h-4 w-4 text-cyan-400" />
+              <CardTitle className="text-sm font-medium text-ink-soft">Total Pools</CardTitle>
+              <DropletIcon className="h-4 w-4 text-brand" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">{stats?.total_pools || 0}</div>
-              <p className="text-xs text-gray-500">Active liquidity pools</p>
+              <p className="text-xs text-ink-faint">Active liquidity pools</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-[#1d2d3a] border-white/10">
+          <Card className="bg-surface-1 border-line">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Total Holders</CardTitle>
+              <CardTitle className="text-sm font-medium text-ink-soft">Total Holders</CardTitle>
               <UsersIcon className="h-4 w-4 text-blue-400" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">{stats?.total_holders || 0}</div>
-              <p className="text-xs text-gray-500">Unique LP holders</p>
+              <p className="text-xs text-ink-faint">Unique LP holders</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-[#1d2d3a] border-white/10">
+          <Card className="bg-surface-1 border-line">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Total TVL</CardTitle>
-              <TrendingUpIcon className="h-4 w-4 text-emerald-400" />
+              <CardTitle className="text-sm font-medium text-ink-soft">Total TVL</CardTitle>
+              <TrendingUpIcon className="h-4 w-4 text-positive" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">
                 ${lpTokens.reduce((sum, t) => sum + (t.liquidity_usd || 0), 0).toLocaleString()}
               </div>
-              <p className="text-xs text-gray-500">Total value locked</p>
+              <p className="text-xs text-ink-faint">Total value locked</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Pools Table - No Tabs */}
-        <Card className="bg-[#1d2d3a] border-white/10">
+        <Card className="bg-surface-1 border-line">
           <CardHeader>
             <CardTitle className="text-white">Liquidity Pools</CardTitle>
-            <CardDescription className="text-gray-400">
+            <CardDescription className="text-ink-muted">
               {lpTokens.length} pools - Click column headers to sort
             </CardDescription>
             <div className="flex items-center space-x-2 pt-4">
-              <SearchIcon className="h-4 w-4 text-gray-500" />
+              <SearchIcon className="h-4 w-4 text-ink-faint" />
               <Input
                 placeholder="Search by token pair or address..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="max-w-sm bg-[#0f1419] border-white/10 text-white placeholder:text-gray-500"
+                className="max-w-sm bg-canvas border-line text-white placeholder:text-ink-faint"
               />
             </div>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
-                <TableRow className="border-white/5 hover:bg-transparent">
-                  <TableHead className="text-gray-400 w-16">#</TableHead>
-                  <TableHead className="text-gray-400">Token Pair</TableHead>
+                <TableRow className="border-line hover:bg-transparent">
+                  <TableHead className="text-ink-muted w-16">#</TableHead>
+                  <TableHead className="text-ink-muted">Token Pair</TableHead>
                   <TableHead 
-                    className="text-right text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
+                    className="text-right text-ink-muted cursor-pointer hover:text-brand transition-colors select-none"
                     onClick={() => handleSort('holder_count')}
                   >
                     <div className="flex items-center justify-end">
@@ -269,7 +269,7 @@ const LPExplorer = () => {
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="text-right text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
+                    className="text-right text-ink-muted cursor-pointer hover:text-brand transition-colors select-none"
                     onClick={() => handleSort('liquidity_usd')}
                   >
                     <div className="flex items-center justify-end">
@@ -278,7 +278,7 @@ const LPExplorer = () => {
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="text-right text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
+                    className="text-right text-ink-muted cursor-pointer hover:text-brand transition-colors select-none"
                     onClick={() => handleSort('updated_at')}
                   >
                     <div className="flex items-center justify-end">
@@ -290,8 +290,8 @@ const LPExplorer = () => {
               </TableHeader>
               <TableBody>
                 {filteredTokens.length > 0 ? filteredTokens.map((token, index) => (
-                  <TableRow key={token.lp_mint} className="border-white/5 hover:bg-white/5">
-                    <TableCell className="text-gray-400 font-medium">
+                  <TableRow key={token.lp_mint} className="border-line hover:bg-white/5">
+                    <TableCell className="text-ink-muted font-medium">
                       {index + 1}
                     </TableCell>
                     <TableCell className="font-mono text-sm">
@@ -303,7 +303,7 @@ const LPExplorer = () => {
                               <img 
                                 src={token.token_a_logo} 
                                 alt={token.token_a_symbol}
-                                className="w-6 h-6 rounded-full border-2 border-[#1d2d3a] bg-gray-800"
+                                className="w-6 h-6 rounded-full border-2 border-surface-1 bg-gray-800"
                                 onError={(e) => e.target.style.display = 'none'}
                               />
                             )}
@@ -311,7 +311,7 @@ const LPExplorer = () => {
                               <img 
                                 src={token.token_b_logo} 
                                 alt={token.token_b_symbol}
-                                className="w-6 h-6 rounded-full border-2 border-[#1d2d3a] bg-gray-800"
+                                className="w-6 h-6 rounded-full border-2 border-surface-1 bg-gray-800"
                                 onError={(e) => e.target.style.display = 'none'}
                               />
                             )}
@@ -319,7 +319,7 @@ const LPExplorer = () => {
                         )}
                         
                         <div className="flex items-center gap-2">
-                          <span className="text-cyan-400 font-semibold">
+                          <span className="text-brand font-semibold">
                             {token.pair_symbol || `${token.token_a_symbol}/${token.token_b_symbol}`}
                           </span>
                           <Button
@@ -329,7 +329,7 @@ const LPExplorer = () => {
                             onClick={() => window.open(`https://explorer.mainnet.x1.xyz/address/${token.lp_mint}`, '_blank')}
                             title={`View on X1 Explorer`}
                           >
-                            <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
+                            <ExternalLinkIcon className="h-3 w-3 text-brand" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -344,20 +344,20 @@ const LPExplorer = () => {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Badge variant="outline" className="border-cyan-400/30 text-cyan-400">
+                      <Badge variant="outline" className="border-brand/30 text-brand">
                         {token.holder_count || 0}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right font-mono text-emerald-400 font-semibold">
+                    <TableCell className="text-right font-mono text-positive font-semibold">
                       ${(token.liquidity_usd || 0).toLocaleString()}
                     </TableCell>
-                    <TableCell className="text-right text-sm text-gray-500">
+                    <TableCell className="text-right text-sm text-ink-faint">
                       {token.updated_at ? new Date(token.updated_at).toLocaleDateString() : '—'}
                     </TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={5} className="text-center py-8 text-ink-faint">
                       {searchTerm ? 'No pools found matching your search' : 'No pools available'}
                     </TableCell>
                   </TableRow>

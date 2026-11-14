@@ -30,11 +30,11 @@ export default function SmartSearchBar({ onResult }) {
 
     return (
         <div className="relative">
-            <div className="flex items-center gap-2 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 p-1 rounded-lg border border-purple-500/20">
+            <div className="flex items-center gap-2 bg-gradient-to-r from-purple-500/10 to-brand/10 p-1 rounded-lg border border-purple-500/20">
                 <Sparkles className="w-4 h-4 text-purple-400 ml-2" />
                 <Input
                     placeholder="Ask anything: 'show me Bitcoin token' or 'current network TPS'"
-                    className="flex-1 bg-transparent border-0 text-white placeholder:text-gray-400"
+                    className="flex-1 bg-transparent border-0 text-white placeholder:text-ink-muted"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}

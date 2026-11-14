@@ -32,3 +32,7 @@ Rules: no push / merge / deploy, no secrets printed, no paid endpoints, no crede
 - [ ] Final report + rotation checklist
 
 ## Log
+- [done] Backend rewritten: `base44/shared/*` + 16 thin function entries (15 existing + `getImage`). Commit ab88577.
+- [done] Live smoke (`NODE_USE_ENV_PROXY=1 LIVE=1 npx vitest run`): 25,912 mints indexed, 3,771 fungible, 132 pools, 377 identities (263 icons), 373/373 nodes located (216 city-level, 157 country-level). Ninja = not_configured (no key).
+- [done] 67 backend unit/contract/security tests passing (`npx vitest run`).
+- [next] Frontend data layer -> design system/app shell -> TokenExplorer, NetworkMap, Validators -> remaining pages -> browser tests -> report.
