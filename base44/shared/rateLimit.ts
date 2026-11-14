@@ -1,61 +1,54 @@
-// Shared rate-limiting and CORS helpers for backend functions.
-// Used by LLM-invoking functions to prevent anonymous credit abuse.
+// Rate limiting backed by the shared store (persistent where the platform supports it).
+import type { KVStore } from './store.ts';
 
-const rateLimits = new Map<string, { count: number; reset: number }>();
-
-export function checkRateLimit(ip: string, maxRequests = 10, windowMs = 60000): boolean {
-  const now = Date.now();
-  const limit = rateLimits.get(ip) || { count: 0, reset: now + windowMs };
-
-  if (now > limit.reset) {
-    limit.count = 0;
-    limit.reset = now + windowMs;
-  }
-
-  limit.count++;
-  rateLimits.set(ip, limit);
-
-  return limit.count <= maxRequests;
+export interface LimitResult {
+  allowed: boolean;
+  limit: number;
+  remaining: number;
+  resetAt: number;
 }
 
+/**
+ * The client address as set by the platform edge. `x-forwarded-for` is deliberately
+ * ignored because callers can spoof it to dodge limits.
+ */
 export function getClientIp(req: Request): string {
-  // cf-connecting-ip is set by the platform/Cloudflare and is not client-controllable.
-  // Do NOT trust x-forwarded-for for rate-limit keying — callers can spoof it to bypass limits.
-  return (
-    req.headers.get('cf-connecting-ip') ||
-    'unknown'
-  );
+  return req.headers.get('cf-connecting-ip') || 'unknown';
 }
 
-export function corsHeaders(): Record<string, string> {
+/** Fixed-window limiter. Counter keys include the window index so they expire naturally. */
+export async function rateLimit(
+  store: KVStore,
+  scope: string,
+  id: string,
+  limit: number,
+  windowMs = 60_000,
+  now: () => number = Date.now,
+): Promise<LimitResult> {
+  const t = now();
+  const window = Math.floor(t / windowMs);
+  const count = await store.incr(`rl:${scope}:${id}:${window}`, windowMs * 2);
   return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Content-Type': 'application/json',
+    allowed: count <= limit,
+    limit,
+    remaining: Math.max(0, limit - count),
+    resetAt: (window + 1) * windowMs,
   };
 }
 
-export function rateLimitedResponse(): Response {
-  return new Response(
-    JSON.stringify({
-      error: {
-        code: 429,
-        message: 'Rate limit exceeded. Please try again in a minute.',
-        timestamp: new Date().toISOString(),
-      },
-    }),
-    { status: 429, headers: corsHeaders() }
-  );
-}
-
-// Enforce rate limiting for a request. Returns null if allowed, or a 429 Response if exceeded.
-export function enforceRateLimit(req: Request, maxRequests = 10): Response | null {
-  if (req.method === 'OPTIONS') return null;
+/**
+ * Per-IP limit for anonymous endpoints. When the platform does not supply a client
+ * address, every caller shares the "unknown" bucket, so that bucket gets a larger
+ * allowance: it still bounds total load without letting one caller lock everyone out.
+ */
+export function limitByIp(
+  store: KVStore,
+  scope: string,
+  req: Request,
+  perMinute: number,
+  now: () => number = Date.now,
+): Promise<LimitResult> {
   const ip = getClientIp(req);
-  if (!checkRateLimit(ip, maxRequests)) {
-    console.warn(`⚠️ Rate limit exceeded for IP: ${ip}`);
-    return rateLimitedResponse();
-  }
-  return null;
+  const limit = ip === 'unknown' ? perMinute * 20 : perMinute;
+  return rateLimit(store, scope, ip, limit, 60_000, now);
 }
