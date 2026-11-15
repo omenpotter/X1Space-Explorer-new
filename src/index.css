@@ -116,6 +116,18 @@
 }
 
 @layer components {
+  /* Grid children may shrink below their content width, so wide content (tables, charts)
+     scrolls or wraps inside its card instead of stretching the page on small screens. */
+  main .grid > * {
+    min-width: 0;
+  }
+
+  /* Scroll containers are positioned so visually-hidden (absolute) text inside tables
+     cannot escape the clip and widen the page. */
+  .overflow-x-auto, .overflow-auto {
+    position: relative;
+  }
+
   /* Card surface used across pages. */
   .panel {
     @apply rounded-xl border border-line bg-surface-1;
@@ -123,7 +135,7 @@
   }
 
   .panel-header {
-    @apply flex items-center justify-between gap-3 border-b border-line px-4 py-3;
+    @apply flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-line px-4 py-3;
   }
 
   .eyebrow {

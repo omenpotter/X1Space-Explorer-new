@@ -214,7 +214,7 @@ export default function NetworkMap() {
             }
             bodyClassName="p-3"
           >
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
               <div>
                 <WorldMap
                   markers={clusters}
@@ -268,12 +268,12 @@ export default function NetworkMap() {
             </div>
           </Panel>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Distribution title="Stake by region" rows={byContinent} total={locatedStake} unit="validators" />
             <Distribution title="Stake by country" rows={byCountry.slice(0, 8)} total={locatedStake} unit="validators" />
           </div>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Panel title="Hosting providers" description="All gossip nodes (validators and RPC nodes), by network operator." bodyClassName="p-4">
               {meta?.providers?.length ? (
                 <ol className="space-y-3">

@@ -12,7 +12,7 @@ export function Panel({ title, description, actions, children, className, bodyCl
             {title && <h2 className="truncate text-sm font-medium text-ink">{title}</h2>}
             {description && <p className="mt-0.5 text-xs text-ink-muted">{description}</p>}
           </div>
-          {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+          {actions && <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">{actions}</div>}
         </div>
       )}
       <div className={bodyClassName}>{children}</div>

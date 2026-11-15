@@ -1,0 +1,142 @@
+{
+  "ranAt": "2026-11-15T07:46:04.264Z",
+  "passed": 25,
+  "failed": 2,
+  "results": [
+    {
+      "name": "[desktop] NetworkMap renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] TokenExplorer renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] NetworkMap renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] TokenExplorer renders",
+      "pass": false,
+      "detail": "horizontal overflow 77px"
+    },
+    {
+      "name": "[mobile] NetworkMap renders",
+      "pass": false,
+      "detail": "horizontal overflow 130px"
+    },
+    {
+      "name": "[mobile] TokenExplorer renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "tokens: table lists 50 rows from the live index",
+      "pass": true,
+      "detail": "25918 mints indexed"
+    },
+    {
+      "name": "tokens: source status and freshness are shown",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "tokens: unknown market values show a dash, never $0.00",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "tokens: search filters server-side",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "tokens: detail drawer shows chain facts and a risk review",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "tokens: kind and program filters change the result set",
+      "pass": true,
+      "detail": "1–50 of 22,013 -> 1–50 of 845"
+    },
+    {
+      "name": "tokens: no page errors",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "tokens: backend failure shows an error state with retry, not empty or fake rows",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "tokens: empty search result shows an empty state",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "map: world outline and validator markers render",
+      "pass": true,
+      "detail": "39 location markers"
+    },
+    {
+      "name": "map: located + unlocated accounts for every validator",
+      "pass": true,
+      "detail": "344 located, 44 not located, 388 total"
+    },
+    {
+      "name": "map: no raw node addresses anywhere in the page",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "map: selecting a marker lists its validators",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "map: status filter narrows the markers",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "map: markers are keyboard operable and zoom controls work",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "map: resizes with the viewport",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "map: no page errors",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "map: location service failure places nothing and says so",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "map: RPC outage shows an error state with retry",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "a11y: TokenExplorer has no serious or critical axe violations",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "a11y: NetworkMap has no serious or critical axe violations",
+      "pass": true,
+      "detail": ""
+    }
+  ]
+}
