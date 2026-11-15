@@ -20,11 +20,13 @@ function AddressRow({ label, value, hint }) {
   return (
     <div className="min-w-0">
       <dt className="eyebrow">{label}</dt>
-      <dd className="mt-1 flex items-center gap-1">
-        <span className="mono min-w-0 break-all text-sm text-ink-soft">{value}</span>
-        <CopyButton value={value} label={`Copy ${label.toLowerCase()}`} className="shrink-0" />
+      <dd className="mt-1">
+        <span className="flex items-center gap-1">
+          <span className="mono min-w-0 break-all text-sm text-ink-soft">{value}</span>
+          <CopyButton value={value} label={`Copy ${label.toLowerCase()}`} className="shrink-0" />
+        </span>
+        {hint && <span className="mt-0.5 block text-xs text-ink-faint">{hint}</span>}
       </dd>
-      {hint && <p className="mt-0.5 text-xs text-ink-faint">{hint}</p>}
     </div>
   );
 }

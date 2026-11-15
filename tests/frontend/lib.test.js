@@ -117,6 +117,13 @@ describe('rpc client', () => {
     await expect(rpc.rpcCall('nope')).rejects.toMatchObject({ kind: 'rpc' });
     expect(calls).toHaveLength(2);
   });
+  it('reports the node answer, not a later network failure, when another endpoint is unreachable', async () => {
+    behaviour['https://rpc.mainnet.x1.xyz'] = 'rpc-error';
+    behaviour['https://rpc.x1galaxy.io/'] = 'down';
+    const err = await rpc.rpcCall('getBlock', [1]).catch((e) => e);
+    expect(err.kind).toBe('rpc');
+    expect(err.message).toBe('Method not found');
+  });
   it('caches by key when asked', async () => {
     await rpc.rpcCall('getVersion', [], 'v', 'long');
     await rpc.rpcCall('getVersion', [], 'v', 'long');

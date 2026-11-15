@@ -42,6 +42,10 @@ async function post(endpoint, method, params, timeoutMs) {
 
 async function withFailover(method, params, timeoutMs) {
   let lastError = new RpcError('All RPC endpoints failed', 'network');
+  // A node's own JSON-RPC answer (for example "Block not available for slot N") is the real
+  // result of the request. If other endpoints are merely unreachable, report that answer
+  // instead of the later network failure.
+  let nodeError = null;
   const now = Date.now();
   // Endpoints in cooldown are tried last rather than skipped, so a full outage still gets a retry.
   const order = endpoints.map((_, i) => (preferred + i) % endpoints.length)
@@ -54,12 +58,13 @@ async function withFailover(method, params, timeoutMs) {
       return result;
     } catch (err) {
       lastError = err;
+      if (err.kind === 'rpc' && !nodeError) nodeError = err;
       // A node-level error (bad params, unsupported method) will not improve on another attempt
       // against the same node, but another endpoint may support it, so keep going.
       if (err.kind !== 'rpc') cooldownUntil[idx] = Date.now() + 15000;
     }
   }
-  throw lastError;
+  throw nodeError || lastError;
 }
 
 /**
