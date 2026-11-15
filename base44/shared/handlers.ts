@@ -5,6 +5,7 @@ import { env } from './env.ts';
 import { BodyError, fail, json, logError, preflight, readJsonBody, tooMany } from './http.ts';
 import { limitByIp } from './rateLimit.ts';
 import { getStore, type KVStore } from './store.ts';
+import { EntityStore, FallbackStore } from './entityStore.ts';
 import { createRpc, type RpcCall } from './rpc.ts';
 import { createXdex, type Xdex } from './xdex.ts';
 import { createNinja, type Ninja, NINJA_TIMEFRAMES, NINJA_TRADE_TYPES } from './ninja.ts';
@@ -12,9 +13,11 @@ import type { FetchLike } from './upstream.ts';
 import { clampInt, cleanText, isAddress, oneOf } from './validate.ts';
 import {
   analyzeDetail,
+  getMarket,
   getOffChainMeta,
   getSnapshot,
   getTokenDetail,
+  getTokenRow,
   KIND_FILTERS,
   PROGRAM_FILTERS,
   queryTokens,
@@ -50,25 +53,49 @@ export interface Deps {
   aiDailyQuota: number;
   /** Creates the platform client for a request (sign-in lookup and model calls). */
   clientFor?: (req: Request) => any;
+  /**
+   * Persistent store for per-user AI quotas, built from the request's platform client. Returns null when
+   * persistence is unavailable, in which case the shared per-instance store is used.
+   */
+  quotaStore?: (client: any) => KVStore | null;
 }
 
 let defaults: Deps | null = null;
 
-/** Production dependencies, created once per instance so caches are shared across requests. */
+/**
+ * Production dependencies, created once per instance so caches are shared across requests. Settings that
+ * come from secrets are read on use (getters), because secrets resolve per request on the platform.
+ */
 export function defaultDeps(): Deps {
   if (!defaults) {
     const f: FetchLike = (input, init) => fetch(input, init);
-    defaults = {
+    let warned = false;
+    const d: Deps = {
       fetch: f,
       rpc: createRpc(f),
       xdex: createXdex(f),
-      ninja: createNinja(f, env('X1_NINJA_API_KEY')),
+      ninja: createNinja(f, () => env('X1_NINJA_API_KEY')),
       cache: new Cache(),
       store: getStore,
       now: Date.now,
-      geoEnabled: env('GEOLOCATION_DISABLED') !== 'true',
-      aiDailyQuota: clampInt(env('AI_DAILY_QUOTA'), DEFAULT_DAILY_QUOTA, 1, 1000),
-    };
+      get geoEnabled() {
+        return env('GEOLOCATION_DISABLED') !== 'true';
+      },
+      get aiDailyQuota() {
+        return clampInt(env('AI_DAILY_QUOTA'), DEFAULT_DAILY_QUOTA, 1, 1000);
+      },
+      quotaStore: (client) => {
+        const entity = client?.asServiceRole?.entities?.RateLimit;
+        if (!entity) return null;
+        return new FallbackStore(new EntityStore(entity), undefined, () => {
+          if (!warned) {
+            warned = true;
+            console.error('[quota] persistent store unavailable; using per-instance counters');
+          }
+        });
+      },
+    } as Deps;
+    defaults = d;
   }
   return defaults;
 }
@@ -144,7 +171,7 @@ export const tokensHandler = (deps?: Deps) =>
         total,
         limit: q.limit,
         offset: q.offset,
-        indexed: snap.tokens.length,
+        indexed: snap.indexed,
         summary: snap.summary,
         sources: snap.sources,
         fetchedAt: snap.builtAt,
@@ -184,11 +211,12 @@ export const tokenPricesHandler = (deps?: Deps) =>
     if (!isAddress(p.mint)) return bad('invalid_mint', 'Parameter "mint" must be a token mint address.');
     const mint = p.mint;
     const ctx = tokenCtx(d);
-    const [price, snap] = await Promise.all([
+    const [price, loaded] = await Promise.all([
       d.cache.get(`price:${mint}`, { ttlMs: 15_000, staleMs: 5 * 60_000 }, () => d.xdex.getPrice(mint)).catch(() => null),
-      getSnapshot(ctx).catch(() => null),
+      d.cache.get(`row:${mint}`, { ttlMs: 15_000, staleMs: 5 * 60_000 }, () => getTokenRow(ctx, mint)).catch(() => null),
     ]);
-    const row = snap?.byMint.get(mint);
+    const row = loaded?.value?.row ?? null;
+    const market = loaded?.value?.market ?? null;
     const priceUsd = price?.value?.priceUsd ?? row?.priceUsd ?? null;
     const data: Record<string, unknown> = {
       mint,
@@ -204,7 +232,7 @@ export const tokenPricesHandler = (deps?: Deps) =>
     if (p.history === 'true' || p.history === true) {
       const tf = oneOf(p.tf, NINJA_TIMEFRAMES, '1h');
       const limit = clampInt(p.limit, 100, 1, 300);
-      const pool = snap?.ninjaByMint.get(mint)?.slice().sort((a, b) => (b.liquidityUsd ?? 0) - (a.liquidityUsd ?? 0))[0];
+      const pool = market?.ninjaByMint.get(mint)?.slice().sort((a, b) => (b.liquidityUsd ?? 0) - (a.liquidityUsd ?? 0))[0];
       if (!d.ninja.configured) data.history = { status: 'not_configured', candles: null };
       else if (!pool) data.history = { status: 'no_pool', candles: null };
       else {
@@ -239,9 +267,9 @@ function poolView(p: any) {
 export const liquidityPoolsHandler = (deps?: Deps) =>
   publicEndpoint('getLiquidityPools', 60, 15, async (p, d) => {
     if (!isAddress(p.token)) return bad('invalid_mint', 'Parameter "token" must be a token mint address.');
-    const snap = await getSnapshot(tokenCtx(d));
-    const pools = (snap.poolsByMint.get(p.token) ?? []).map(poolView);
-    return { body: { success: true, token: p.token, pools, count: pools.length, source: snap.sources.xdex, fetchedAt: snap.builtAt } };
+    const market = await getMarket(tokenCtx(d));
+    const pools = (market.poolsByMint.get(p.token) ?? []).map(poolView);
+    return { body: { success: true, token: p.token, pools, count: pools.length, source: market.sources.xdex, fetchedAt: market.builtAt } };
   }, deps);
 
 export const lpTokensHandler = (deps?: Deps) =>
@@ -345,9 +373,11 @@ export const imageHandler = (deps?: Deps): Handler => async (req) => {
       let src: string | null = null;
       if (kind === 'validator') src = (await getIdentities(d)).value.get(id)?.iconUrl ?? null;
       else {
-        const snap = await getSnapshot(tokenCtx(d));
-        if (!snap.byMint.has(id)) return null;
-        src = snap.byMint.get(id)?.logoUrl ?? (await getOffChainMeta(d, id)).image;
+        // Listed tokens carry a logo from the market data; others fall back to their published metadata.
+        const market = await getMarket(tokenCtx(d));
+        const pools = market.poolsByMint.get(id) ?? [];
+        const side = pools.map((pl) => (pl.token1.mint === id ? pl.token1 : pl.token2)).find((s) => s.logo);
+        src = side?.logo ?? (await getOffChainMeta(d, id)).image;
       }
       return src ? await fetchImage(d.fetch, src) : null;
     });
@@ -381,7 +411,9 @@ function aiEndpoint(
       const user = await requireUser(client);
       if (!user) return fail(req, 401, 'sign_in_required', 'Sign in to use AI features.', { methods: AI_METHODS });
       const body = await readJsonBody(req, AI_BODY_LIMIT);
-      const quota = await checkQuota(store, user, d.aiDailyQuota, d.now);
+      // Quotas must outlive a single instance: use the persistent store when the platform offers one.
+      const quotaStore = (d.quotaStore ? d.quotaStore(client) : null) ?? store;
+      const quota = await checkQuota(quotaStore, user, d.aiDailyQuota, d.now);
       if (!quota.allowed) {
         const message = quota.reason === 'daily_quota' ? 'Daily AI limit reached. It resets within 24 hours.' : 'Too many AI requests. Try again in a minute.';
         return fail(req, 429, quota.reason, message, {

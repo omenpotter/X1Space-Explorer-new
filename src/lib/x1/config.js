@@ -16,7 +16,10 @@ export const X1_CONFIG = {
     transactionsMs: 5000,
     dashboardMs: 5000,
     validatorsMs: 60000,
-    tokensMs: 45000,
+    // Backend-function polling is deliberately slow: each function run costs workspace credits.
+    priceMs: 120000,
+    anomaliesMs: 600000,
+    tokensMs: 120000,
     networkMapMs: 120000,
   },
   // Hosts the browser may load token logos from directly. Everything else goes through the image proxy.

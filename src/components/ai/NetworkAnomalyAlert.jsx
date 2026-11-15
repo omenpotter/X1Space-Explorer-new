@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/x1/api';
+import { X1_CONFIG } from '@/lib/x1/config';
 import { timeAgo } from '@/lib/format';
 import { cn } from '@/lib/utils';
-
-const POLL_MS = 5 * 60 * 1000;
 
 const SEVERITY = {
   High: { box: 'border-negative/30 bg-negative/10', icon: 'text-negative', text: 'text-negative' },
@@ -34,7 +33,7 @@ export default function NetworkAnomalyAlert({ className }) {
     check();
     const id = setInterval(() => {
       if (!document.hidden) check();
-    }, POLL_MS);
+    }, X1_CONFIG.polling.anomaliesMs);
     return () => {
       cancelled = true;
       clearInterval(id);

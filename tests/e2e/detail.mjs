@@ -39,10 +39,18 @@ const b = await chromium.launch(process.env.HTTPS_PROXY ? { proxy: { server: pro
 
 async function open(vp = { width: 1280, height: 900 }) {
   const ctx = await b.newContext({ viewport: vp, reducedMotion: 'reduce' });
-  await ctx.route(/\/functions\//, async (route) => {
-    const u = new URL(route.request().url());
+  // Both the SDK route (POST /api/apps/<id>/functions/<name>) and the direct GET /functions/<name> go to the local server.
+  await ctx.route(/^https?:\/\/[^/]+\/(api\/apps\/[^/]+\/)?functions\//, async (route) => {
+    const req = route.request();
+    const u = new URL(req.url());
+    const name = u.pathname.replace(/^\/(api\/apps\/[^/]+\/)?functions\//, '');
+    const hasBody = req.method() !== 'GET' && req.method() !== 'HEAD';
     try {
-      const r = await fetch(FUNCTIONS + u.pathname + u.search, { headers: { origin: APP } });
+      const r = await fetch(`${FUNCTIONS}/functions/${name}${u.search}`, {
+        method: req.method(),
+        headers: { origin: APP, ...(hasBody ? { 'content-type': req.headers()['content-type'] || 'application/json' } : {}) },
+        body: hasBody ? req.postData() || undefined : undefined,
+      });
       await route.fulfill({ status: r.status, headers: Object.fromEntries(r.headers.entries()), body: Buffer.from(await r.arrayBuffer()) });
     } catch { await route.abort(); }
   });

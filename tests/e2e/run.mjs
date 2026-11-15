@@ -5,7 +5,7 @@
 //   NODE_USE_ENV_PROXY=1 npx vite-node -c vitest.config.js scripts/dev-functions-server.ts &
 //   node tests/e2e/run.mjs
 //
-// The app talks to the real X1 RPC; `/functions/*` is forwarded to the local functions server,
+// The app talks to the real X1 RPC; backend function calls (SDK POST and direct GET) are forwarded to the local functions server,
 // which runs the production handlers against live public data. Failure scenarios are simulated
 // by intercepting requests. Results are written to docs/upgrade/e2e-results.json.
 import { createRequire } from 'node:module';
@@ -50,21 +50,30 @@ const launchOptions = {};
 if (process.env.HTTPS_PROXY) launchOptions.proxy = { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' };
 const browser = await chromium.launch(launchOptions);
 
-/** New page with `/functions/*` forwarded to the local functions server. `overrides` simulate failures. */
+// Backend functions are reached two ways: through the SDK (POST `<server>/api/apps/<id>/functions/<name>`
+// with a JSON body; in the local build the id is the string 'undefined') and, for images and as a fallback,
+// by a direct GET of `/functions/<name>?...`. Both are forwarded to the local functions server.
+const FUNCTION_ROUTE = /^https?:\/\/[^/]+\/(api\/apps\/[^/]+\/)?functions\//;
+const functionName = (url) => url.pathname.replace(/^\/(api\/apps\/[^/]+\/)?functions\//, '').split('/')[0];
+
+/** New page with both function routes forwarded to the local functions server. `overrides` simulate failures. */
 async function open(viewport, overrides = {}) {
   const context = await browser.newContext({ viewport, deviceScaleFactor: overrides.dsf || 1, reducedMotion: 'reduce' });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e.message).slice(0, 200)));
-  await context.route(/\/(api\/)?functions\//, async (route) => {
+  await context.route(FUNCTION_ROUTE, async (route) => {
     const url = new URL(route.request().url());
-    const name = url.pathname.replace(/^\/(api\/)?functions\//, '').split('/')[0];
+    const name = functionName(url);
     if (overrides.functions?.[name]) return overrides.functions[name](route);
     if (overrides.functions?.['*']) return overrides.functions['*'](route);
-    // Only the app-origin route is served; the SDK route is left to fail so the fallback order is exercised.
-    if (url.pathname.startsWith('/api/')) return route.fulfill({ status: 404, contentType: 'text/html', body: '<html></html>' });
     try {
-      const res = await fetch(FUNCTIONS + url.pathname + url.search, { method: route.request().method(), headers: { origin: APP }, body: route.request().postData() || undefined });
+      const req = route.request();
+      const method = req.method();
+      const hasBody = method !== 'GET' && method !== 'HEAD';
+      const headers = { origin: APP };
+      if (hasBody) headers['content-type'] = req.headers()['content-type'] || 'application/json';
+      const res = await fetch(FUNCTIONS + `/functions/${name}` + url.search, { method, headers, body: hasBody ? req.postData() || undefined : undefined });
       const body = Buffer.from(await res.arrayBuffer());
       await route.fulfill({ status: res.status, headers: Object.fromEntries(res.headers.entries()), body });
     } catch {

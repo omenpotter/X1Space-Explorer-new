@@ -1,0 +1,18 @@
+{
+  "name": "RateLimit",
+  "type": "object",
+  "description": "Server-side counters for rate limits and AI quotas. Written only by backend functions through the service role; no app user can read or change these records.",
+  "properties": {
+    "key": { "type": "string", "description": "Counter key, for example ai-day:<user id>:<day number>" },
+    "count": { "type": "number", "description": "Requests counted in the window" },
+    "value": { "type": "string", "description": "Optional JSON value for cached entries" },
+    "expires_at": { "type": "number", "description": "Epoch milliseconds after which the counter is ignored and may be deleted" }
+  },
+  "required": ["key", "expires_at"],
+  "rls": {
+    "create": { "user_condition": { "role": "admin" } },
+    "read": { "user_condition": { "role": "admin" } },
+    "update": { "user_condition": { "role": "admin" } },
+    "delete": { "user_condition": { "role": "admin" } }
+  }
+}

@@ -60,23 +60,30 @@ export function normalizeNinjaPool(p: any): NinjaPool | null {
 export const NINJA_TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1D'] as const;
 export const NINJA_TRADE_TYPES = ['all', 'buys', 'sells', 'lp'] as const;
 
-export function createNinja(fetchImpl: FetchLike, apiKey: string | undefined) {
-  const configured = typeof apiKey === 'string' && apiKey.length > 0;
+/**
+ * `apiKey` may be a string or a function returning the key. A function is read on every use, so a key
+ * added to the platform secrets takes effect without restarting the instance (secrets resolve per request).
+ */
+export function createNinja(fetchImpl: FetchLike, apiKey: string | undefined | (() => string | undefined)) {
+  const key = () => (typeof apiKey === 'function' ? apiKey() : apiKey);
   // Only these fixed paths are ever requested; callers cannot supply a URL or path.
   const get = (path: string) =>
     fetchJson<any>(fetchImpl, `${BASE}${path}`, {
       source: 'x1ninja',
       timeoutMs: 10_000,
       retries: 1,
-      headers: { Authorization: `Bearer ${apiKey}` },
+      headers: { Authorization: `Bearer ${key()}` },
     });
 
   return {
-    configured,
+    get configured(): boolean {
+      const k = key();
+      return typeof k === 'string' && k.length > 0;
+    },
 
     /** GET /v1/pools, paged. At most `maxPages` requests per refresh to respect the quota. */
     async listPools(maxPages = 3): Promise<{ pools: NinjaPool[]; xntPriceUsd: number | null; lastUpdated: number | null }> {
-      if (!configured) throw new Error('x1ninja: not configured');
+      if (!this.configured) throw new Error('x1ninja: not configured');
       const pools: NinjaPool[] = [];
       let xntPriceUsd: number | null = null;
       let lastUpdated: number | null = null;
@@ -100,7 +107,7 @@ export function createNinja(fetchImpl: FetchLike, apiKey: string | undefined) {
 
     /** GET /v1/pools/{address} */
     async getPool(address: string): Promise<NinjaPool | null> {
-      if (!configured) throw new Error('x1ninja: not configured');
+      if (!this.configured) throw new Error('x1ninja: not configured');
       try {
         const d = await get(`/v1/pools/${encodeURIComponent(address)}`);
         return normalizeNinjaPool(d?.pool);
@@ -112,7 +119,7 @@ export function createNinja(fetchImpl: FetchLike, apiKey: string | undefined) {
 
     /** GET /v1/ohlcv/{address}. Candles are passed through after numeric validation. */
     async getOhlcv(address: string, tf: string, limit: number): Promise<{ candles: any[]; timeframe: string }> {
-      if (!configured) throw new Error('x1ninja: not configured');
+      if (!this.configured) throw new Error('x1ninja: not configured');
       const d = await get(`/v1/ohlcv/${encodeURIComponent(address)}?tf=${encodeURIComponent(tf)}&limit=${limit}`);
       const candles = Array.isArray(d?.ohlcv) ? d.ohlcv.slice(0, 300) : [];
       return { candles, timeframe: typeof d?.timeframe === 'string' ? d.timeframe : tf };
@@ -120,7 +127,7 @@ export function createNinja(fetchImpl: FetchLike, apiKey: string | undefined) {
 
     /** GET /v1/trades/{address} */
     async getTrades(address: string, type: string, limit: number): Promise<{ trades: any[] }> {
-      if (!configured) throw new Error('x1ninja: not configured');
+      if (!this.configured) throw new Error('x1ninja: not configured');
       const d = await get(`/v1/trades/${encodeURIComponent(address)}?type=${encodeURIComponent(type)}&limit=${limit}`);
       return { trades: Array.isArray(d?.trades) ? d.trades.slice(0, 200) : [] };
     },

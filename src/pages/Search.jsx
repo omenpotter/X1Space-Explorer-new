@@ -117,8 +117,8 @@ const LOOKUPS = {
   },
 
   async tokens(q) {
-    const data = await api.searchTokens(q, 10);
-    const results = Array.isArray(data?.results) ? data.results : [];
+    const data = await api.tokens({ q, kind: 'all', limit: 10 });
+    const results = Array.isArray(data?.tokens) ? data.tokens : [];
     return { found: results.length > 0, results, total: typeof data?.total === 'number' ? data.total : results.length };
   },
 };

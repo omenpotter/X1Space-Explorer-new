@@ -1,3 +1,5 @@
+import { secrets } from 'base44:runtime';
+import { entry } from '../../shared/entry.ts';
 import { tokenByMintHandler } from '../../shared/handlers.ts';
 
-Deno.serve(tokenByMintHandler());
+export default entry(() => tokenByMintHandler(), (name) => secrets.get(name));

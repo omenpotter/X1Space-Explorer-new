@@ -16,7 +16,6 @@ import { compact, integer, percent, timeAgo, usd } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 const isNum = (n) => typeof n === 'number' && Number.isFinite(n);
-const PRICE_POLL_MS = 60 * 1000;
 const CHART_POLL_MS = 60 * 1000;
 const CHART_SAMPLES = 60;
 
@@ -71,7 +70,7 @@ function PriceCard({ price }) {
 
 export default function Dashboard() {
   const stats = usePolling(() => api.networkStats(), X1_CONFIG.polling.dashboardMs);
-  const price = usePolling(() => api.tokenPrice(X1_CONFIG.nativeMint), PRICE_POLL_MS);
+  const price = usePolling(() => api.tokenPrice(X1_CONFIG.nativeMint), X1_CONFIG.polling.priceMs);
   const blocks = usePolling(() => X1Rpc.getRecentBlocks(10), X1_CONFIG.polling.blocksMs);
   const samples = usePolling(() => X1Rpc.getRecentPerformanceSamples(CHART_SAMPLES), CHART_POLL_MS);
 

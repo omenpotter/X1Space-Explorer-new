@@ -1,3 +1,5 @@
+import { secrets } from 'base44:runtime';
+import { entry } from '../../shared/entry.ts';
 import { lpPoolDetailHandler } from '../../shared/handlers.ts';
 
-Deno.serve(lpPoolDetailHandler());
+export default entry(() => lpPoolDetailHandler(), (name) => secrets.get(name));

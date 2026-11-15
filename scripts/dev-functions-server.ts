@@ -7,25 +7,30 @@
 // X1 Ninja integration; without it that source reports "not_configured".
 import http from 'node:http';
 import * as H from '../base44/shared/handlers.ts';
+import { entry } from '../base44/shared/entry.ts';
+
+// Same wrapper the deployed entries use, with process.env standing in for the platform's secrets.
+const env = (name: string) => process.env[name];
+const wrap = (factory: () => (req: Request) => Promise<Response>) => entry(factory, env);
 
 const routes: Record<string, (req: Request) => Promise<Response>> = {
-  getTokens: H.tokensHandler(),
-  searchTokens: H.searchTokensHandler(),
-  getTokenByMint: H.tokenByMintHandler(),
-  analyzeToken: H.analyzeTokenHandler(),
-  getTokenPrices: H.tokenPricesHandler(),
-  getLiquidityPools: H.liquidityPoolsHandler(),
-  getLPTokens: H.lpTokensHandler(),
-  getLPStats: H.lpStatsHandler(),
-  getLPPoolDetail: H.lpPoolDetailHandler(),
-  getNetworkStats: H.networkStatsHandler(),
-  getNetworkHistory: H.networkHistoryHandler(),
-  detectAnomalies: H.detectAnomaliesHandler(),
-  getValidators: H.validatorsHandler(),
-  getImage: H.imageHandler(),
+  getTokens: wrap(() => H.tokensHandler()),
+  searchTokens: wrap(() => H.searchTokensHandler()),
+  getTokenByMint: wrap(() => H.tokenByMintHandler()),
+  analyzeToken: wrap(() => H.analyzeTokenHandler()),
+  getTokenPrices: wrap(() => H.tokenPricesHandler()),
+  getLiquidityPools: wrap(() => H.liquidityPoolsHandler()),
+  getLPTokens: wrap(() => H.lpTokensHandler()),
+  getLPStats: wrap(() => H.lpStatsHandler()),
+  getLPPoolDetail: wrap(() => H.lpPoolDetailHandler()),
+  getNetworkStats: wrap(() => H.networkStatsHandler()),
+  getNetworkHistory: wrap(() => H.networkHistoryHandler()),
+  detectAnomalies: wrap(() => H.detectAnomaliesHandler()),
+  getValidators: wrap(() => H.validatorsHandler()),
+  getImage: wrap(() => H.imageHandler()),
   // The model-backed functions need the platform client; locally they answer 503 by design.
-  smartSearch: H.smartSearchHandler(),
-  tokenVerificationAssistant: H.tokenVerificationHandler(),
+  smartSearch: wrap(() => H.smartSearchHandler()),
+  tokenVerificationAssistant: wrap(() => H.tokenVerificationHandler()),
 };
 
 const port = Number(process.env.PORT || 8787);

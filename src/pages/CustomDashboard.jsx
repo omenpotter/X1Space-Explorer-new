@@ -427,6 +427,7 @@ export default function CustomDashboard() {
   const [status, setStatus] = useState({ state: 'loading', loadedAt: null, stale: false });
   const [refreshing, setRefreshing] = useState(false);
   const historyAt = useRef(0);
+  const priceAt = useRef(0);
   const mounted = useRef(true);
   const busy = useRef(false);
 
@@ -441,12 +442,14 @@ export default function CustomDashboard() {
     if (background) setRefreshing(true);
     const want = needsRef.current;
     const wantHistory = want.has('history') && Date.now() - historyAt.current > HISTORY_REFRESH_MS;
+    // The price comes from a backend function (costs credits): never refresh it faster than the configured interval.
+    const wantPrice = want.has('price') && Date.now() - priceAt.current >= X1_CONFIG.polling.priceMs;
     const jobs = {
       stats: api.networkStats(),
       history: wantHistory ? api.networkHistory(2) : null,
       blocks: want.has('blocks') ? X1Rpc.getRecentBlocks(8) : null,
       health: want.has('health') ? rpcCall('getHealth').then((r) => (r === 'ok' ? 'ok' : 'error')).catch((e) => (e?.kind === 'rpc' ? 'error' : Promise.reject(e))) : null,
-      price: want.has('price') ? api.tokenPrice(X1_CONFIG.nativeMint) : null,
+      price: wantPrice ? api.tokenPrice(X1_CONFIG.nativeMint) : null,
     };
     const keys = Object.keys(jobs).filter((k) => jobs[k]);
     const settled = await Promise.allSettled(keys.map((k) => jobs[k]));
@@ -471,6 +474,7 @@ export default function CustomDashboard() {
       return next;
     });
     if (keys.includes('history') && !failed.includes('history')) historyAt.current = Date.now();
+    if (keys.includes('price') && !failed.includes('price')) priceAt.current = Date.now();
     setStatus((s) => {
       if (failed.includes('stats') && s.state !== 'ready') return { state: 'error', loadedAt: null, stale: false };
       return { state: 'ready', loadedAt: failed.length === keys.length ? s.loadedAt : Date.now(), stale: failed.length > 0 };

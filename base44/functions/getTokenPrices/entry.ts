@@ -1,3 +1,5 @@
+import { secrets } from 'base44:runtime';
+import { entry } from '../../shared/entry.ts';
 import { tokenPricesHandler } from '../../shared/handlers.ts';
 
-Deno.serve(tokenPricesHandler());
+export default entry(() => tokenPricesHandler(), (name) => secrets.get(name));
