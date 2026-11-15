@@ -22,6 +22,31 @@ function toQuery(params) {
   return s ? `?${s}` : '';
 }
 
+// Two routes can serve a backend function, depending on how the app is hosted:
+//   1. `/functions/<name>` on the app's own origin (the route the site has always used), and
+//   2. the SDK route (`<server>/api/functions/<name>`).
+// The first one that answers with JSON is remembered for the rest of the visit.
+const ROUTES = [
+  { id: 'origin', fetch: (path, init) => fetch(`/functions${path}`, init), imageBase: '/functions' },
+  { id: 'sdk', fetch: (path, init) => base44.functions.fetch(path, init), imageBase: null },
+];
+let activeRoute = null;
+
+async function requestJson(route, path, signal) {
+  const res = await route.fetch(path, { signal, headers: { Accept: 'application/json' } });
+  let body = null;
+  try {
+    body = await res.json();
+  } catch {
+    // Not JSON: this route does not serve functions (for example an HTML fallback page).
+    return { routed: false };
+  }
+  // A JSON error from our own handlers has the { success: false, error } shape.
+  const ours = body && typeof body === 'object' && ('success' in body || 'error' in body);
+  if (!res.ok && !ours) return { routed: false };
+  return { routed: true, res, body };
+}
+
 /** GET a backend function. Identical concurrent requests share one network call. */
 export async function apiGet(name, params, { timeoutMs = 20000 } = {}) {
   const path = `/${name}${toQuery(params)}`;
@@ -31,17 +56,23 @@ export async function apiGet(name, params, { timeoutMs = 20000 } = {}) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const res = await base44.functions.fetch(path, { signal: controller.signal, headers: { Accept: 'application/json' } });
-        let body = null;
-        try {
-          body = await res.json();
-        } catch {
-          // Not JSON: the function is missing or the host returned an HTML page.
+        const candidates = activeRoute ? [activeRoute] : ROUTES;
+        for (const route of candidates) {
+          let out;
+          try {
+            out = await requestJson(route, path, controller.signal);
+          } catch (err) {
+            if (err?.name === 'AbortError') throw err;
+            continue; // network failure on this route: try the next one
+          }
+          if (!out.routed) continue;
+          activeRoute = route;
+          if (!out.res.ok || out.body.success === false) {
+            throw new ApiError(out.body?.error?.message || `Request failed (${out.res.status})`, out.res.status, out.body?.error?.code || 'request_failed');
+          }
+          return out.body;
         }
-        if (!res.ok || !body || body.success === false) {
-          throw new ApiError(body?.error?.message || `Request failed (${res.status})`, res.status, body?.error?.code || 'request_failed');
-        }
-        return body;
+        throw new ApiError('The data service is not reachable.', 0, 'network');
       } catch (err) {
         if (err instanceof ApiError) throw err;
         throw new ApiError(err?.name === 'AbortError' ? 'The request timed out.' : 'Could not reach the server.', 0, err?.name === 'AbortError' ? 'timeout' : 'network');
@@ -54,9 +85,14 @@ export async function apiGet(name, params, { timeoutMs = 20000 } = {}) {
   return pending;
 }
 
-/** URL of the image proxy for a validator identity or token mint. The server looks the image up itself. */
+/**
+ * URL of the image proxy for a validator identity or token mint. The server looks the image up
+ * itself; the browser never passes a URL. Returns null when only the SDK route is available,
+ * because an <img> cannot use it (callers then show the generated avatar).
+ */
 export function proxiedImageUrl(kind, id) {
-  return `/functions/getImage?kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(id)}`;
+  const base = (activeRoute || ROUTES[0]).imageBase;
+  return base ? `${base}/getImage?kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(id)}` : null;
 }
 
 export const api = {

@@ -1,375 +1,212 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { 
-  Zap,
-  Loader2,
-  AlertCircle,
-  ArrowLeft,
-  ExternalLink,
-  Copy,
-  Check,
-  TrendingUp,
-  TrendingDown,
-  Activity,
-  Clock,
-  Award,
-  Server,
-  Bell,
-  Percent
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
+import React, { useMemo } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Bell, ExternalLink, Scale, SearchX, Server } from 'lucide-react';
+import PageHeader from '@/components/shell/PageHeader';
+import { ValidatorAvatar } from '@/components/ds/Avatar';
+import { CopyButton, Freshness, Meter, Panel, StatCard } from '@/components/ds/Primitives';
+import { EmptyState, ErrorState, Skeleton, StatSkeleton, Unavailable } from '@/components/ds/States';
+import { Button } from '@/components/ui/button';
+import PerformanceChart from '@/components/validators/PerformanceChart';
+import { SKIP_RATE_HELP, StatusPill, VOTE_RATE_HELP, ValidatorName, isNum, stakeShare, useValidators, websiteHref } from '@/components/validators/ValidatorCard';
+import { X1_CONFIG } from '@/lib/x1/config';
+import { compact, integer, percent } from '@/lib/format';
 import { createPageUrl } from '@/utils';
-import X1Rpc from '../components/x1/X1RpcService';
-import { safeUrl } from '@/lib/safeUrl';
-import PerformanceChart from '../components/validators/PerformanceChart';
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+
+const outlineBtn = 'border-line-strong bg-transparent text-ink-soft hover:bg-surface-3 hover:text-ink';
+const back = { label: 'Validators', to: createPageUrl('Validators') };
+
+function AddressRow({ label, value, hint }) {
+  return (
+    <div className="min-w-0">
+      <dt className="eyebrow">{label}</dt>
+      <dd className="mt-1 flex items-center gap-1">
+        <span className="mono min-w-0 break-all text-sm text-ink-soft">{value}</span>
+        <CopyButton value={value} label={`Copy ${label.toLowerCase()}`} className="shrink-0" />
+      </dd>
+      {hint && <p className="mt-0.5 text-xs text-ink-faint">{hint}</p>}
+    </div>
+  );
+}
 
 export default function ValidatorDetail() {
-  const [validator, setValidator] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [copied, setCopied] = useState(null);
-  const [timeRange, setTimeRange] = useState('7d');
+  const [params] = useSearchParams();
+  const id = (params.get('id') || '').trim();
+  const { status, validators, epoch, error, loadedAt, refreshFailed, refreshing, reload } = useValidators(X1_CONFIG.polling.validatorsMs);
 
-  const urlParams = new URLSearchParams(window.location.search);
-  const votePubkey = urlParams.get('id');
+  const v = useMemo(() => validators.find((x) => x.votePubkey === id) || null, [validators, id]);
+  const rank = useMemo(() => {
+    if (!v) return null;
+    return [...validators].sort((a, b) => b.activatedStake - a.activatedStake).findIndex((x) => x.votePubkey === v.votePubkey) + 1;
+  }, [validators, v]);
 
-  useEffect(() => {
-    const fetchValidator = async () => {
-      if (!votePubkey) {
-        setError('No validator ID provided');
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const validators = await X1Rpc.getValidatorDetails();
-        const found = validators.find(v => v.votePubkey === votePubkey);
-        
-        if (found) {
-          setValidator(found);
-          setError(null);
-        } else {
-          setError('Validator not found');
-        }
-      } catch (err) {
-        console.error('Failed to fetch validator:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchValidator();
-  }, [votePubkey]);
-
-  const copyToClipboard = (text, type) => {
-    navigator.clipboard.writeText(text);
-    setCopied(type);
-    setTimeout(() => setCopied(null), 2000);
-  };
-
-  const formatStake = (stake) => {
-    if (stake >= 1e6) return (stake / 1e6).toFixed(2) + 'M';
-    if (stake >= 1e3) return (stake / 1e3).toFixed(2) + 'K';
-    return stake.toFixed(2);
-  };
-
-  // Generate historical data with more realistic patterns
-  const generateHistoricalData = (baseValue, variance, labels, trend = 0) => {
-    // Create a seed based on validator pubkey for consistent data
-    const seed = validator?.votePubkey?.charCodeAt(0) || 1;
-    return labels.map((label, i) => {
-      const trendFactor = 1 + (trend * (i / labels.length));
-      const cycleNoise = Math.sin(i * 0.5 + seed) * variance * 0.3;
-      const randomNoise = ((seed * (i + 1) * 7) % 100 - 50) / 100 * variance * 0.5;
-      return {
-        label,
-        value: Math.max(0, baseValue * trendFactor + cycleNoise + randomNoise)
-      };
-    });
-  };
-
-  const getTimeLabels = () => {
-    if (timeRange === '7d') {
-      return ['7d ago', '6d', '5d', '4d', '3d', '2d', '1d', 'Now'];
-    } else if (timeRange === '30d') {
-      return ['30d', '25d', '20d', '15d', '10d', '5d', '2d', 'Now'];
-    } else {
-      return ['E-7', 'E-6', 'E-5', 'E-4', 'E-3', 'E-2', 'E-1', 'Now'];
-    }
-  };
-
-  const labels = getTimeLabels();
-
-  // Generate comprehensive chart data
-  const uptimeData = validator ? generateHistoricalData(validator.uptime || 99, 1.5, labels, 0.01) : [];
-  const skipRateData = validator ? generateHistoricalData(validator.skipRate || 0.5, 0.8, labels, -0.02) : [];
-  const stakeData = validator ? generateHistoricalData(validator.activatedStake, validator.activatedStake * 0.03, labels, 0.05) : [];
-  const creditsData = validator ? generateHistoricalData(validator.creditsThisEpoch || 1000, 300, labels, 0.02) : [];
-  const commissionData = validator ? labels.map((label, i) => ({
-    label,
-    value: validator.commission // Commission usually stays constant
-  })) : [];
-
-  // Combined historical data for the main chart
-  const combinedData = labels.map((label, i) => ({
-    label,
-    uptime: uptimeData[i]?.value || 0,
-    stake: stakeData[i]?.value || 0,
-    commission: validator?.commission || 0,
-    skipRate: skipRateData[i]?.value || 0
-  }));
-
-  if (loading) {
+  if (status === 'loading') {
     return (
-      <div className="min-h-screen bg-surface-1 text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-brand" />
-      </div>
-    );
-  }
-
-  if (error || !validator) {
-    return (
-      <div className="min-h-screen bg-surface-1 text-white flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-negative mx-auto mb-4" />
-          <p className="text-negative">{error || 'Validator not found'}</p>
-          <Link to={createPageUrl('Validators')}>
-            <Button className="mt-4" variant="outline">Back to Validators</Button>
-          </Link>
+      <>
+        <PageHeader icon={Server} title="Validator" back={back} />
+        <div role="status" aria-label="Loading validator">
+          <Skeleton className="mb-6 h-36 w-full rounded-xl" />
+          <StatSkeleton count={8} />
+          <Skeleton className="mt-6 h-64 w-full rounded-xl" />
         </div>
-      </div>
+      </>
     );
   }
+
+  if (status === 'error') {
+    return (
+      <>
+        <PageHeader icon={Server} title="Validator" back={back} />
+        <Panel><ErrorState title="Validator data is unavailable" description={error} onRetry={() => reload()} /></Panel>
+      </>
+    );
+  }
+
+  if (!v) {
+    return (
+      <>
+        <PageHeader icon={Server} title="Validator not found" back={back} />
+        <Panel>
+          <EmptyState
+            icon={SearchX}
+            title={id ? 'No validator has this vote address' : 'No validator selected'}
+            description={id
+              ? 'The address below does not match any current or delinquent vote account returned by the X1 RPC. Check that it is a vote account address, not an identity or wallet address.'
+              : 'This page needs a vote account address in the link (?id=…). Choose a validator from the list.'}
+            action={
+              <div className="flex flex-col items-center gap-3">
+                {id && <code className="mono max-w-full break-all rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-xs text-ink-soft">{id}</code>}
+                <Button asChild variant="outline" size="sm" className={outlineBtn}><Link to={back.to}>Browse validators</Link></Button>
+              </div>
+            }
+          />
+        </Panel>
+      </>
+    );
+  }
+
+  const share = stakeShare(v);
+  const site = websiteHref(v);
+  const loc = v.location;
+  const lagTone = !isNum(v.voteLag) ? 'default' : v.voteLag > 150 ? 'negative' : v.voteLag > 32 ? 'warning' : 'default';
 
   return (
-    <div className="min-h-screen bg-surface-1 text-white">
-      <header className="bg-surface-1 border-b border-line">
-        <div className="max-w-[1800px] mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-brand to-blue-500 rounded-lg flex items-center justify-center">
-                  <span className="text-black font-black text-sm">X1</span>
-                </div>
-                <span className="font-bold hidden sm:inline"><span className="text-brand">X1</span><span className="text-white">Space</span></span>
-              </Link>
-              <Badge className="bg-brand/20 text-brand border-0 text-xs">Mainnet</Badge>
-            </div>
-            
-            <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('Validators')}><Button variant="ghost" size="icon" className="text-brand bg-brand/10 rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></svg></Button></Link>
-            </nav>
-
-            <Link to={createPageUrl('Validators')}>
-              <Button variant="outline" size="sm" className="border-line text-ink-muted hover:text-white">
-                <ArrowLeft className="w-4 h-4 mr-2" /> Back
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-[1800px] mx-auto px-4 py-6">
-        {/* Validator Header */}
-        <div className="bg-surface-2 rounded-xl p-6 mb-6">
-          <div className="flex flex-col md:flex-row md:items-center gap-6">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-brand/30 to-blue-500/30 flex items-center justify-center text-3xl shrink-0">
-              {validator.icon || '🔷'}
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-2xl font-bold text-white">
-                  {validator.name || `Validator ${validator.votePubkey.substring(0, 8)}...`}
-                </h1>
-                {validator.delinquent ? (
-                  <Badge className="bg-negative/20 text-negative border-0">Delinquent</Badge>
-                ) : (
-                  <Badge className="bg-positive/20 text-positive border-0">Active</Badge>
-                )}
-              </div>
-              
-              <div className="flex flex-wrap items-center gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="text-ink-muted">Vote:</span>
-                  <code className="text-brand font-mono">{validator.votePubkey.substring(0, 16)}...</code>
-                  <button onClick={() => copyToClipboard(validator.votePubkey, 'vote')} className="text-ink-faint hover:text-white">
-                    {copied === 'vote' ? <Check className="w-4 h-4 text-positive" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-ink-muted">Node:</span>
-                  <code className="text-brand font-mono">{validator.nodePubkey.substring(0, 16)}...</code>
-                  <button onClick={() => copyToClipboard(validator.nodePubkey, 'node')} className="text-ink-faint hover:text-white">
-                    {copied === 'node' ? <Check className="w-4 h-4 text-positive" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                </div>
-                {validator.website && (
-                  <a 
-                    href={safeUrl(validator.website)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-brand hover:underline"
-                  >
-                    <ExternalLink className="w-4 h-4" /> Website
-                  </a>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
-          <div className="bg-surface-2 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-ink-muted text-xs mb-2">
-              <Award className="w-4 h-4" /> Stake
-            </div>
-            <p className="text-xl font-bold text-brand">{formatStake(validator.activatedStake)} XNT</p>
-            <p className="text-ink-faint text-xs">{validator.stakePercent}% of network</p>
-          </div>
-          <div className="bg-surface-2 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-ink-muted text-xs mb-2">
-              <Activity className="w-4 h-4" /> Uptime
-            </div>
-            <p className={`text-xl font-bold ${validator.uptime >= 99 ? 'text-positive' : validator.uptime >= 95 ? 'text-warning' : 'text-negative'}`}>
-              {validator.uptime?.toFixed(1)}%
-            </p>
-          </div>
-          <div className="bg-surface-2 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-ink-muted text-xs mb-2">
-              {validator.skipRate < 1 ? <TrendingUp className="w-4 h-4 text-positive" /> : <TrendingDown className="w-4 h-4 text-negative" />}
-              Skip Rate
-            </div>
-            <p className="text-xl font-bold text-white">{validator.skipRate?.toFixed(2)}%</p>
-          </div>
-          <div className="bg-surface-2 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-ink-muted text-xs mb-2">
-              Commission
-            </div>
-            <p className={`text-xl font-bold ${validator.commission === 0 ? 'text-positive' : 'text-white'}`}>
-              {validator.commission}%
-            </p>
-          </div>
-          <div className="bg-surface-2 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-ink-muted text-xs mb-2">
-              <Clock className="w-4 h-4" /> Last Vote
-            </div>
-            <p className="text-xl font-bold text-white font-mono">{validator.lastVote?.toLocaleString()}</p>
-            <p className="text-ink-faint text-xs">Lag: {validator.voteLag}</p>
-          </div>
-          <div className="bg-surface-2 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-ink-muted text-xs mb-2">
-              <Server className="w-4 h-4" /> Version
-            </div>
-            <p className="text-xl font-bold text-blue-400 font-mono">{validator.version}</p>
-          </div>
-        </div>
-
-        {/* Time Range Selector */}
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-ink-muted text-sm">Time Range:</span>
-          {['7d', '30d', 'epoch'].map((range) => (
-            <Button
-              key={range}
-              variant="outline"
-              size="sm"
-              className={`border-line ${timeRange === range ? 'bg-brand/20 text-brand' : 'text-ink-muted'}`}
-              onClick={() => setTimeRange(range)}
-            >
-              {range === 'epoch' ? 'By Epoch' : range}
+    <>
+      <PageHeader
+        icon={Server}
+        title={<ValidatorName validator={v} />}
+        back={back}
+        badge={<StatusPill validator={v} />}
+        meta={<Freshness at={loadedAt} stale={refreshFailed} source="X1 RPC · on-chain identity" onRefresh={() => reload(true)} refreshing={refreshing} />}
+        actions={
+          <>
+            <Button asChild variant="outline" size="sm" className={outlineBtn}>
+              <Link to={createPageUrl('ValidatorCompare')}><Scale className="mr-2 h-4 w-4" aria-hidden="true" />Compare</Link>
             </Button>
-          ))}
-        </div>
+            <Button asChild variant="outline" size="sm" className={outlineBtn}>
+              <Link to={`${createPageUrl('ValidatorAlerts')}?validator=${encodeURIComponent(v.votePubkey)}`}><Bell className="mr-2 h-4 w-4" aria-hidden="true" />Set alert</Link>
+            </Button>
+          </>
+        }
+      />
 
-        {/* Combined Historical Chart */}
-        <div className="bg-surface-2 rounded-xl p-4 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-ink-muted text-sm">HISTORICAL PERFORMANCE</h3>
-            <Link to={createPageUrl('ValidatorAlerts') + `?validator=${validator.votePubkey}`}>
-              <Button variant="outline" size="sm" className="border-warning/30 text-warning">
-                <Bell className="w-4 h-4 mr-2" /> Set Alert
-              </Button>
-            </Link>
-          </div>
-          <div className="h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={combinedData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
-                <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} domain={[90, 100]} />
-                <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#1d2d3a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
-                  labelStyle={{ color: '#9ca3af' }}
-                />
-                <Legend />
-                <Area yAxisId="left" type="monotone" dataKey="uptime" stroke="#10b981" fill="#10b981" fillOpacity={0.2} name="Uptime %" />
-                <Line yAxisId="left" type="monotone" dataKey="commission" stroke="#ef4444" strokeWidth={2} dot={false} name="Commission %" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+      <Panel className="mb-6" bodyClassName="p-4 sm:p-5" aria-label="Validator profile">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <ValidatorAvatar validator={v} size={64} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <ValidatorName validator={v} className="break-all font-display text-lg font-semibold text-ink" />
+              <StatusPill validator={v} />
+              {isNum(rank) && rank > 0 && <span className="text-xs text-ink-muted tabular">#{rank} by stake</span>}
+            </div>
+            {site ? (
+              <a href={site} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex max-w-full items-center gap-1 text-sm text-brand hover:underline">
+                <span className="truncate">{site.replace(/^https?:\/\//i, '').replace(/\/$/, '')}</span>
+                <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="sr-only">(opens in a new tab)</span>
+              </a>
+            ) : (
+              <p className="mt-1 text-sm text-ink-faint">No website published</p>
+            )}
+            {v.details && <p className="mt-2 max-w-3xl whitespace-pre-line break-words text-sm text-ink-soft">{v.details}</p>}
 
-        {/* Performance Charts Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <PerformanceChart 
-            data={uptimeData} 
-            dataKey="value" 
-            color="#10b981" 
-            title="UPTIME HISTORY" 
-            unit="%" 
-            type="area"
-            height={180}
-          />
-          <PerformanceChart 
-            data={skipRateData} 
-            dataKey="value" 
-            color="#f59e0b" 
-            title="SKIP RATE HISTORY" 
-            unit="%" 
-            height={180}
-          />
-          <PerformanceChart 
-            data={stakeData} 
-            dataKey="value" 
-            color="#06b6d4" 
-            title="STAKE HISTORY (XNT)" 
-            unit=" XNT" 
-            type="area"
-            height={180}
-          />
-          <PerformanceChart 
-            data={creditsData} 
-            dataKey="value" 
-            color="#8b5cf6" 
-            title="EPOCH CREDITS" 
-            unit=""
-            height={180} 
-          />
-        </div>
+            <dl className="mt-4 grid gap-4 md:grid-cols-2">
+              <AddressRow label="Vote address" value={v.votePubkey} hint="Stake is delegated to this account." />
+              <AddressRow label="Identity address" value={v.nodePubkey} hint="The node key that signs blocks and votes." />
+            </dl>
 
-        {/* Epoch Credits Details */}
-        <div className="bg-surface-2 rounded-xl p-6">
-          <h3 className="text-ink-muted text-sm mb-4">EPOCH PERFORMANCE</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <p className="text-ink-faint text-xs mb-1">Current Epoch Credits</p>
-              <p className="text-2xl font-bold text-white font-mono">{validator.creditsThisEpoch?.toLocaleString() || 0}</p>
-            </div>
-            <div>
-              <p className="text-ink-faint text-xs mb-1">Previous Epoch Credits</p>
-              <p className="text-2xl font-bold text-white font-mono">{validator.creditsPrevEpoch?.toLocaleString() || 0}</p>
-            </div>
-            <div>
-              <p className="text-ink-faint text-xs mb-1">Total Credits</p>
-              <p className="text-2xl font-bold text-brand font-mono">{validator.credits?.toLocaleString() || 0}</p>
-            </div>
+            <p className="mt-4 text-xs text-ink-faint">
+              {v.hasIdentity
+                ? 'Name, website, description and icon are self-published by the operator on chain. They are shown as published and are not verified.'
+                : 'This operator has not published an on-chain identity, so a shortened address and a generated avatar are shown instead of a name and icon.'}
+            </p>
           </div>
         </div>
-      </main>
-    </div>
+      </Panel>
+
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Stake" value={`${compact(v.activatedStake)} XNT`} hint={isNum(v.activatedStake) ? `${integer(v.activatedStake)} XNT active` : undefined} tone="brand" />
+        <div className="panel p-4">
+          <p className="eyebrow">Stake share</p>
+          <p className="mt-2 font-display text-2xl font-semibold tabular leading-none text-ink">{share === null ? <Unavailable reason="Stake share unknown" /> : percent(share, 2)}</p>
+          <Meter value={share ?? 0} max={100} label="Share of total network stake" className="mt-3" />
+          <p className="mt-2 text-xs text-ink-muted">Of all active stake</p>
+        </div>
+        <StatCard label="Commission" value={isNum(v.commission) ? `${v.commission}%` : <Unavailable reason="Commission not reported" />} hint="Share of staking rewards kept by the operator" />
+        <StatCard
+          label="Vote rate"
+          value={isNum(v.voteRate) ? percent(v.voteRate, 2) : <Unavailable reason="Vote rate cannot be measured yet this epoch" />}
+          hint="Share of the maximum vote credits earned this epoch"
+          tone={!isNum(v.voteRate) ? 'default' : v.voteRate >= 95 ? 'positive' : v.voteRate >= 80 ? 'warning' : 'negative'}
+        />
+        <StatCard
+          label="Skip rate"
+          value={isNum(v.skipRate) ? percent(v.skipRate, 2) : <Unavailable reason="No leader slots yet this epoch" />}
+          hint={isNum(v.skipRate) && isNum(v.leaderSlots) && isNum(v.blocksProduced)
+            ? `${integer(v.blocksProduced)} blocks in ${integer(v.leaderSlots)} leader slots this epoch`
+            : 'No leader slots yet this epoch'}
+          tone={!isNum(v.skipRate) ? 'default' : v.skipRate < 5 ? 'default' : v.skipRate < 15 ? 'warning' : 'negative'}
+        />
+        <StatCard
+          label="Last vote"
+          value={isNum(v.lastVote) ? integer(v.lastVote) : <Unavailable reason="No vote recorded" />}
+          hint={isNum(v.voteLag) ? `${integer(Math.max(0, v.voteLag))} slot${v.voteLag === 1 ? '' : 's'} behind the tip · root ${integer(v.rootSlot)}` : 'Vote lag unknown'}
+          tone={lagTone}
+        />
+        <StatCard label="Version" value={v.version ? <span className="mono text-xl">{v.version}</span> : <Unavailable reason="Node is not visible in gossip, so its software version is unknown" />} hint={v.version ? 'Reported in gossip' : 'Node not visible in gossip'} />
+        <StatCard
+          label="Location"
+          value={loc ? <span className="text-xl">{loc.country || 'Unknown country'}</span> : <span className="text-xl text-ink-muted">Not located</span>}
+          hint={loc ? (loc.precision === 'city' ? 'City-level position (approximate)' : 'Country-level only') : 'The node address could not be resolved to a location'}
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <Panel title="Epoch credits history" description="Vote credits earned in each recent epoch. This is the only per-validator history the RPC provides." bodyClassName="p-4">
+          <PerformanceChart epochCredits={v.epochCredits} currentEpoch={epoch} />
+        </Panel>
+
+        <Panel title="Vote credits" description={isNum(epoch) ? `Current epoch: ${integer(epoch)}` : undefined} bodyClassName="p-4">
+          <dl className="space-y-4">
+            <div>
+              <dt className="eyebrow">This epoch so far</dt>
+              <dd className="mt-1 font-display text-xl font-semibold tabular text-ink">{integer(v.creditsThisEpoch)}</dd>
+            </div>
+            <div>
+              <dt className="eyebrow">Previous epoch</dt>
+              <dd className="mt-1 font-display text-xl font-semibold tabular text-ink">{isNum(v.creditsPrevEpoch) ? integer(v.creditsPrevEpoch) : <Unavailable reason="No earlier epoch in the vote account history" />}</dd>
+            </div>
+            <div>
+              <dt className="eyebrow">Lifetime total</dt>
+              <dd className="mt-1 font-display text-xl font-semibold tabular text-ink">{integer(v.credits)}</dd>
+            </div>
+          </dl>
+          <p className="mt-4 text-xs text-ink-faint">{VOTE_RATE_HELP} {SKIP_RATE_HELP}</p>
+        </Panel>
+      </div>
+
+      <p className="mt-4 text-xs text-ink-faint">
+        Stake, commission, uptime-style history and reward history over longer periods are not available from the RPC and are not shown. No values on this page are estimated.
+      </p>
+    </>
   );
 }

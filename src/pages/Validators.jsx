@@ -1,317 +1,276 @@
-import React, { useState, useEffect } from 'react';
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { 
-  Search, 
-  Zap,
-  ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  AlertCircle,
-  RefreshCw,
-  Scale,
-  Star,
-  Trophy
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Scale, Search, SearchX, Server, Trophy } from 'lucide-react';
+import PageHeader from '@/components/shell/PageHeader';
+import { Freshness, Panel, StatCard } from '@/components/ds/Primitives';
+import { EmptyState, ErrorState, StatSkeleton, TableSkeleton } from '@/components/ds/States';
+import { Button } from '@/components/ui/button';
+import ExportButton from '@/components/common/ExportButton';
+import ValidatorCard, { SKIP_RATE_HELP, VOTE_RATE_HELP, isNum, matchesValidator, stakeShare, useValidators } from '@/components/validators/ValidatorCard';
+import StakeDistribution from '@/components/validators/StakeDistribution';
+import { X1_CONFIG } from '@/lib/x1/config';
+import { compact, integer, percent } from '@/lib/format';
 import { createPageUrl } from '@/utils';
-import X1Rpc from '../components/x1/X1RpcService';
-import ValidatorCard from '../components/validators/ValidatorCard';
-import StakeDistribution from '../components/validators/StakeDistribution';
-import ExportButton from '../components/common/ExportButton';
+import { cn } from '@/lib/utils';
+
+const PER_PAGE = 25;
+const outlineBtn = 'border-line-strong bg-transparent text-ink-soft hover:bg-surface-3 hover:text-ink';
+const selectClass = 'h-9 rounded-lg border border-line bg-surface-2 px-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand/25';
+
+// Column definitions. `cls` controls responsive visibility and must match the cells in ValidatorCard.
+const COLUMNS = [
+  { key: 'name', label: 'Validator', sort: 'name', cls: '' },
+  { key: 'activatedStake', label: 'Stake', sort: 'activatedStake', cls: 'text-right', right: true },
+  { key: 'commission', label: 'Commission', sort: 'commission', cls: 'hidden text-right md:table-cell', right: true },
+  { key: 'voteRate', label: 'Vote rate', sort: 'voteRate', cls: 'hidden text-right sm:table-cell', right: true, help: VOTE_RATE_HELP },
+  { key: 'skipRate', label: 'Skip rate', sort: 'skipRate', cls: 'hidden text-right lg:table-cell', right: true, help: SKIP_RATE_HELP },
+  { key: 'version', label: 'Version', sort: 'version', cls: 'hidden xl:table-cell' },
+  { key: 'status', label: 'Status', sort: null, cls: 'text-right', right: true },
+];
+
+/** Sort with missing values always last, whatever the direction. */
+function compare(a, b, key, dir) {
+  const text = key === 'name' || key === 'version';
+  const x = a[key];
+  const y = b[key];
+  const xMissing = text ? !x : !isNum(x);
+  const yMissing = text ? !y : !isNum(y);
+  if (xMissing || yMissing) return xMissing === yMissing ? 0 : xMissing ? 1 : -1;
+  const d = text ? String(x).localeCompare(String(y), undefined, { numeric: true, sensitivity: 'base' }) : x - y;
+  return dir === 'asc' ? d : -d;
+}
 
 export default function Validators() {
-  const [validators, setValidators] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('activatedStake');
-  const [sortOrder, setSortOrder] = useState('desc');
-  const [stats, setStats] = useState({ total: 0, active: 0, delinquent: 0, totalStake: 0, avgUptime: 0 });
+  const [params, setParams] = useSearchParams();
+  const urlSearch = params.get('search') || '';
+  const { status, validators, error, loadedAt, refreshFailed, refreshing, reload } = useValidators(X1_CONFIG.polling.validatorsMs);
+
+  const [query, setQuery] = useState(urlSearch);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sort, setSort] = useState({ key: 'activatedStake', dir: 'desc' });
   const [page, setPage] = useState(1);
-  const perPage = 25;
 
-  const fetchValidators = async (isRefresh = false) => {
-    try {
-      if (isRefresh) setRefreshing(true);
-      const data = await X1Rpc.getValidatorDetails();
-      setValidators(data);
-      
-      const active = data.filter(v => !v.delinquent).length;
-      const totalStake = data.reduce((sum, v) => sum + v.activatedStake, 0);
-      const avgUptime = data.reduce((sum, v) => sum + (v.uptime || 0), 0) / data.length;
-      
-      setStats({
-        total: data.length,
-        active,
-        delinquent: data.length - active,
-        totalStake,
-        avgUptime: avgUptime.toFixed(1)
-      });
-      setError(null);
-    } catch (err) {
-      console.error('Failed to fetch validators:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+  // Follow the URL when the global search navigates here again with a new term.
+  useEffect(() => { setQuery(urlSearch); setPage(1); }, [urlSearch]);
+
+  const onSearch = (value) => {
+    setQuery(value);
+    setPage(1);
+    const next = new URLSearchParams(params);
+    if (value.trim()) next.set('search', value.trim());
+    else next.delete('search');
+    setParams(next, { replace: true });
   };
 
-  useEffect(() => {
-    fetchValidators();
-    const interval = setInterval(fetchValidators, 30000); // Refresh every 30s
-    return () => clearInterval(interval);
-  }, []);
-
-  const toggleSort = (field) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
-    } else {
-      setSortBy(field);
-      setSortOrder('desc');
-    }
+  const toggleSort = (key) => {
+    setPage(1);
+    setSort((s) => (s.key === key ? { key, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: key === 'name' || key === 'commission' || key === 'skipRate' ? 'asc' : 'desc' }));
   };
 
-  const filteredValidators = validators
-    .filter(v => {
-      const query = searchQuery.toLowerCase();
-      return v.votePubkey.toLowerCase().includes(query) || 
-             v.nodePubkey.toLowerCase().includes(query) ||
-             (v.name && v.name.toLowerCase().includes(query));
-    })
-    .sort((a, b) => {
-      const order = sortOrder === 'desc' ? -1 : 1;
-      if (sortBy === 'name') {
-        return ((a.name || 'zzz').localeCompare(b.name || 'zzz')) * order;
-      }
-      return (a[sortBy] - b[sortBy]) * order;
+  const stats = useMemo(() => {
+    const active = validators.filter((v) => !v.delinquent);
+    const totalStake = validators.reduce((s, v) => s + (isNum(v.activatedStake) ? v.activatedStake : 0), 0);
+    const delinquentStake = validators.filter((v) => v.delinquent).reduce((s, v) => s + (isNum(v.activatedStake) ? v.activatedStake : 0), 0);
+    const rates = active.map((v) => v.voteRate).filter(isNum);
+    return {
+      total: validators.length,
+      active: active.length,
+      delinquent: validators.length - active.length,
+      totalStake,
+      delinquentShare: totalStake > 0 ? (delinquentStake / totalStake) * 100 : null,
+      avgVoteRate: rates.length ? rates.reduce((s, n) => s + n, 0) / rates.length : null,
+      measured: rates.length,
+      maxShare: Math.max(0, ...validators.map((v) => stakeShare(v) ?? 0)),
+    };
+  }, [validators]);
+
+  const rows = useMemo(() => {
+    const filtered = validators.filter((v) => {
+      if (statusFilter === 'active' && v.delinquent) return false;
+      if (statusFilter === 'delinquent' && !v.delinquent) return false;
+      return matchesValidator(v, query);
     });
+    return filtered.sort((a, b) => compare(a, b, sort.key, sort.dir));
+  }, [validators, query, statusFilter, sort]);
 
-  const paginatedValidators = filteredValidators.slice((page - 1) * perPage, page * perPage);
-  const totalPages = Math.ceil(filteredValidators.length / perPage);
+  // Rank is always by stake across the whole set, independent of the current sort or filter.
+  const rankOf = useMemo(() => {
+    const m = new Map();
+    [...validators].sort((a, b) => b.activatedStake - a.activatedStake).forEach((v, i) => m.set(v.votePubkey, i + 1));
+    return m;
+  }, [validators]);
 
-  const formatStake = (stake) => {
-    if (stake >= 1e6) return (stake / 1e6).toFixed(2) + 'M';
-    if (stake >= 1e3) return (stake / 1e3).toFixed(2) + 'K';
-    return stake.toFixed(2);
-  };
+  const totalPages = Math.max(1, Math.ceil(rows.length / PER_PAGE));
+  const current = Math.min(page, totalPages);
+  const pageRows = rows.slice((current - 1) * PER_PAGE, current * PER_PAGE);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-surface-1 text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-brand" />
-      </div>
-    );
-  }
+  const exportData = useMemo(() => rows.map((v) => ({
+    name: v.name || '',
+    votePubkey: v.votePubkey,
+    identityPubkey: v.nodePubkey,
+    stakeXNT: v.activatedStake,
+    stakeSharePercent: v.stakePercent,
+    commissionPercent: v.commission,
+    voteRatePercent: isNum(v.voteRate) ? Number(v.voteRate.toFixed(2)) : '',
+    skipRatePercent: isNum(v.skipRate) ? Number(v.skipRate.toFixed(2)) : '',
+    version: v.version || '',
+    status: v.delinquent ? 'delinquent' : 'active',
+  })), [rows]);
+
+  const clearFilters = () => { onSearch(''); setStatusFilter('all'); };
 
   return (
-    <div className="min-h-screen bg-surface-1 text-white">
-      <header className="bg-surface-1 border-b border-line">
-        <div className="max-w-[1800px] mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
-                <ChevronLeft className="w-5 h-5 text-ink-muted" />
-                <span className="font-bold"><span className="text-brand">X1</span><span className="text-white">Space</span></span>
-              </Link>
-              <Badge className="bg-brand/20 text-brand border-0 text-xs">Mainnet</Badge>
-            </div>
-            
-            <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('Blocks')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg></Button></Link>
-              <Link to={createPageUrl('Validators')}><Button variant="ghost" size="icon" className="text-brand bg-brand/10 rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></svg></Button></Link>
-              <Link to={createPageUrl('Transactions')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg></Button></Link>
-            </nav>
-            
-            <div className="flex-1 max-w-md">
-              <div className="relative">
-                <Input placeholder="Search validators..." className="w-full bg-surface-2 border-0 text-white placeholder:text-ink-faint pr-10 rounded-lg" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                <Button size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 bg-brand hover:bg-brand-strong h-7 w-7 rounded"><Search className="w-4 h-4 text-black" /></Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+    <>
+      <PageHeader
+        icon={Server}
+        title="Validators"
+        description="Every vote account on X1 mainnet with its stake, commission and measured performance for the current epoch."
+        meta={<Freshness at={loadedAt} stale={refreshFailed} source="X1 RPC · on-chain identity" onRefresh={() => reload(true)} refreshing={refreshing} />}
+        actions={
+          <>
+            <Button asChild variant="outline" size="sm" className={outlineBtn}>
+              <Link to={createPageUrl('Leaderboard')}><Trophy className="mr-2 h-4 w-4" aria-hidden="true" />Leaderboard</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm" className={outlineBtn}>
+              <Link to={createPageUrl('ValidatorCompare')}><Scale className="mr-2 h-4 w-4" aria-hidden="true" />Compare</Link>
+            </Button>
+          </>
+        }
+      />
 
-      {error && (
-        <div className="bg-negative/10 border-b border-negative/20 px-4 py-2">
-          <div className="max-w-[1800px] mx-auto flex items-center gap-2 text-negative text-sm">
-            <AlertCircle className="w-4 h-4" /><span>{error}</span>
-          </div>
-        </div>
+      {status === 'loading' && (
+        <>
+          <StatSkeleton />
+          <Panel className="mt-6"><TableSkeleton rows={10} columns={6} /></Panel>
+        </>
       )}
 
-      <main className="max-w-[1800px] mx-auto px-4 py-6">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          <div className="bg-surface-2 rounded-xl p-4">
-            <p className="text-ink-muted text-xs mb-1">Total Validators</p>
-            <p className="text-2xl font-bold text-white">{stats.total}</p>
-          </div>
-          <div className="bg-surface-2 rounded-xl p-4">
-            <p className="text-ink-muted text-xs mb-1">Active</p>
-            <p className="text-2xl font-bold text-positive">{stats.active}</p>
-          </div>
-          <div className="bg-surface-2 rounded-xl p-4">
-            <p className="text-ink-muted text-xs mb-1">Delinquent</p>
-            <p className="text-2xl font-bold text-negative">{stats.delinquent}</p>
-          </div>
-          <div className="bg-surface-2 rounded-xl p-4">
-            <p className="text-ink-muted text-xs mb-1">Total Stake</p>
-            <p className="text-2xl font-bold text-brand">{formatStake(stats.totalStake)} XNT</p>
-          </div>
-          <div className="bg-surface-2 rounded-xl p-4">
-            <p className="text-ink-muted text-xs mb-1">Avg Uptime</p>
-            <p className="text-2xl font-bold text-positive">{stats.avgUptime}%</p>
-          </div>
-        </div>
+      {status === 'error' && (
+        <Panel><ErrorState title="Validator data is unavailable" description={error} onRetry={() => reload()} /></Panel>
+      )}
 
-        {/* Stake Distribution Chart */}
-        {validators.length > 0 && (
-          <StakeDistribution validators={validators} totalStake={stats.totalStake} />
-        )}
-
-        {/* Refresh Button */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">All Validators</h2>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Link to={createPageUrl('Leaderboard')}>
-              <Button variant="outline" size="sm" className="border-warning/30 text-warning hover:bg-warning/10">
-                <Trophy className="w-4 h-4 mr-2" />
-                Leaderboard
-              </Button>
-            </Link>
-            <Link to={createPageUrl('Watchlist')}>
-              <Button variant="outline" size="sm" className="border-line text-ink-muted hover:text-white">
-                <Star className="w-4 h-4 mr-2" />
-                Watchlist
-              </Button>
-            </Link>
-            <Link to={createPageUrl('ValidatorCompare')}>
-              <Button variant="outline" size="sm" className="border-brand/30 text-brand hover:bg-brand/10">
-                <Scale className="w-4 h-4 mr-2" />
-                Compare
-              </Button>
-            </Link>
-            <ExportButton 
-              data={validators.map(v => ({
-                name: v.name || '',
-                votePubkey: v.votePubkey,
-                stake: v.activatedStake,
-                commission: v.commission,
-                uptime: v.uptime,
-                skipRate: v.skipRate,
-                version: v.version,
-                status: v.delinquent ? 'delinquent' : 'active'
-              }))}
-              filename="x1_validators"
+      {status === 'ready' && (
+        <>
+          <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="Validators" value={integer(stats.total)} hint={`${integer(stats.active)} active · ${integer(stats.delinquent)} delinquent`} tone="brand" />
+            <StatCard label="Total stake" value={`${compact(stats.totalStake)} XNT`} hint="Active stake across all vote accounts" />
+            <StatCard
+              label="Delinquent stake"
+              value={stats.delinquentShare === null ? '—' : percent(stats.delinquentShare, 2)}
+              hint={`${integer(stats.delinquent)} validator${stats.delinquent === 1 ? '' : 's'} not voting`}
+              tone={stats.delinquentShare !== null && stats.delinquentShare > 5 ? 'warning' : 'default'}
             />
-            <Button 
-              onClick={() => fetchValidators(true)} 
-              variant="outline" 
-              size="sm" 
-              className="border-line text-ink-muted hover:text-white"
-              disabled={refreshing}
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+            <StatCard
+              label="Average vote rate"
+              value={stats.avgVoteRate === null ? '—' : percent(stats.avgVoteRate, 1)}
+              hint={stats.avgVoteRate === null ? 'Cannot be measured yet this epoch' : `Mean of ${integer(stats.measured)} active validators, this epoch`}
+            />
           </div>
-        </div>
 
-        <div className="bg-surface-2 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-line">
-                  <th className="text-left text-ink-muted text-xs font-medium px-4 py-3">#</th>
-                  <th className="text-left text-ink-muted text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('name')}>
-                    <div className="flex items-center gap-1">Validator <ArrowUpDown className="w-3 h-3" /></div>
-                  </th>
-                  <th className="text-right text-ink-muted text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('activatedStake')}>
-                    <div className="flex items-center justify-end gap-1">Stake <ArrowUpDown className="w-3 h-3" /></div>
-                  </th>
-                  <th className="text-center text-ink-muted text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('commission')}>
-                    <div className="flex items-center justify-center gap-1">Commission <ArrowUpDown className="w-3 h-3" /></div>
-                  </th>
-                  <th className="text-center text-ink-muted text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('uptime')}>
-                    <div className="flex items-center justify-center gap-1">Performance <ArrowUpDown className="w-3 h-3" /></div>
-                  </th>
-                  <th className="text-center text-ink-muted text-xs font-medium px-4 py-3">Version</th>
-                  <th className="text-right text-ink-muted text-xs font-medium px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('lastVote')}>
-                    <div className="flex items-center justify-end gap-1">Last Vote <ArrowUpDown className="w-3 h-3" /></div>
-                  </th>
-                  <th className="text-center text-ink-muted text-xs font-medium px-4 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedValidators.map((v, i) => (
-                  <ValidatorCard 
-                    key={v.votePubkey} 
-                    validator={v} 
-                    rank={(page - 1) * perPage + i + 1}
-                    totalStake={stats.totalStake}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+          <StakeDistribution validators={validators} className="mb-6" />
 
-        <div className="flex items-center justify-between mt-6">
-          <p className="text-ink-muted text-sm">
-            Showing <span className="text-white">{(page - 1) * perPage + 1}-{Math.min(page * perPage, filteredValidators.length)}</span> of <span className="text-white">{filteredValidators.length}</span>
+          <Panel
+            title="All validators"
+            description={`${integer(rows.length)} of ${integer(stats.total)} shown`}
+            actions={<ExportButton data={exportData} filename="x1_validators" />}
+          >
+            <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
+              <div className="relative min-w-0 flex-1 basis-56">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" aria-hidden="true" />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => onSearch(e.target.value)}
+                  placeholder="Name, vote address or identity address"
+                  aria-label="Search validators"
+                  className="h-9 w-full rounded-lg border border-line bg-surface-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand/25"
+                />
+              </div>
+              <select aria-label="Filter by status" className={selectClass} value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
+                <option value="all">All statuses</option>
+                <option value="active">Active</option>
+                <option value="delinquent">Delinquent</option>
+              </select>
+              {/* Sorting stays reachable on narrow screens where sortable columns are hidden. */}
+              <select aria-label="Sort validators" className={cn(selectClass, 'lg:hidden')} value={`${sort.key}:${sort.dir}`} onChange={(e) => { const [key, dir] = e.target.value.split(':'); setSort({ key, dir }); setPage(1); }}>
+                <option value="activatedStake:desc">Stake, high to low</option>
+                <option value="activatedStake:asc">Stake, low to high</option>
+                <option value="name:asc">Name, A to Z</option>
+                <option value="name:desc">Name, Z to A</option>
+                <option value="commission:asc">Commission, low to high</option>
+                <option value="commission:desc">Commission, high to low</option>
+                <option value="voteRate:desc">Vote rate, high to low</option>
+                <option value="voteRate:asc">Vote rate, low to high</option>
+                <option value="skipRate:asc">Skip rate, low to high</option>
+                <option value="skipRate:desc">Skip rate, high to low</option>
+                <option value="version:desc">Version, newest first</option>
+                <option value="version:asc">Version, oldest first</option>
+              </select>
+            </div>
+
+            {rows.length === 0 ? (
+              <EmptyState
+                icon={SearchX}
+                title={stats.total === 0 ? 'The RPC returned no validators' : 'No validators match'}
+                description={stats.total === 0 ? 'getVoteAccounts returned an empty list.' : 'Try a different name or address, or clear the filters.'}
+                action={stats.total > 0 ? <Button variant="outline" size="sm" className={outlineBtn} onClick={clearFilters}>Clear filters</Button> : undefined}
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="data-table">
+                  <caption className="sr-only">X1 validators with stake, commission, vote rate, skip rate, version and status</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col" className="hidden w-12 sm:table-cell" title="Rank by stake">#</th>
+                      {COLUMNS.map((c) => {
+                        const active = sort.key === c.sort;
+                        const Icon = !active ? ArrowUpDown : sort.dir === 'asc' ? ArrowUp : ArrowDown;
+                        return (
+                          <th key={c.key} scope="col" className={c.cls} aria-sort={c.sort ? (active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none') : undefined}>
+                            {c.sort ? (
+                              <button type="button" onClick={() => toggleSort(c.sort)} title={c.help} className={cn('inline-flex items-center gap-1 rounded uppercase tracking-[0.08em] transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40', active && 'text-ink')}>
+                                {c.label}
+                                <Icon className="h-3 w-3" aria-hidden="true" />
+                              </button>
+                            ) : c.label}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageRows.map((v) => (
+                      <ValidatorCard key={v.votePubkey} validator={v} rank={rankOf.get(v.votePubkey)} maxShare={stats.maxShare} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {rows.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <p className="text-xs text-ink-muted tabular" aria-live="polite">
+                  {integer((current - 1) * PER_PAGE + 1)}–{integer(Math.min(current * PER_PAGE, rows.length))} of {integer(rows.length)}
+                </p>
+                <nav className="flex items-center gap-2" aria-label="Pagination">
+                  <Button variant="outline" size="sm" className={outlineBtn} onClick={() => setPage(current - 1)} disabled={current <= 1} aria-label="Previous page">
+                    <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                  <span className="text-xs text-ink-muted tabular">Page {current} of {totalPages}</span>
+                  <Button variant="outline" size="sm" className={outlineBtn} onClick={() => setPage(current + 1)} disabled={current >= totalPages} aria-label="Next page">
+                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </nav>
+              </div>
+            )}
+          </Panel>
+
+          <p className="mt-4 text-xs text-ink-faint">
+            {VOTE_RATE_HELP} {SKIP_RATE_HELP} A dash means the value cannot be measured yet (for skip rate: no leader slots yet this epoch).
+            Names, websites and icons are self-published by operators on chain and are not verified. Rank (#) is by stake. The meter under each stake is relative to the largest validator.
           </p>
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="border-line text-ink-muted disabled:opacity-30"
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNum;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (page <= 3) {
-                pageNum = i + 1;
-              } else if (page >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = page - 2 + i;
-              }
-              return (
-                <Button 
-                  key={pageNum}
-                  variant="outline" 
-                  size="sm" 
-                  className={`border-line ${page === pageNum ? 'bg-brand/10 text-brand' : 'text-ink-muted'}`}
-                  onClick={() => setPage(pageNum)}
-                >
-                  {pageNum}
-                </Button>
-              );
-            })}
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="border-line text-ink-muted disabled:opacity-30"
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </main>
-    </div>
+        </>
+      )}
+    </>
   );
 }

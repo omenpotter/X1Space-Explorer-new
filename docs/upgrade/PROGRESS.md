@@ -38,3 +38,4 @@ Rules: no push / merge / deploy, no secrets printed, no paid endpoints, no crede
 - [next] Frontend data layer -> design system/app shell -> TokenExplorer, NetworkMap, Validators -> remaining pages -> browser tests -> report.
 - [done] Design tokens, AppShell, PageHeader, ds components, rpcClient, api client, ValidatorNames rewrite, TokenExplorer + NetworkMap rewritten. Build passes. Spec: docs/upgrade/DESIGN_SYSTEM.md.
 - [in progress] Remaining pages migrated by three parallel workers (disjoint file sets): validators group, chain group, tools/markets group.
+- [checkpoint 2026-11-15 03:45Z] Page-migration workers were interrupted twice by the usage limit; partial work committed (validators components, PageNotFound, ExportButton, Home). Workers resumed. 79 unit tests passing at this point.
