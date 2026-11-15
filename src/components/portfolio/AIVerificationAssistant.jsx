@@ -1,11 +1,18 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Send, Loader2, AlertCircle, CheckCircle, Copy } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { Sparkles, Send, Loader2 } from 'lucide-react';
+import { invokeAi, signIn } from '@/lib/x1/ai';
 import X1Api from '../x1/X1ApiClient';
+
+function aiFailureMessage(error, fallback) {
+  if (error?.code === 'sign_in_required') {
+    signIn();
+    return 'Sign in to use the AI assistant. Redirecting to sign-in…';
+  }
+  return error?.message && error.name === 'AiError' ? error.message : fallback;
+}
 
 export default function AIVerificationAssistant({ tokenMint, onClose }) {
   const [messages, setMessages] = useState([
@@ -35,7 +42,7 @@ export default function AIVerificationAssistant({ tokenMint, onClose }) {
     try {
       const tokenDetails = await X1Api.getTokenDetails(tokenMint);
       
-      const { result: analysis } = await base44.functions.invoke('tokenVerificationAssistant', {
+      const { result: analysis } = await invokeAi('tokenVerificationAssistant', {
         action: 'analyze',
         tokenMint,
         tokenDetails: tokenDetails.data?.token
@@ -71,11 +78,7 @@ ${analysis.recommendations.map(r => `• ${r}`).join('\n')}
 How can I help you prepare your verification request?`
       }]);
     } catch (error) {
-      console.error('Analysis failed:', error);
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: 'Sorry, I encountered an error analyzing the token. Please try again or provide the token details manually.'
-      }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: aiFailureMessage(error, 'Sorry, I could not analyze the token. You can fill in the details manually.') }]);
     } finally {
       setLoading(false);
     }
@@ -84,13 +87,13 @@ How can I help you prepare your verification request?`
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
-    const userMessage = input;
+    const userMessage = input.slice(0, 1500);
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setLoading(true);
 
     try {
-      const { result: { response } } = await base44.functions.invoke('tokenVerificationAssistant', {
+      const { result: { response } } = await invokeAi('tokenVerificationAssistant', {
         action: 'chat',
         tokenMint,
         verificationForm,
@@ -100,11 +103,7 @@ How can I help you prepare your verification request?`
 
       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
     } catch (error) {
-      console.error('AI response failed:', error);
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: 'I apologize, I\'m having trouble responding right now. Please try rephrasing your question.' 
-      }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: aiFailureMessage(error, 'I could not respond just now. Please try again.') }]);
     } finally {
       setLoading(false);
     }
@@ -113,7 +112,7 @@ How can I help you prepare your verification request?`
   const generateVerificationRequest = async () => {
     setLoading(true);
     try {
-      const { result: { response: request } } = await base44.functions.invoke('tokenVerificationAssistant', {
+      const { result: { response: request } } = await invokeAi('tokenVerificationAssistant', {
         action: 'generate',
         verificationForm,
         tokenAnalysis
@@ -124,7 +123,7 @@ How can I help you prepare your verification request?`
         content: `Here's your verification request:\n\n${request}\n\nYou can copy this and submit it for verification. Would you like me to make any adjustments?`
       }]);
     } catch (error) {
-      console.error('Generation failed:', error);
+      setMessages(prev => [...prev, { role: 'assistant', content: aiFailureMessage(error, 'I could not generate the request. Please try again.') }]);
     } finally {
       setLoading(false);
     }
@@ -136,8 +135,8 @@ How can I help you prepare your verification request?`
         <div className="p-4 border-b border-line flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-brand" />
-            <h3 className="text-white font-bold">AI Verification Assistant</h3>
-            <Badge className="bg-purple-500/20 text-purple-400 border-0 text-xs">Powered by AI</Badge>
+            <h3 className="text-ink font-bold">AI Verification Assistant</h3>
+            <Badge className="bg-violet/15 text-violet border-0 text-xs">Powered by AI</Badge>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose} className="text-ink-muted">Close</Button>
         </div>
@@ -147,8 +146,8 @@ How can I help you prepare your verification request?`
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[80%] rounded-lg p-3 ${
                 msg.role === 'user' 
-                  ? 'bg-brand text-white' 
-                  : 'bg-surface-2 text-gray-100'
+                  ? 'bg-brand text-brand-ink' 
+                  : 'bg-surface-2 text-ink'
               }`}>
                 <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
               </div>
@@ -184,7 +183,7 @@ How can I help you prepare your verification request?`
                 <p className="text-2xl font-bold text-negative">{tokenAnalysis.red_flags.length}</p>
               </div>
             </div>
-            <Button onClick={generateVerificationRequest} disabled={loading} className="w-full bg-purple-500 hover:bg-purple-600">
+            <Button onClick={generateVerificationRequest} disabled={loading} className="w-full bg-brand text-brand-ink hover:bg-brand-strong">
               <Sparkles className="w-4 h-4 mr-2" />
               Generate Verification Request
             </Button>
@@ -198,7 +197,7 @@ How can I help you prepare your verification request?`
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-              className="bg-surface-2 border-0 text-white"
+              className="bg-surface-2 border-0 text-ink"
               disabled={loading}
             />
             <Button onClick={sendMessage} disabled={loading || !input.trim()} className="bg-brand hover:bg-brand-strong">
