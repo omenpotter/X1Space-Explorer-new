@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Download, Send, Wallet } from 'lucide-react';
 import { Panel } from '@/components/ds/Primitives';
