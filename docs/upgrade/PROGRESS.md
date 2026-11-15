@@ -36,3 +36,5 @@ Rules: no push / merge / deploy, no secrets printed, no paid endpoints, no crede
 - [done] Live smoke (`NODE_USE_ENV_PROXY=1 LIVE=1 npx vitest run`): 25,912 mints indexed, 3,771 fungible, 132 pools, 377 identities (263 icons), 373/373 nodes located (216 city-level, 157 country-level). Ninja = not_configured (no key).
 - [done] 67 backend unit/contract/security tests passing (`npx vitest run`).
 - [next] Frontend data layer -> design system/app shell -> TokenExplorer, NetworkMap, Validators -> remaining pages -> browser tests -> report.
+- [done] Design tokens, AppShell, PageHeader, ds components, rpcClient, api client, ValidatorNames rewrite, TokenExplorer + NetworkMap rewritten. Build passes. Spec: docs/upgrade/DESIGN_SYSTEM.md.
+- [in progress] Remaining pages migrated by three parallel workers (disjoint file sets): validators group, chain group, tools/markets group.

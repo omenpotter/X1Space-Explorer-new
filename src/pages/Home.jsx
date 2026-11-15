@@ -1,10 +1,8 @@
-// Placeholder file, this should be overridden by the generated code
+import React from 'react';
+import { Navigate } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 
-
+// The dashboard is the landing page. This route only exists so old /home links keep working.
 export default function Home() {
-
-  return (
-    <div>
-    </div>
-  );
+  return <Navigate to={createPageUrl('Dashboard')} replace />;
 }

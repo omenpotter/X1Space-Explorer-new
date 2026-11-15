@@ -1,74 +1,24 @@
 {
   "version": 2,
-  "functions": {
-    "functions/**/*.ts": {
-      "runtime": "edge",
-      "memory": 1024,
-      "maxDuration": 30
-    }
-  },
   "rewrites": [
-    {
-      "source": "/api/getTokens",
-      "destination": "/functions/getTokens"
-    },
-    {
-      "source": "/api/getTokenByMint",
-      "destination": "/functions/getTokenByMint"
-    },
-    {
-      "source": "/api/searchTokens",
-      "destination": "/functions/searchTokens"
-    },
-    {
-      "source": "/api/getValidators",
-      "destination": "/functions/getValidators"
-    },
-    {
-      "source": "/api/getNetworkStats",
-      "destination": "/functions/getNetworkStats"
-    },
-    {
-      "source": "/api/getNetworkHistory",
-      "destination": "/functions/getNetworkHistory"
-    },
-    {
-      "source": "/api/smartSearch",
-      "destination": "/functions/smartSearch"
-    },
-    {
-      "source": "/api/analyzeToken",
-      "destination": "/functions/analyzeToken"
-    },
-    {
-      "source": "/api/detectAnomalies",
-      "destination": "/functions/detectAnomalies"
-    },
-    {
-      "source": "/api/getTokenPrices",
-      "destination": "/functions/getTokenPrices"
-    }
+    { "source": "/((?!functions/|assets/|.*\\.[a-z0-9]+$).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
-      "source": "/api/(.*)",
+      "source": "/(.*)",
       "headers": [
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
-          "key": "Access-Control-Allow-Methods",
-          "value": "GET, POST, PUT, DELETE, OPTIONS"
-        },
-        {
-          "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Authorization"
-        }
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+        { "key": "Content-Security-Policy", "value": "frame-ancestors 'none'" }
       ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
     }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  }
+  ]
 }

@@ -1,31 +1,31 @@
 import React from 'react';
+import { ShieldAlert } from 'lucide-react';
+import { createPageUrl } from '@/utils';
 
-const UserNotRegisteredError = () => {
+// Rendered outside the application shell, so it carries its own full-height layout.
+export default function UserNotRegisteredError() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-white to-slate-50">
-      <div className="max-w-md w-full p-8 bg-white rounded-lg shadow-lg border border-slate-100">
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 mb-6 rounded-full bg-orange-100">
-            <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-4">Access Restricted</h1>
-          <p className="text-slate-600 mb-8">
-            You are not registered to use this application. Please contact the app administrator to request access.
-          </p>
-          <div className="p-4 bg-slate-50 rounded-md text-sm text-slate-600">
-            <p>If you believe this is an error, you can:</p>
-            <ul className="list-disc list-inside mt-2 space-y-1">
-              <li>Verify you are logged in with the correct account</li>
-              <li>Contact the app administrator for access</li>
-              <li>Try logging out and back in again</li>
-            </ul>
-          </div>
+    <main className="flex min-h-screen items-center justify-center bg-canvas px-4 py-10 text-ink">
+      <div className="panel w-full max-w-md p-6 text-center sm:p-8">
+        <span className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-full border border-warning/30 bg-warning/10 text-warning">
+          <ShieldAlert className="h-6 w-6" aria-hidden="true" />
+        </span>
+        <h1 className="font-display text-2xl font-semibold text-ink">Access restricted</h1>
+        <p className="mt-3 text-sm text-ink-muted">
+          This account is not registered to use this application. Contact the app administrator to request access.
+        </p>
+        <div className="mt-6 rounded-lg border border-line bg-surface-2 p-4 text-left text-sm text-ink-soft">
+          <p>If you believe this is a mistake:</p>
+          <ul className="mt-2 list-inside list-disc space-y-1">
+            <li>Check that you are signed in with the correct account</li>
+            <li>Sign out and sign in again</li>
+            <li>Ask the app administrator for access</li>
+          </ul>
         </div>
+        <a href={createPageUrl('Dashboard')} className="mt-6 inline-flex items-center justify-center rounded-lg bg-brand px-4 py-2 text-sm font-medium text-brand-ink transition-colors hover:bg-brand-strong">
+          Back to dashboard
+        </a>
       </div>
-    </div>
+    </main>
   );
-};
-
-export default UserNotRegisteredError;
+}
