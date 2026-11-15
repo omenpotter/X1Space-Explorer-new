@@ -1,0 +1,22 @@
+{
+  "ranAt": "2026-11-15T07:58:39.528Z",
+  "pages": [
+    "Dashboard",
+    "TokenExplorer",
+    "NetworkMap",
+    "Validators",
+    "LPExplorer",
+    "Blocks",
+    "Transactions",
+    "PortfolioTracker",
+    "ApiDocs"
+  ],
+  "requestsByHost": {
+    "127.0.0.1": 370,
+    "rpc.mainnet.x1.xyz": 76,
+    "app.xdex.xyz": 2,
+    "raw.githubusercontent.com": 13
+  },
+  "total": 461,
+  "problems": []
+}

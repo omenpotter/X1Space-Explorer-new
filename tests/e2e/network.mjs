@@ -10,7 +10,9 @@ const APP = 'http://127.0.0.1:4173';
 const FUNCTIONS = 'http://127.0.0.1:8787';
 
 const PAGES = ['Dashboard', 'TokenExplorer', 'NetworkMap', 'Validators', 'LPExplorer', 'Blocks', 'Transactions', 'PortfolioTracker', 'ApiDocs'];
-const ALLOWED_HOSTS = new Set(['127.0.0.1', 'rpc.mainnet.x1.xyz', 'rpc.x1galaxy.io']);
+// RPC endpoints, plus the two image hosts that token logos may load from directly
+// (X1_CONFIG.directImageHosts). All other images go through the app's own image proxy.
+const ALLOWED_HOSTS = new Set(['127.0.0.1', 'rpc.mainnet.x1.xyz', 'rpc.x1galaxy.io', 'raw.githubusercontent.com', 'app.xdex.xyz']);
 const SECRET_PATTERNS = [/fbx_[0-9a-f]{16,}/i, /api-?key=/i, /x1_[A-Za-z0-9]{20,}/, /Bearer\s+[A-Za-z0-9._-]{16,}/];
 
 const b = await chromium.launch(process.env.HTTPS_PROXY ? { proxy: { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' } } : {});
