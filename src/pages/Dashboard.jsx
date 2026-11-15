@@ -166,9 +166,9 @@ export default function Dashboard() {
         )}
       </section>
 
-      <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-5">
+      <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Panel
-          className="xl:col-span-3"
+          className="xl:col-span-1"
           title="Transactions per second"
           description={`One point per minute over the last hour, from RPC performance samples${samples.stale ? ' (stale)' : ''}.`}
           bodyClassName="p-4"
@@ -184,7 +184,7 @@ export default function Dashboard() {
         </Panel>
 
         <RecentBlocksTable
-          className={cn('xl:col-span-2')}
+          className={cn('xl:col-span-1')}
           blocks={blocks.data}
           status={blocks.status}
           error={blocks.error?.message}

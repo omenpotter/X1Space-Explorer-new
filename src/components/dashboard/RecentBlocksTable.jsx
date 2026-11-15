@@ -50,9 +50,9 @@ const RecentBlocksTable = memo(/** @param {{ blocks?: any, status?: any, error?:
               <thead>
                 <tr>
                   <th scope="col">Slot</th>
-                  <th scope="col" className="hidden sm:table-cell">Block hash</th>
+                  <th scope="col" className="hidden 2xl:table-cell">Block hash</th>
                   <th scope="col" className="text-right">Transactions</th>
-                  <th scope="col" className="hidden md:table-cell">Vote / system / other</th>
+                  <th scope="col" className="hidden sm:table-cell">Vote / system / other</th>
                   <th scope="col" className="text-right">Time</th>
                 </tr>
               </thead>
@@ -66,13 +66,13 @@ const RecentBlocksTable = memo(/** @param {{ blocks?: any, status?: any, error?:
                           {integer(block.slot)}
                         </Link>
                       </td>
-                      <td className="hidden sm:table-cell">
+                      <td className="hidden 2xl:table-cell">
                         <span className="mono text-ink-muted" title={block.blockhash || undefined}>{shortAddress(block.blockhash, 8, 8)}</span>
                       </td>
                       <td className="text-right tabular text-ink">{b ? integer(b.total) : <Unavailable reason="Transaction count not returned" />}</td>
-                      <td className="hidden md:table-cell">
+                      <td className="hidden sm:table-cell">
                         {b ? (
-                          <div className="flex min-w-[180px] items-center gap-3">
+                          <div className="flex min-w-[110px] items-center gap-3">
                             <CompositionBar breakdown={b} className="max-w-[120px]" />
                             <span className="whitespace-nowrap text-xs tabular text-ink-muted">
                               {integer(b.vote)} / {integer(b.system)} / {integer(b.program + b.other)}

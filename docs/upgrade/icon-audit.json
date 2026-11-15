@@ -1,0 +1,14 @@
+{
+  "identitiesOnCluster": 376,
+  "publishedIconUrl": 264,
+  "acceptedByValidation": 262,
+  "rejectedByValidation": 2,
+  "fetchedOk": 41,
+  "fetchFailed": 221,
+  "hostsWithAtLeastOneOk": [
+    "raw.githubusercontent.com:29/33",
+    "xvalidators.s3.us-east-2.amazonaws.com:9/9",
+    "x1.ninja:3/3"
+  ],
+  "hostsAllFailed": 40
+}
