@@ -1,7 +1,7 @@
 {
-  "ranAt": "2026-11-15T08:25:03.511Z",
-  "passed": 35,
-  "failed": 3,
+  "ranAt": "2026-11-15T08:36:37.866Z",
+  "passed": 38,
+  "failed": 0,
   "results": [
     {
       "name": "[desktop] BlockDetail with a real slot",
@@ -15,8 +15,8 @@
     },
     {
       "name": "[desktop] BlockDetail far in the future shows a clear not-found state",
-      "pass": false,
-      "detail": "unexpected content: Blocks Block 193,397,303 Confirmed block contents read from the X1 RPC. Previous slot Next slot Could not load this block RPC network error "
+      "pass": true,
+      "detail": ""
     },
     {
       "name": "[desktop] TransactionDetail with a real signature",
@@ -90,8 +90,8 @@
     },
     {
       "name": "[mobile] BlockDetail far in the future shows a clear not-found state",
-      "pass": false,
-      "detail": "unexpected content: Blocks Block 193,397,303 Confirmed block contents read from the X1 RPC. Previous slot Next slot Could not load this block RPC network error "
+      "pass": true,
+      "detail": ""
     },
     {
       "name": "[mobile] TransactionDetail with a real signature",
@@ -175,8 +175,8 @@
     },
     {
       "name": "a11y: /ValidatorDetail has no serious or critical axe violations",
-      "pass": false,
-      "detail": "definition-list: .md\\:grid-cols-2"
+      "pass": true,
+      "detail": ""
     },
     {
       "name": "a11y: /AddressLookup has no serious or critical axe violations",

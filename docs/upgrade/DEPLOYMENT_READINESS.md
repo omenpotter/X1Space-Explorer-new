@@ -1,0 +1,39 @@
+# Deployment readiness
+
+## Verdict
+
+**Ready for a preview deployment and owner review. Not yet cleared for production.**
+
+Every automated check I could run passes on commit `f4cab15` (lint, typecheck, build, 80 unit/contract tests, live smoke and accuracy tests, 95 + 38 browser checks including accessibility, credential audit). What blocks a production release is not code quality but things I cannot do or observe from the development sandbox.
+
+## Must happen before production
+
+| # | Item | Owner | Why it blocks |
+|---|---|---|---|
+| 1 | Revoke the OwlNet, FortiBlox and unidentified `X-API-Key` credentials and confirm the old database is gone | account owner | They were shipped in browser code for months; removal from source does not revoke them |
+| 2 | Deploy to a **Base44 preview** and run the checks in the next section | owner / next session | Several protections depend on platform behaviour I could not observe |
+| 3 | Decide on `react-router-dom` v7 (open-redirect advisory) or accept the risk in writing | owner | One moderate advisory remains in a direct dependency |
+
+## Preview checklist (platform behaviour not observable from the sandbox)
+
+- [ ] `/functions/getTokens`, `getValidators`, `getImage` respond from the preview origin (the client tries `/functions/<name>` first, then the SDK route).
+- [ ] `getImage` returns binary images and `Cache-Control`.
+- [ ] Calling `smartSearch` while signed out returns 401; signed in returns a result; a 6th call within a minute returns 429.
+- [ ] Rate limits persist across cold starts (Deno KV) — otherwise they are per-instance.
+- [ ] `cf-connecting-ip` is present (otherwise all anonymous callers share one larger bucket).
+- [ ] Response headers (HSTS, `nosniff`, frame protections) are present; tighten CSP to the header version in `SECURITY.md` once the runtime hosts are known.
+- [ ] Re-run the Base44 security scan and compare against the 15 acknowledged findings.
+- [ ] Open Token Explorer, Network Map and Validators in a real browser; confirm validator logos load (only 41 of 262 could be fetched from the sandbox).
+- [ ] If an X1 Ninja key is added: confirm field names in the live response, then enable and recheck request volume (target: a few calls per minute).
+
+## What is already established
+
+- Token data matches independent sources (mint counts per program, decimals, supply, prices, TVL).
+- Every Network Map coordinate comes from a geolocation provider; 38 / 38 sampled positions matched an independent lookup; unlocated validators are listed, never guessed.
+- No credential is present in the built bundle, in any browser request, or in any backend response.
+- Every page renders without console errors at desktop, tablet and mobile widths, with one `h1`, no horizontal overflow, and no serious or critical axe violations on the audited pages.
+- Failure paths (backend down, RPC down, location service down, icons failing, empty search) show explicit states, not fabricated values.
+
+## Rollback
+
+`ROLLBACK.md`. Nothing has been pushed or deployed; production is unchanged.

@@ -169,3 +169,136 @@ PASS  [desktop] CustomDashboard renders
 PASS  [desktop] ApiDocs renders
 PASS  [desktop] Search renders
 PASS  [tablet] Dashboard renders
+PASS  [tablet] NetworkHealth renders
+PASS  [tablet] NetworkMap renders
+PASS  [tablet] Blocks renders
+PASS  [tablet] Transactions renders
+PASS  [tablet] TransactionFlowPage renders
+PASS  [tablet] AddressLookup renders
+PASS  [tablet] Validators renders
+PASS  [tablet] Leaderboard renders
+PASS  [tablet] ValidatorCompare renders
+PASS  [tablet] ValidatorAlerts renders
+PASS  [tablet] StakingCalculator renders
+PASS  [tablet] TokenExplorer renders
+PASS  [tablet] LPExplorer renders
+PASS  [tablet] WhaleWatcher renders
+PASS  [tablet] PortfolioTracker renders
+PASS  [tablet] Watchlist renders
+PASS  [tablet] CustomDashboard renders
+PASS  [tablet] ApiDocs renders
+PASS  [tablet] Search renders
+PASS  [mobile] Dashboard renders
+PASS  [mobile] NetworkHealth renders
+PASS  [mobile] NetworkMap renders
+PASS  [mobile] Blocks renders
+PASS  [mobile] Transactions renders
+PASS  [mobile] TransactionFlowPage renders
+PASS  [mobile] AddressLookup renders
+PASS  [mobile] Validators renders
+PASS  [mobile] Leaderboard renders
+PASS  [mobile] ValidatorCompare renders
+PASS  [mobile] ValidatorAlerts renders
+PASS  [mobile] StakingCalculator renders
+PASS  [mobile] TokenExplorer renders
+PASS  [mobile] LPExplorer renders
+PASS  [mobile] WhaleWatcher renders
+PASS  [mobile] PortfolioTracker renders
+PASS  [mobile] Watchlist renders
+PASS  [mobile] CustomDashboard renders
+PASS  [mobile] ApiDocs renders
+PASS  [mobile] Search renders
+PASS  tokens: table lists 50 rows from the live index  — 25919 mints indexed
+PASS  tokens: source status and freshness are shown
+PASS  tokens: unknown market values show a dash, never $0.00
+PASS  tokens: search filters server-side
+PASS  tokens: detail drawer shows chain facts and a risk review
+PASS  tokens: kind and program filters change the result set  — 1–50 of 22,013 -> 1–50 of 845
+PASS  tokens: no page errors
+PASS  tokens: backend failure shows an error state with retry, not empty or fake rows
+PASS  tokens: empty search result shows an empty state
+PASS  map: world outline and validator markers render  — 39 location markers
+PASS  map: located + unlocated accounts for every validator  — 344 located, 44 not located, 388 total
+PASS  map: no raw node addresses anywhere in the page
+PASS  map: selecting a marker lists its validators
+PASS  map: status filter narrows the markers
+PASS  map: markers are keyboard operable and zoom controls work
+PASS  map: resizes with the viewport
+PASS  map: no page errors
+PASS  map: location service failure places nothing and says so
+PASS  map: RPC outage shows an error state with retry
+PASS  validators: every row has an avatar; official icons load where reachable  — 1 official icons loaded, 34 generated avatars visible
+PASS  validators: when every icon fails, generated avatars are shown and nothing is broken
+PASS  validators: generated avatars are stable across reloads
+PASS  shell: skip link is the first focus stop
+PASS  shell: "/" focuses search and a mint address routes to the token
+PASS  shell: active page is marked in navigation
+PASS  shell: mobile drawer opens and navigates
+PASS  a11y: Dashboard has no serious or critical axe violations
+PASS  a11y: TokenExplorer has no serious or critical axe violations
+PASS  a11y: NetworkMap has no serious or critical axe violations
+PASS  a11y: Validators has no serious or critical axe violations
+PASS  a11y: LPExplorer has no serious or critical axe violations
+PASS  a11y: Blocks has no serious or critical axe violations
+PASS  a11y: Transactions has no serious or critical axe violations
+PASS  a11y: Search has no serious or critical axe violations
+PASS  performance: first paint and transfer size of the landing page  — FCP 248 ms, 592 KB of JS over 22 asset requests (uncompressed preview server)
+
+95 passed, 0 failed
+[browser suite] exit 0
+=== detail routes ===
+(node:13414) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+using slot 93399209 sig 2uCgBRJp… vote HNR56a…
+PASS  [desktop] BlockDetail with a real slot
+PASS  [desktop] BlockDetail with an invalid slot shows an empty state
+PASS  [desktop] BlockDetail far in the future shows a clear not-found state
+PASS  [desktop] TransactionDetail with a real signature
+PASS  [desktop] TransactionDetail with a malformed signature is rejected before any lookup
+PASS  [desktop] ValidatorDetail with a real vote account
+PASS  [desktop] ValidatorDetail with an unknown id shows not-found
+PASS  [desktop] AddressLookup with a real address
+PASS  [desktop] AddressLookup with an invalid address is rejected
+PASS  [desktop] TransactionFlowPage with a real signature
+PASS  [desktop] ValidatorCompare with two real validators
+PASS  [desktop] Search for a token name returns real results
+PASS  [desktop] Search for a slot finds the block
+PASS  [desktop] Search for an address classifies it
+PASS  [desktop] Search for something that does not exist shows an empty result, not demo data
+PASS  [mobile] BlockDetail with a real slot
+PASS  [mobile] BlockDetail with an invalid slot shows an empty state
+PASS  [mobile] BlockDetail far in the future shows a clear not-found state
+PASS  [mobile] TransactionDetail with a real signature
+PASS  [mobile] TransactionDetail with a malformed signature is rejected before any lookup
+PASS  [mobile] ValidatorDetail with a real vote account
+PASS  [mobile] ValidatorDetail with an unknown id shows not-found
+PASS  [mobile] AddressLookup with a real address
+PASS  [mobile] AddressLookup with an invalid address is rejected
+PASS  [mobile] TransactionFlowPage with a real signature
+PASS  [mobile] ValidatorCompare with two real validators
+PASS  [mobile] Search for a token name returns real results
+PASS  [mobile] Search for a slot finds the block
+PASS  [mobile] Search for an address classifies it
+PASS  [mobile] Search for something that does not exist shows an empty result, not demo data
+PASS  Home redirects to the dashboard
+PASS  unknown route shows the 404 page with a way back
+PASS  a11y: /BlockDetail has no serious or critical axe violations
+PASS  a11y: /TransactionDetail has no serious or critical axe violations
+PASS  a11y: /ValidatorDetail has no serious or critical axe violations
+PASS  a11y: /AddressLookup has no serious or critical axe violations
+PASS  a11y: /ValidatorCompare has no serious or critical axe violations
+PASS  a11y: /Search has no serious or critical axe violations
+
+38 passed, 0 failed
+[detail routes] exit 0
+=== network/credential audit ===
+(node:13946) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+requests by host: {"127.0.0.1":368,"rpc.mainnet.x1.xyz":90,"app.xdex.xyz":2,"raw.githubusercontent.com":15}
+total requests: 475
+PASS: no credentials in requests or responses; only expected hosts contacted
+[network/credential audit] exit 0
+=== bundle credential scan ===
+no credential patterns in dist
+source maps in dist: 0
+DONE
