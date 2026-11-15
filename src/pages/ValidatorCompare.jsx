@@ -1,234 +1,137 @@
-import React, { useState, useEffect } from 'react';
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { 
-  Search, 
-  Zap,
-  Plus,
-  X,
-  Loader2,
-  AlertCircle,
-  ArrowLeft,
-  Scale
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Plus, Scale, Search, SearchX, Server } from 'lucide-react';
+import PageHeader from '@/components/shell/PageHeader';
+import { Freshness, Panel } from '@/components/ds/Primitives';
+import { EmptyState, ErrorState, Skeleton, TableSkeleton } from '@/components/ds/States';
+import { Button } from '@/components/ui/button';
+import ValidatorCompare from '@/components/validators/ValidatorCompare';
+import { StatusPill, ValidatorIdentity, matchesValidator, useValidators } from '@/components/validators/ValidatorCard';
+import { X1_CONFIG } from '@/lib/x1/config';
+import { compact, integer } from '@/lib/format';
 import { createPageUrl } from '@/utils';
-import X1Rpc from '../components/x1/X1RpcService';
-import ValidatorCompare from '../components/validators/ValidatorCompare';
+
+const MIN = 2;
+const MAX = 4;
+const outlineBtn = 'border-line-strong bg-transparent text-ink-soft hover:bg-surface-3 hover:text-ink';
 
 export default function ValidatorComparePage() {
-  const [validators, setValidators] = useState([]);
-  const [selectedValidators, setSelectedValidators] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSelector, setShowSelector] = useState(true);
-  const [blockProduction, setBlockProduction] = useState(null);
+  const [params, setParams] = useSearchParams();
+  const { status, validators, epoch, error, loadedAt, refreshFailed, refreshing, reload } = useValidators(X1_CONFIG.polling.validatorsMs);
+  const [query, setQuery] = useState('');
 
-  useEffect(() => {
-    const fetchValidators = async () => {
-      try {
-        const [data, blockProd] = await Promise.all([
-          X1Rpc.getValidatorDetails(),
-          X1Rpc.getBlockProduction().catch(() => null)
-        ]);
-        setValidators(data);
-        setBlockProduction(blockProd);
-        setError(null);
-      } catch (err) {
-        console.error('Failed to fetch validators:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchValidators();
-  }, []);
+  const ids = useMemo(() => {
+    const raw = (params.get('ids') || '').split(',').map((s) => s.trim()).filter(Boolean);
+    return [...new Set(raw)].slice(0, MAX);
+  }, [params]);
 
-  const addValidator = (validator) => {
-    if (selectedValidators.length >= 5) return;
-    if (selectedValidators.find(v => v.votePubkey === validator.votePubkey)) return;
-    setSelectedValidators([...selectedValidators, validator]);
+  const setIds = (next) => {
+    const p = new URLSearchParams(params);
+    if (next.length) p.set('ids', next.join(','));
+    else p.delete('ids');
+    setParams(p, { replace: true });
   };
 
-  const removeValidator = (votePubkey) => {
-    setSelectedValidators(selectedValidators.filter(v => v.votePubkey !== votePubkey));
-  };
+  const byId = useMemo(() => new Map(validators.map((v) => [v.votePubkey, v])), [validators]);
+  const selected = useMemo(() => ids.map((id) => byId.get(id)).filter(Boolean), [ids, byId]);
+  const unknownIds = status === 'ready' ? ids.filter((id) => !byId.has(id)) : [];
 
-  const filteredValidators = validators.filter(v => {
-    const query = searchQuery.toLowerCase();
-    const isSelected = selectedValidators.find(s => s.votePubkey === v.votePubkey);
-    if (isSelected) return false;
-    return v.votePubkey.toLowerCase().includes(query) || 
-           v.nodePubkey.toLowerCase().includes(query) ||
-           (v.name && v.name.toLowerCase().includes(query));
-  });
+  const results = useMemo(() => {
+    const q = query.trim();
+    return validators
+      .filter((v) => !ids.includes(v.votePubkey) && matchesValidator(v, q))
+      .slice(0, q ? 12 : 8);
+  }, [validators, ids, query]);
 
-  const formatStake = (stake) => {
-    if (stake >= 1e6) return (stake / 1e6).toFixed(1) + 'M';
-    if (stake >= 1e3) return (stake / 1e3).toFixed(1) + 'K';
-    return stake.toFixed(0);
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-surface-1 text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-brand" />
-      </div>
-    );
-  }
+  const full = ids.length >= MAX;
 
   return (
-    <div className="min-h-screen bg-surface-1 text-white">
-      <header className="bg-surface-1 border-b border-line">
-        <div className="max-w-[1800px] mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-brand to-blue-500 rounded-lg flex items-center justify-center">
-                  <span className="text-black font-black text-sm">X1</span>
-                </div>
-                <span className="font-bold hidden sm:inline"><span className="text-brand">X1</span><span className="text-white">Space</span></span>
-              </Link>
-              <Badge className="bg-brand/20 text-brand border-0 text-xs">Mainnet</Badge>
-            </div>
-            
-            <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('Blocks')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg></Button></Link>
-              <Link to={createPageUrl('Validators')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></svg></Button></Link>
-              <Link to={createPageUrl('ValidatorCompare')}><Button variant="ghost" size="icon" className="text-brand bg-brand/10 rounded-lg"><Scale className="w-5 h-5" /></Button></Link>
-            </nav>
+    <>
+      <PageHeader
+        icon={Scale}
+        title="Compare validators"
+        description={`Select ${MIN} to ${MAX} validators to compare their stake, commission and measured performance side by side.`}
+        meta={<Freshness at={loadedAt} stale={refreshFailed} source="X1 RPC" onRefresh={() => reload(true)} refreshing={refreshing} />}
+        back={{ label: 'Validators', to: createPageUrl('Validators') }}
+      />
 
-            <Link to={createPageUrl('Validators')}>
-              <Button variant="outline" size="sm" className="border-line text-ink-muted hover:text-white">
-                <ArrowLeft className="w-4 h-4 mr-2" /> Back to Validators
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      {error && (
-        <div className="bg-negative/10 border-b border-negative/20 px-4 py-2">
-          <div className="max-w-[1800px] mx-auto flex items-center gap-2 text-negative text-sm">
-            <AlertCircle className="w-4 h-4" /><span>{error}</span>
-          </div>
+      {status === 'loading' && (
+        <div role="status" aria-label="Loading validators">
+          <Skeleton className="mb-6 h-40 w-full rounded-xl" />
+          <Panel><TableSkeleton rows={6} columns={4} /></Panel>
         </div>
       )}
 
-      <main className="max-w-[1800px] mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-              <Scale className="w-7 h-7 text-brand" />
-              Compare Validators
-            </h1>
-            <p className="text-ink-muted text-sm mt-1">Select up to 5 validators to compare side-by-side</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge className="bg-brand/20 text-brand border-0">
-              {selectedValidators.length}/5 selected
-            </Badge>
-            {selectedValidators.length > 0 && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="border-negative/30 text-negative hover:bg-negative/10"
-                onClick={() => setSelectedValidators([])}
-              >
-                Clear All
-              </Button>
-            )}
-          </div>
-        </div>
+      {status === 'error' && (
+        <Panel><ErrorState title="Validator data is unavailable" description={error} onRetry={() => reload()} /></Panel>
+      )}
 
-        {/* Selected validators chips */}
-        {selectedValidators.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {selectedValidators.map((v) => (
-              <div 
-                key={v.votePubkey}
-                className="flex items-center gap-2 bg-brand/20 text-brand px-3 py-1.5 rounded-full text-sm"
-              >
-                <span>{v.icon || '🔷'}</span>
-                <span>{v.name || v.votePubkey.substring(0, 8) + '...'}</span>
-                <button 
-                  onClick={() => removeValidator(v.votePubkey)}
-                  className="hover:text-negative transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Validator selector */}
-        <div className="mb-6">
-          <div 
-            className="flex items-center justify-between bg-surface-2 rounded-lg px-4 py-3 cursor-pointer hover:bg-surface-3 transition-colors"
-            onClick={() => setShowSelector(!showSelector)}
+      {status === 'ready' && (
+        <div className="space-y-6">
+          <Panel
+            title={`Selected (${selected.length} of ${MAX})`}
+            description={full ? 'Maximum reached. Remove one to add another.' : 'Search by name, vote address or identity address.'}
           >
-            <span className="text-ink-muted text-sm">
-              {showSelector ? 'Hide validator selector' : 'Show validator selector'}
-            </span>
-            <Plus className={`w-5 h-5 text-ink-muted transition-transform ${showSelector ? 'rotate-45' : ''}`} />
-          </div>
-          
-          {showSelector && (
-            <div className="bg-surface-2 rounded-b-lg border-t border-line p-4">
-              <div className="relative mb-4">
-                <Input
-                  placeholder="Search validators by name or pubkey..."
-                  className="w-full bg-surface-1 border-0 text-white placeholder:text-ink-faint pr-10 rounded-lg"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-faint" />
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 max-h-[300px] overflow-y-auto">
-                {filteredValidators.slice(0, 20).map((v) => (
-                  <button
-                    key={v.votePubkey}
-                    onClick={() => addValidator(v)}
-                    disabled={selectedValidators.length >= 5}
-                    className="flex items-center gap-3 p-3 bg-surface-1 rounded-lg hover:bg-surface-3 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand/30 to-blue-500/30 flex items-center justify-center text-sm shrink-0">
-                      {v.icon || '🔷'}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-white text-sm font-medium truncate">
-                        {v.name || `${v.votePubkey.substring(0, 6)}...${v.votePubkey.slice(-4)}`}
-                      </p>
-                      <p className="text-ink-faint text-xs">
-                        {formatStake(v.activatedStake)} XNT • {v.commission}% comm
-                      </p>
-                    </div>
-                    <Plus className="w-4 h-4 text-brand shrink-0" />
-                  </button>
-                ))}
-              </div>
-              
-              {filteredValidators.length > 20 && (
-                <p className="text-ink-faint text-xs text-center mt-3">
-                  Showing 20 of {filteredValidators.length} validators. Use search to find more.
+            <div className="p-4">
+              {unknownIds.length > 0 && (
+                <p role="alert" className="mb-3 rounded-lg border border-warning/25 bg-warning/10 px-3 py-2 text-sm text-warning">
+                  {unknownIds.length === 1 ? 'One address in the link is' : `${unknownIds.length} addresses in the link are`} not a known vote account and was ignored.
+                  <Button type="button" variant="link" size="sm" className="h-auto px-2 py-0 text-warning underline" onClick={() => setIds(selected.map((v) => v.votePubkey))}>Remove</Button>
                 </p>
               )}
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" aria-hidden="true" />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  disabled={full}
+                  placeholder={full ? 'Remove a validator to add another' : 'Name, vote address or identity address'}
+                  aria-label="Search validators to compare"
+                  className="h-9 w-full rounded-lg border border-line bg-surface-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand/25 disabled:opacity-60"
+                />
+              </div>
+              {!full && (
+                results.length === 0 ? (
+                  <EmptyState icon={SearchX} title="No validators match" description="Try a different name or address." className="py-8" />
+                ) : (
+                  <ul className="mt-3 divide-y divide-line/60 rounded-lg border border-line" aria-label="Validators you can add">
+                    {results.map((v) => (
+                      <li key={v.votePubkey} className="flex items-center justify-between gap-3 px-3 py-2">
+                        <ValidatorIdentity validator={v} size={28} sub={<span className="tabular">{compact(v.activatedStake)} XNT staked</span>} />
+                        <span className="flex shrink-0 items-center gap-2">
+                          <StatusPill validator={v} className="hidden sm:inline-flex" />
+                          <Button type="button" size="sm" variant="outline" className={outlineBtn} onClick={() => { setIds([...ids, v.votePubkey]); setQuery(''); }} aria-label={`Add ${v.name || v.votePubkey} to comparison`}>
+                            <Plus className="mr-1 h-4 w-4" aria-hidden="true" />Add
+                          </Button>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              )}
             </div>
+          </Panel>
+
+          {selected.length >= MIN ? (
+            <ValidatorCompare validators={selected} epoch={epoch} onRemove={(id) => setIds(ids.filter((x) => x !== id))} />
+          ) : (
+            <Panel>
+              <EmptyState
+                icon={Scale}
+                title={selected.length === 0 ? 'Nothing to compare yet' : 'Add one more validator'}
+                description={`Pick at least ${MIN} validators above. The selection is kept in the page link so you can share it.`}
+                action={<Button asChild variant="outline" size="sm" className={outlineBtn}><Link to={createPageUrl('Validators')}><Server className="mr-2 h-4 w-4" aria-hidden="true" />Browse all {integer(validators.length)} validators</Link></Button>}
+              />
+              {selected.length === 1 && (
+                <div className="border-t border-line px-4 py-3">
+                  <ValidatorIdentity validator={selected[0]} />
+                </div>
+              )}
+            </Panel>
           )}
         </div>
-
-        {/* Comparison table */}
-        <ValidatorCompare 
-          validators={selectedValidators} 
-          onRemove={removeValidator}
-          blockProduction={blockProduction}
-        />
-      </main>
-    </div>
+      )}
+    </>
   );
 }
