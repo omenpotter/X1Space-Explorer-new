@@ -2,7 +2,7 @@
 // Uses Solana-compatible JSON-RPC API with fallback endpoints
 // All calls go through the unified client in src/lib/x1/rpcClient.js.
 
-import { getCached, setCache, debounceRpc } from './RpcCache';
+import { getCached, setCache } from './RpcCache';
 
 import { rpcCall } from '@/lib/x1/rpcClient';
 import { X1_CONFIG } from '@/lib/x1/config';
