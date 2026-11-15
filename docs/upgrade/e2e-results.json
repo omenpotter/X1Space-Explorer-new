@@ -1,10 +1,105 @@
 {
-  "ranAt": "2026-11-15T08:08:14.285Z",
-  "passed": 4,
+  "ranAt": "2026-11-15T08:21:07.980Z",
+  "passed": 95,
   "failed": 0,
   "results": [
     {
       "name": "[desktop] Dashboard renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] NetworkHealth renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] NetworkMap renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] Blocks renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] Transactions renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] TransactionFlowPage renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] AddressLookup renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] Validators renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] Leaderboard renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] ValidatorCompare renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] ValidatorAlerts renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] StakingCalculator renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] TokenExplorer renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] LPExplorer renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] WhaleWatcher renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] PortfolioTracker renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] Watchlist renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] CustomDashboard renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] ApiDocs renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] Search renders",
       "pass": true,
       "detail": ""
     },
@@ -14,7 +109,327 @@
       "detail": ""
     },
     {
+      "name": "[tablet] NetworkHealth renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] NetworkMap renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] Blocks renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] Transactions renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] TransactionFlowPage renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] AddressLookup renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] Validators renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] Leaderboard renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] ValidatorCompare renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] ValidatorAlerts renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] StakingCalculator renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] TokenExplorer renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] LPExplorer renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] WhaleWatcher renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] PortfolioTracker renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] Watchlist renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] CustomDashboard renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] ApiDocs renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] Search renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
       "name": "[mobile] Dashboard renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] NetworkHealth renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] NetworkMap renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] Blocks renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] Transactions renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] TransactionFlowPage renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] AddressLookup renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] Validators renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] Leaderboard renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] ValidatorCompare renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] ValidatorAlerts renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] StakingCalculator renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] TokenExplorer renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] LPExplorer renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] WhaleWatcher renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] PortfolioTracker renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] Watchlist renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] CustomDashboard renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] ApiDocs renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] Search renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "tokens: table lists 50 rows from the live index",
+      "pass": true,
+      "detail": "25919 mints indexed"
+    },
+    {
+      "name": "tokens: source status and freshness are shown",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "tokens: unknown market values show a dash, never $0.00",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "tokens: search filters server-side",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "tokens: detail drawer shows chain facts and a risk review",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "tokens: kind and program filters change the result set",
+      "pass": true,
+      "detail": "1–50 of 22,013 -> 1–50 of 845"
+    },
+    {
+      "name": "tokens: no page errors",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "tokens: backend failure shows an error state with retry, not empty or fake rows",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "tokens: empty search result shows an empty state",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "map: world outline and validator markers render",
+      "pass": true,
+      "detail": "39 location markers"
+    },
+    {
+      "name": "map: located + unlocated accounts for every validator",
+      "pass": true,
+      "detail": "344 located, 44 not located, 388 total"
+    },
+    {
+      "name": "map: no raw node addresses anywhere in the page",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "map: selecting a marker lists its validators",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "map: status filter narrows the markers",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "map: markers are keyboard operable and zoom controls work",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "map: resizes with the viewport",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "map: no page errors",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "map: location service failure places nothing and says so",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "map: RPC outage shows an error state with retry",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "validators: every row has an avatar; official icons load where reachable",
+      "pass": true,
+      "detail": "1 official icons loaded, 34 generated avatars visible"
+    },
+    {
+      "name": "validators: when every icon fails, generated avatars are shown and nothing is broken",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "validators: generated avatars are stable across reloads",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "shell: skip link is the first focus stop",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "shell: \"/\" focuses search and a mint address routes to the token",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "shell: active page is marked in navigation",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "shell: mobile drawer opens and navigates",
       "pass": true,
       "detail": ""
     },
@@ -22,6 +437,46 @@
       "name": "a11y: Dashboard has no serious or critical axe violations",
       "pass": true,
       "detail": ""
+    },
+    {
+      "name": "a11y: TokenExplorer has no serious or critical axe violations",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "a11y: NetworkMap has no serious or critical axe violations",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "a11y: Validators has no serious or critical axe violations",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "a11y: LPExplorer has no serious or critical axe violations",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "a11y: Blocks has no serious or critical axe violations",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "a11y: Transactions has no serious or critical axe violations",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "a11y: Search has no serious or critical axe violations",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "performance: first paint and transfer size of the landing page",
+      "pass": true,
+      "detail": "FCP 272 ms, 592 KB of JS over 22 asset requests (uncompressed preview server)"
     }
   ]
 }
