@@ -1,4 +1,3 @@
-import React from 'react';
 
 /** Full-height centred layout for pages that render outside the application shell (sign-in, consent). */
 export default function AuthLayout({ icon: Icon, title, subtitle, footer, children }) {

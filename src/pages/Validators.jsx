@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Scale, Search, SearchX, Server, Trophy } from 'lucide-react';
 import PageHeader from '@/components/shell/PageHeader';

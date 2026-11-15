@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { geoGraticule10, geoNaturalEarth1, geoPath } from 'd3-geo';
 import { feature, mesh } from 'topojson-client';
 import { Minus, Plus, RotateCcw } from 'lucide-react';

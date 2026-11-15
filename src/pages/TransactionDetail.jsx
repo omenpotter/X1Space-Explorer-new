@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, FileSearch, Receipt, XCircle } from 'lucide-react';
 import PageHeader from '@/components/shell/PageHeader';

@@ -14,7 +14,7 @@ let loading = null;
 
 function cleanText(value, max) {
   if (typeof value !== 'string') return null;
-  // eslint-disable-next-line no-control-regex
+   
   const s = value.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, max);
   return s || null;
 }

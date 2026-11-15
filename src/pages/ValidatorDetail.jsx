@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Bell, ExternalLink, Scale, SearchX, Server } from 'lucide-react';
 import PageHeader from '@/components/shell/PageHeader';

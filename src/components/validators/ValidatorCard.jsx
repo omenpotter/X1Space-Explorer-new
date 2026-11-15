@@ -1,7 +1,7 @@
 // Shared validator presentation: identity cell, status pill, metric cells, the table row
 // used by the Validators page and the data hook every validator page loads through.
 // Every value shown here comes from X1Rpc.getValidatorDetails(); missing values render as Unavailable.
-import React, { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 import { ValidatorAvatar } from '@/components/ds/Avatar';

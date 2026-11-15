@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { hashHue, initials } from '@/lib/format';
 import { proxiedImageUrl } from '@/lib/x1/api';
 import { X1_CONFIG } from '@/lib/x1/config';

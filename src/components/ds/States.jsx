@@ -1,4 +1,3 @@
-import React from 'react';
 import { AlertTriangle, Inbox, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';

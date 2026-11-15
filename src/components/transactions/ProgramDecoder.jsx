@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { CopyButton, Pill } from '@/components/ds/Primitives';
 import { DASH, shortAddress } from '@/lib/format';

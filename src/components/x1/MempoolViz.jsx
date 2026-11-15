@@ -2,7 +2,7 @@
 // Everything here is drawn from the counts of real transactions in each block:
 // no placeholder distributions, no random ordering. X1 has no public mempool, so
 // nothing in this file represents pending transactions.
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { integer, timeAgo } from '@/lib/format';

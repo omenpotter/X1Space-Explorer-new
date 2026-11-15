@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { EmptyState } from '@/components/ds/States';
 import { compact, integer } from '@/lib/format';
 import { cn } from '@/lib/utils';

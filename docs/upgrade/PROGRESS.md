@@ -43,3 +43,4 @@ Rules: no push / merge / deploy, no secrets printed, no paid endpoints, no crede
 - [done] validator tool pages (Leaderboard, ValidatorCompare, ValidatorAlerts, StakingCalculator, components/validators/ValidatorCompare) migrated by worker; not browser-checked yet.
 - [done] Dashboard, Blocks, BlockDetail, NetworkHealth migrated (usePolling hook added). Pending: tx group, misc group.
 - [done] Transactions, TransactionFlowPage, AddressLookup + flow components. Pending: misc group (Portfolio, Whale, Custom, ApiDocs).
+- [done] All routed pages migrated. Next: lint/typecheck/build/audit, e2e browser run, screenshots, final docs.

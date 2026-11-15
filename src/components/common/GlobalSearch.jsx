@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, X, TrendingUp, Wallet, Hash, Activity } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { useNavigate } from 'react-router-dom';

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, Copy, RefreshCw } from 'lucide-react';
 import { timeAgo } from '@/lib/format';
 import { cn } from '@/lib/utils';

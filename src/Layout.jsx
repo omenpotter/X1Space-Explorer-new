@@ -1,4 +1,3 @@
-import React from 'react';
 import AppShell from '@/components/shell/AppShell';
 
 // Pages that render full-screen without the application chrome.
