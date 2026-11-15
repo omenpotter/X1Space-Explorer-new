@@ -1,178 +1,102 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
-import { ArrowRight, Wallet, Send, Download } from 'lucide-react';
+import { ArrowRight, Download, Send, Wallet } from 'lucide-react';
+import { Panel } from '@/components/ds/Primitives';
+import { shortAddress } from '@/lib/format';
+import { addressUrl, formatUnits, getProgramInfo } from './ProgramDecoder';
 
-export default function AddressFlowGraph({ flowData }) {
-  const { nodes, edges, centerAddress } = flowData;
-  
-  // Separate incoming and outgoing connections
-  const { incomingNodes, outgoingNodes, centerNode } = useMemo(() => {
-    const center = nodes.find(n => n.id === centerAddress);
-    const incoming = [];
-    const outgoing = [];
-    
-    edges.forEach(edge => {
-      if (edge.to === centerAddress) {
-        const node = nodes.find(n => n.id === edge.from);
-        if (node) incoming.push({ ...node, edgeAmount: edge.amount, edgeType: edge.type });
-      } else if (edge.from === centerAddress) {
-        const node = nodes.find(n => n.id === edge.to);
-        if (node) outgoing.push({ ...node, edgeAmount: edge.amount, edgeType: edge.type });
-      }
-    });
-    
-    // Aggregate by address
-    const aggregateNodes = (list) => {
-      const map = new Map();
-      list.forEach(n => {
-        if (map.has(n.id)) {
-          const existing = map.get(n.id);
-          existing.totalAmount += n.edgeAmount;
-          existing.txCount++;
-        } else {
-          map.set(n.id, { ...n, totalAmount: n.edgeAmount, txCount: 1 });
-        }
-      });
-      return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount).slice(0, 8);
-    };
-    
-    return {
-      incomingNodes: aggregateNodes(incoming),
-      outgoingNodes: aggregateNodes(outgoing),
-      centerNode: center
-    };
-  }, [nodes, edges, centerAddress]);
+const DIAGRAM_LIMIT = 8;
 
-  const formatAmount = (amt) => {
-    if (!amt) return '0';
-    if (amt >= 1e6) return (amt / 1e6).toFixed(2) + 'M';
-    if (amt >= 1e3) return (amt / 1e3).toFixed(2) + 'K';
-    return amt.toFixed(2);
-  };
+const label = (address) => getProgramInfo(address).name || shortAddress(address, 6, 6);
 
-  const getTypeColor = (type) => {
-    const colors = {
-      transfer: 'border-blue-500/50 bg-blue-500/10',
-      stake: 'border-positive/50 bg-positive/10',
-      token: 'border-warning/50 bg-warning/10',
-      center: 'border-brand bg-brand/20',
-      other: 'border-gray-500/50 bg-gray-500/10'
-    };
-    return colors[type] || colors.other;
-  };
-
-  const NodeCard = ({ node, isCenter = false }) => (
-    <Link 
-      to={isCenter ? '#' : createPageUrl('AddressLookup') + `?address=${node.id}`}
-      className={`block p-3 rounded-lg border-2 ${getTypeColor(node.type)} transition-all ${!isCenter && 'hover:scale-105 cursor-pointer'}`}
-    >
-      <div className="flex items-center gap-2 mb-1">
-        <Wallet className={`w-4 h-4 ${isCenter ? 'text-brand' : 'text-ink-muted'}`} />
-        <span className={`font-mono text-xs ${isCenter ? 'text-brand' : 'text-ink-soft'}`}>
-          {node.id.substring(0, 8)}...{node.id.slice(-4)}
-        </span>
-      </div>
-      {isCenter ? (
-        <div className="flex gap-4 text-xs mt-2">
-          <span className="text-positive">↓ {formatAmount(node.inflow)} XNT</span>
-          <span className="text-negative">↑ {formatAmount(node.outflow)} XNT</span>
-        </div>
-      ) : (
-        <div className="text-xs mt-1">
-          <span className="text-white font-bold">{formatAmount(node.totalAmount)} XNT</span>
-          <span className="text-ink-faint ml-2">({node.txCount} txs)</span>
-        </div>
-      )}
+function NodeCard({ node }) {
+  return (
+    <Link to={addressUrl(node.address)} title={node.address} className="block rounded-lg border border-line bg-surface-2 p-3 transition-colors hover:bg-surface-3">
+      <span className="flex items-center gap-2">
+        <Wallet className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
+        <span className="mono truncate text-xs text-ink-soft">{label(node.address)}</span>
+      </span>
+      <span className="mt-1 block text-xs">
+        <span className="tabular font-medium text-ink">{formatUnits(node.lamports, 9)} XNT</span>
+        <span className="ml-2 text-ink-muted">{node.count} transfer{node.count === 1 ? '' : 's'}</span>
+      </span>
     </Link>
   );
+}
 
-  const FlowArrow = ({ direction, amount }) => (
-    <div className="flex items-center gap-1 px-2">
-      {direction === 'in' ? (
-        <>
-          <div className="h-[2px] w-8 bg-gradient-to-r from-emerald-500/50 to-emerald-500" />
-          <ArrowRight className="w-4 h-4 text-positive" />
-        </>
+function Side({ icon: Icon, tone, title, nodes, total, empty }) {
+  return (
+    <section className="min-w-0 space-y-2" aria-label={title}>
+      <h3 className={`flex items-center gap-2 text-sm font-medium ${tone}`}>
+        <Icon className="h-4 w-4" aria-hidden="true" />
+        {title} ({nodes.length})
+      </h3>
+      {nodes.length === 0 ? (
+        <p className="text-sm text-ink-muted">{empty}</p>
       ) : (
-        <>
-          <ArrowRight className="w-4 h-4 text-negative" />
-          <div className="h-[2px] w-8 bg-gradient-to-r from-red-400 to-red-400/50" />
-        </>
+        <ul className="space-y-2">
+          {nodes.slice(0, DIAGRAM_LIMIT).map((n) => <li key={n.address}><NodeCard node={n} /></li>)}
+        </ul>
       )}
-    </div>
+      {nodes.length > DIAGRAM_LIMIT && <p className="text-xs text-ink-muted">Top {DIAGRAM_LIMIT} by amount shown here. The table below lists all {nodes.length}.</p>}
+      {total > 0n && <p className="tabular text-xs text-ink-muted">Total {formatUnits(total, 9)} XNT</p>}
+    </section>
   );
+}
 
-  if (!centerNode) return null;
+/**
+ * Counterparties that moved XNT to or from the analysed address, using only System Program transfers
+ * decoded from the fetched transactions. A table with the same data follows the diagram.
+ */
+export default function AddressFlowGraph({ flowData }) {
+  const { centerAddress, incoming, outgoing, inflow, outflow } = flowData;
+  const rows = [
+    ...incoming.map((n) => ({ ...n, direction: 'In' })),
+    ...outgoing.map((n) => ({ ...n, direction: 'Out' })),
+  ];
 
   return (
-    <div className="min-h-[400px] p-4">
-      <div className="flex items-center justify-center gap-4">
-        {/* Incoming Nodes */}
-        <div className="flex flex-col gap-3 items-end">
-          <div className="flex items-center gap-2 mb-2">
-            <Download className="w-4 h-4 text-positive" />
-            <span className="text-positive text-sm font-medium">Incoming ({incomingNodes.length})</span>
-          </div>
-          {incomingNodes.length === 0 ? (
-            <div className="text-ink-faint text-sm p-4">No incoming transactions</div>
-          ) : (
-            incomingNodes.map(node => (
-              <div key={node.id} className="flex items-center gap-2">
-                <NodeCard node={node} />
-                <FlowArrow direction="in" amount={node.totalAmount} />
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Center Node */}
-        <div className="mx-8">
-          <div className="text-center mb-2">
-            <span className="text-brand text-sm font-medium">Analyzed Address</span>
-          </div>
-          <div className="transform scale-110">
-            <NodeCard node={centerNode} isCenter />
-          </div>
-          <div className="text-center mt-3 text-ink-faint text-xs">
-            {centerNode.txCount} total transactions
-          </div>
-        </div>
-
-        {/* Outgoing Nodes */}
-        <div className="flex flex-col gap-3 items-start">
-          <div className="flex items-center gap-2 mb-2">
-            <Send className="w-4 h-4 text-negative" />
-            <span className="text-negative text-sm font-medium">Outgoing ({outgoingNodes.length})</span>
-          </div>
-          {outgoingNodes.length === 0 ? (
-            <div className="text-ink-faint text-sm p-4">No outgoing transactions</div>
-          ) : (
-            outgoingNodes.map(node => (
-              <div key={node.id} className="flex items-center gap-2">
-                <FlowArrow direction="out" amount={node.totalAmount} />
-                <NodeCard node={node} />
-              </div>
-            ))
-          )}
-        </div>
+    <div className="space-y-6 p-4">
+      <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)]">
+        <Side icon={Download} tone="text-positive" title="Received from" nodes={incoming} total={inflow} empty="No XNT transfers into this address in the sample." />
+        <div className="hidden items-center self-center text-ink-faint md:flex" aria-hidden="true"><ArrowRight className="h-4 w-4" /></div>
+        <section className="min-w-0 rounded-lg border border-brand/40 bg-brand/10 p-3" aria-label="Analysed address">
+          <p className="eyebrow">Analysed address</p>
+          <p className="mono mt-1 break-all text-xs text-ink" title={centerAddress}>{centerAddress}</p>
+        </section>
+        <div className="hidden items-center self-center text-ink-faint md:flex" aria-hidden="true"><ArrowRight className="h-4 w-4" /></div>
+        <Side icon={Send} tone="text-negative" title="Sent to" nodes={outgoing} total={outflow} empty="No XNT transfers out of this address in the sample." />
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center justify-center gap-6 mt-8 pt-4 border-t border-line">
-        <div className="flex items-center gap-2 text-xs">
-          <div className="w-3 h-3 rounded border-2 border-blue-500/50 bg-blue-500/10" />
-          <span className="text-ink-muted">Transfer</span>
-        </div>
-        <div className="flex items-center gap-2 text-xs">
-          <div className="w-3 h-3 rounded border-2 border-positive/50 bg-positive/10" />
-          <span className="text-ink-muted">Stake</span>
-        </div>
-        <div className="flex items-center gap-2 text-xs">
-          <div className="w-3 h-3 rounded border-2 border-warning/50 bg-warning/10" />
-          <span className="text-ink-muted">Token</span>
-        </div>
-      </div>
+      <Panel title="Same flows as a table" description="Aggregated per counterparty from decoded System Program transfers." className="bg-surface-2/40">
+        {rows.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-ink-muted">No System Program transfers involving this address were found in the fetched transactions.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <caption className="sr-only">XNT flows between the analysed address and each counterparty</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Direction</th>
+                  <th scope="col">Counterparty</th>
+                  <th scope="col" className="text-right">Transfers</th>
+                  <th scope="col" className="text-right">Amount (XNT)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={`${r.direction}-${r.address}`}>
+                    <td className={r.direction === 'In' ? 'text-positive' : 'text-negative'}>{r.direction === 'In' ? 'Received from' : 'Sent to'}</td>
+                    <td><Link to={addressUrl(r.address)} title={r.address} className="mono text-ink-soft hover:text-brand">{label(r.address)}</Link></td>
+                    <td className="tabular text-right">{r.count}</td>
+                    <td className="tabular text-right">{formatUnits(r.lamports, 9)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
     </div>
   );
 }

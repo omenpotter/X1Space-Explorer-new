@@ -33,7 +33,6 @@ export default function usePolling(load, intervalMs, { paused = false, deps = []
     setState({ data: null, error: null, loadedAt: null });
     run();
     return () => { alive.current = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
   useEffect(() => {

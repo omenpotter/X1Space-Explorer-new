@@ -1,7 +1,7 @@
 // Side-by-side comparison of 2-4 validators using only measured fields from the X1 RPC.
 // The one per-validator history the RPC provides is epochCredits (credits earned per epoch,
 // roughly the last five epochs); it is charted as returned and never extended or smoothed.
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { Panel } from '@/components/ds/Primitives';

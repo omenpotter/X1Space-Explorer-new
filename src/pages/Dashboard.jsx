@@ -1,630 +1,209 @@
-import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, memo } from 'react';
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Search, Zap, AlertCircle, Globe, Calculator, Wallet } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
+import { useMemo } from 'react';
+import { Activity, Boxes, Clock, Coins, Layers, Server, Timer, Zap } from 'lucide-react';
+import PageHeader from '@/components/shell/PageHeader';
+import { Freshness, Meter, Panel, StatCard } from '@/components/ds/Primitives';
+import { EmptyState, ErrorState, Skeleton, StatSkeleton, Unavailable } from '@/components/ds/States';
+import NetworkAnomalyAlert from '@/components/ai/NetworkAnomalyAlert';
+import QuickLinks from '@/components/dashboard/QuickLinks';
+import RecentBlocksTable from '@/components/dashboard/RecentBlocksTable';
+import usePolling from '@/components/dashboard/usePolling';
+import OptimizedChart from '@/components/x1/OptimizedChart';
+import BlockActivityStrip, { TxTypeLegend } from '@/components/x1/MempoolViz';
+import X1Rpc from '@/components/x1/X1RpcService';
+import { api } from '@/lib/x1/api';
+import { X1_CONFIG } from '@/lib/x1/config';
+import { compact, integer, percent, timeAgo, usd } from '@/lib/format';
+import { cn } from '@/lib/utils';
 
-// Lazy load components
-const ThemeToggle = lazy(() => import('../components/common/ThemeToggle'));
-const GlobalSearch = lazy(() => import('../components/common/GlobalSearch'));
+const isNum = (n) => typeof n === 'number' && Number.isFinite(n);
+const PRICE_POLL_MS = 60 * 1000;
+const CHART_POLL_MS = 60 * 1000;
+const CHART_SAMPLES = 60;
 
-const MobileNav = lazy(() => import('../components/layout/MobileNav'));
-// Import directly to avoid Suspense remounting during live updates
-import MempoolViz from '../components/x1/MempoolViz';
-const QuickLinks = lazy(() => import('../components/dashboard/QuickLinks'));
-const RecentBlocksTable = lazy(() => import('@/components/dashboard/RecentBlocksTable'));
-import { MempoolLegend } from '../components/x1/MempoolViz';
+function formatDuration(seconds) {
+  if (!isNum(seconds) || seconds < 0) return null;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
 
-// Lazy load recharts
-const LazyChart = lazy(() => import('recharts').then(m => ({
-  default: memo(({ data }) => {
-    const { LineChart, Line, ResponsiveContainer, Tooltip, YAxis } = m;
-    return (
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data}>
-          <YAxis domain={['auto', 'auto']} axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} width={50} />
-          <Tooltip contentStyle={{ backgroundColor: '#1d2d3a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} labelStyle={{ color: '#9ca3af' }} formatter={(value) => [`${value.toLocaleString()} TPS`, 'Avg TPS']} />
-          <Line type="monotone" dataKey="tps" stroke="#eab308" strokeWidth={2} dot={false} />
-        </LineChart>
-      </ResponsiveContainer>
-    );
-  })
-})));
+function EpochCard({ stats }) {
+  const progress = isNum(stats.epochProgress) ? stats.epochProgress * 100 : null;
+  const remainingSlots = isNum(stats.slotsInEpoch) && isNum(stats.slotIndex) ? stats.slotsInEpoch - stats.slotIndex : null;
+  const eta = remainingSlots !== null && isNum(stats.slotTimeSeconds) ? formatDuration(remainingSlots * stats.slotTimeSeconds) : null;
+  return (
+    <div className="panel p-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="eyebrow">Epoch</p>
+        <Layers className="h-4 w-4 text-ink-faint" aria-hidden="true" />
+      </div>
+      <p className="mt-2 font-display text-2xl font-semibold tabular leading-none text-ink">{integer(stats.epoch)}</p>
+      <Meter value={progress ?? undefined} label={`Epoch ${stats.epoch} progress`} className="mt-3" />
+      <p className="mt-2 text-xs text-ink-muted">
+        {progress !== null ? `${percent(progress, 1)} complete` : <Unavailable reason="Epoch progress not reported" />}
+        {eta ? ` · about ${eta} left at the current slot time` : ''}
+      </p>
+    </div>
+  );
+}
 
-const MiniFallback = memo(() => <div className="w-5 h-5" />);
-
-// Import RPC service directly for faster initial load
-import X1Rpc from '../components/x1/X1RpcService';
-import X1Api from '../components/x1/X1ApiClient';
+function PriceCard({ price }) {
+  const { status, data, loadedAt } = price;
+  const priceUsd = data?.data?.priceUsd;
+  let value;
+  let hint;
+  if (status === 'loading') {
+    value = <Skeleton className="h-6 w-24" />;
+  } else if (!isNum(priceUsd)) {
+    value = <Unavailable reason="No XNT price could be fetched from the price service" />;
+    hint = 'Price service unavailable';
+  } else {
+    value = usd(priceUsd);
+    const d = data.data;
+    const when = d.priceUpdatedAt || loadedAt;
+    hint = `${d.priceSource || 'Unknown source'}${when ? ` · updated ${timeAgo(when)}` : ''}`;
+  }
+  return <StatCard label="XNT price" icon={Coins} value={value} hint={hint} />;
+}
 
 export default function Dashboard() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [error, setError] = useState(null);
-  const [lastUpdate, setLastUpdate] = useState(null);
-  const [tpsInterval, setTpsInterval] = useState('1m');
-  const [mempoolInterval, setMempoolInterval] = useState('1m');
-  const [hasLoadedData, setHasLoadedData] = useState(false);
-  const [xntPrice, setXntPrice] = useState(1.00);
-  
-  // OPTIMIZATION: Use refs for data to prevent object replacement and remounts
-  const dashboardRef = React.useRef(null);
-  const recentBlocksRef = React.useRef([]);
-  const performanceDataRef = React.useRef([]);
-  const pendingTxCountRef = React.useRef(0);
-  // OPTIMIZATION: Replace forceRender with targeted update flag to reduce full component re-renders
-  const [dataVersion, setDataVersion] = useState(0);
-  const abortControllerRef = React.useRef(null);
-  const isInitializedRef = React.useRef(false);
+  const stats = usePolling(() => api.networkStats(), X1_CONFIG.polling.dashboardMs);
+  const price = usePolling(() => api.tokenPrice(X1_CONFIG.nativeMint), PRICE_POLL_MS);
+  const blocks = usePolling(() => X1Rpc.getRecentBlocks(10), X1_CONFIG.polling.blocksMs);
+  const samples = usePolling(() => X1Rpc.getRecentPerformanceSamples(CHART_SAMPLES), CHART_POLL_MS);
 
-  // Read from ref for stable memoization
-  const dashboardData = dashboardRef.current;
-  const recentBlocks = recentBlocksRef.current;
-  const performanceData = performanceDataRef.current;
-  const pendingTxCount = pendingTxCountRef.current;
+  const s = stats.data;
 
-  // OPTIMIZATION: Memoize with dataVersion instead of deep dependency to prevent unnecessary recalculations
-  const aggregatedTpsData = useMemo(() => {
-    if (!dashboardData?.tpsHistory?.length) return [];
-    
-    const history = dashboardData.tpsHistory;
-    if (tpsInterval === '1m') {
-      return history;
-    }
-    
-    // OPTIMIZATION: Pre-allocate array size for better memory efficiency
-    const chunkSize = 10;
-    const aggregated = new Array(Math.ceil(history.length / chunkSize));
-    for (let i = 0; i < history.length; i += chunkSize) {
-      const chunk = history.slice(i, Math.min(i + chunkSize, history.length));
-      let sum = 0;
-      for (let j = 0; j < chunk.length; j++) sum += chunk[j].tps;
-      aggregated[Math.floor(i / chunkSize)] = {
-        time: `${Math.floor(i / chunkSize) * chunkSize}m`,
-        tps: Math.round(sum / chunk.length)
-      };
-    }
-    return aggregated.filter(Boolean);
-  }, [dashboardData?.tpsHistory, tpsInterval, dataVersion]);
-
-  // OPTIMIZATION: Add abort controller for request cancellation on component unmount
-  const initDashboard = async () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
-    
-    try {
-      // OPTIMIZATION: Fetch all data in parallel for faster initial load
-      const [data, blocks, perfHistory, pendingTxs] = await Promise.all([
-        X1Rpc.getDashboardData(),
-        X1Rpc.getRecentBlocks(10).catch(() => []),
-        X1Rpc.getPerformanceHistory(60).catch(() => []),
-        X1Rpc.getPendingTransactions().catch(() => [])
-      ]);
-      
-      // OPTIMIZATION: Batch all state updates together to minimize re-renders
-      dashboardRef.current = data;
-      recentBlocksRef.current = blocks;
-      performanceDataRef.current = perfHistory;
-      pendingTxCountRef.current = pendingTxs.length;
-      setLastUpdate(new Date());
-      setError(null);
-      setDataVersion(v => v + 1);
-      isInitializedRef.current = true;
-      setHasLoadedData(true);
-      
-      // Fetch XNT price from API
-      X1Api.listTokens({ limit: 100, offset: 0, verified: false }).then(response => {
-        if (response.success && response.data?.tokens) {
-          const wxnt = response.data.tokens.find(t => t.symbol === 'WXNT' || t.mint === 'So11111111111111111111111111111111111111112');
-          if (wxnt && wxnt.price) {
-            setXntPrice(parseFloat(wxnt.price));
-          }
-        }
-      }).catch(() => {});
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error('Failed to fetch data:', err);
-        setError(err.message);
-      }
-    }
-  };
-
-  // OPTIMIZATION: Debounced polling with smart update batching
-  const pollDashboard = useCallback(async () => {
-    if (!isInitializedRef.current || !dashboardRef.current) return;
-    
-    try {
-      // OPTIMIZATION: Use Promise.allSettled to continue even if one request fails
-      const results = await Promise.allSettled([
-        X1Rpc.getDashboardData(),
-        X1Rpc.getRecentBlocks(10),
-        X1Rpc.getPerformanceHistory(60),
-        X1Rpc.getPendingTransactions()
-      ]);
-      
-      // OPTIMIZATION: Only update if data actually changed to prevent unnecessary re-renders
-      let hasChanges = false;
-      
-      if (results[0].status === 'fulfilled' && results[0].value) {
-        const data = results[0].value;
-        if (dashboardRef.current.slot !== data.slot) {
-          // OPTIMIZATION: In-place update without object replacement
-          Object.assign(dashboardRef.current, {
-            slot: data.slot,
-            tps: data.tps,
-            epochProgress: data.epochProgress,
-            slotsRemaining: data.slotsRemaining,
-            timeRemaining: data.timeRemaining,
-            tpsHistory: data.tpsHistory,
-            transactionCount: data.transactionCount,
-            supply: data.supply,
-            validators: data.validators
-          });
-          hasChanges = true;
-        }
-      }
-      
-      if (results[1].status === 'fulfilled' && results[1].value?.length) {
-        const blocks = results[1].value;
-        if (blocks[0]?.slot !== recentBlocksRef.current[0]?.slot) {
-          recentBlocksRef.current = blocks;
-          hasChanges = true;
-        }
-      }
-      
-      if (results[2].status === 'fulfilled') {
-        performanceDataRef.current = results[2].value || [];
-      }
-      
-      if (results[3].status === 'fulfilled') {
-        pendingTxCountRef.current = results[3].value?.length || 0;
-      }
-      
-      // OPTIMIZATION: Only trigger re-render if data actually changed
-      if (hasChanges) {
-        setLastUpdate(new Date());
-        setError(null);
-        setDataVersion(v => v + 1);
-      }
-    } catch (err) {
-      console.error('Poll failed:', err);
-      setError(err.message);
-    }
-  }, []);
-
-  // OPTIMIZATION: Memoize with dataVersion and optimize calculation loops
-  const aggregatedBlocks = useMemo(() => {
-    // OPTIMIZATION: Early return if no data to process
-    if (!recentBlocks.length && !performanceData.length) return [];
-    
-    // OPTIMIZATION: Calculate ratios once using optimized reduce
-    let voteRatio = 0.70, transferRatio = 0.12, programRatio = 0.09, otherRatio = 0.09;
-    if (recentBlocks.length > 0) {
-      let totalTx = 0, totalVote = 0, totalTransfer = 0, totalProgram = 0, totalOther = 0;
-      // OPTIMIZATION: Single loop instead of multiple reduces
-      for (let i = 0; i < recentBlocks.length; i++) {
-        const b = recentBlocks[i];
-        totalTx += b.txCount || 0;
-        totalVote += b.voteCount || 0;
-        totalTransfer += b.transferCount || 0;
-        totalProgram += b.programCount || 0;
-        totalOther += b.otherCount || 0;
-      }
-      if (totalTx > 0) {
-        const invTotal = 1 / totalTx; // OPTIMIZATION: Pre-calculate inverse for faster division
-        voteRatio = totalVote * invTotal;
-        transferRatio = totalTransfer * invTotal;
-        programRatio = totalProgram * invTotal;
-        otherRatio = totalOther * invTotal;
-      }
-    }
-    
-    const aggregated = [];
-    const now = Date.now();
-    
-    if (mempoolInterval === '1m') {
-      const availableSamples = Math.min(10, performanceData.length);
-      // OPTIMIZATION: Pre-allocate array
-      aggregated.length = availableSamples;
-      for (let i = 0; i < availableSamples; i++) {
-        const sample = performanceData[i];
-        if (!sample) continue;
-        const totalTxns = sample.transactions;
-        
-        // OPTIMIZATION: Use bitwise OR for rounding (faster than Math.round for positive numbers)
-        const voteCount = (totalTxns * voteRatio + 0.5) | 0;
-        const transferCount = (totalTxns * transferRatio + 0.5) | 0;
-        const programCount = (totalTxns * programRatio + 0.5) | 0;
-        const otherCount = Math.max(0, totalTxns - voteCount - transferCount - programCount);
-        
-        aggregated[i] = {
-          totalTxns,
-          slots: sample.slots,
-          label: i === 0 ? 'Now' : `${i}m ago`,
-          voteCount,
-          transferCount,
-          programCount,
-          otherCount,
-          timestamp: now - (i * 60000), // OPTIMIZATION: Pre-calculated constant
-          isRealData: true
-        };
-      }
-    } else {
-      const maxWindows = Math.floor(performanceData.length / 10);
-      const windowsToShow = Math.min(6, maxWindows);
-      
-      for (let i = 0; i < windowsToShow; i++) {
-        let totalTxns = 0, totalSlots = 0;
-        const startIdx = i * 10;
-        const endIdx = Math.min(startIdx + 10, performanceData.length);
-        
-        // OPTIMIZATION: Single loop with range check
-        for (let j = startIdx; j < endIdx; j++) {
-          const sample = performanceData[j];
-          if (!sample) continue;
-          totalTxns += sample.transactions;
-          totalSlots += sample.slots;
-        }
-        
-        if (totalTxns === 0) continue;
-        
-        const voteCount = (totalTxns * voteRatio + 0.5) | 0;
-        const transferCount = (totalTxns * transferRatio + 0.5) | 0;
-        const programCount = (totalTxns * programRatio + 0.5) | 0;
-        const otherCount = Math.max(0, totalTxns - voteCount - transferCount - programCount);
-        
-        aggregated.push({
-          totalTxns,
-          slots: totalSlots,
-          label: i === 0 ? 'Now' : `${i * 10}m ago`,
-          voteCount,
-          transferCount,
-          programCount,
-          otherCount,
-          timestamp: now - (i * 600000), // OPTIMIZATION: Pre-calculated constant
-          isRealData: true
+  const chart = useMemo(() => {
+    const list = Array.isArray(samples.data) ? samples.data : [];
+    // The RPC returns newest first with no timestamps: derive them from the fetch time and each sample's period.
+    let t = samples.loadedAt || 0;
+    const points = [];
+    for (const smp of list) {
+      const secs = Number(smp?.samplePeriodSecs);
+      const tx = Number(smp?.numTransactions);
+      if (secs > 0 && Number.isFinite(tx)) {
+        const nonVote = Number(smp?.numNonVoteTransactions);
+        points.push({
+          time: new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          tps: tx / secs,
+          userTps: Number.isFinite(nonVote) ? nonVote / secs : null,
         });
       }
+      t -= secs * 1000;
     }
-    
-    return aggregated;
-  }, [mempoolInterval, recentBlocks, performanceData, dataVersion]);
+    return points.reverse();
+  }, [samples.data, samples.loadedAt]);
 
-  // OPTIMIZATION: Proper cleanup and request cancellation
-  React.useEffect(() => {
-    initDashboard();
-    // OPTIMIZATION: 5000ms polling interval with proper cleanup
-    const interval = setInterval(pollDashboard, 5000);
-    
-    return () => {
-      clearInterval(interval);
-      // OPTIMIZATION: Cancel any pending requests on unmount
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, [pollDashboard]);
+  const hasUserTps = chart.some((p) => p.userTps !== null);
+  const series = [
+    { key: 'tps', name: 'Total TPS', color: 'hsl(var(--brand))' },
+    ...(hasUserTps ? [{ key: 'userTps', name: 'User TPS (non-vote)', color: 'hsl(var(--violet))' }] : []),
+  ];
 
-  const handleSearch = () => {
-    if (searchQuery) {
-      window.location.href = createPageUrl('Search') + `?q=${searchQuery}`;
-    }
-  };
+  const refreshAll = () => { stats.reload(); price.reload(); blocks.reload(); samples.reload(); };
+  const anyRefreshing = stats.refreshing || blocks.refreshing || samples.refreshing;
 
-  // OPTIMIZATION: Memoized utility functions to prevent recreation on every render
-  const formatNumber = useCallback((num) => {
-    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
-    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
-    if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
-    return num?.toLocaleString() || '0';
-  }, []);
-
-  const formatTime = useCallback((seconds) => {
-    const h = (seconds / 3600) | 0; // OPTIMIZATION: Bitwise OR for faster floor operation
-    const m = ((seconds % 3600) / 60) | 0;
-    return h > 0 ? `~${h}h ${m}m` : `~${m}m`;
-  }, []);
-
-  // Show dashboard immediately (don't wait for initial load)
-  // This removes the "Connecting..." screen
-  // if (!hasLoadedData) {
-  //   return (... connecting screen code...); 
-  // }
-  
-  // Start showing dashboard structure even before data loads
-
-  // From here on, keep old data visible during updates (Stale-While-Revalidate)
   return (
-    <div className="min-h-screen bg-surface-1 text-white">
-      {/* Header */}
-      <header className="bg-surface-1 border-b border-line">
-        <div className="max-w-[1800px] mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <MobileNav />
-              <div className="w-8 h-8 bg-gradient-to-br from-brand to-blue-500 rounded-lg flex items-center justify-center">
-                <span className="text-black font-black text-sm">X1</span>
-              </div>
-              <span className="hidden sm:block font-bold"><span className="text-brand">X1</span><span className="text-white">Space</span></span>
-              <div className="ml-2 px-2 py-0.5 bg-brand/20 rounded text-brand text-xs font-medium flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-positive rounded-full animate-pulse" />
-                Mainnet
-              </div>
-            </div>
-            
-            <nav className="flex items-center gap-2">
-              <Link to={createPageUrl('Dashboard')} aria-label="Dashboard">
-                <Button variant="ghost" className="text-brand bg-brand/10 rounded-lg text-sm" aria-label="Dashboard">
-                  Dashboard
-                </Button>
-              </Link>
-              <Link to={createPageUrl('Blocks')} aria-label="Blocks">
-                <Button variant="ghost" className="text-ink-muted hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Blocks">
-                  Blocks
-                </Button>
-              </Link>
-              <Link to={createPageUrl('Validators')} aria-label="Validators">
-                <Button variant="ghost" className="text-ink-muted hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Validators">
-                  Validators
-                </Button>
-              </Link>
-              <Link to={createPageUrl('Transactions')} aria-label="Transactions">
-                <Button variant="ghost" className="text-ink-muted hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Transactions">
-                  Transactions
-                </Button>
-              </Link>
-              <Link to={createPageUrl('NetworkHealth')} aria-label="Network Health">
-                <Button variant="ghost" className="text-ink-muted hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Network Health">
-                  Network
-                </Button>
-              </Link>
-              <Link to={createPageUrl('StakingCalculator')} aria-label="Staking Calculator">
-                <Button variant="ghost" className="text-ink-muted hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Staking Calculator">
-                  Staking
-                </Button>
-              </Link>
-              <Link to={createPageUrl('AddressLookup')} aria-label="Address Lookup">
-                <Button variant="ghost" className="text-ink-muted hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Address Lookup">
-                  Lookup
-                </Button>
-              </Link>
-              <Link to={createPageUrl('CustomDashboard')} aria-label="Custom Dashboard">
-                <Button variant="ghost" className="text-ink-muted hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Custom Dashboard">
-                  Custom
-                </Button>
-              </Link>
+    <>
+      <PageHeader
+        icon={Zap}
+        title="X1 Network Overview"
+        description="Live state of the X1 mainnet: slot, epoch, throughput, validators and the latest confirmed blocks."
+        meta={<Freshness at={stats.loadedAt} source="X1 RPC" stale={stats.stale} onRefresh={refreshAll} refreshing={anyRefreshing} />}
+      />
 
-              <Link to={createPageUrl('TokenExplorer')} aria-label="Token Explorer">
-                <Button variant="ghost" className="text-ink-muted hover:text-white hover:bg-white/5 rounded-lg text-sm" aria-label="Token Explorer">
-                  Tokens
-                </Button>
-              </Link>
-            </nav>
+      <NetworkAnomalyAlert />
 
-            <div className="hidden md:flex items-center gap-3 mr-4">
-              <a href="https://x.com/rkbehelvi" target="_blank" rel="noopener noreferrer" className="text-ink-soft hover:text-white transition-colors" aria-label="Follow us on X (Twitter)">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-              </a>
-              <a href="https://t.me/+HtiLywX2Dug3MjJk" target="_blank" rel="noopener noreferrer" className="text-ink-soft hover:text-brand transition-colors" aria-label="Join us on Telegram">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
-              </a>
-            </div>
-
-            <div className="flex-1 max-w-md">
-              <div className="relative">
-                <Input
-                  placeholder="Explore the X1 ecosystem"
-                  className="w-full bg-surface-2 border-0 text-white placeholder:text-ink-faint pr-10 rounded-lg"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                />
-                <Button 
-                  size="icon" 
-                  className="absolute right-1 top-1/2 -translate-y-1/2 bg-brand hover:bg-brand-strong h-7 w-7 rounded"
-                  onClick={handleSearch}
-                >
-                  <Search className="w-4 h-4 text-black" />
-                </Button>
-              </div>
-            </div>
+      <section aria-label="Network statistics" className="mb-6">
+        {stats.status === 'loading' && <StatSkeleton count={8} />}
+        {stats.status === 'error' && (
+          <div className="panel">
+            <ErrorState title="Network statistics are unavailable" description={stats.error?.message} onRetry={stats.reload} />
           </div>
-        </div>
-      </header>
-
-      {/* Error Banner */}
-      {error && (
-        <div className="bg-negative/10 border-b border-negative/20 px-4 py-2">
-          <div className="max-w-[1800px] mx-auto flex items-center gap-2 text-negative text-sm">
-            <AlertCircle className="w-4 h-4" />
-            <span>Error connecting to X1 RPC: {error}</span>
-            <Button variant="ghost" size="sm" onClick={pollDashboard} className="ml-auto text-negative">
-              Retry
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <main className="max-w-[1800px] mx-auto px-4 py-6">
-        {/* Block Visualization - permanently mounted */}
-        <div className="flex flex-col gap-4 mb-8">
-          {/* X1 View Box */}
-          <div className="bg-surface-2 rounded-xl p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <span className="text-white font-medium">X1 View</span>
-                <div className="flex gap-1 bg-surface-1 rounded-lg p-1">
-                  {['1m', '10m'].map((interval) => (
-                    <button
-                      key={interval}
-                      onClick={() => setMempoolInterval(interval)}
-                      className={`px-3 py-1.5 text-xs rounded ${mempoolInterval === interval ? 'bg-brand/20 text-brand' : 'text-ink-faint hover:text-ink-soft'}`}
-                    >
-                      {interval}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <MempoolLegend />
-                <div className="flex items-center gap-2 ml-4">
-                  <span className="text-positive text-sm font-medium">XNT ${xntPrice.toFixed(4)}</span>
-                  <Badge className="bg-positive/20 text-positive border-0 text-xs">LIVE</Badge>
-                </div>
-              </div>
-            </div>
-            <MempoolViz 
-              mempoolInterval={mempoolInterval}
-              recentBlocks={recentBlocks}
-              aggregatedBlocks={aggregatedBlocks}
-              dashboardSlot={dashboardData?.slot}
-              showPending={true}
-              pendingCount={pendingTxCount}
+        )}
+        {s && (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="Slot" icon={Boxes} value={integer(s.slot)} hint={isNum(s.blockHeight) ? `Block height ${integer(s.blockHeight)}` : undefined} />
+            <EpochCard stats={s} />
+            <StatCard
+              label="TPS"
+              icon={Activity}
+              tone="brand"
+              value={isNum(s.tps) ? integer(s.tps) : <Unavailable reason="Performance samples unavailable" />}
+              hint={isNum(s.userTps) ? `${integer(s.userTps)} user TPS (non-vote)` : 'Average of the last 5 one-minute samples'}
+            />
+            <PriceCard price={price} />
+            <StatCard
+              label="Active validators"
+              icon={Server}
+              value={s.validators ? integer(s.validators.active) : <Unavailable reason="Vote accounts unavailable" />}
+              hint={s.validators ? `${integer(s.validators.delinquent)} delinquent` : undefined}
+              tone={s.validators && s.validators.delinquent > 0 ? 'warning' : 'default'}
+            />
+            <StatCard
+              label="Total stake"
+              icon={Coins}
+              value={s.stake ? `${compact(s.stake.activeXnt + s.stake.delinquentXnt)} XNT` : <Unavailable reason="Vote accounts unavailable" />}
+              hint={s.stake && isNum(s.stake.delinquentShare) ? `${percent(s.stake.delinquentShare * 100, 2)} delinquent` : undefined}
+            />
+            <StatCard
+              label="Slot time"
+              icon={Timer}
+              value={isNum(s.slotTimeSeconds) ? `${s.slotTimeSeconds.toFixed(2)} s` : <Unavailable reason="Performance samples unavailable" />}
+              hint="Average over recent samples"
+            />
+            <StatCard
+              label="Transactions"
+              icon={Clock}
+              value={isNum(s.transactionCount) ? compact(s.transactionCount) : <Unavailable reason="Not reported by the RPC" />}
+              hint="Total processed on chain"
             />
           </div>
-        </div>
+        )}
+      </section>
 
-        {/* Stats Grid - permanently mounted */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column */}
-          <div className="space-y-4">
-            {/* Live Network Stats */}
-            <div className="bg-surface-2 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-ink-muted text-sm">LIVE NETWORK STATS</h3>
-                {lastUpdate && (
-                  <span className="text-xs text-ink-faint">
-                    Updated {lastUpdate.toLocaleTimeString()}
-                  </span>
-                )}
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-surface-1 rounded-lg p-3">
-                  <p className="text-ink-muted text-xs mb-1">Current Slot</p>
-                  <p className="text-white font-bold text-lg font-mono">
-                    {dashboardData?.slot?.toLocaleString() || '-'}
-                  </p>
-                </div>
-                <div className="bg-surface-1 rounded-lg p-3">
-                  <p className="text-ink-muted text-xs mb-1">TPS</p>
-                  <p className="text-brand font-bold text-lg">
-                    {dashboardData?.tps?.toLocaleString() || '-'}
-                  </p>
-                </div>
-                <div className="bg-surface-1 rounded-lg p-3">
-                  <p className="text-ink-muted text-xs mb-1">Total TXs</p>
-                  <p className="text-white font-bold text-lg">
-                    {formatNumber(dashboardData?.transactionCount)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Supply Info */}
-            <div className="bg-surface-2 rounded-xl p-4">
-              <h3 className="text-ink-muted text-sm mb-4">SUPPLY</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-ink-muted text-xs mb-1">Circulating</p>
-                  <p className="text-brand font-bold text-xl">
-                    {formatNumber(dashboardData?.supply?.circulating)} XNT
-                  </p>
-                </div>
-                <div>
-                  <p className="text-ink-muted text-xs mb-1">Total Supply</p>
-                  <p className="text-white font-bold text-xl">
-                    {formatNumber(dashboardData?.supply?.total)} XNT
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Validators */}
-            <div className="bg-surface-2 rounded-xl p-4">
-              <h3 className="text-ink-muted text-sm mb-4">VALIDATORS</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <p className="text-ink-muted text-xs mb-1">Active</p>
-                  <p className="text-positive font-bold text-xl">
-                    {dashboardData?.validators?.current || '-'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-ink-muted text-xs mb-1">Delinquent</p>
-                  <p className="text-negative font-bold text-xl">
-                    {dashboardData?.validators?.delinquent || '-'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-ink-muted text-xs mb-1">Total Stake</p>
-                  <p className="text-white font-bold text-xl">
-                    {formatNumber(dashboardData?.validators?.totalStake)}
-                  </p>
-                </div>
-              </div>
-            </div>
+      <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-5">
+        <Panel
+          className="xl:col-span-3"
+          title="Transactions per second"
+          description={`One point per minute over the last hour, from RPC performance samples${samples.stale ? ' (stale)' : ''}.`}
+          bodyClassName="p-4"
+        >
+          <div className="h-64">
+            {samples.status === 'loading' && <Skeleton className="h-full w-full" />}
+            {samples.status === 'error' && <ErrorState title="TPS history is unavailable" description={samples.error?.message} onRetry={samples.reload} className="py-8" />}
+            {samples.status === 'ready' && chart.length === 0 && <EmptyState icon={Activity} title="No samples returned" description="The RPC node returned no performance samples." />}
+            {samples.status === 'ready' && chart.length > 0 && (
+              <OptimizedChart data={chart} series={series} formatValue={(v) => (isNum(v) ? integer(v) : '—')} yLabel="TPS" ariaLabel={`Line chart of transactions per second over the last ${chart.length} minutes`} />
+            )}
           </div>
+        </Panel>
 
-          {/* Right Column */}
-          <div className="space-y-4">
-            {/* Epoch Progress */}
-            <div className="bg-surface-2 rounded-xl p-4">
-              <h3 className="text-ink-muted text-sm mb-3">EPOCH {dashboardData?.epoch || '-'} PROGRESS</h3>
-              <div className="flex items-center gap-4">
-                <div className="flex-1">
-                  <div className="h-3 bg-surface-1 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-brand to-green-500 rounded-full transition-all duration-500" 
-                      style={{ width: `${dashboardData?.epochProgress || 0}%` }} 
-                    />
-                  </div>
-                </div>
-                <span className="text-white font-bold">{dashboardData?.epochProgress || 0}%</span>
-              </div>
-              <div className="flex items-center justify-between mt-3 text-sm">
-                <span className="text-ink-muted">
-                  {dashboardData?.slotsRemaining?.toLocaleString() || '-'} slots remaining
-                </span>
-                <span className="text-white">
-                  {formatTime(dashboardData?.timeRemaining || 0)}
-                </span>
-              </div>
-            </div>
+        <RecentBlocksTable
+          className={cn('xl:col-span-2')}
+          blocks={blocks.data}
+          status={blocks.status}
+          error={blocks.error?.message}
+          onRetry={blocks.reload}
+          limit={6}
+        />
+      </div>
 
-            {/* TPS Chart */}
-            <div className="bg-surface-2 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-brand text-sm">TPS HISTORY</h3>
-                <div className="flex gap-1">
-                  {['1m', '10m'].map((interval) => (
-                    <button
-                      key={interval}
-                      onClick={() => setTpsInterval(interval)}
-                      className={`px-2 py-1 text-xs rounded ${tpsInterval === interval ? 'bg-brand/20 text-brand' : 'text-ink-faint hover:text-ink-soft'}`}
-                    >
-                      {interval}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="h-[200px]">
-                {aggregatedTpsData.length > 0 ? (
-                  <LazyChart data={aggregatedTpsData} tpsInterval={tpsInterval} />
-                ) : (
-                  <div className="h-full flex items-center justify-center text-ink-faint">Loading...</div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+      <Panel
+        className="mb-6"
+        title="Latest block activity"
+        description="Transactions in the most recent confirmed blocks, split by type."
+        actions={<TxTypeLegend className="hidden md:flex" />}
+        bodyClassName="p-4"
+      >
+        {blocks.status === 'loading' && <Skeleton className="h-36 w-full" />}
+        {blocks.status === 'error' && !blocks.data && <ErrorState title="Block activity is unavailable" description={blocks.error?.message} onRetry={blocks.reload} className="py-8" />}
+        {blocks.status === 'ready' && (blocks.data?.length ? <BlockActivityStrip blocks={blocks.data} limit={10} /> : <EmptyState icon={Boxes} title="No blocks returned" />)}
+      </Panel>
 
-        {/* Quick Links and Recent Blocks - permanently mounted */}
-        <QuickLinks />
-        <RecentBlocksTable blocks={recentBlocks} />
-      </main>
-    </div>
+      <QuickLinks />
+    </>
   );
 }

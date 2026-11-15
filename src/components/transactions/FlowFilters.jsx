@@ -1,147 +1,71 @@
-import React, { memo, useState } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Filter, Search, Calendar, X } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import React, { memo } from 'react';
+import { Search, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { TX_TYPES } from './ProgramDecoder';
 
-const FlowFilters = memo(function FlowFilters({ 
-  filterType, 
-  setFilterType, 
-  dateRange, 
-  setDateRange,
-  amountRange,
-  setAmountRange,
-  searchSignature,
-  setSearchSignature,
-  onClearFilters
-}) {
-  const [showFilters, setShowFilters] = useState(false);
-  
-  const txTypes = ['all', 'transfer', 'stake', 'token', 'vote', 'other'];
-  
-  const hasActiveFilters = filterType !== 'all' || 
-    dateRange.from || dateRange.to || 
-    amountRange.min || amountRange.max ||
-    searchSignature;
+const TYPES = ['all', ...Object.keys(TX_TYPES)];
+
+function Field({ id, label, children }) {
+  return (
+    <div className="min-w-0">
+      <label htmlFor={id} className="eyebrow mb-1.5 block">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Filters for the fetched transactions. `dateRange` holds `YYYY-MM-DD` strings (or ''), and the amounts
+ * are XNT, compared with the absolute net change of the analysed address.
+ */
+const FlowFilters = memo(function FlowFilters({ filterType, setFilterType, dateRange, setDateRange, amountRange, setAmountRange, searchSignature, setSearchSignature, onClearFilters }) {
+  const active = filterType !== 'all' || dateRange.from || dateRange.to || amountRange.min || amountRange.max || searchSignature;
 
   return (
-    <div className="bg-surface-2 rounded-xl p-4 mb-6">
-      {/* Search Bar */}
-      <div className="flex gap-2 mb-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-faint" />
-          <Input
-            placeholder="Search by signature or address..."
-            value={searchSignature}
-            onChange={(e) => setSearchSignature(e.target.value)}
-            className="pl-10 bg-surface-1 border-0 text-white"
-          />
+    <div className="panel space-y-4 p-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="relative min-w-[14rem] flex-1">
+          <label htmlFor="flow-search" className="eyebrow mb-1.5 block">Search</label>
+          <Search className="pointer-events-none absolute bottom-2.5 left-3 h-4 w-4 text-ink-faint" aria-hidden="true" />
+          <Input id="flow-search" placeholder="Signature or address" value={searchSignature} onChange={(e) => setSearchSignature(e.target.value)} className="mono pl-9" />
         </div>
-        <Button 
-          variant="outline" 
-          onClick={() => setShowFilters(!showFilters)}
-          className={`border-line ${showFilters ? 'bg-brand/20 text-brand' : 'text-ink-muted'}`}
-        >
-          <Filter className="w-4 h-4 mr-2" /> Filters
-          {hasActiveFilters && <Badge className="ml-2 bg-brand text-black text-xs px-1">!</Badge>}
-        </Button>
-        {hasActiveFilters && (
-          <Button variant="ghost" size="icon" onClick={onClearFilters} className="text-ink-muted hover:text-white">
-            <X className="w-4 h-4" />
+        {active && (
+          <Button type="button" variant="outline" size="sm" onClick={onClearFilters} className="border-line-strong bg-transparent text-ink hover:bg-surface-3">
+            <X className="mr-2 h-4 w-4" aria-hidden="true" />
+            Clear filters
           </Button>
         )}
       </div>
 
-      {/* Expanded Filters */}
-      {showFilters && (
-        <div className="space-y-4 pt-4 border-t border-line">
-          {/* Type Filter */}
-          <div>
-            <label className="text-ink-muted text-xs mb-2 block">Transaction Type</label>
-            <div className="flex flex-wrap gap-2">
-              {txTypes.map((type) => (
-                <Button 
-                  key={type} 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setFilterType(type)}
-                  className={`border-line ${filterType === type ? 'bg-brand/20 text-brand' : 'text-ink-muted'}`}
-                >
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                </Button>
-              ))}
-            </div>
-          </div>
+      <div role="group" aria-label="Filter by transaction type" className="flex flex-wrap gap-2">
+        {TYPES.map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setFilterType(t)}
+            aria-pressed={filterType === t}
+            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${filterType === t ? 'border-brand/40 bg-brand/10 text-brand' : 'border-line-strong text-ink-muted hover:bg-surface-3 hover:text-ink'}`}
+          >
+            {t === 'all' ? 'All types' : TX_TYPES[t].label}
+          </button>
+        ))}
+      </div>
 
-          {/* Date Range */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-ink-muted text-xs mb-2 block">From Date</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start border-line text-ink-muted hover:text-white">
-                    <Calendar className="w-4 h-4 mr-2" />
-                    {dateRange.from ? dateRange.from.toLocaleDateString() : 'Select date'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 bg-surface-2 border-line">
-                  <CalendarComponent
-                    mode="single"
-                    selected={dateRange.from}
-                    onSelect={(date) => setDateRange(prev => ({ ...prev, from: date }))}
-                    className="bg-surface-2"
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <label className="text-ink-muted text-xs mb-2 block">To Date</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start border-line text-ink-muted hover:text-white">
-                    <Calendar className="w-4 h-4 mr-2" />
-                    {dateRange.to ? dateRange.to.toLocaleDateString() : 'Select date'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 bg-surface-2 border-line">
-                  <CalendarComponent
-                    mode="single"
-                    selected={dateRange.to}
-                    onSelect={(date) => setDateRange(prev => ({ ...prev, to: date }))}
-                    className="bg-surface-2"
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-
-          {/* Amount Range */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-ink-muted text-xs mb-2 block">Min Amount (XNT)</label>
-              <Input
-                type="number"
-                placeholder="0"
-                value={amountRange.min}
-                onChange={(e) => setAmountRange(prev => ({ ...prev, min: e.target.value }))}
-                className="bg-surface-1 border-0 text-white"
-              />
-            </div>
-            <div>
-              <label className="text-ink-muted text-xs mb-2 block">Max Amount (XNT)</label>
-              <Input
-                type="number"
-                placeholder="∞"
-                value={amountRange.max}
-                onChange={(e) => setAmountRange(prev => ({ ...prev, max: e.target.value }))}
-                className="bg-surface-1 border-0 text-white"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Field id="flow-from" label="From date">
+          <Input id="flow-from" type="date" value={dateRange.from} max={dateRange.to || undefined} onChange={(e) => setDateRange((p) => ({ ...p, from: e.target.value }))} />
+        </Field>
+        <Field id="flow-to" label="To date">
+          <Input id="flow-to" type="date" value={dateRange.to} min={dateRange.from || undefined} onChange={(e) => setDateRange((p) => ({ ...p, to: e.target.value }))} />
+        </Field>
+        <Field id="flow-min" label="Min change (XNT)">
+          <Input id="flow-min" type="number" min="0" step="any" inputMode="decimal" placeholder="No minimum" value={amountRange.min} onChange={(e) => setAmountRange((p) => ({ ...p, min: e.target.value }))} />
+        </Field>
+        <Field id="flow-max" label="Max change (XNT)">
+          <Input id="flow-max" type="number" min="0" step="any" inputMode="decimal" placeholder="No maximum" value={amountRange.max} onChange={(e) => setAmountRange((p) => ({ ...p, max: e.target.value }))} />
+        </Field>
+      </div>
     </div>
   );
 });

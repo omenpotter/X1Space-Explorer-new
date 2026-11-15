@@ -1,551 +1,372 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { 
-  Bell, Plus, Trash2, Loader2, AlertTriangle,
-  TrendingDown, TrendingUp, Mail, Globe,
-  Percent, Activity, Play, Pause, Send, ChevronLeft
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
-import X1Rpc from '../components/x1/X1RpcService';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Activity, AlertTriangle, Bell, Percent, Play, Pause, Plus, Search, Send, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
+import PageHeader from '@/components/shell/PageHeader';
+import { Freshness, Panel, Pill } from '@/components/ds/Primitives';
+import { EmptyState, ErrorState, TableSkeleton, Unavailable } from '@/components/ds/States';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { ValidatorAvatar } from '@/components/ds/Avatar';
+import { ValidatorName, isNum, matchesValidator, useValidators } from '@/components/validators/ValidatorCard';
+import { X1_CONFIG } from '@/lib/x1/config';
+import { compact, integer, percent, shortAddress } from '@/lib/format';
+import { cn } from '@/lib/utils';
+
+const ALERTS_KEY = 'x1_alerts';
+const CONFIG_KEY = 'x1_alert_config';
+const EVENTS_KEY = 'x1_triggered_alerts';
+const MAX_ALERTS = 100;
+const MAX_EVENTS = 50;
+
+const outlineBtn = 'border-line-strong bg-transparent text-ink-soft hover:bg-surface-3 hover:text-ink';
+const inputClass = 'h-9 w-full rounded-lg border border-line bg-surface-2 px-3 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand/25';
+
+// Every condition reads a real measured field. A null field never triggers.
+const TYPES = {
+  voteRate: { label: 'Vote rate drops below', unit: '%', icon: Activity, tone: 'warning', short: 'Vote rate', fallback: 95 },
+  skipRate: { label: 'Skip rate rises above', unit: '%', icon: Activity, tone: 'warning', short: 'Skip rate', fallback: 10 },
+  commission: { label: 'Commission rises above', unit: '%', icon: Percent, tone: 'negative', short: 'Commission', fallback: 10 },
+  delinquent: { label: 'Becomes delinquent', unit: '', icon: AlertTriangle, tone: 'negative', short: 'Delinquent', fallback: 0 },
+  stake_increase: { label: 'Stake rises between checks by', unit: 'XNT', icon: TrendingUp, tone: 'positive', short: 'Stake up', fallback: 100000 },
+  stake_decrease: { label: 'Stake falls between checks by', unit: 'XNT', icon: TrendingDown, tone: 'warning', short: 'Stake down', fallback: 100000 },
+};
+
+const isStr = (s, max = 200) => typeof s === 'string' && s.length > 0 && s.length <= max;
+
+function readJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function writeJson(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Storage unavailable: settings last for this visit only.
+  }
+}
+
+function loadAlerts() {
+  const raw = readJson(ALERTS_KEY, []);
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((a) => a && isStr(a.id, 64) && isStr(a.votePubkey, 64) && Object.prototype.hasOwnProperty.call(TYPES, a.type) && Number.isFinite(a.threshold) && a.threshold >= 0)
+    .slice(0, MAX_ALERTS)
+    .map((a) => ({ id: a.id, votePubkey: a.votePubkey, name: isStr(a.name, 120) ? a.name : null, type: a.type, threshold: a.threshold, enabled: a.enabled !== false }));
+}
+function loadEvents() {
+  const raw = readJson(EVENTS_KEY, []);
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((e) => e && isStr(e.id, 64) && isStr(e.message, 300) && isStr(e.validatorName, 120) && Number.isFinite(Date.parse(e.timestamp)))
+    .slice(0, MAX_EVENTS)
+    .map((e) => ({ id: e.id, validatorName: e.validatorName, message: e.message, timestamp: e.timestamp }));
+}
+function loadWebhook() {
+  const cfg = readJson(CONFIG_KEY, {});
+  return cfg && typeof cfg.webhookUrl === 'string' ? cfg.webhookUrl.slice(0, 500) : '';
+}
+
+/** Returns { url } for an acceptable webhook or { error } with a message to show the user. */
+export function validateWebhook(input) {
+  const text = String(input || '').trim();
+  if (!text) return { url: '' };
+  let u;
+  try {
+    u = new URL(text);
+  } catch {
+    return { error: 'This is not a valid URL. Enter a full address starting with https://.' };
+  }
+  if (u.protocol !== 'https:') return { error: 'Only https:// webhook URLs are accepted.' };
+  if (u.username || u.password) return { error: 'Webhook URLs must not contain a username or password.' };
+  return { url: u.toString() };
+}
+
+let idCounter = 0;
+const newId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${++idCounter}`);
+
+function webhookBody(url, event) {
+  const host = new URL(url).hostname;
+  const text = `X1 Space alert: ${event.validatorName}: ${event.message}`;
+  if (host === 'discord.com' || host.endsWith('.discord.com')) return { content: text };
+  if (host === 'hooks.slack.com') return { text };
+  return { type: 'x1_validator_alert', validatorName: event.validatorName, message: event.message, timestamp: event.timestamp, text };
+}
+
+/** Evaluates one alert. Returns a message when it should fire, otherwise null. Null inputs never fire. */
+function evaluate(alert, v, prev) {
+  switch (alert.type) {
+    case 'voteRate':
+      return isNum(v.voteRate) && v.voteRate < alert.threshold ? `Vote rate is ${percent(v.voteRate, 1)} (below ${alert.threshold}%)` : null;
+    case 'skipRate':
+      return isNum(v.skipRate) && v.skipRate > alert.threshold ? `Skip rate is ${percent(v.skipRate, 1)} (above ${alert.threshold}%)` : null;
+    case 'commission':
+      return isNum(v.commission) && v.commission > alert.threshold ? `Commission is ${v.commission}% (above ${alert.threshold}%)` : null;
+    case 'delinquent':
+      return v.delinquent === true && prev && prev.delinquent === false ? 'Validator became delinquent' : null;
+    case 'stake_increase':
+    case 'stake_decrease': {
+      if (!prev || !isNum(prev.stake) || !isNum(v.activatedStake)) return null;
+      const delta = alert.type === 'stake_increase' ? v.activatedStake - prev.stake : prev.stake - v.activatedStake;
+      return delta >= alert.threshold && delta > 0 ? `Stake ${alert.type === 'stake_increase' ? 'increased' : 'decreased'} by ${compact(delta)} XNT since the last check` : null;
+    }
+    default:
+      return null;
+  }
+}
 
 export default function ValidatorAlerts() {
-  const [validators, setValidators] = useState([]);
-  const [alerts, setAlerts] = useState([]);
-  const [triggeredAlerts, setTriggeredAlerts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { status, validators, error, loadedAt, refreshFailed, refreshing, reload } = useValidators(X1_CONFIG.polling.validatorsMs);
+  const [alerts, setAlerts] = useState(loadAlerts);
+  const [events, setEvents] = useState(loadEvents);
+  const [webhookText, setWebhookText] = useState(loadWebhook);
+  const [webhook, setWebhook] = useState(() => validateWebhook(loadWebhook()).url || '');
+  const [webhookError, setWebhookError] = useState(null);
+  const [webhookNote, setWebhookNote] = useState(null);
+  const [monitoring, setMonitoring] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [webhookUrl, setWebhookUrl] = useState('');
-  const [emailAddress, setEmailAddress] = useState('');
-  const [isMonitoring, setIsMonitoring] = useState(false);
-  const [lastCheck, setLastCheck] = useState(null);
-  const [testingNotification, setTestingNotification] = useState(false);
-  const monitoringRef = useRef(null);
-  const previousDataRef = useRef({});
+  const [query, setQuery] = useState('');
+  const [sending, setSending] = useState(false);
 
-  useEffect(() => {
-    const saved = localStorage.getItem('x1_alerts');
-    const savedConfig = localStorage.getItem('x1_alert_config');
-    const savedTriggered = localStorage.getItem('x1_triggered_alerts');
-    
-    if (saved) setAlerts(JSON.parse(saved));
-    if (savedTriggered) setTriggeredAlerts(JSON.parse(savedTriggered));
-    if (savedConfig) {
-      const config = JSON.parse(savedConfig);
-      setWebhookUrl(config.webhookUrl || '');
-      setEmailAddress(config.emailAddress || '');
-    }
+  const snapshot = useRef(new Map()); // votePubkey -> { stake, delinquent } from the previous evaluation
+  const firing = useRef(new Set()); // alert ids whose level condition is currently true (fire on transition only)
+  const lastEvaluated = useRef(null);
+  const alertsRef = useRef(alerts);
+  alertsRef.current = alerts;
+  const webhookRef = useRef(webhook);
+  webhookRef.current = webhook;
 
-    const fetchValidators = async () => {
-      try {
-        const data = await X1Rpc.getValidatorDetails();
-        setValidators(data);
-        // Store initial data for comparison
-        data.forEach(v => {
-          previousDataRef.current[v.votePubkey] = {
-            uptime: v.uptime,
-            commission: v.commission,
-            stake: v.activatedStake,
-            delinquent: v.delinquent
-          };
-        });
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchValidators();
+  const byId = useMemo(() => new Map(validators.map((v) => [v.votePubkey, v])), [validators]);
 
-    return () => {
-      if (monitoringRef.current) clearInterval(monitoringRef.current);
-    };
+  const post = useCallback(async (url, event) => {
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(webhookBody(url, event)) });
+    if (!res.ok) throw new Error(`The webhook answered with HTTP ${res.status}`);
   }, []);
 
-  // Check alerts against current validator data
-  const checkAlerts = async () => {
-    try {
-      const data = await X1Rpc.getValidatorDetails();
-      setValidators(data);
-      setLastCheck(new Date());
-
-      const newTriggered = [];
-
-      for (const alert of alerts) {
-        if (!alert.enabled) continue;
-
-        const validator = data.find(v => v.votePubkey === alert.votePubkey);
-        if (!validator) continue;
-
-        const prev = previousDataRef.current[alert.votePubkey] || {};
-        let triggered = false;
-        let message = '';
-
-        switch (alert.type) {
-          case 'uptime':
-            if (validator.uptime < alert.threshold) {
-              triggered = true;
-              message = `Uptime dropped to ${validator.uptime?.toFixed(1)}% (threshold: ${alert.threshold}%)`;
-            }
-            break;
-          case 'commission':
-            if (validator.commission > alert.threshold) {
-              triggered = true;
-              message = `Commission increased to ${validator.commission}% (threshold: ${alert.threshold}%)`;
-            }
-            break;
-          case 'delinquent':
-            if (validator.delinquent && !prev.delinquent) {
-              triggered = true;
-              message = 'Validator became delinquent';
-            }
-            break;
-          case 'stake_increase':
-            const stakeIncrease = validator.activatedStake - (prev.stake || validator.activatedStake);
-            if (stakeIncrease >= alert.threshold * 1000) {
-              triggered = true;
-              message = `Stake increased by ${(stakeIncrease / 1000).toFixed(2)}K XNT`;
-            }
-            break;
-          case 'stake_decrease':
-            const stakeDecrease = (prev.stake || validator.activatedStake) - validator.activatedStake;
-            if (stakeDecrease >= alert.threshold * 1000) {
-              triggered = true;
-              message = `Stake decreased by ${(stakeDecrease / 1000).toFixed(2)}K XNT`;
-            }
-            break;
+  // Evaluate whenever fresh data arrives (polling and hidden-tab skipping live in useValidators).
+  useEffect(() => {
+    if (!monitoring || status !== 'ready' || !loadedAt || lastEvaluated.current === loadedAt) return;
+    lastEvaluated.current = loadedAt;
+    const fresh = [];
+    for (const alert of alertsRef.current) {
+      if (!alert.enabled) { firing.current.delete(alert.id); continue; }
+      const v = byId.get(alert.votePubkey);
+      if (!v) continue;
+      const message = evaluate(alert, v, snapshot.current.get(v.votePubkey));
+      if (message) {
+        if (!firing.current.has(alert.id)) {
+          fresh.push({ id: newId(), validatorName: alert.name || shortAddress(alert.votePubkey), message, timestamp: new Date().toISOString() });
         }
-
-        if (triggered) {
-          const alertEvent = {
-            id: Date.now(),
-            alertId: alert.id,
-            validatorName: alert.name || alert.votePubkey.substring(0, 12),
-            type: alert.type,
-            message,
-            timestamp: new Date().toISOString()
-          };
-          newTriggered.push(alertEvent);
-          await sendNotification(alertEvent);
-        }
-
-        // Update previous data
-        previousDataRef.current[alert.votePubkey] = {
-          uptime: validator.uptime,
-          commission: validator.commission,
-          stake: validator.activatedStake,
-          delinquent: validator.delinquent
-        };
-      }
-
-      if (newTriggered.length > 0) {
-        const allTriggered = [...newTriggered, ...triggeredAlerts].slice(0, 50);
-        setTriggeredAlerts(allTriggered);
-        localStorage.setItem('x1_triggered_alerts', JSON.stringify(allTriggered));
-      }
-    } catch (err) {
-      console.error('Alert check failed:', err);
-    }
-  };
-
-  // Send notification via webhook
-  const sendNotification = async (alertEvent) => {
-    const config = JSON.parse(localStorage.getItem('x1_alert_config') || '{}');
-
-    // Send webhook notification
-    if (config.webhookUrl) {
-      try {
-        await fetch(config.webhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'x1_validator_alert',
-            ...alertEvent
-          })
-        });
-      } catch (err) {
-        console.error('Webhook notification failed:', err);
+        firing.current.add(alert.id);
+      } else {
+        firing.current.delete(alert.id);
       }
     }
-  };
+    snapshot.current = new Map(validators.map((v) => [v.votePubkey, { stake: isNum(v.activatedStake) ? v.activatedStake : null, delinquent: typeof v.delinquent === 'boolean' ? v.delinquent : null }]));
+    if (fresh.length) {
+      setEvents((prev) => {
+        const next = [...fresh, ...prev].slice(0, MAX_EVENTS);
+        writeJson(EVENTS_KEY, next);
+        return next;
+      });
+      if (webhookRef.current) {
+        fresh.forEach((e) => post(webhookRef.current, e).catch((err) => setWebhookNote({ ok: false, text: `Webhook delivery failed: ${err.message}` })));
+      }
+    }
+  }, [monitoring, status, loadedAt, byId, validators, post]);
 
-  // Toggle monitoring
   const toggleMonitoring = () => {
-    if (isMonitoring) {
-      if (monitoringRef.current) clearInterval(monitoringRef.current);
-      setIsMonitoring(false);
-    } else {
-      checkAlerts(); // Initial check
-      monitoringRef.current = setInterval(checkAlerts, 30000); // Check every 30s
-      setIsMonitoring(true);
+    if (!monitoring) {
+      // Take a baseline so change-based alerts compare against what is current now.
+      snapshot.current = new Map(validators.map((v) => [v.votePubkey, { stake: isNum(v.activatedStake) ? v.activatedStake : null, delinquent: typeof v.delinquent === 'boolean' ? v.delinquent : null }]));
+      lastEvaluated.current = loadedAt;
+      firing.current = new Set();
     }
+    setMonitoring((m) => !m);
   };
 
-  // Test notification - Webhook only
-  const testNotification = async () => {
-    setTestingNotification(true);
-    const config = JSON.parse(localStorage.getItem('x1_alert_config') || '{}');
-    
-    if (!config.webhookUrl) {
-      alert('Please configure a webhook URL first (Discord, Slack, etc.)');
-      setTestingNotification(false);
+  const saveWebhook = () => {
+    const result = validateWebhook(webhookText);
+    if (result.error) {
+      setWebhookError(result.error);
       return;
     }
-    
+    setWebhookError(null);
+    setWebhook(result.url);
+    setWebhookText(result.url);
+    writeJson(CONFIG_KEY, { webhookUrl: result.url });
+    setWebhookNote({ ok: true, text: result.url ? 'Webhook saved in this browser.' : 'Webhook removed.' });
+  };
+
+  const sendTest = async () => {
+    const result = validateWebhook(webhookText);
+    if (result.error || !result.url) {
+      setWebhookError(result.error || 'Enter a webhook URL first.');
+      return;
+    }
+    setWebhookError(null);
+    setSending(true);
+    setWebhookNote(null);
     try {
-      // Send webhook notification
-      // Discord webhook format
-      const isDiscord = config.webhookUrl.includes('discord.com');
-      const isSlack = config.webhookUrl.includes('slack.com');
-      
-      let payload;
-      if (isDiscord) {
-        payload = {
-          content: '🔔 **X1Space Alert Test**',
-          embeds: [{
-            title: 'Test Notification',
-            description: 'Your webhook is configured correctly! You will receive validator alerts here.',
-            color: 0x06b6d4, // cyan
-            fields: [
-              { name: 'Status', value: '✅ Working', inline: true },
-              { name: 'Source', value: 'X1Space Validator Alerts', inline: true }
-            ],
-            timestamp: new Date().toISOString(),
-            footer: { text: 'X1Space - X1 Blockchain Explorer' }
-          }]
-        };
-      } else if (isSlack) {
-        payload = {
-          text: '🔔 X1Space Alert Test',
-          blocks: [
-            { type: 'header', text: { type: 'plain_text', text: '🔔 X1Space Alert Test' } },
-            { type: 'section', text: { type: 'mrkdwn', text: 'Your webhook is configured correctly! You will receive validator alerts here.' } }
-          ]
-        };
-      } else {
-        // Generic webhook
-        payload = {
-          type: 'x1_validator_alert',
-          content: '🔔 X1Space Test Notification - Your webhook is configured correctly!',
-          validatorName: 'Test',
-          message: 'This is a test notification',
-          timestamp: new Date().toISOString()
-        };
-      }
-      
-      await fetch(config.webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        mode: 'no-cors',
-        body: JSON.stringify(payload)
-      });
-      
-      alert('Webhook notification sent! Check your Discord/Slack/webhook destination.');
+      await post(result.url, { validatorName: 'Test', message: 'This is a test notification from X1 Space.', timestamp: new Date().toISOString() });
+      setWebhookNote({ ok: true, text: 'Test notification delivered.' });
     } catch (err) {
-      console.error('Webhook failed:', err);
-      alert('Failed to send webhook: ' + err.message);
+      setWebhookNote({ ok: false, text: `Test failed: ${err.message}. Some webhook hosts block requests from browsers.` });
     } finally {
-      setTestingNotification(false);
+      setSending(false);
     }
   };
 
-  const saveConfig = () => {
-    localStorage.setItem('x1_alert_config', JSON.stringify({ webhookUrl, emailAddress }));
+  const persist = (next) => { setAlerts(next); writeJson(ALERTS_KEY, next); };
+  const addAlert = (v, type) => {
+    if (alerts.length >= MAX_ALERTS) return;
+    persist([...alerts, { id: newId(), votePubkey: v.votePubkey, name: v.hasIdentity ? v.name : null, type, threshold: TYPES[type].fallback, enabled: true }]);
+  };
+  const removeAlert = (id) => { firing.current.delete(id); persist(alerts.filter((a) => a.id !== id)); };
+  const toggleAlert = (id) => persist(alerts.map((a) => (a.id === id ? { ...a, enabled: !a.enabled } : a)));
+  const setThreshold = (id, text) => {
+    const n = Number(text);
+    if (text === '' || !Number.isFinite(n) || n < 0) return;
+    persist(alerts.map((a) => (a.id === id ? { ...a, threshold: n } : a)));
   };
 
-  const addAlert = (validator, type) => {
-    const defaultThresholds = {
-      uptime: 99,
-      commission: 10,
-      delinquent: 0,
-      stake_increase: 100,
-      stake_decrease: 100
-    };
-    
-    const newAlert = {
-      id: Date.now(),
-      votePubkey: validator.votePubkey,
-      name: validator.name,
-      icon: validator.icon,
-      type,
-      threshold: defaultThresholds[type] || 0,
-      enabled: true,
-      createdAt: new Date().toISOString()
-    };
-    const newAlerts = [...alerts, newAlert];
-    setAlerts(newAlerts);
-    localStorage.setItem('x1_alerts', JSON.stringify(newAlerts));
-  };
-
-  const removeAlert = (id) => {
-    const newAlerts = alerts.filter(a => a.id !== id);
-    setAlerts(newAlerts);
-    localStorage.setItem('x1_alerts', JSON.stringify(newAlerts));
-  };
-
-  const toggleAlert = (id) => {
-    const newAlerts = alerts.map(a => a.id === id ? { ...a, enabled: !a.enabled } : a);
-    setAlerts(newAlerts);
-    localStorage.setItem('x1_alerts', JSON.stringify(newAlerts));
-  };
-
-  const updateThreshold = (id, threshold) => {
-    const newAlerts = alerts.map(a => a.id === id ? { ...a, threshold: Number(threshold) } : a);
-    setAlerts(newAlerts);
-    localStorage.setItem('x1_alerts', JSON.stringify(newAlerts));
-  };
-
-  const getAlertTypeInfo = (type) => {
-    switch (type) {
-      case 'uptime': return { label: 'Uptime drops below', suffix: '%', icon: Activity, color: 'text-warning', bgColor: 'bg-warning/20' };
-      case 'commission': return { label: 'Commission exceeds', suffix: '%', icon: Percent, color: 'text-negative', bgColor: 'bg-negative/20' };
-      case 'delinquent': return { label: 'Becomes delinquent', suffix: '', icon: AlertTriangle, color: 'text-negative', bgColor: 'bg-negative/20' };
-      case 'stake_increase': return { label: 'Stake increases by', suffix: 'K XNT', icon: TrendingUp, color: 'text-positive', bgColor: 'bg-positive/20' };
-      case 'stake_decrease': return { label: 'Stake decreases by', suffix: 'K XNT', icon: TrendingDown, color: 'text-orange-400', bgColor: 'bg-orange-500/20' };
-      default: return { label: type, suffix: '', icon: Bell, color: 'text-ink-muted', bgColor: 'bg-gray-500/20' };
-    }
-  };
-
-  const filteredValidators = validators.filter(v => {
-    const query = searchQuery.toLowerCase();
-    return v.votePubkey.toLowerCase().includes(query) || 
-           v.nodePubkey.toLowerCase().includes(query) ||
-           (v.name && v.name.toLowerCase().includes(query));
-  }).slice(0, 50);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-surface-1 text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-brand" />
-      </div>
-    );
-  }
+  const results = useMemo(() => validators.filter((v) => matchesValidator(v, query)).slice(0, 20), [validators, query]);
 
   return (
-    <div className="min-h-screen bg-surface-1 text-white">
-      <header className="bg-surface-1 border-b border-line">
-        <div className="max-w-[1800px] mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
-                <ChevronLeft className="w-5 h-5 text-ink-muted" />
-                <span className="font-bold"><span className="text-brand">X1</span><span className="text-white">Space</span></span>
-              </Link>
-              <Badge className="bg-brand/20 text-brand border-0 text-xs">Mainnet</Badge>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-            <Bell className="w-7 h-7 text-warning" />
-            Validator Alerts
-          </h1>
-          <div className="flex items-center gap-2">
-            <Button 
-              onClick={toggleMonitoring} 
-              variant="outline" 
-              className={`border-line ${isMonitoring ? 'text-positive bg-positive/10' : 'text-ink-muted'}`}
-            >
-              {isMonitoring ? <><Pause className="w-4 h-4 mr-2" /> Monitoring</> : <><Play className="w-4 h-4 mr-2" /> Start</>}
+    <>
+      <PageHeader
+        icon={Bell}
+        title="Validator alerts"
+        description="Get notified when a validator's measured vote rate, skip rate, commission, stake or delinquency crosses a threshold you set."
+        meta={<Freshness at={loadedAt} stale={refreshFailed} source="X1 RPC" onRefresh={() => reload(true)} refreshing={refreshing} />}
+        actions={
+          <>
+            <Button type="button" variant="outline" size="sm" className={cn(outlineBtn, monitoring && 'border-positive/40 text-positive')} onClick={toggleMonitoring} disabled={status !== 'ready'} aria-pressed={monitoring}>
+              {monitoring ? <><Pause className="mr-2 h-4 w-4" aria-hidden="true" />Monitoring</> : <><Play className="mr-2 h-4 w-4" aria-hidden="true" />Start monitoring</>}
             </Button>
-            <Button onClick={() => setShowAdd(!showAdd)} className="bg-brand hover:bg-brand-strong">
-              <Plus className="w-4 h-4 mr-2" /> New Alert
+            <Button type="button" size="sm" className="bg-brand text-brand-ink hover:bg-brand/90" onClick={() => setShowAdd((s) => !s)} aria-expanded={showAdd}>
+              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />New alert
             </Button>
-          </div>
-        </div>
+          </>
+        }
+      />
 
-        {/* Monitoring Status */}
-        {isMonitoring && (
-          <div className="bg-positive/10 border border-positive/30 rounded-xl p-3 mb-6 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-positive rounded-full animate-pulse" />
-              <span className="text-positive text-sm">Real-time monitoring active</span>
-            </div>
-            {lastCheck && <span className="text-ink-faint text-xs">Last check: {lastCheck.toLocaleTimeString()}</span>}
-          </div>
-        )}
+      <div className="space-y-6">
+        <p className="rounded-lg border border-line bg-surface-2 px-4 py-3 text-sm text-ink-soft">
+          Alerts are checked in this browser tab only, about every {Math.round(X1_CONFIG.polling.validatorsMs / 1000)} seconds while the tab is visible. Nothing is checked when the tab is closed or hidden. Alerts, history and the webhook are stored in this browser and are not synced.
+        </p>
 
-        {/* Notification Config */}
-        <div className="bg-surface-2 rounded-xl p-4 mb-6">
-          <h3 className="text-ink-muted text-sm mb-4">NOTIFICATION SETUP GUIDES</h3>
-          
-          {/* Discord Setup */}
-          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-3">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xl">💬</span>
-              <h4 className="text-white font-medium">Discord Setup</h4>
-            </div>
-            <ol className="text-sm text-ink-soft space-y-1 ml-6 list-decimal">
-              <li>Open Discord and go to your server</li>
-              <li>Right-click the channel → Edit Channel → Integrations</li>
-              <li>Click "Create Webhook" → Copy the Webhook URL</li>
-              <li>Paste the URL in the field below</li>
-            </ol>
-          </div>
+        {status === 'error' && <Panel><ErrorState title="Validator data is unavailable" description={error} onRetry={() => reload()} /></Panel>}
 
-          {/* Telegram Setup */}
-          <div className="bg-brand/10 border border-brand/30 rounded-lg p-4 mb-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xl">📱</span>
-              <h4 className="text-white font-medium">Telegram Setup</h4>
-            </div>
-            <ol className="text-sm text-ink-soft space-y-1 ml-6 list-decimal">
-              <li>Search for @BotFather in Telegram</li>
-              <li>Send /newbot and follow instructions to create your bot</li>
-              <li>Copy the bot token you receive</li>
-              <li>Start a chat with your bot, send any message</li>
-              <li>Visit: https://api.telegram.org/bot<b>YOUR_TOKEN</b>/getUpdates</li>
-              <li>Find your chat_id in the response</li>
-              <li>Use webhook URL: https://api.telegram.org/bot<b>YOUR_TOKEN</b>/sendMessage?chat_id=<b>YOUR_CHAT_ID</b></li>
-            </ol>
-          </div>
-          
-          <div className="grid grid-cols-1 gap-4">
+        <Panel title="Webhook" description="Optional. Alerts are always listed below; add an https webhook (Discord, Slack or any endpoint that accepts JSON) to also push them out.">
+          <div className="space-y-3 p-4">
             <div>
-              <label className="text-ink-faint text-xs mb-1 block">Webhook URL (Discord/Telegram/Slack)</label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="https://discord.com/api/webhooks/... or Telegram webhook"
-                  value={webhookUrl}
-                  onChange={(e) => setWebhookUrl(e.target.value)}
-                  className="bg-surface-1 border-0 text-white flex-1"
-                />
-                <Button variant="ghost" size="icon" className="text-ink-muted"><Globe className="w-4 h-4" /></Button>
-              </div>
+              <label htmlFor="webhook-url" className="eyebrow mb-1.5 block">Webhook URL</label>
+              <input id="webhook-url" type="url" inputMode="url" autoComplete="off" spellCheck={false} value={webhookText} onChange={(e) => { setWebhookText(e.target.value); setWebhookError(null); }} placeholder="https://discord.com/api/webhooks/…" className={cn(inputClass, webhookError && 'border-negative/60')} aria-invalid={webhookError ? 'true' : undefined} aria-describedby={webhookError ? 'webhook-error' : 'webhook-help'} />
+              {webhookError ? <p id="webhook-error" role="alert" className="mt-1.5 text-sm text-negative">{webhookError}</p> : <p id="webhook-help" className="mt-1.5 text-xs text-ink-muted">Treat this URL like a password: anyone with it can post to your channel. It is kept in this browser only.</p>}
+              {webhookNote && <p role="status" className={cn('mt-1.5 text-sm', webhookNote.ok ? 'text-positive' : 'text-negative')}>{webhookNote.text}</p>}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" className={outlineBtn} onClick={saveWebhook}>Save</Button>
+              <Button type="button" variant="outline" size="sm" className={outlineBtn} onClick={sendTest} disabled={sending || !webhookText.trim()}>
+                <Send className="mr-2 h-4 w-4" aria-hidden="true" />{sending ? 'Sending…' : 'Send test'}
+              </Button>
             </div>
           </div>
-          <div className="flex items-center gap-2 mt-4">
-            <Button onClick={saveConfig} variant="outline" size="sm" className="border-line text-ink-muted">
-              Save Settings
-            </Button>
-            <Button 
-              onClick={testNotification} 
-              variant="outline" 
-              size="sm" 
-              className="border-brand/30 text-brand"
-              disabled={testingNotification || !webhookUrl}
-            >
-              {testingNotification ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-              Test Webhook
-            </Button>
-          </div>
-        </div>
+        </Panel>
 
-        {/* Add Alert Panel */}
         {showAdd && (
-          <div className="bg-surface-2 rounded-xl p-4 mb-6">
-            <h3 className="text-white font-medium mb-3">Create New Alert</h3>
-            <Input
-              placeholder="Search validators..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-surface-1 border-0 text-white mb-4"
-            />
-            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {filteredValidators.map((v) => (
-                <div key={v.votePubkey} className="p-3 bg-surface-1 rounded-lg">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-lg">{v.icon || '🔷'}</span>
-                    <div className="flex-1">
-                      <p className="text-white text-sm font-medium">{v.name || v.votePubkey.substring(0, 16) + '...'}</p>
-                      <p className="text-ink-faint text-xs">{(v.activatedStake / 1000000).toFixed(1)}M XNT • {v.uptime?.toFixed(1)}% uptime</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    <Button size="sm" variant="outline" className="border-warning/30 text-warning text-xs h-7" onClick={() => addAlert(v, 'uptime')}>
-                      <Activity className="w-3 h-3 mr-1" /> Uptime &lt; 99%
-                    </Button>
-                    <Button size="sm" variant="outline" className="border-negative/30 text-negative text-xs h-7" onClick={() => addAlert(v, 'commission')}>
-                      <Percent className="w-3 h-3 mr-1" /> Commission &gt; 10%
-                    </Button>
-                    <Button size="sm" variant="outline" className="border-negative/30 text-negative text-xs h-7" onClick={() => addAlert(v, 'delinquent')}>
-                      <AlertTriangle className="w-3 h-3 mr-1" /> Delinquent
-                    </Button>
-                    <Button size="sm" variant="outline" className="border-positive/30 text-positive text-xs h-7" onClick={() => addAlert(v, 'stake_increase')}>
-                      <TrendingUp className="w-3 h-3 mr-1" /> +100K Stake
-                    </Button>
-                    <Button size="sm" variant="outline" className="border-orange-500/30 text-orange-400 text-xs h-7" onClick={() => addAlert(v, 'stake_decrease')}>
-                      <TrendingDown className="w-3 h-3 mr-1" /> -100K Stake
-                    </Button>
-                  </div>
-                </div>
-              ))}
+          <Panel title="Create an alert" description="Search for a validator, then pick a condition. Thresholds can be edited afterwards.">
+            <div className="p-4">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" aria-hidden="true" />
+                <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Name, vote address or identity address" aria-label="Search validators" className={cn(inputClass, 'pl-9')} />
+              </div>
+              {status === 'loading' ? <TableSkeleton rows={3} columns={2} /> : results.length === 0 ? (
+                <p className="py-8 text-center text-sm text-ink-muted">No validators match.</p>
+              ) : (
+                <ul className="mt-3 max-h-[420px] space-y-2 overflow-y-auto" aria-label="Validators">
+                  {results.map((v) => (
+                    <li key={v.votePubkey} className="rounded-lg border border-line bg-surface-2 p-3">
+                      <div className="flex items-center gap-3">
+                        <ValidatorAvatar validator={v} size={28} />
+                        <div className="min-w-0 flex-1">
+                          <ValidatorName validator={v} className="block truncate text-sm font-medium text-ink" />
+                          <p className="text-xs text-ink-muted tabular">{compact(v.activatedStake)} XNT · vote rate {isNum(v.voteRate) ? percent(v.voteRate, 1) : 'unavailable'}</p>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {Object.entries(TYPES).map(([type, t]) => (
+                          <Button key={type} type="button" size="sm" variant="outline" className={cn(outlineBtn, 'h-7 text-xs')} onClick={() => addAlert(v, type)} aria-label={`Add alert for ${v.name || v.votePubkey}: ${t.label}`}>
+                            <t.icon className="mr-1 h-3 w-3" aria-hidden="true" />{t.short}
+                          </Button>
+                        ))}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-          </div>
+          </Panel>
         )}
 
-        {/* Triggered Alerts History */}
-        {triggeredAlerts.length > 0 && (
-          <div className="bg-negative/10 border border-negative/20 rounded-xl p-4 mb-6">
-            <h3 className="text-negative text-sm mb-3 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4" /> Recent Alert Events
-            </h3>
-            <div className="space-y-2 max-h-[200px] overflow-y-auto">
-              {triggeredAlerts.slice(0, 10).map((event) => (
-                <div key={event.id} className="flex items-center gap-3 text-sm bg-surface-1 rounded-lg p-2">
-                  <span className="text-negative text-xs">{new Date(event.timestamp).toLocaleTimeString()}</span>
-                  <span className="text-white">{event.validatorName}</span>
-                  <span className="text-ink-muted">{event.message}</span>
-                </div>
+        {events.length > 0 && (
+          <Panel title="Recent alert events" actions={<Button type="button" variant="ghost" size="sm" className="text-ink-muted hover:text-ink" onClick={() => { setEvents([]); writeJson(EVENTS_KEY, []); }}>Clear</Button>}>
+            <ul className="divide-y divide-line/60">
+              {events.slice(0, 10).map((e) => (
+                <li key={e.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-4 py-2.5 text-sm">
+                  <time dateTime={e.timestamp} className="text-xs tabular text-ink-muted">{new Date(e.timestamp).toLocaleTimeString()}</time>
+                  <span className="font-medium text-ink">{e.validatorName}</span>
+                  <span className="text-ink-soft">{e.message}</span>
+                </li>
               ))}
-            </div>
-          </div>
+            </ul>
+          </Panel>
         )}
 
-        {/* Active Alerts */}
-        {alerts.length === 0 ? (
-          <div className="bg-surface-2 rounded-xl p-8 text-center">
-            <Bell className="w-12 h-12 text-ink-faint mx-auto mb-4" />
-            <p className="text-ink-muted">No alerts configured</p>
-            <p className="text-ink-faint text-sm mt-2">Create alerts to monitor validator performance in real-time</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <h3 className="text-ink-muted text-sm">ACTIVE ALERTS ({alerts.length})</h3>
-            {alerts.map((alert) => {
-              const typeInfo = getAlertTypeInfo(alert.type);
-              const IconComponent = typeInfo.icon;
-              return (
-                <div key={alert.id} className={`bg-surface-2 rounded-xl p-4 ${!alert.enabled ? 'opacity-50' : ''}`}>
-                  <div className="flex items-center gap-4">
-                    <span className="text-xl">{alert.icon || '🔷'}</span>
-                    <div className="flex-1">
-                      <p className="text-white font-medium">{alert.name || alert.votePubkey.substring(0, 12) + '...'}</p>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <Badge className={`${typeInfo.bgColor} ${typeInfo.color} border-0 text-xs flex items-center gap-1`}>
-                          <IconComponent className="w-3 h-3" />
-                          {alert.type.replace('_', ' ')}
-                        </Badge>
-                        <span className="text-ink-faint text-sm">{typeInfo.label}</span>
-                        {alert.type !== 'delinquent' && (
-                          <Input
-                            type="number"
-                            value={alert.threshold}
-                            onChange={(e) => updateThreshold(alert.id, e.target.value)}
-                            className="bg-surface-1 border-0 text-white w-20 h-6 text-sm"
-                          />
+        <Panel title={`Your alerts (${alerts.length})`}>
+          {alerts.length === 0 ? (
+            <EmptyState icon={Bell} title="No alerts yet" description="Create an alert to watch a validator. Conditions use measured values only." />
+          ) : (
+            <ul className="divide-y divide-line/60">
+              {alerts.map((a) => {
+                const t = TYPES[a.type];
+                const v = byId.get(a.votePubkey);
+                return (
+                  <li key={a.id} className={cn('flex flex-wrap items-center gap-3 px-4 py-3', !a.enabled && 'opacity-60')}>
+                    {v ? <ValidatorAvatar validator={v} size={28} /> : null}
+                    <div className="min-w-0 flex-1 basis-56">
+                      <p className="truncate text-sm font-medium text-ink">{v ? <ValidatorName validator={v} /> : (a.name || <span className="mono">{shortAddress(a.votePubkey, 6, 4)}</span>)}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+                        <Pill tone={t.tone} icon={t.icon}>{t.short}</Pill>
+                        <span>{t.label}</span>
+                        {a.type !== 'delinquent' && (
+                          <>
+                            <input type="number" min="0" step="any" defaultValue={a.threshold} key={`${a.id}-${a.threshold}`} onBlur={(e) => setThreshold(a.id, e.target.value)} aria-label={`Threshold for ${t.label}`} className="h-7 w-24 rounded-md border border-line bg-surface-2 px-2 text-sm tabular text-ink focus:outline-none focus:ring-2 focus:ring-brand/25" />
+                            <span>{t.unit}</span>
+                          </>
                         )}
-                        <span className="text-ink-faint text-sm">{typeInfo.suffix}</span>
+                        {status === 'ready' && !v && <span className="text-warning">Not found in the current validator list</span>}
                       </div>
                     </div>
-                    <Switch checked={alert.enabled} onCheckedChange={() => toggleAlert(alert.id)} />
-                    <Button variant="ghost" size="icon" onClick={() => removeAlert(alert.id)} className="text-ink-faint hover:text-negative">
-                      <Trash2 className="w-4 h-4" />
+                    {v && (
+                      <span className="text-xs text-ink-muted tabular">
+                        Now: {a.type === 'voteRate' ? (isNum(v.voteRate) ? percent(v.voteRate, 1) : <Unavailable />) : a.type === 'skipRate' ? (isNum(v.skipRate) ? percent(v.skipRate, 1) : <Unavailable reason="No leader slots yet this epoch" />) : a.type === 'commission' ? (isNum(v.commission) ? `${v.commission}%` : <Unavailable />) : a.type === 'delinquent' ? (v.delinquent ? 'Delinquent' : 'Active') : `${integer(v.activatedStake)} XNT`}
+                      </span>
+                    )}
+                    <Switch checked={a.enabled} onCheckedChange={() => toggleAlert(a.id)} aria-label={`${a.enabled ? 'Disable' : 'Enable'} alert`} />
+                    <Button type="button" variant="ghost" size="icon" onClick={() => removeAlert(a.id)} className="text-ink-faint hover:text-negative" aria-label="Delete alert">
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
                     </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </main>
-    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Panel>
+      </div>
+    </>
   );
 }

@@ -1,244 +1,219 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
-import { 
-  Zap, Loader2, Calculator, TrendingUp, Coins, Clock, Award
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
-import X1Rpc from '../components/x1/X1RpcService';
-import { getDisplayName, getValidatorIcon } from '../components/x1/ValidatorNames';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Calculator, Search } from 'lucide-react';
+import PageHeader from '@/components/shell/PageHeader';
+import { Freshness, Panel, StatCard } from '@/components/ds/Primitives';
+import { ErrorState, StatSkeleton, Unavailable } from '@/components/ds/States';
+import { StatusPill, ValidatorIdentity, isNum, matchesValidator, useValidators } from '@/components/validators/ValidatorCard';
+import X1Rpc from '@/components/x1/X1RpcService';
+import { X1_CONFIG } from '@/lib/x1/config';
+import { compact, integer, percent } from '@/lib/format';
+import { cn } from '@/lib/utils';
+
+const TIMEFRAMES = [
+  { key: 'day', label: 'Day', years: 1 / 365 },
+  { key: 'month', label: 'Month', years: 1 / 12 },
+  { key: 'year', label: 'Year', years: 1 },
+  { key: 'five', label: '5 years', years: 5 },
+];
+const inputClass = 'h-10 w-full rounded-lg border border-line bg-surface-2 px-3 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand/25';
+
+const fmtAmount = (n) => (isNum(n) ? n.toLocaleString('en-US', { maximumFractionDigits: n < 1 ? 6 : 2 }) : '—');
+
+/** Parses a user-typed number; empty or invalid input is null (never silently 0). */
+function parseInput(text) {
+  if (String(text).trim() === '') return null;
+  const n = Number(text);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/** Network-wide staking figures from the RPC: inflation paid to validators, supply, and total active stake. */
+function useNetworkEconomics(pollMs) {
+  const [state, setState] = useState({ status: 'loading', inflation: null, supply: null, error: null, loadedAt: null, stale: false });
+  const load = useCallback(async () => {
+    try {
+      const [inflation, supply] = await Promise.all([X1Rpc.getInflationRate(), X1Rpc.getSupply()]);
+      const validatorRate = Number(inflation?.validator);
+      const total = Number(supply?.value?.total) / 1e9;
+      setState({
+        status: 'ready',
+        inflation: { validator: Number.isFinite(validatorRate) ? validatorRate : null, total: Number.isFinite(Number(inflation?.total)) ? Number(inflation.total) : null, epoch: inflation?.epoch ?? null },
+        supply: Number.isFinite(total) && total > 0 ? total : null,
+        error: null,
+        loadedAt: Date.now(),
+        stale: false,
+      });
+    } catch (err) {
+      setState((s) => (s.status === 'ready' ? { ...s, stale: true } : { status: 'error', inflation: null, supply: null, error: err?.message || 'The X1 RPC did not respond.', loadedAt: null, stale: false }));
+    }
+  }, []);
+  useEffect(() => {
+    load();
+    const id = setInterval(() => { if (!document.hidden) load(); }, pollMs);
+    return () => clearInterval(id);
+  }, [load, pollMs]);
+  return { ...state, reload: load };
+}
 
 export default function StakingCalculator() {
-  const [loading, setLoading] = useState(true);
-  const [validators, setValidators] = useState([]);
-  const [stakeAmount, setStakeAmount] = useState(10000);
-  const [selectedValidator, setSelectedValidator] = useState(null);
+  const val = useValidators(X1_CONFIG.polling.validatorsMs);
+  const econ = useNetworkEconomics(X1_CONFIG.polling.validatorsMs);
+
+  const [amountText, setAmountText] = useState('');
   const [timeframe, setTimeframe] = useState('year');
+  const [query, setQuery] = useState('');
+  const [selectedId, setSelectedId] = useState(null);
+  const [overrideText, setOverrideText] = useState('');
+  const [adjustVote, setAdjustVote] = useState(false);
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const active = useMemo(() => val.validators.filter((v) => !v.delinquent), [val.validators]);
+  const selected = useMemo(() => active.find((v) => v.votePubkey === selectedId) || null, [active, selectedId]);
+  const choices = useMemo(() => active.filter((v) => matchesValidator(v, query)).slice(0, query.trim() ? 30 : 10), [active, query]);
 
-  useEffect(() => {
-    const fetchValidators = async () => {
-      try {
-        const data = await X1Rpc.getValidatorDetails();
-        // Get ALL active validators, not just top 50
-        setValidators(data.filter(v => !v.delinquent));
-        if (data.length > 0) setSelectedValidator(data[0]);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchValidators();
-  }, []);
+  // Total active stake across every vote account, in XNT.
+  const totalStake = useMemo(() => {
+    const sum = val.validators.reduce((s, v) => s + (isNum(v.activatedStake) ? v.activatedStake : 0), 0);
+    return sum > 0 ? sum : null;
+  }, [val.validators]);
 
-  // Filter validators by search
-  const filteredValidators = validators.filter(v => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return v.votePubkey.toLowerCase().includes(query) ||
-           v.nodePubkey.toLowerCase().includes(query) ||
-           (v.name && v.name.toLowerCase().includes(query));
-  });
+  const amount = parseInput(amountText);
+  const override = parseInput(overrideText);
+  const networkInflation = econ.inflation?.validator ?? null; // fraction per year paid to stakers
+  const usingOverride = override !== null;
+  const inflationUsed = usingOverride ? override / 100 : networkInflation;
 
-  // X1 Network Staking APY Calculation
-  // APY = Base Network Rate * (1 - Validator Commission) * Uptime Factor
-  // Base rate is ~8% inflation distributed to stakers
-  const BASE_NETWORK_APY = 8.0; // 8% base APY before commission
-  
-  // Each validator has different effective APY based on their commission
-  const calculateValidatorAPY = (validator) => {
-    if (!validator) return BASE_NETWORK_APY;
-    const commissionFactor = 1 - (validator.commission / 100);
-    const uptimeFactor = (validator.uptime || 99) / 100;
-    return BASE_NETWORK_APY * commissionFactor * uptimeFactor;
-  };
-  
-  const validatorAPY = calculateValidatorAPY(selectedValidator);
+  // Gross yearly staker yield = (validator inflation x supply) / total active stake.
+  const grossYield = inflationUsed !== null && econ.supply && totalStake ? (inflationUsed * econ.supply) / totalStake : null;
+  const commission = selected && isNum(selected.commission) ? selected.commission : null;
+  const voteFactor = adjustVote && selected && isNum(selected.voteRate) ? selected.voteRate / 100 : 1;
+  const netYield = grossYield !== null && commission !== null ? grossYield * (1 - commission / 100) * voteFactor : null;
 
-  const calculateRewards = () => {
-    const multiplier = timeframe === 'day' ? 1/365 : timeframe === 'month' ? 1/12 : timeframe === 'year' ? 1 : 5;
-    const rewards = stakeAmount * (validatorAPY / 100) * multiplier;
-    return rewards;
-  };
+  const tf = TIMEFRAMES.find((t) => t.key === timeframe);
+  const rewards = netYield !== null && amount !== null ? amount * netYield * tf.years : null;
 
-  const rewards = calculateRewards();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-surface-1 text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-brand" />
-      </div>
-    );
-  }
+  const loading = val.status === 'loading' || econ.status === 'loading';
+  const failed = val.status === 'error' || econ.status === 'error';
+  const retry = () => { val.reload(); econ.reload(); };
+  const loadedAt = val.loadedAt && econ.loadedAt ? Math.min(val.loadedAt, econ.loadedAt) : null;
 
   return (
-    <div className="min-h-screen bg-surface-1 text-white">
-      <header className="bg-surface-1 border-b border-line">
-        <div className="max-w-[1800px] mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-brand to-blue-500 rounded-lg flex items-center justify-center">
-                  <span className="text-black font-black text-sm">X1</span>
-                </div>
-                <span className="font-bold hidden sm:inline"><span className="text-brand">X1</span><span className="text-white">Space</span></span>
-              </Link>
-              <Badge className="bg-brand/20 text-brand border-0 text-xs">Mainnet</Badge>
-            </div>
-            <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-ink-muted hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('StakingCalculator')}><Button variant="ghost" size="icon" className="text-brand bg-brand/10 rounded-lg"><Calculator className="w-5 h-5" /></Button></Link>
-            </nav>
-          </div>
-        </div>
-      </header>
+    <>
+      <PageHeader
+        icon={Calculator}
+        title="Staking calculator"
+        description="Estimate staking rewards from the live inflation rate, supply, total active stake and a validator's commission."
+        meta={<Freshness at={loadedAt} stale={val.refreshFailed || econ.stale} source="X1 RPC" onRefresh={retry} refreshing={val.refreshing} />}
+      />
 
-      <main className="max-w-4xl mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-3 mb-6">
-          <Calculator className="w-7 h-7 text-brand" />
-          Staking Calculator
-        </h1>
+      {loading && !failed && <StatSkeleton count={4} />}
+      {failed && <Panel><ErrorState title="Staking inputs are unavailable" description={val.error || econ.error} onRetry={retry} /></Panel>}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Input Section */}
-          <div className="bg-surface-2 rounded-xl p-6">
-            <h3 className="text-ink-muted text-sm mb-4">STAKE AMOUNT</h3>
-            <div className="mb-6">
-              <Input
-                type="number"
-                value={stakeAmount}
-                onChange={(e) => setStakeAmount(Number(e.target.value))}
-                className="bg-surface-1 border-0 text-white text-2xl font-bold h-14"
-              />
-              <p className="text-ink-faint text-sm mt-2">XNT tokens to stake</p>
-            </div>
-
-            <div className="mb-6">
-              <Slider
-                value={[stakeAmount]}
-                onValueChange={(v) => setStakeAmount(v[0])}
-                max={1000000}
-                step={1000}
-                className="mt-4"
-              />
-              <div className="flex justify-between text-ink-faint text-xs mt-2">
-                <span>0</span>
-                <span>1M XNT</span>
-              </div>
-            </div>
-
-            <h3 className="text-ink-muted text-sm mb-4">TIMEFRAME</h3>
-            <div className="flex gap-2 mb-6">
-              {['day', 'month', 'year', '5years'].map((tf) => (
-                <Button
-                  key={tf}
-                  variant="outline"
-                  size="sm"
-                  className={`border-line flex-1 ${timeframe === tf ? 'bg-brand/20 text-brand' : 'text-ink-muted'}`}
-                  onClick={() => setTimeframe(tf)}
-                >
-                  {tf === '5years' ? '5 Years' : tf.charAt(0).toUpperCase() + tf.slice(1)}
-                </Button>
-              ))}
-            </div>
-
-            <h3 className="text-ink-muted text-sm mb-4">SELECT VALIDATOR ({validators.length} available)</h3>
-            <Input
-              placeholder="Search by name or pubkey..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-surface-1 border-0 text-white mb-3"
-            />
-            <div className="max-h-[300px] overflow-y-auto space-y-2">
-              {filteredValidators.slice(0, 50).map((v) => {
-                const vAPY = calculateValidatorAPY(v);
-                const displayName = v.name || getDisplayName(v.votePubkey, v.nodePubkey, v.activatedStake * 1e9);
-                const icon = v.icon || getValidatorIcon(v.votePubkey, v.nodePubkey, v.activatedStake * 1e9);
-                return (
-                  <button
-                    key={v.votePubkey}
-                    onClick={() => setSelectedValidator({...v, name: displayName, icon})}
-                    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${selectedValidator?.votePubkey === v.votePubkey ? 'bg-brand/20 border border-brand/50' : 'bg-surface-1 hover:bg-surface-3'}`}
-                  >
-                    <span>{icon}</span>
-                    <div className="flex-1 text-left">
-                      <p className="text-white text-sm truncate">{displayName}</p>
-                      <p className="text-ink-faint text-xs">{v.commission}% commission • {v.uptime?.toFixed(1)}% uptime</p>
-                    </div>
-                    <Badge className={`border-0 text-xs ${vAPY >= 7 ? 'bg-positive/20 text-positive' : vAPY >= 5 ? 'bg-warning/20 text-warning' : 'bg-negative/20 text-negative'}`}>
-                      {vAPY.toFixed(2)}% APY
-                    </Badge>
-                  </button>
-                );
-              })}
-            </div>
+      {!loading && !failed && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="Validator inflation" value={networkInflation === null ? '—' : percent(networkInflation * 100, 3)} hint={`Yearly share of supply paid to stakers${econ.inflation?.epoch != null ? ` (epoch ${econ.inflation.epoch})` : ''}`} tone="brand" />
+            <StatCard label="Total supply" value={econ.supply ? `${compact(econ.supply)} XNT` : '—'} hint="getSupply" />
+            <StatCard label="Total active stake" value={totalStake ? `${compact(totalStake)} XNT` : '—'} hint={`Across ${integer(val.validators.length)} vote accounts`} />
+            <StatCard label="Gross staker yield" value={grossYield === null ? '—' : percent(grossYield * 100, 2)} hint="Before commission, per year, not compounded" />
           </div>
 
-          {/* Results Section */}
-          <div className="space-y-4">
-            <div className="bg-gradient-to-br from-brand/20 to-blue-500/20 rounded-xl p-6 border border-brand/30">
-              <div className="flex items-center gap-2 text-ink-muted text-sm mb-2">
-                <TrendingUp className="w-4 h-4" /> Estimated Rewards
-              </div>
-              <p className="text-4xl font-bold text-brand">
-                {rewards.toLocaleString(undefined, { maximumFractionDigits: 2 })} XNT
-              </p>
-              <p className="text-ink-faint text-sm mt-1">
-                per {timeframe === '5years' ? '5 years' : timeframe}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-surface-2 rounded-xl p-4">
-                <div className="flex items-center gap-2 text-ink-muted text-xs mb-2">
-                  <Award className="w-4 h-4" /> APY
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Panel title="Inputs">
+              <div className="space-y-5 p-4">
+                <div>
+                  <label htmlFor="stake-amount" className="eyebrow mb-1.5 block">Amount to stake (XNT)</label>
+                  <input id="stake-amount" inputMode="decimal" type="number" min="0" step="any" value={amountText} onChange={(e) => setAmountText(e.target.value)} placeholder="Enter an amount" className={inputClass} />
                 </div>
-                <p className="text-2xl font-bold text-white">{validatorAPY.toFixed(2)}%</p>
-              </div>
-              <div className="bg-surface-2 rounded-xl p-4">
-                <div className="flex items-center gap-2 text-ink-muted text-xs mb-2">
-                  <Coins className="w-4 h-4" /> Total Value
-                </div>
-                <p className="text-2xl font-bold text-positive">
-                  {(stakeAmount + rewards).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                </p>
-              </div>
-            </div>
 
-            {selectedValidator && (
-              <div className="bg-surface-2 rounded-xl p-4">
-                <h3 className="text-ink-muted text-sm mb-3">SELECTED VALIDATOR</h3>
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{selectedValidator.icon || '🔷'}</span>
-                  <div>
-                    <p className="text-white font-medium">{selectedValidator.name || selectedValidator.votePubkey.substring(0, 16) + '...'}</p>
-                    <p className="text-ink-faint text-sm">
-                      Commission: {selectedValidator.commission}% • Uptime: {selectedValidator.uptime?.toFixed(1)}%
-                    </p>
+                <fieldset>
+                  <legend className="eyebrow mb-1.5">Timeframe</legend>
+                  <div className="flex flex-wrap gap-2">
+                    {TIMEFRAMES.map((t) => (
+                      <button key={t.key} type="button" aria-pressed={timeframe === t.key} onClick={() => setTimeframe(t.key)} className={cn('h-9 flex-1 rounded-lg border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40', timeframe === t.key ? 'border-brand/40 bg-brand/10 text-brand' : 'border-line-strong text-ink-soft hover:bg-surface-3')}>{t.label}</button>
+                    ))}
                   </div>
+                </fieldset>
+
+                <div>
+                  <label htmlFor="inflation-override" className="eyebrow mb-1.5 block">Assumed validator inflation (optional, % per year)</label>
+                  <input id="inflation-override" type="number" min="0" step="any" value={overrideText} onChange={(e) => setOverrideText(e.target.value)} placeholder={networkInflation === null ? 'Not available from RPC' : `Leave empty to use ${(networkInflation * 100).toFixed(3)}% from RPC`} className={inputClass} />
+                  <p className="mt-1 text-xs text-ink-muted">{usingOverride ? 'Your assumption is being used instead of the on-chain rate.' : 'Inflation changes over time. Enter a figure here to model a different rate.'}</p>
+                </div>
+
+                <label className="flex items-start gap-2 text-sm text-ink-soft">
+                  <input type="checkbox" checked={adjustVote} onChange={(e) => setAdjustVote(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[hsl(var(--primary))]" />
+                  <span>Scale by the validator's vote rate this epoch <span className="text-ink-muted">(an assumption that credits earned track rewards; vote rate is a snapshot)</span></span>
+                </label>
+              </div>
+            </Panel>
+
+            <Panel title="Estimated rewards" description="Estimate only">
+              <div className="space-y-4 p-4">
+                <div>
+                  <p className="eyebrow">Estimated rewards per {tf.label.toLowerCase()}</p>
+                  <p className="mt-2 font-display text-3xl font-semibold tabular text-brand">
+                    {rewards === null ? <Unavailable reason={!selected ? 'Choose a validator' : amount === null ? 'Enter an amount' : 'Inputs from the RPC are missing'} /> : `${fmtAmount(rewards)} XNT`}
+                  </p>
+                  <p className="mt-1 text-xs text-ink-muted">
+                    {!selected ? 'Choose a validator to see an estimate.' : amount === null ? 'Enter an amount to stake.' : `Estimated yearly rate after commission: ${netYield === null ? '—' : percent(netYield * 100, 2)}`}
+                  </p>
+                </div>
+
+                <dl className="divide-y divide-line/60 rounded-lg border border-line text-sm">
+                  {[
+                    ['Validator inflation', inflationUsed === null ? null : percent(inflationUsed * 100, 3), usingOverride ? 'your assumption' : 'from RPC'],
+                    ['Total supply', econ.supply ? `${compact(econ.supply)} XNT` : null, ''],
+                    ['Total active stake', totalStake ? `${compact(totalStake)} XNT` : null, ''],
+                    ['Gross yield', grossYield === null ? null : percent(grossYield * 100, 2), ''],
+                    ['Validator commission', commission === null ? null : `${commission}%`, selected ? '' : 'choose a validator'],
+                    ['Vote rate factor', adjustVote ? (selected && isNum(selected.voteRate) ? percent(selected.voteRate, 1) : null) : 'not applied', 'assumption'],
+                  ].map(([k, v, note]) => (
+                    <div key={k} className="flex items-center justify-between gap-3 px-3 py-2">
+                      <dt className="text-ink-muted">{k}</dt>
+                      <dd className="tabular text-ink">{v === null ? <Unavailable /> : v}{note && <span className="ml-1 text-xs text-ink-muted">({note})</span>}</dd>
+                    </div>
+                  ))}
+                </dl>
+
+                <div className="rounded-lg border border-warning/25 bg-warning/10 p-3 text-sm text-warning">
+                  <p><strong>Estimates, not promises.</strong> Actual rewards depend on inflation (which changes), total stake, the validator's performance and commission, and when your stake activates.</p>
+                  <p className="mt-2 text-xs">
+                    Formula: rewards = amount x (inflation x supply / total active stake) x (1 - commission){adjustVote ? ' x vote rate' : ''} x years. Simple, not compounded. Multi-year figures hold today's rates constant.
+                  </p>
                 </div>
               </div>
-            )}
-
-            <div className="bg-warning/10 border border-warning/30 rounded-xl p-4">
-              <p className="text-warning text-sm">
-                ⚠️ <strong>Estimates only.</strong> Actual APY varies based on:
-              </p>
-              <ul className="text-warning/80 text-xs mt-2 list-disc list-inside space-y-1">
-                <li>Network inflation rate (~8% annual)</li>
-                <li>Total stake in network (~800M XNT)</li>
-                <li>Validator commission and uptime</li>
-                <li>Your stake duration and timing</li>
-              </ul>
-            </div>
+            </Panel>
           </div>
+
+          <Panel title="Choose a validator" description={`${integer(active.length)} active validators`}>
+            <div className="border-b border-line px-4 py-3">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" aria-hidden="true" />
+                <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Name, vote address or identity address" aria-label="Search validators" className="h-9 w-full rounded-lg border border-line bg-surface-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand/25" />
+              </div>
+            </div>
+            {choices.length === 0 ? (
+              <p className="px-4 py-8 text-center text-sm text-ink-muted">No active validators match.</p>
+            ) : (
+              <ul className="max-h-[360px] divide-y divide-line/60 overflow-y-auto" aria-label="Validators">
+                {choices.map((v) => {
+                  const isSel = v.votePubkey === selectedId;
+                  return (
+                    <li key={v.votePubkey}>
+                      <button type="button" aria-pressed={isSel} onClick={() => setSelectedId(v.votePubkey)} className={cn('flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/40', isSel && 'bg-brand/10')}>
+                        <ValidatorIdentity validator={v} size={28} sub={<span className="tabular">{compact(v.activatedStake)} XNT staked</span>} />
+                        <span className="flex shrink-0 items-center gap-3 text-sm">
+                          <span className="tabular text-ink-soft">{isNum(v.commission) ? `${v.commission}% commission` : <Unavailable reason="Commission not reported" />}</span>
+                          <StatusPill validator={v} className="hidden sm:inline-flex" />
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Panel>
         </div>
-      </main>
-    </div>
+      )}
+    </>
   );
 }
