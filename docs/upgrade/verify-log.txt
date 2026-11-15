@@ -1,5 +1,5 @@
-commit: f4cab151d95ba55cb7946f456aa1cbbee345d408
-date: 2026-11-15T08:25:48Z
+commit: cfed931f48d4730fcc7c42b72130cd9041dca8f7
+date: 2026-11-15T10:47:37Z
 === eslint ===
 
 /home/user/X1Space-Explorer-new/src/components/x1/X1RpcService.jsx
@@ -35,10 +35,10 @@ date: 2026-11-15T08:25:48Z
  RUN  v5.1.0 /home/user/X1Space-Explorer-new
 
 
- Test Files  3 passed (3)
-      Tests  80 passed (80)
-   Start at  08:26:04
-   Duration  6.24s (tests 98%, import 1%, transform 1%)
+ Test Files  6 passed (6)
+      Tests  132 passed (132)
+   Start at  10:47:52
+   Duration  6.29s (tests 96%, import 2%, transform 1%)
 
 [unit + contract tests] exit 0
 === npm audit (all) ===
@@ -94,59 +94,59 @@ To address issues that do not require attention, run:
 To address all issues (including breaking changes), run:
   npm audit fix --force
 === live smoke ===
-(node:12106) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(node:1708) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
 (Use `node --trace-warnings ...` to show where the warning was created)
-(node:12118) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(node:1720) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
 (Use `node --trace-warnings ...` to show where the warning was created)
 
  RUN  v5.1.0 /home/user/X1Space-Explorer-new
 
-(node:12140) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(node:1742) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
 (Use `node --trace-warnings ...` to show where the warning was created)
 
  Test Files  1 passed (1)
       Tests  4 passed (4)
-   Start at  08:26:22
-   Duration  11.49s (tests 99%)
+   Start at  10:48:09
+   Duration  13.07s (tests 100%)
 
 [live smoke] exit 0
 === live accuracy ===
-(node:12160) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(node:1762) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
 (Use `node --trace-warnings ...` to show where the warning was created)
-(node:12172) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(node:1774) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
 (Use `node --trace-warnings ...` to show where the warning was created)
 
  RUN  v5.1.0 /home/user/X1Space-Explorer-new
 
-(node:12194) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(node:1796) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
 (Use `node --trace-warnings ...` to show where the warning was created)
-index spl 23807 rpc spl 23807 | index token-2022 2112 rpc token-2022 2112
- ✓ tests/live/accuracy.test.ts > token index accuracy > mint counts equal independent getProgramAccounts counts, per program 2314ms
+index spl 23807 rpc spl 23807 | index token-2022 2113 rpc token-2022 2113
+ ✓ tests/live/accuracy.test.ts > token index accuracy > mint counts equal independent getProgramAccounts counts, per program 7048ms
 verified decimals+supply against getAccountInfo for 15 tokens
- ✓ tests/live/accuracy.test.ts > token index accuracy > decimals, supply and authorities match getAccountInfo for a sample across both programs 808ms
+ ✓ tests/live/accuracy.test.ts > token index accuracy > decimals, supply and authorities match getAccountInfo for a sample across both programs 822ms
 unlisted tokens in sample 186 with on-chain names 185 | e.g. bunt.fun/BUNT (token-2022); BURNIE X1/BURNIE (token-2022); ButtHole/BTH (token-2022)
- ✓ tests/live/accuracy.test.ts > token index accuracy > non-pool tokens are listed with real on-chain names and no invented market values 68ms
-WXNT index 0.158044663655889 xdex oracle 0.157975751242233 diff 0.04%
-USDC.X index 0.9997047328499999 xdex oracle 0.9997047328499999 diff 0.00%
-Test index 0.000012687068686 xdex oracle 0.000012687068686 diff 0.00%
-ANL index 0.000082266917246 xdex oracle 0.000082315047632 diff 0.06%
-tvl served 98225.22991101978 xdex summary 97821.0801819229 pools 1466 1466
- ✓ tests/live/accuracy.test.ts > token index accuracy > listed prices agree with XDEX price endpoint and pool TVL totals agree with the XDEX summary 7733ms
-index age ms 9193 {"chain":{"status":"ok","fetchedAt":"2026-11-15T08:26:36.762Z","count":25919},"xdex":{"status":"ok","fetchedAt":"2026-11-15T08:26:35.393Z","count":126},"x1ninja":{"status":"not_configured","fetchedAt":null}}
+ ✓ tests/live/accuracy.test.ts > token index accuracy > non-pool tokens are listed with real on-chain names and no invented market values 99ms
+WXNT index 0.171171544122972 xdex oracle 0.171171544122972 diff 0.00%
+USDC.X index 0.9997247300000001 xdex oracle 0.9997247300000001 diff 0.00%
+Test index 0.000013088802699 xdex oracle 0.000013088802699 diff 0.00%
+ANL index 0.000089803912147 xdex oracle 0.000089803912147 diff 0.00%
+tvl served 97935.81978280631 xdex summary 97983.99498768862 pools 1466 1466
+ ✓ tests/live/accuracy.test.ts > token index accuracy > listed prices agree with XDEX price endpoint and pool TVL totals agree with the XDEX summary 6123ms
+index age ms 8001 {"chain":{"status":"ok","fetchedAt":"2026-11-15T10:48:27.084Z","count":25920},"xdex":{"status":"ok","fetchedAt":"2026-11-15T10:48:29.966Z","count":125},"x1ninja":{"status":"not_configured","fetchedAt":null}}
  ✓ tests/live/accuracy.test.ts > token index accuracy > freshness: timestamps are current and source states are reported 5ms
 positions matching the provider: 38 / 38
- ✓ tests/live/accuracy.test.ts > network map data provenance > every located validator position equals an independent geojs lookup of that node, rounded to 0.1 degree 1391ms
+ ✓ tests/live/accuracy.test.ts > network map data provenance > every located validator position equals an independent geojs lookup of that node, rounded to 0.1 degree 1400ms
 validators 388 located 344 unlocated 44 {"not in gossip (no address to look up)":44,"in gossip, address unresolved":0} of which delinquent 44
- ✓ tests/live/accuracy.test.ts > network map data provenance > explains every validator without a position: no gossip node, or an unresolved address 128ms
+ ✓ tests/live/accuracy.test.ts > network map data provenance > explains every validator without a position: no gossip node, or an unresolved address 66ms
 
  Test Files  1 passed (1)
       Tests  7 passed (7)
-   Start at  08:26:34
-   Duration  12.76s (tests 99%)
+   Start at  10:48:23
+   Duration  15.96s (tests 100%)
 
 [live accuracy] exit 0
 === browser suite ===
-(node:12220) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(node:1815) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
 (Use `node --trace-warnings ...` to show where the warning was created)
 PASS  [desktop] Dashboard renders
 PASS  [desktop] NetworkHealth renders
@@ -208,7 +208,7 @@ PASS  [mobile] Watchlist renders
 PASS  [mobile] CustomDashboard renders
 PASS  [mobile] ApiDocs renders
 PASS  [mobile] Search renders
-PASS  tokens: table lists 50 rows from the live index  — 25919 mints indexed
+PASS  tokens: table lists 50 rows from the live index  — 25920 mints indexed
 PASS  tokens: source status and freshness are shown
 PASS  tokens: unknown market values show a dash, never $0.00
 PASS  tokens: search filters server-side
@@ -242,14 +242,14 @@ PASS  a11y: LPExplorer has no serious or critical axe violations
 PASS  a11y: Blocks has no serious or critical axe violations
 PASS  a11y: Transactions has no serious or critical axe violations
 PASS  a11y: Search has no serious or critical axe violations
-PASS  performance: first paint and transfer size of the landing page  — FCP 248 ms, 592 KB of JS over 22 asset requests (uncompressed preview server)
+PASS  performance: first paint and transfer size of the landing page  — FCP 296 ms, 593 KB of JS over 21 asset requests (uncompressed preview server)
 
 95 passed, 0 failed
 [browser suite] exit 0
 === detail routes ===
-(node:13414) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(node:2850) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
 (Use `node --trace-warnings ...` to show where the warning was created)
-using slot 93399209 sig 2uCgBRJp… vote HNR56a…
+using slot 93422501 sig 4SRM49Yy… vote 2TT8RA…
 PASS  [desktop] BlockDetail with a real slot
 PASS  [desktop] BlockDetail with an invalid slot shows an empty state
 PASS  [desktop] BlockDetail far in the future shows a clear not-found state
@@ -292,10 +292,19 @@ PASS  a11y: /Search has no serious or critical axe violations
 38 passed, 0 failed
 [detail routes] exit 0
 === network/credential audit ===
-(node:13946) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(node:3348) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
 (Use `node --trace-warnings ...` to show where the warning was created)
-requests by host: {"127.0.0.1":368,"rpc.mainnet.x1.xyz":90,"app.xdex.xyz":2,"raw.githubusercontent.com":15}
-total requests: 475
+function requests on Dashboard: 1 (POST getTokenPrices)
+function requests on TokenExplorer: 1 (POST getTokens)
+function requests on NetworkMap: 1 (POST getValidators)
+function requests on Validators: 0
+function requests on LPExplorer: 2 (POST getLPTokens, POST getLPStats)
+function requests on Blocks: 0
+function requests on Transactions: 0
+function requests on PortfolioTracker: 1 (POST getTokens)
+function requests on ApiDocs: 0
+requests by host: {"127.0.0.1":354,"rpc.mainnet.x1.xyz":116,"app.xdex.xyz":2,"raw.githubusercontent.com":15}
+total requests: 487
 PASS: no credentials in requests or responses; only expected hosts contacted
 [network/credential audit] exit 0
 === bundle credential scan ===

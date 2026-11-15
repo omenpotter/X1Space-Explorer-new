@@ -37,3 +37,9 @@ Every automated check I could run passes on commit `f4cab15` (lint, typecheck, b
 ## Rollback
 
 `ROLLBACK.md`. Nothing has been pushed or deployed; production is unchanged.
+
+## Update: Base44 runtime compatibility (commit after `cfed931`)
+
+- Backend entries now use the Workers pattern (default export, secrets via `secrets.get`), AI quotas persist in a `RateLimit` entity (memory fallback), and per-token endpoints no longer build the full index. Dashboard and Network Health read the public RPC directly; at most about 720 backend calls per open Dashboard tab per day.
+- Re-verified locally: eslint, typecheck, build, 132 unit/contract tests, live smoke and accuracy, 95 + 38 browser checks, credential audit, bundle scan all pass.
+- **Not verified on Base44**: no preview app has been deployed because the Base44 account limit was reached. Handler execution on the real runtime, persistent quotas, headers, the security scan and credit use remain untested. Production release still needs separate approval.
