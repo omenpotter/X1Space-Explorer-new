@@ -24,6 +24,7 @@ function describeError(err) {
   return JSON.stringify(err);
 }
 
+/** @param {{ label?: any, children?: any, [key: string]: any }} props */
 function Field({ label, children }) {
   return (
     <div className="min-w-0">
@@ -33,6 +34,7 @@ function Field({ label, children }) {
   );
 }
 
+/** @param {{ address?: any, [key: string]: any }} props */
 function AddressCell({ address }) {
   if (!address) return <Unavailable reason="Account missing from the RPC response" />;
   return (

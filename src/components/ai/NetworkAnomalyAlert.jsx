@@ -17,6 +17,7 @@ const SEVERITY = {
  * Renders nothing when the checks pass or when the check itself could not be run:
  * an unreachable detector is not evidence of a problem.
  */
+/** @param {{ className?: any, [key: string]: any }} props */
 export default function NetworkAnomalyAlert({ className }) {
   const [result, setResult] = useState(null);
 

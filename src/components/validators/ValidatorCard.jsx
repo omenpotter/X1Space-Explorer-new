@@ -93,6 +93,7 @@ export function useValidators(pollMs = 0) {
   return { ...state, refreshing, reload: load };
 }
 
+/** @param {{ validator?: any, className?: any, [key: string]: any }} props */
 export function StatusPill({ validator, className }) {
   return validator?.delinquent
     ? <Pill tone="negative" className={className} title="Not voting recently: the cluster reports this vote account as delinquent">Delinquent</Pill>
@@ -100,12 +101,14 @@ export function StatusPill({ validator, className }) {
 }
 
 /** Name as text. Without a published identity the name is a shortened address, so it is set in mono. */
+/** @param {{ validator?: any, className?: any, [key: string]: any }} props */
 export function ValidatorName({ validator, className }) {
   const name = validator?.name || shortAddress(validator?.votePubkey);
   return <span className={cn(!validator?.hasIdentity && 'mono', className)} title={validator?.hasIdentity ? undefined : 'No on-chain identity published'}>{name}</span>;
 }
 
 /** Avatar, name and shortened vote address. Not a link: wrap it where navigation is wanted. */
+/** @param {{ validator?: any, size?: any, sub?: any, className?: any, [key: string]: any }} props */
 export function ValidatorIdentity({ validator, size = 32, sub, className }) {
   return (
     <span className={cn('flex min-w-0 items-center gap-3', className)}>
@@ -121,12 +124,14 @@ export function ValidatorIdentity({ validator, size = 32, sub, className }) {
 const voteTone = (n) => (n >= 95 ? 'text-ink' : n >= 80 ? 'text-warning' : 'text-negative');
 const skipTone = (n) => (n < 5 ? 'text-ink' : n < 15 ? 'text-warning' : 'text-negative');
 
+/** @param {{ validator?: any, digits?: any, className?: any, [key: string]: any }} props */
 export function VoteRateValue({ validator, digits = 1, className }) {
   const n = validator?.voteRate ?? validator?.uptime;
   if (!isNum(n)) return <Unavailable reason="Vote rate cannot be measured yet this epoch" className={className} />;
   return <span className={cn('tabular', voteTone(n), className)} title={VOTE_RATE_HELP}>{percent(n, digits)}</span>;
 }
 
+/** @param {{ validator?: any, digits?: any, className?: any, [key: string]: any }} props */
 export function SkipRateValue({ validator, digits = 1, className }) {
   const n = validator?.skipRate;
   if (!isNum(n)) return <Unavailable reason="No leader slots yet this epoch" className={className} />;
@@ -140,12 +145,14 @@ export function SkipRateValue({ validator, digits = 1, className }) {
   );
 }
 
+/** @param {{ validator?: any, className?: any, [key: string]: any }} props */
 export function CommissionValue({ validator, className }) {
   return isNum(validator?.commission)
     ? <span className={cn('tabular', className)}>{validator.commission}%</span>
     : <Unavailable reason="Commission not reported" className={className} />;
 }
 
+/** @param {{ validator?: any, className?: any, [key: string]: any }} props */
 export function VersionValue({ validator, className }) {
   return validator?.version
     ? <span className={cn('mono', className)}>{validator.version}</span>
@@ -153,7 +160,7 @@ export function VersionValue({ validator, className }) {
 }
 
 /** Table row for the Validators page. Column visibility must match the header in Validators.jsx. */
-const ValidatorCard = memo(function ValidatorCard({ validator: v, rank, maxShare }) {
+const ValidatorCard = memo(/** @param {{ validator?: any, rank?: any, maxShare?: any, [key: string]: any }} props */ function ValidatorCard({ validator: v, rank, maxShare }) {
   const share = stakeShare(v);
   const site = websiteHref(v);
   return (

@@ -9,6 +9,7 @@ import { classifyQuery } from '@/lib/x1/search';
 import { integer } from '@/lib/format';
 import { NAV_GROUPS, PARENT_PAGE } from './nav';
 
+/** @param {{ className?: any, [key: string]: any }} props */
 function Brand({ className }) {
   return (
     <Link to={createPageUrl('Dashboard')} className={cn('flex items-center gap-2.5 rounded-md', className)} aria-label="X1 Space home">
@@ -20,6 +21,7 @@ function Brand({ className }) {
   );
 }
 
+/** @param {{ current?: any, onNavigate?: any, [key: string]: any }} props */
 function NavList({ current, onNavigate }) {
   const active = PARENT_PAGE[current] ?? current;
   return (
@@ -56,7 +58,7 @@ function NavList({ current, onNavigate }) {
 
 /** Live chain status from the RPC. Shows a clear offline state instead of a stale number. */
 function NetworkStatus() {
-  const [state, setState] = useState({ status: 'loading' });
+  const [state, setState] = useState(/** @type {Record<string, any>} */ ({ status: 'loading' }));
   useEffect(() => {
     let alive = true;
     const load = async () => {
@@ -213,6 +215,7 @@ function Footer() {
   );
 }
 
+/** @param {{ children?: any, currentPageName?: any, [key: string]: any }} props */
 export default function AppShell({ children, currentPageName }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const location = useLocation();

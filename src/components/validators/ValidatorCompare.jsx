@@ -45,6 +45,7 @@ const ROWS = [
   { key: 'country', label: 'Country', render: (v) => (v.location?.country ? <span>{v.location.country}</span> : <Unavailable reason="The node address could not be resolved to a location" />) },
 ];
 
+/** @param {{ validators?: any, epoch?: any, [key: string]: any }} props */
 function CreditsChart({ validators, epoch }) {
   const { epochs, byValidator } = useMemo(() => {
     const per = validators.map((v) => creditsPerEpoch(v.epochCredits, epoch));
@@ -108,6 +109,7 @@ function CreditsChart({ validators, epoch }) {
   );
 }
 
+/** @param {{ validators?: any, epoch?: any, onRemove?: any, [key: string]: any }} props */
 export default function ValidatorCompare({ validators, epoch = null, onRemove }) {
   const best = useMemo(() => {
     const out = {};

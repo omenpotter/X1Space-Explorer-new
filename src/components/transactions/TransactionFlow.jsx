@@ -13,6 +13,7 @@ function Step() {
   );
 }
 
+/** @param {{ title?: any, count?: any, children?: any, [key: string]: any }} props */
 function Column({ title, count, children }) {
   return (
     <section className="min-w-0 rounded-lg border border-line bg-surface-2/50">
@@ -22,6 +23,7 @@ function Column({ title, count, children }) {
   );
 }
 
+/** @param {{ address?: any, [key: string]: any }} props */
 const AddressLink = ({ address }) => (
   <Link to={addressUrl(address)} title={address} className="mono text-xs text-ink-soft hover:text-brand">{shortAddress(address, 6, 6)}</Link>
 );
@@ -31,6 +33,7 @@ const AddressLink = ({ address }) => (
  * Built from the transaction itself (signer flags, instruction program ids, pre/post balances).
  * It is plain lists, so it reads the same with a keyboard or a screen reader.
  */
+/** @param {{ transaction?: any, [key: string]: any }} props */
 export default function TransactionFlow({ transaction }) {
   if (!transaction) return null;
   const signers = transaction.accounts.filter((a) => a.signer);

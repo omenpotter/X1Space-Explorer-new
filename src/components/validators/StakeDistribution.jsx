@@ -12,6 +12,7 @@ const OPACITY = [1, 0.88, 0.78, 0.68, 0.6, 0.52, 0.45, 0.38, 0.32, 0.26];
  * Stake concentration computed from the live validator list: the ten largest validators,
  * everyone else, and how many validators together hold more than one third of the stake.
  */
+/** @param {{ validators?: any, className?: any, [key: string]: any }} props */
 export default function StakeDistribution({ validators, className }) {
   const { top, others, total, superminority } = useMemo(() => {
     const sorted = [...(validators || [])].filter((v) => Number.isFinite(v.activatedStake)).sort((a, b) => b.activatedStake - a.activatedStake);

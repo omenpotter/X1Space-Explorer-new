@@ -295,6 +295,7 @@ export function normalizeTransaction(tx) {
 export const addressUrl = (address) => `${createPageUrl('AddressLookup')}?address=${encodeURIComponent(address)}`;
 
 /** Program shown by its well-known name, or by address when it is not a well-known program. */
+/** @param {{ programId?: any, className?: any, [key: string]: any }} props */
 export function ProgramLabel({ programId, className }) {
   if (!programId) return <span className="text-ink-faint">Program account missing from response</span>;
   const { name } = getProgramInfo(programId);
@@ -308,11 +309,13 @@ export function ProgramLabel({ programId, className }) {
   );
 }
 
+/** @param {{ decoded?: any, data?: any, [key: string]: any }} props */
 function InstructionName({ decoded, data }) {
   if (decoded.name) return <Pill tone="brand" title="Decoded from the instruction data">{decoded.name}</Pill>;
   return <Pill title="This instruction's data layout is not known to the explorer">Not decoded{data ? ` · ${data.length} bytes` : ''}</Pill>;
 }
 
+/** @param {{ instruction?: any, accountFlags?: any, [key: string]: any }} props */
 export default function ProgramDecoder({ instruction, accountFlags }) {
   if (!instruction) return null;
   const { programId, accounts = [], data, inner = [], index } = instruction;

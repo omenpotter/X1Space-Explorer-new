@@ -26,6 +26,7 @@ const clampView = (v) => {
  *
  * markers: [{ id, lat, lon, radius, tone, hollow, label }]
  */
+/** @param {{ markers?: any, selectedId?: any, onSelect?: any, renderTooltip?: any, className?: any, [key: string]: any }} props */
 export default function WorldMap({ markers, selectedId, onSelect, renderTooltip, className }) {
   const [shapes, setShapes] = useState(null);
   const [loadError, setLoadError] = useState(false);
@@ -40,6 +41,7 @@ export default function WorldMap({ markers, selectedId, onSelect, renderTooltip,
     import('world-atlas/countries-110m.json')
       .then((mod) => {
         if (!alive) return;
+        /** @type {any} */
         const topo = mod.default || mod;
         setShapes({
           land: path(feature(topo, topo.objects.land)),

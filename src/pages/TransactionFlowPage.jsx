@@ -80,11 +80,13 @@ function aggregate(records, center) {
   return { centerAddress: center, incoming: sort(incoming), outgoing: sort(outgoing), inflow, outflow };
 }
 
+/** @param {{ success?: any, [key: string]: any }} props */
 function StatusPill({ success }) {
   if (success === null) return <Pill>Unknown</Pill>;
   return success ? <Pill tone="positive" icon={CheckCircle2}>Success</Pill> : <Pill tone="negative" icon={XCircle}>Failed</Pill>;
 }
 
+/** @param {{ signature?: any, [key: string]: any }} props */
 function SignatureCell({ signature }) {
   return (
     <span className="inline-flex items-center gap-1">
@@ -94,6 +96,7 @@ function SignatureCell({ signature }) {
   );
 }
 
+/** @param {{ tx?: any, [key: string]: any }} props */
 function SignatureMode({ tx }) {
   const transfers = useMemo(() => systemTransfers(tx), [tx]);
   const type = TX_TYPES[tx.type];
@@ -136,6 +139,7 @@ function SignatureMode({ tx }) {
   );
 }
 
+/** @param {{ result?: any, [key: string]: any }} props */
 function AddressMode({ result }) {
   const { address, records, flowData, balance, signaturesReturned, failedFetches, missing } = result;
   const graphRef = useRef(null);
@@ -301,7 +305,7 @@ export default function TransactionFlowPage() {
   const [input, setInput] = useState(query);
   const [inputError, setInputError] = useState(null);
   const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState({ status: 'idle' });
+  const [state, setState] = useState(/** @type {Record<string, any>} */ ({ status: 'idle' }));
 
   const kind = isValidSignature(query) ? 'signature' : isValidAddress(query) ? 'address' : query ? 'invalid' : 'none';
 

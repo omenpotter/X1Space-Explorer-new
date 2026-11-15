@@ -11,7 +11,7 @@ import { integer, shortAddress, timeAgo } from '@/lib/format';
  * Table of confirmed blocks (summaries from X1Rpc.getRecentBlocks).
  * `status` is 'loading' | 'ready' | 'error'; with data present an error never hides the rows.
  */
-const RecentBlocksTable = memo(function RecentBlocksTable({
+const RecentBlocksTable = memo(/** @param {{ blocks?: any, status?: any, error?: any, onRetry?: any, limit?: any, title?: any, description?: any, showViewAll?: any, className?: any, [key: string]: any }} props */ function RecentBlocksTable({
   blocks,
   status = 'ready',
   error,

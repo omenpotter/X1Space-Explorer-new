@@ -26,7 +26,7 @@ async function renderGraph(element) {
   return html2canvas(element, { backgroundColor: background && background !== 'rgba(0, 0, 0, 0)' ? background : null, scale: 2, useCORS: true, logging: false });
 }
 
-const FlowExport = memo(function FlowExport({ flowData, transactions, graphRef }) {
+const FlowExport = memo(/** @param {{ flowData?: any, transactions?: any, graphRef?: any, [key: string]: any }} props */ function FlowExport({ flowData, transactions, graphRef }) {
   const [message, setMessage] = useState(null);
   const [busy, setBusy] = useState(false);
 

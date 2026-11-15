@@ -81,6 +81,7 @@ async function loadBlock(slot) {
 
 const CELL_COLOR = Object.fromEntries(TX_TYPES.map((t) => [t.key, t.bar]));
 
+/** @param {{ items?: any, counts?: any, failed?: any, [key: string]: any }} props */
 function TxCells({ items, counts, failed }) {
   const shown = items.slice(0, MAX_CELLS);
   const summary = `${integer(counts.total)} transactions: ${TX_TYPES.map((t) => `${integer(counts[t.key])} ${t.label.toLowerCase()}`).join(', ')}; ${integer(failed)} failed.`;
@@ -108,6 +109,7 @@ function TxCells({ items, counts, failed }) {
   );
 }
 
+/** @param {{ label?: any, children?: any, [key: string]: any }} props */
 function Row({ label, children }) {
   return (
     <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">

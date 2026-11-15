@@ -8,6 +8,7 @@ const DIAGRAM_LIMIT = 8;
 
 const label = (address) => getProgramInfo(address).name || shortAddress(address, 6, 6);
 
+/** @param {{ node?: any, [key: string]: any }} props */
 function NodeCard({ node }) {
   return (
     <Link to={addressUrl(node.address)} title={node.address} className="block rounded-lg border border-line bg-surface-2 p-3 transition-colors hover:bg-surface-3">
@@ -23,6 +24,7 @@ function NodeCard({ node }) {
   );
 }
 
+/** @param {{ icon?: any, tone?: any, title?: any, nodes?: any, total?: any, empty?: any, [key: string]: any }} props */
 function Side({ icon: Icon, tone, title, nodes, total, empty }) {
   return (
     <section className="min-w-0 space-y-2" aria-label={title}>
@@ -47,6 +49,7 @@ function Side({ icon: Icon, tone, title, nodes, total, empty }) {
  * Counterparties that moved XNT to or from the analysed address, using only System Program transfers
  * decoded from the fetched transactions. A table with the same data follows the diagram.
  */
+/** @param {{ flowData?: any, [key: string]: any }} props */
 export default function AddressFlowGraph({ flowData }) {
   const { centerAddress, incoming, outgoing, inflow, outflow } = flowData;
   const rows = [

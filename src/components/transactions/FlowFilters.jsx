@@ -6,6 +6,7 @@ import { TX_TYPES } from './ProgramDecoder';
 
 const TYPES = ['all', ...Object.keys(TX_TYPES)];
 
+/** @param {{ id?: any, label?: any, children?: any, [key: string]: any }} props */
 function Field({ id, label, children }) {
   return (
     <div className="min-w-0">
@@ -19,7 +20,7 @@ function Field({ id, label, children }) {
  * Filters for the fetched transactions. `dateRange` holds `YYYY-MM-DD` strings (or ''), and the amounts
  * are XNT, compared with the absolute net change of the analysed address.
  */
-const FlowFilters = memo(function FlowFilters({ filterType, setFilterType, dateRange, setDateRange, amountRange, setAmountRange, searchSignature, setSearchSignature, onClearFilters }) {
+const FlowFilters = memo(/** @param {{ filterType?: any, setFilterType?: any, dateRange?: any, setDateRange?: any, amountRange?: any, setAmountRange?: any, searchSignature?: any, setSearchSignature?: any, onClearFilters?: any, [key: string]: any }} props */ function FlowFilters({ filterType, setFilterType, dateRange, setDateRange, amountRange, setAmountRange, searchSignature, setSearchSignature, onClearFilters }) {
   const active = filterType !== 'all' || dateRange.from || dateRange.to || amountRange.min || amountRange.max || searchSignature;
 
   return (

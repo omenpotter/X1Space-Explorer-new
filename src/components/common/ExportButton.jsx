@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 
 /**
  * One CSV cell. Every field is quoted and embedded quotes are doubled. Text that a spreadsheet
- * would evaluate as a formula (leading = + - @, tab or carriage return) is prefixed with a single
+ * would evaluate as a formula (a leading equals, plus, minus or at sign, tab, or carriage return) is prefixed with a single
  * quote: validator and token names are untrusted on-chain text. Real numbers are left as they are.
  */
 export function csvCell(value) {
@@ -22,6 +22,7 @@ export function toCsv(rows) {
   return lines.join('\r\n');
 }
 
+/** @param {{ data?: any, filename?: any, label?: any, [key: string]: any }} props */
 export default function ExportButton({ data, filename = 'export', label = 'Export CSV' }) {
   const empty = !Array.isArray(data) || data.length === 0;
 

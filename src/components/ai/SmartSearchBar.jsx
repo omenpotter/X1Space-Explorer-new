@@ -6,6 +6,7 @@ import { invokeAi, signIn } from "@/lib/x1/ai";
 import { classifyQuery } from "@/lib/x1/search";
 import { toast } from "sonner";
 
+/** @param {{ onResult?: any, [key: string]: any }} props */
 export default function SmartSearchBar({ onResult }) {
     const [query, setQuery] = useState('');
     const [loading, setLoading] = useState(false);

@@ -30,6 +30,7 @@ function PageFallback() {
 }
 
 // Layout wrapper for all pages
+/** @param {{ children?: any, currentPageName?: any, [key: string]: any }} props */
 const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
   : <>{children}</>;

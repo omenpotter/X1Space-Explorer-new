@@ -9,7 +9,7 @@ const DEFAULT_SERIES = [{ key: 'tps', name: 'TPS', color: 'hsl(var(--brand))' }]
  * Line chart for measured time series (TPS, slot time). Colours come from the design tokens.
  * `series` is a list of { key, name, color }. Missing points are left as gaps, never interpolated.
  */
-const OptimizedChart = memo(function OptimizedChart({
+const OptimizedChart = memo(/** @param {{ data?: any, xKey?: any, series?: any, yLabel?: any, formatValue?: any, ariaLabel?: any, [key: string]: any }} props */ function OptimizedChart({
   data,
   xKey = 'time',
   series = DEFAULT_SERIES,

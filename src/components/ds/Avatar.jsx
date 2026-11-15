@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
  * The same address always produces the same avatar. It is deliberately abstract
  * so it can never be mistaken for an official logo.
  */
+/** @param {{ seed?: any, label?: any, size?: any, rounded?: any, className?: any, [key: string]: any }} props */
 export function GeneratedAvatar({ seed, label, size = 36, rounded = 'full', className }) {
   const hue = hashHue(seed);
   const text = initials(label, seed);
@@ -29,6 +30,7 @@ export function GeneratedAvatar({ seed, label, size = 36, rounded = 'full', clas
   );
 }
 
+/** @param {{ src?: any, seed?: any, label?: any, size?: any, rounded?: any, className?: any, [key: string]: any }} props */
 function ImageWithFallback({ src, seed, label, size, rounded, className }) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -58,6 +60,7 @@ function ImageWithFallback({ src, seed, label, size, rounded, className }) {
  * Validator avatar. Uses the icon the operator published on chain (served through the
  * image proxy) and falls back to a generated avatar when there is none or it fails.
  */
+/** @param {{ validator?: any, size?: any, className?: any, [key: string]: any }} props */
 export function ValidatorAvatar({ validator, size = 36, className }) {
   const id = validator?.nodePubkey;
   const src = validator?.hasIcon && id ? proxiedImageUrl('validator', id) : null;
@@ -65,6 +68,7 @@ export function ValidatorAvatar({ validator, size = 36, className }) {
 }
 
 /** Token logo: trusted hosts load directly, anything else through the image proxy. */
+/** @param {{ token?: any, size?: any, className?: any, [key: string]: any }} props */
 export function TokenAvatar({ token, size = 32, className }) {
   let src = null;
   const url = token?.logoUrl || token?.imageUrl;

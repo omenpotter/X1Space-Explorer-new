@@ -6,6 +6,7 @@ import { api } from '@/lib/x1/api';
 import { cn } from '@/lib/utils';
 
 /** Rule-based review of a token's on-chain facts (authorities, holder concentration, liquidity). */
+/** @param {{ mint?: any, [key: string]: any }} props */
 export default function TokenHealthScore({ mint }) {
   const [state, setState] = useState({ status: 'loading' });
 

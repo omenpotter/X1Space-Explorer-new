@@ -192,6 +192,7 @@ function validateParams(text) {
   return { params: parsed };
 }
 
+/** @param {{ children?: any, className?: any, [key: string]: any }} props */
 function Mono({ children, className }) {
   return <pre className={cn('mono overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-surface-2 p-3 text-xs text-ink-soft', className)}>{children}</pre>;
 }
@@ -264,6 +265,7 @@ function RpcConsole() {
   );
 }
 
+/** @param {{ e?: any, [key: string]: any }} props */
 function EndpointCard({ e }) {
   return (
     <article className="panel p-4" aria-labelledby={`ep-${e.name}`}>

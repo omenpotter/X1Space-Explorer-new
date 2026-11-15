@@ -2,11 +2,13 @@ import { AlertTriangle, Inbox, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+/** @param {{ className?: any, style?: any, [key: string]: any }} props */
 export function Skeleton({ className, style }) {
   return <div className={cn('skeleton', className)} style={style} aria-hidden="true" />;
 }
 
 /** Placeholder rows shaped like a table while data loads. */
+/** @param {{ rows?: any, columns?: any, [key: string]: any }} props */
 export function TableSkeleton({ rows = 8, columns = 5 }) {
   return (
     <div role="status" aria-label="Loading" className="divide-y divide-line/60">
@@ -24,6 +26,7 @@ export function TableSkeleton({ rows = 8, columns = 5 }) {
   );
 }
 
+/** @param {{ count?: any, [key: string]: any }} props */
 export function StatSkeleton({ count = 4 }) {
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="status" aria-label="Loading">
@@ -37,6 +40,7 @@ export function StatSkeleton({ count = 4 }) {
   );
 }
 
+/** @param {{ icon?: any, title?: any, description?: any, action?: any, className?: any, [key: string]: any }} props */
 export function EmptyState({ icon: Icon = Inbox, title, description, action, className }) {
   return (
     <div className={cn('flex flex-col items-center justify-center px-6 py-14 text-center', className)}>
@@ -50,6 +54,7 @@ export function EmptyState({ icon: Icon = Inbox, title, description, action, cla
   );
 }
 
+/** @param {{ title?: any, description?: any, onRetry?: any, className?: any, [key: string]: any }} props */
 export function ErrorState({ title = 'Could not load data', description, onRetry, className }) {
   return (
     <div role="alert" className={cn('flex flex-col items-center justify-center px-6 py-14 text-center', className)}>
@@ -69,6 +74,7 @@ export function ErrorState({ title = 'Could not load data', description, onRetry
 }
 
 /** Inline marker for a value that is not available. Explains why on hover and to screen readers. */
+/** @param {{ reason?: any, className?: any, [key: string]: any }} props */
 export function Unavailable({ reason = 'Not available from the data source', className }) {
   return (
     <span title={reason} className={cn('text-ink-faint', className)}>

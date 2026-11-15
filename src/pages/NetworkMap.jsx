@@ -23,6 +23,7 @@ const STAKE_FILTERS = [
 
 const selectClass = 'h-8 rounded-lg border border-line bg-surface-2 px-2 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-brand/25';
 
+/** @param {{ v?: any, [key: string]: any }} props */
 function ValidatorRow({ v }) {
   return (
     <li>
@@ -38,6 +39,7 @@ function ValidatorRow({ v }) {
   );
 }
 
+/** @param {{ title?: any, rows?: any, total?: any, unit?: any, [key: string]: any }} props */
 function Distribution({ title, rows, total, unit }) {
   return (
     <Panel title={title} bodyClassName="p-4">
@@ -63,7 +65,7 @@ function Distribution({ title, rows, total, unit }) {
 }
 
 export default function NetworkMap() {
-  const [state, setState] = useState({ status: 'loading', validators: [], meta: null, error: null, loadedAt: null });
+  const [state, setState] = useState(/** @type {Record<string, any>} */ ({ status: 'loading', validators: [], meta: null, error: null, loadedAt: null }));
   const [refreshing, setRefreshing] = useState(false);
   const [filters, setFilters] = useState({ status: 'all', continent: 'all', minStake: 0, precision: 'all' });
   const [selected, setSelected] = useState(null);

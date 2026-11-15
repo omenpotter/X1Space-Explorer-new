@@ -66,6 +66,7 @@ function parseHoldings(settled) {
   return { holdings, emptyAccounts, failedPrograms };
 }
 
+/** @param {{ label?: any, children?: any, [key: string]: any }} props */
 function Row({ label, children }) {
   return (
     <div className="min-w-0">
@@ -75,6 +76,7 @@ function Row({ label, children }) {
   );
 }
 
+/** @param {{ address?: any, [key: string]: any }} props */
 function AddressLink({ address }) {
   return (
     <span className="inline-flex min-w-0 items-center gap-1">
@@ -95,6 +97,7 @@ function LoadingView() {
   );
 }
 
+/** @param {{ parsed?: any, [key: string]: any }} props */
 function VoteDetails({ parsed }) {
   const info = parsed?.info;
   if (parsed?.type !== 'vote' || !info) return null;
@@ -119,7 +122,7 @@ export default function AddressLookup() {
   const [input, setInput] = useState(address);
   const [inputError, setInputError] = useState(null);
   const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState({ status: 'idle' });
+  const [state, setState] = useState(/** @type {Record<string, any>} */ ({ status: 'idle' }));
   const [names, setNames] = useState({});
 
   useEffect(() => {

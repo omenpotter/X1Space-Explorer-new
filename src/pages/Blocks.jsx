@@ -50,7 +50,7 @@ async function loadBlocks() {
   const results = await Promise.allSettled(
     Array.from({ length: BLOCK_COUNT }, (_, i) => X1Rpc.getBlock(current - i, { transactionDetails: 'full' }).then((b) => (b ? summarize(current - i, b) : null))),
   );
-  const rows = results.filter((r) => r.status === 'fulfilled' && r.value).map((r) => r.value);
+  const rows = results.flatMap((r) => (r.status === 'fulfilled' && r.value ? [r.value] : []));
   const failed = results.filter((r) => r.status === 'rejected').length;
   // Every request failing means the RPC is unreachable; a slot with no block is simply skipped.
   if (failed === results.length) throw new Error('The X1 RPC did not respond.');

@@ -14,6 +14,7 @@ function aiFailureMessage(error, fallback) {
   return error?.message && error.name === 'AiError' ? error.message : fallback;
 }
 
+/** @param {{ tokenMint?: any, onClose?: any, [key: string]: any }} props */
 export default function AIVerificationAssistant({ tokenMint, onClose }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', content: 'Hi! I\'m your AI verification assistant. I can help you verify your token on X1Space. First, let me analyze this token...' }

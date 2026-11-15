@@ -24,7 +24,7 @@ const links = [
   { page: 'CustomDashboard', icon: LayoutGrid, title: 'Custom Dashboard', desc: 'Build your own view' },
 ];
 
-const QuickLinks = memo(function QuickLinks({ className }) {
+const QuickLinks = memo(/** @param {{ className?: any, [key: string]: any }} props */ function QuickLinks({ className }) {
   return (
     <nav aria-labelledby="quick-links-heading" className={className}>
       <h2 id="quick-links-heading" className="mb-3 text-sm font-medium text-ink">Explore</h2>

@@ -26,7 +26,7 @@ export function txBreakdown(block) {
 }
 
 /** Stacked proportion bar. Segment widths are the real shares; the text alternative carries the counts. */
-export const CompositionBar = memo(function CompositionBar({ breakdown, className }) {
+export const CompositionBar = memo(/** @param {{ breakdown?: any, className?: any, [key: string]: any }} props */ function CompositionBar({ breakdown, className }) {
   if (!breakdown || breakdown.total <= 0) {
     return <div className={cn('h-1.5 w-full rounded-full bg-surface-3', className)} role="img" aria-label="No transactions" />;
   }
@@ -41,7 +41,7 @@ export const CompositionBar = memo(function CompositionBar({ breakdown, classNam
   );
 });
 
-export const TxTypeLegend = memo(function TxTypeLegend({ className }) {
+export const TxTypeLegend = memo(/** @param {{ className?: any, [key: string]: any }} props */ function TxTypeLegend({ className }) {
   return (
     <ul className={cn('flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted', className)} aria-label="Transaction type legend">
       {TX_TYPES.slice(0, 3).map((t) => (
@@ -54,7 +54,7 @@ export const TxTypeLegend = memo(function TxTypeLegend({ className }) {
   );
 });
 
-export const BlockCompositionCard = memo(function BlockCompositionCard({ block }) {
+export const BlockCompositionCard = memo(/** @param {{ block?: any, [key: string]: any }} props */ function BlockCompositionCard({ block }) {
   const b = txBreakdown(block);
   return (
     <li className="w-[152px] shrink-0">
@@ -86,7 +86,7 @@ export const BlockCompositionCard = memo(function BlockCompositionCard({ block }
 });
 
 /** Horizontal strip of the latest confirmed blocks. Scrolls inside its own container on narrow screens. */
-const BlockActivityStrip = memo(function BlockActivityStrip({ blocks, limit = 10 }) {
+const BlockActivityStrip = memo(/** @param {{ blocks?: any, limit?: any, [key: string]: any }} props */ function BlockActivityStrip({ blocks, limit = 10 }) {
   if (!blocks?.length) return null;
   return (
     <ul className="flex gap-2 overflow-x-auto pb-2" aria-label="Latest confirmed blocks">

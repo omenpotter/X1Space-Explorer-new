@@ -118,10 +118,12 @@ function alertCount() {
   }
 }
 
+/** @param {{ value?: any, children?: any, reason?: any, [key: string]: any }} props */
 function Num({ value, children, reason = 'Not available from the data source' }) {
   return isNum(value) ? children : <Unavailable reason={reason} />;
 }
 
+/** @param {{ label?: any, children?: any, [key: string]: any }} props */
 function Metric({ label, children }) {
   return (
     <div className="rounded-lg bg-surface-2 p-3">
@@ -133,6 +135,7 @@ function Metric({ label, children }) {
 
 /* ------------------------------ Widgets ------------------------------ */
 
+/** @param {{ stats?: any, [key: string]: any }} props */
 function NetworkStatsWidget({ stats }) {
   return (
     <div className="grid grid-cols-2 gap-3">
@@ -144,6 +147,7 @@ function NetworkStatsWidget({ stats }) {
   );
 }
 
+/** @param {{ stats?: any, [key: string]: any }} props */
 function EpochWidget({ stats }) {
   const pct = isNum(stats?.epochProgress) ? stats.epochProgress * 100 : null;
   const remaining = isNum(stats?.slotsInEpoch) && isNum(stats?.slotIndex) ? stats.slotsInEpoch - stats.slotIndex : null;
@@ -163,6 +167,7 @@ function EpochWidget({ stats }) {
   );
 }
 
+/** @param {{ stats?: any, [key: string]: any }} props */
 function ValidatorsWidget({ stats }) {
   return (
     <div className="grid grid-cols-3 gap-3 text-center">
@@ -182,6 +187,7 @@ function ValidatorsWidget({ stats }) {
   );
 }
 
+/** @param {{ stats?: any, [key: string]: any }} props */
 function SupplyWidget({ stats }) {
   return (
     <dl className="space-y-2 text-sm">
@@ -191,6 +197,7 @@ function SupplyWidget({ stats }) {
   );
 }
 
+/** @param {{ stats?: any, [key: string]: any }} props */
 function StakingWidget({ stats }) {
   const total = stats?.supply?.totalXnt;
   const active = stats?.stake?.activeXnt;
@@ -206,6 +213,7 @@ function StakingWidget({ stats }) {
   );
 }
 
+/** @param {{ stats?: any, [key: string]: any }} props */
 function BlockTimeWidget({ stats }) {
   return (
     <div className="text-center">
@@ -215,6 +223,7 @@ function BlockTimeWidget({ stats }) {
   );
 }
 
+/** @param {{ label?: any, hasData?: any, children?: any, [key: string]: any }} props */
 function ChartBox({ label, hasData, children }) {
   return (
     <div className="h-[180px]" role="img" aria-label={label}>
@@ -223,6 +232,7 @@ function ChartBox({ label, hasData, children }) {
   );
 }
 
+/** @param {{ history?: any, [key: string]: any }} props */
 function TpsChartWidget({ history }) {
   const data = (history || []).filter((p) => isNum(p.tps)).slice(-90).map((p) => ({ time: p.time, tps: Math.round(p.tps) }));
   return (
@@ -243,6 +253,7 @@ function TpsChartWidget({ history }) {
   );
 }
 
+/** @param {{ history?: any, [key: string]: any }} props */
 function PerformanceWidget({ history }) {
   const data = (history || []).filter((p) => isNum(p.userTps)).slice(-60).map((p) => ({ time: p.time, userTps: Math.round(p.userTps) }));
   return (
@@ -257,6 +268,7 @@ function PerformanceWidget({ history }) {
   );
 }
 
+/** @param {{ blocks?: any, [key: string]: any }} props */
 function RecentBlocksWidget({ blocks }) {
   if (!blocks) return <Unavailable reason="Recent blocks could not be loaded" />;
   if (blocks.length === 0) return <p className="py-4 text-center text-sm text-ink-muted">No blocks returned by the RPC.</p>;
@@ -272,6 +284,7 @@ function RecentBlocksWidget({ blocks }) {
   );
 }
 
+/** @param {{ blocks?: any, [key: string]: any }} props */
 function TxTypesWidget({ blocks }) {
   if (!blocks) return <Unavailable reason="Recent blocks could not be loaded" />;
   const total = blocks.reduce((s, b) => s + (b.txCount || 0), 0);
@@ -295,6 +308,7 @@ function TxTypesWidget({ blocks }) {
   );
 }
 
+/** @param {{ health?: any, stats?: any, [key: string]: any }} props */
 function NetworkHealthWidget({ health, stats }) {
   const share = stats?.stake?.delinquentShare;
   return (
@@ -307,6 +321,7 @@ function NetworkHealthWidget({ health, stats }) {
   );
 }
 
+/** @param {{ price?: any, [key: string]: any }} props */
 function PriceWidget({ price }) {
   return (
     <div className="text-center">
@@ -349,6 +364,7 @@ function AddressLookupWidget() {
   );
 }
 
+/** @param {{ id?: any, src?: any, [key: string]: any }} props */
 function WidgetBody({ id, src }) {
   const { stats, history, blocks, health, price } = src;
   switch (id) {
@@ -370,6 +386,7 @@ function WidgetBody({ id, src }) {
   }
 }
 
+/** @param {{ id?: any, src?: any, editing?: any, index?: any, count?: any, onRemove?: any, onMove?: any, [key: string]: any }} props */
 function Widget({ id, src, editing, index, count, onRemove, onMove }) {
   const info = WIDGET_TYPES[id];
   if (!info) return null;

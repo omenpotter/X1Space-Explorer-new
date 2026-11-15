@@ -22,6 +22,7 @@ export function creditsPerEpoch(epochCredits, currentEpoch) {
  * Bar chart of vote credits earned per epoch. This is the only per-validator history
  * the RPC provides (about the last five epochs).
  */
+/** @param {{ epochCredits?: any, currentEpoch?: any, height?: any, className?: any, [key: string]: any }} props */
 export default function PerformanceChart({ epochCredits, currentEpoch, height = 180, className }) {
   const rows = useMemo(() => creditsPerEpoch(epochCredits, currentEpoch), [epochCredits, currentEpoch]);
   const max = Math.max(0, ...rows.map((r) => r.earned));

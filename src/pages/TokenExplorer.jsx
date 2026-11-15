@@ -48,6 +48,7 @@ function readWatchlist() {
   }
 }
 
+/** @param {{ value?: any, reason?: any, [key: string]: any }} props */
 function Change({ value, reason }) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return <Unavailable reason={reason} />;
   const up = value > 0;
@@ -61,12 +62,14 @@ function Change({ value, reason }) {
   );
 }
 
+/** @param {{ program?: any, [key: string]: any }} props */
 function ProgramPill({ program }) {
   if (program === 'token-2022') return <Pill tone="violet">Token-2022</Pill>;
   if (program === 'spl-token') return <Pill>SPL</Pill>;
   return null;
 }
 
+/** @param {{ sources?: any, [key: string]: any }} props */
 function SourcePills({ sources }) {
   if (!sources) return null;
   return (
@@ -88,6 +91,7 @@ function SourcePills({ sources }) {
   );
 }
 
+/** @param {{ label?: any, children?: any, [key: string]: any }} props */
 function DetailRow({ label, children }) {
   return (
     <div className="flex items-start justify-between gap-4 py-2 text-sm">
@@ -97,6 +101,7 @@ function DetailRow({ label, children }) {
   );
 }
 
+/** @param {{ value?: any, [key: string]: any }} props */
 function AddressValue({ value }) {
   if (value === undefined) return <Unavailable reason="Could not be read from chain" />;
   if (value === null) return <span className="text-ink-muted">None</span>;
@@ -110,8 +115,9 @@ function AddressValue({ value }) {
   );
 }
 
+/** @param {{ mint?: any, onClose?: any, [key: string]: any }} props */
 function TokenDetail({ mint, onClose }) {
-  const [state, setState] = useState({ status: 'loading' });
+  const [state, setState] = useState(/** @type {Record<string, any>} */ ({ status: 'loading' }));
 
   const load = useCallback(async () => {
     setState({ status: 'loading' });
@@ -301,7 +307,7 @@ export default function TokenExplorer() {
     dir: 'desc',
     page: 0,
   });
-  const [state, setState] = useState({ status: 'loading', data: null, error: null });
+  const [state, setState] = useState(/** @type {Record<string, any>} */ ({ status: 'loading', data: null, error: null }));
   const [refreshing, setRefreshing] = useState(false);
   const [watchlist, setWatchlist] = useState(readWatchlist);
   const selected = params.get('mint');

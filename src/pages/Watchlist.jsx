@@ -52,6 +52,7 @@ async function inBatches(items, size, fn) {
   return out;
 }
 
+/** @param {{ value?: any, [key: string]: any }} props */
 function Change({ value }) {
   if (!isNum(value)) return <Unavailable reason="No 24h change available for this token" />;
   const up = value > 0;
@@ -65,6 +66,7 @@ function Change({ value }) {
   );
 }
 
+/** @param {{ id?: any, label?: any, placeholder?: any, buttonLabel?: any, onAdd?: any, [key: string]: any }} props */
 function AddForm({ id, label, placeholder, buttonLabel, onAdd }) {
   const [value, setValue] = useState('');
   const [error, setError] = useState(null);

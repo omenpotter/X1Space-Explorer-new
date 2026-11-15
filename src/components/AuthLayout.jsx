@@ -1,5 +1,6 @@
 
 /** Full-height centred layout for pages that render outside the application shell (sign-in, consent). */
+/** @param {{ icon?: any, title?: any, subtitle?: any, footer?: any, children?: any, [key: string]: any }} props */
 export default function AuthLayout({ icon: Icon, title, subtitle, footer, children }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-canvas px-4 py-10 text-ink">

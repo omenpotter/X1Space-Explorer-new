@@ -30,7 +30,7 @@ const GROUP_TITLES = {
   tokens: 'Tokens',
 };
 
-/** Which lookups a query can lead to. Same rules as classifyQuery in @/lib/x1/search. */
+/** Which lookups a query can lead to. Same rules as classifyQuery in the search helper (lib/x1/search). */
 function planLookups(q) {
   const groups = [];
   if (!q) return groups;
@@ -134,6 +134,7 @@ function when(blockTime) {
   return `${new Date(ms).toLocaleString()} (${timeAgo(ms)})`;
 }
 
+/** @param {{ to?: any, children?: any, label?: any, [key: string]: any }} props */
 function ResultLink({ to, children, label }) {
   return (
     <Link to={to} aria-label={label} className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none">
@@ -143,10 +144,12 @@ function ResultLink({ to, children, label }) {
   );
 }
 
+/** @param {{ children?: any, [key: string]: any }} props */
 function Miss({ children }) {
   return <p className="px-4 py-4 text-sm text-ink-muted">{children}</p>;
 }
 
+/** @param {{ items?: any, [key: string]: any }} props */
 function Facts({ items }) {
   return (
     <span className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted">
@@ -155,6 +158,7 @@ function Facts({ items }) {
   );
 }
 
+/** @param {{ data?: any, [key: string]: any }} props */
 function BlockResult({ data }) {
   if (!data.found) return <Miss>No block at slot {integer(data.slot)}. The slot may have been skipped, not produced yet, or pruned from the RPC node.</Miss>;
   return (
@@ -165,6 +169,7 @@ function BlockResult({ data }) {
   );
 }
 
+/** @param {{ data?: any, [key: string]: any }} props */
 function TransactionResult({ data }) {
   if (!data.found) return <Miss>No transaction with this signature was found. It may be too old for the RPC node, or not confirmed yet.</Miss>;
   return (
@@ -178,6 +183,7 @@ function TransactionResult({ data }) {
   );
 }
 
+/** @param {{ data?: any, [key: string]: any }} props */
 function AccountResult({ data }) {
   if (!data.found) {
     return (
@@ -217,6 +223,7 @@ function AccountResult({ data }) {
   );
 }
 
+/** @param {{ data?: any, query?: any, [key: string]: any }} props */
 function ValidatorsResult({ data, query }) {
   if (!data.found) {
     return <Miss>{data.byAddress ? 'This address is not the vote account or identity of a current validator.' : `No validator name contains "${query}".`}</Miss>;
@@ -253,6 +260,7 @@ function ValidatorsResult({ data, query }) {
   );
 }
 
+/** @param {{ data?: any, query?: any, [key: string]: any }} props */
 function TokensResult({ data, query }) {
   if (!data.found) return <Miss>No token name or symbol matches &quot;{query}&quot;.</Miss>;
   return (
@@ -291,6 +299,7 @@ function TokensResult({ data, query }) {
 
 const RENDERERS = { block: BlockResult, transaction: TransactionResult, account: AccountResult, validators: ValidatorsResult, tokens: TokensResult };
 
+/** @param {{ name?: any, state?: any, query?: any, onRetry?: any, [key: string]: any }} props */
 function ResultGroup({ name, state, query, onRetry }) {
   const Body = RENDERERS[name];
   return (

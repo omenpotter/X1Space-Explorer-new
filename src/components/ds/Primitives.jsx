@@ -3,6 +3,7 @@ import { Check, Copy, RefreshCw } from 'lucide-react';
 import { timeAgo } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
+/** @param {{ title?: any, description?: any, actions?: any, children?: any, className?: any, bodyClassName?: any, as?: any, [key: string]: any }} props */
 export function Panel({ title, description, actions, children, className, bodyClassName, as: Tag = 'section', ...rest }) {
   return (
     <Tag className={cn('panel', className)} {...rest}>
@@ -28,6 +29,7 @@ const TONES = {
   warning: 'text-warning',
 };
 
+/** @param {{ label?: any, value?: any, hint?: any, tone?: any, icon?: any, className?: any, [key: string]: any }} props */
 export function StatCard({ label, value, hint, tone = 'default', icon: Icon, className }) {
   return (
     <div className={cn('panel p-4', className)}>
@@ -51,6 +53,7 @@ const PILL = {
 };
 
 /** Status label. Always carries text (and optionally an icon) so meaning never depends on colour alone. */
+/** @param {{ tone?: any, icon?: any, children?: any, className?: any, title?: any, [key: string]: any }} props */
 export function Pill({ tone = 'neutral', icon: Icon, children, className, title }) {
   return (
     <span title={title} className={cn('inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium', PILL[tone] || PILL.neutral, className)}>
@@ -61,6 +64,7 @@ export function Pill({ tone = 'neutral', icon: Icon, children, className, title 
 }
 
 /** "Updated 12s ago" with the source, refreshed every few seconds. Shows a warning tone when data is stale. */
+/** @param {{ at?: any, source?: any, stale?: any, staleAfterMs?: any, onRefresh?: any, refreshing?: any, className?: any, [key: string]: any }} props */
 export function Freshness({ at, source, stale = false, staleAfterMs = 5 * 60 * 1000, onRefresh, refreshing = false, className }) {
   const [, tick] = useState(0);
   useEffect(() => {
@@ -85,6 +89,7 @@ export function Freshness({ at, source, stale = false, staleAfterMs = 5 * 60 * 1
   );
 }
 
+/** @param {{ value?: any, label?: any, className?: any, [key: string]: any }} props */
 export function CopyButton({ value, label = 'Copy', className }) {
   const [copied, setCopied] = useState(false);
   const copy = async (e) => {
@@ -106,6 +111,7 @@ export function CopyButton({ value, label = 'Copy', className }) {
 }
 
 /** Proportion bar with an accessible text value. */
+/** @param {{ value?: any, max?: any, tone?: any, label?: any, className?: any, [key: string]: any }} props */
 export function Meter({ value, max = 100, tone = 'brand', label, className }) {
   const pct = Number.isFinite(value) && max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
   const bar = { brand: 'bg-brand', positive: 'bg-positive', warning: 'bg-warning', negative: 'bg-negative' }[tone] || 'bg-brand';

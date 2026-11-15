@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
  * Standard page heading: optional back link, title, description, status slot and actions.
  * Every routed page renders exactly one of these (and so exactly one <h1>).
  */
+/** @param {{ title?: any, description?: any, icon?: any, back?: any, badge?: any, meta?: any, actions?: any, className?: any, [key: string]: any }} props */
 export default function PageHeader({ title, description, icon: Icon, back, badge, meta, actions, className }) {
   return (
     <header className={cn('mb-6', className)}>

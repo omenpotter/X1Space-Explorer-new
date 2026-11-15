@@ -38,6 +38,7 @@ function blockProduction(p) {
 }
 
 /** Rows of label / count / share bar. */
+/** @param {{ rows?: any, total?: any, unit?: any, formatCount?: any, [key: string]: any }} props */
 function Distribution({ rows, total, unit = 'validators', formatCount = integer }) {
   if (!rows.length || !(total > 0)) return <p className="p-4 text-sm text-ink-muted">No data.</p>;
   return (
@@ -87,9 +88,11 @@ export default function NetworkHealth() {
       for (const v of validators) m.set(keyOf(v), (m.get(keyOf(v)) || 0) + 1);
       return [...m.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
     };
+    /** @type {[string, (r: number) => boolean][]} */
     const buckets = [['99% or higher', (r) => r >= 99], ['95% to 99%', (r) => r >= 95 && r < 99], ['90% to 95%', (r) => r >= 90 && r < 95], ['Below 90%', (r) => r < 90]];
     const measured = validators.filter((v) => isNum(v.voteRate));
     const voteRows = buckets.map(([label, test]) => ({ label, value: measured.filter((v) => test(v.voteRate)).length }));
+    /** @type {[string, (c: number) => boolean][]} */
     const commissionBuckets = [['0%', (c) => c === 0], ['1% to 5%', (c) => c > 0 && c <= 5], ['6% to 10%', (c) => c > 5 && c <= 10], ['Above 10%', (c) => c > 10]];
     const withCommission = validators.filter((v) => isNum(v.commission) && isNum(v.activatedStake));
     const commissionRows = commissionBuckets.map(([label, test]) => ({ label, value: withCommission.filter((v) => test(v.commission)).reduce((sum, v) => sum + v.activatedStake, 0) }));

@@ -41,6 +41,7 @@ function pairLabel(p) {
   return a || b ? `${a || '?'}/${b || '?'}` : 'Unnamed pair';
 }
 
+/** @param {{ loading?: any, value?: any, format?: any, reason?: any, [key: string]: any }} props */
 function Stat({ loading, value, format, reason }) {
   if (loading) return <Skeleton className="h-7 w-24" />;
   return isNum(value) ? format(value) : <Unavailable reason={reason} />;

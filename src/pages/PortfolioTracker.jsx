@@ -85,6 +85,7 @@ async function fetchWallet(address) {
   };
 }
 
+/** @param {{ label?: any, sortKey?: any, sort?: any, onSort?: any, align?: any, className?: any, [key: string]: any }} props */
 function SortHeader({ label, sortKey, sort, onSort, align = 'left', className }) {
   const active = sort.key === sortKey;
   return (
@@ -97,6 +98,7 @@ function SortHeader({ label, sortKey, sort, onSort, align = 'left', className })
   );
 }
 
+/** @param {{ wallet?: any, entry?: any, holdings?: any, hide?: any, sort?: any, onSort?: any, query?: any, onRemove?: any, onRetry?: any, [key: string]: any }} props */
 function WalletPanel({ wallet, entry, holdings, hide, sort, onSort, query, onRemove, onRetry }) {
   const hidden = '••••';
   const rows = useMemo(() => {

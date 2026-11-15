@@ -28,6 +28,7 @@ function formatDuration(seconds) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+/** @param {{ stats?: any, [key: string]: any }} props */
 function EpochCard({ stats }) {
   const progress = isNum(stats.epochProgress) ? stats.epochProgress * 100 : null;
   const remainingSlots = isNum(stats.slotsInEpoch) && isNum(stats.slotIndex) ? stats.slotsInEpoch - stats.slotIndex : null;
@@ -48,6 +49,7 @@ function EpochCard({ stats }) {
   );
 }
 
+/** @param {{ price?: any, [key: string]: any }} props */
 function PriceCard({ price }) {
   const { status, data, loadedAt } = price;
   const priceUsd = data?.data?.priceUsd;

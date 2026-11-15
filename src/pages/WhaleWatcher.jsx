@@ -111,6 +111,7 @@ async function readBlock(slot) {
   }
 }
 
+/** @param {{ label?: any, field?: any, sort?: any, onSort?: any, className?: any, [key: string]: any }} props */
 function SortButton({ label, field, sort, onSort, className }) {
   const active = sort.field === field;
   return (
@@ -123,6 +124,7 @@ function SortButton({ label, field, sort, onSort, className }) {
   );
 }
 
+/** @param {{ address?: any, [key: string]: any }} props */
 function Party({ address }) {
   return (
     <span className="flex items-center gap-1">

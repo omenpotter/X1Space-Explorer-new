@@ -15,6 +15,7 @@ import { createPageUrl } from '@/utils';
 const outlineBtn = 'border-line-strong bg-transparent text-ink-soft hover:bg-surface-3 hover:text-ink';
 const back = { label: 'Validators', to: createPageUrl('Validators') };
 
+/** @param {{ label?: any, value?: any, hint?: any, [key: string]: any }} props */
 function AddressRow({ label, value, hint }) {
   return (
     <div className="min-w-0">
