@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Activity, ArrowDown, ArrowUp, Bell, Clock, Coins, Layers, LayoutGrid, Plus, Save, Search, Settings, TrendingUp, Trash2, Users, X, Zap,
@@ -476,7 +476,6 @@ export default function CustomDashboard() {
   // Data for newly added widgets loads right away instead of at the next tick.
   useEffect(() => {
     if (status.state === 'ready') fetchData(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [needsKey]);
 
   const loadLayout = (key) => {

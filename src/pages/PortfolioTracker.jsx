@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Eye, EyeOff, Plus, Search, Trash2, Wallet } from 'lucide-react';
 import PageHeader from '@/components/shell/PageHeader';
 import { TokenAvatar } from '@/components/ds/Avatar';
