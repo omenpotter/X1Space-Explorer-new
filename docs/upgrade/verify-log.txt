@@ -34,3 +34,138 @@ date: 2026-11-15T08:25:48Z
 
  RUN  v5.1.0 /home/user/X1Space-Explorer-new
 
+
+ Test Files  3 passed (3)
+      Tests  80 passed (80)
+   Start at  08:26:04
+   Duration  6.24s (tests 98%, import 1%, transform 1%)
+
+[unit + contract tests] exit 0
+=== npm audit (all) ===
+
+minimatch  7.0.0 - 11.0.0
+Severity: moderate
+minimatch has potential denial of service via globparts amplification - https://github.com/advisories/GHSA-g3hv-75wg-m249
+fix available via `npm audit fix`
+node_modules/glob/node_modules/minimatch
+
+react-router  6.0.0 - 7.17.0
+Severity: moderate
+React Router: Open redirect via backslash in <Link> and useNavigate (CVE-2025-68470 bypass) - https://github.com/advisories/GHSA-wrjc-x8rr-h8h6
+React Router: Arbitrary Constructor Injection via deserializeErrors() in React Router SSR Hydration - https://github.com/advisories/GHSA-337j-9hxr-rhxg
+fix available via `npm audit fix --force`
+Will install react-router-dom@7.18.5, which is a breaking change
+node_modules/react-router
+  react-router-dom  6.0.0-alpha.0 - 7.17.0
+  Depends on vulnerable versions of react-router
+  node_modules/react-router-dom
+
+5 moderate severity vulnerabilities
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+=== npm audit (production) ===
+
+minimatch  7.0.0 - 11.0.0
+Severity: moderate
+minimatch has potential denial of service via globparts amplification - https://github.com/advisories/GHSA-g3hv-75wg-m249
+fix available via `npm audit fix`
+node_modules/glob/node_modules/minimatch
+
+react-router  6.0.0 - 7.17.0
+Severity: moderate
+React Router: Open redirect via backslash in <Link> and useNavigate (CVE-2025-68470 bypass) - https://github.com/advisories/GHSA-wrjc-x8rr-h8h6
+React Router: Arbitrary Constructor Injection via deserializeErrors() in React Router SSR Hydration - https://github.com/advisories/GHSA-337j-9hxr-rhxg
+fix available via `npm audit fix --force`
+Will install react-router-dom@7.18.5, which is a breaking change
+node_modules/react-router
+  react-router-dom  6.0.0-alpha.0 - 7.17.0
+  Depends on vulnerable versions of react-router
+  node_modules/react-router-dom
+
+5 moderate severity vulnerabilities
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+=== live smoke ===
+(node:12106) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:12118) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ RUN  v5.1.0 /home/user/X1Space-Explorer-new
+
+(node:12140) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  08:26:22
+   Duration  11.49s (tests 99%)
+
+[live smoke] exit 0
+=== live accuracy ===
+(node:12160) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:12172) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ RUN  v5.1.0 /home/user/X1Space-Explorer-new
+
+(node:12194) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+index spl 23807 rpc spl 23807 | index token-2022 2112 rpc token-2022 2112
+ ✓ tests/live/accuracy.test.ts > token index accuracy > mint counts equal independent getProgramAccounts counts, per program 2314ms
+verified decimals+supply against getAccountInfo for 15 tokens
+ ✓ tests/live/accuracy.test.ts > token index accuracy > decimals, supply and authorities match getAccountInfo for a sample across both programs 808ms
+unlisted tokens in sample 186 with on-chain names 185 | e.g. bunt.fun/BUNT (token-2022); BURNIE X1/BURNIE (token-2022); ButtHole/BTH (token-2022)
+ ✓ tests/live/accuracy.test.ts > token index accuracy > non-pool tokens are listed with real on-chain names and no invented market values 68ms
+WXNT index 0.158044663655889 xdex oracle 0.157975751242233 diff 0.04%
+USDC.X index 0.9997047328499999 xdex oracle 0.9997047328499999 diff 0.00%
+Test index 0.000012687068686 xdex oracle 0.000012687068686 diff 0.00%
+ANL index 0.000082266917246 xdex oracle 0.000082315047632 diff 0.06%
+tvl served 98225.22991101978 xdex summary 97821.0801819229 pools 1466 1466
+ ✓ tests/live/accuracy.test.ts > token index accuracy > listed prices agree with XDEX price endpoint and pool TVL totals agree with the XDEX summary 7733ms
+index age ms 9193 {"chain":{"status":"ok","fetchedAt":"2026-11-15T08:26:36.762Z","count":25919},"xdex":{"status":"ok","fetchedAt":"2026-11-15T08:26:35.393Z","count":126},"x1ninja":{"status":"not_configured","fetchedAt":null}}
+ ✓ tests/live/accuracy.test.ts > token index accuracy > freshness: timestamps are current and source states are reported 5ms
+positions matching the provider: 38 / 38
+ ✓ tests/live/accuracy.test.ts > network map data provenance > every located validator position equals an independent geojs lookup of that node, rounded to 0.1 degree 1391ms
+validators 388 located 344 unlocated 44 {"not in gossip (no address to look up)":44,"in gossip, address unresolved":0} of which delinquent 44
+ ✓ tests/live/accuracy.test.ts > network map data provenance > explains every validator without a position: no gossip node, or an unresolved address 128ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  08:26:34
+   Duration  12.76s (tests 99%)
+
+[live accuracy] exit 0
+=== browser suite ===
+(node:12220) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS  [desktop] Dashboard renders
+PASS  [desktop] NetworkHealth renders
+PASS  [desktop] NetworkMap renders
+PASS  [desktop] Blocks renders
+PASS  [desktop] Transactions renders
+PASS  [desktop] TransactionFlowPage renders
+PASS  [desktop] AddressLookup renders
+PASS  [desktop] Validators renders
+PASS  [desktop] Leaderboard renders
+PASS  [desktop] ValidatorCompare renders
+PASS  [desktop] ValidatorAlerts renders
+PASS  [desktop] StakingCalculator renders
+PASS  [desktop] TokenExplorer renders
+PASS  [desktop] LPExplorer renders
+PASS  [desktop] WhaleWatcher renders
+PASS  [desktop] PortfolioTracker renders
+PASS  [desktop] Watchlist renders
+PASS  [desktop] CustomDashboard renders
+PASS  [desktop] ApiDocs renders
+PASS  [desktop] Search renders
+PASS  [tablet] Dashboard renders
