@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-11-15T10:59:31.240Z",
+  "ranAt": "2026-11-16T09:31:45.409Z",
   "pages": [
     "Dashboard",
     "TokenExplorer",
@@ -12,12 +12,12 @@
     "ApiDocs"
   ],
   "requestsByHost": {
-    "127.0.0.1": 354,
-    "rpc.mainnet.x1.xyz": 116,
+    "127.0.0.1": 359,
+    "rpc.mainnet.x1.xyz": 119,
     "app.xdex.xyz": 2,
-    "raw.githubusercontent.com": 15
+    "raw.githubusercontent.com": 12
   },
-  "total": 487,
+  "total": 492,
   "functionRequestsByPage": {
     "Dashboard": 1,
     "TokenExplorer": 1,

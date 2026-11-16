@@ -1,0 +1,87 @@
+{
+  "ranAt": "2026-11-16T09:35:22.541Z",
+  "passed": 16,
+  "failed": 0,
+  "results": [
+    {
+      "name": "1m tab: Now, 1m ago ... 9m ago",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "1m tab is selected by default and exposes tab semantics",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "1m totals and slots equal the RPC samples the page received (exact)",
+      "pass": true,
+      "detail": "10/10 cards equal the node's samples (newest: 55303 tx, 163 slots)"
+    },
+    {
+      "name": "every card: categories add up to the total and the vote count is shown",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "dot matrices have at most 80 dots, never zero for a window with transactions",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "matrices are deterministic across re-renders (no random dot order)",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "10m tab: 10m ago, 20m ago, 30m ago, 40m ago, 50m ago",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "10m totals and slots equal the sum of ten RPC samples each",
+      "pass": true,
+      "detail": "5/5 windows equal the sums of their ten samples"
+    },
+    {
+      "name": "real-time: the section refreshes on its own (updated caption and LIVE badge)",
+      "pass": true,
+      "detail": "1 new sample request(s) in 18s; caption before: \"Totals and slot counts are exact RPC performance samples (up…\" after: \"Totals and slot counts are exact RPC performance samples (up…\""
+    },
+    {
+      "name": "live XNT price is shown",
+      "pass": true,
+      "detail": "XNT $0.1838"
+    },
+    {
+      "name": "legend lists the four original categories",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "Latest block activity section and other dashboard sections are still present",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "no page errors or console errors",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "no serious/critical axe violations on the dashboard",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] no horizontal page overflow, section visible, row scrolls inside itself",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] no horizontal page overflow, section visible, row scrolls inside itself",
+      "pass": true,
+      "detail": ""
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import PageHeader from '@/components/shell/PageHeader';
 import { Freshness, Meter, Panel, StatCard } from '@/components/ds/Primitives';
 import { EmptyState, ErrorState, Skeleton, StatSkeleton, Unavailable } from '@/components/ds/States';
 import NetworkAnomalyAlert from '@/components/ai/NetworkAnomalyAlert';
+import X1View from '@/components/dashboard/X1View';
 import QuickLinks from '@/components/dashboard/QuickLinks';
 import RecentBlocksTable from '@/components/dashboard/RecentBlocksTable';
 import usePolling from '@/components/dashboard/usePolling';
@@ -116,6 +117,8 @@ export default function Dashboard() {
       />
 
       <NetworkAnomalyAlert />
+
+      <X1View />
 
       <section aria-label="Network statistics" className="mb-6">
         {stats.status === 'loading' && <StatSkeleton count={8} />}

@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-11-15T10:55:48.671Z",
+  "ranAt": "2026-11-16T09:42:22.080Z",
   "passed": 95,
   "failed": 0,
   "results": [
@@ -306,7 +306,7 @@
     {
       "name": "tokens: table lists 50 rows from the live index",
       "pass": true,
-      "detail": "25920 mints indexed"
+      "detail": "25951 mints indexed"
     },
     {
       "name": "tokens: source status and freshness are shown",
@@ -331,7 +331,7 @@
     {
       "name": "tokens: kind and program filters change the result set",
       "pass": true,
-      "detail": "1–50 of 22,013 -> 1–50 of 845"
+      "detail": "1–50 of 22,039 -> 1–50 of 845"
     },
     {
       "name": "tokens: no page errors",
@@ -351,12 +351,12 @@
     {
       "name": "map: world outline and validator markers render",
       "pass": true,
-      "detail": "39 location markers"
+      "detail": "38 location markers"
     },
     {
       "name": "map: located + unlocated accounts for every validator",
       "pass": true,
-      "detail": "344 located, 44 not located, 388 total"
+      "detail": "341 located, 45 not located, 386 total"
     },
     {
       "name": "map: no raw node addresses anywhere in the page",
@@ -476,7 +476,7 @@
     {
       "name": "performance: first paint and transfer size of the landing page",
       "pass": true,
-      "detail": "FCP 296 ms, 593 KB of JS over 21 asset requests (uncompressed preview server)"
+      "detail": "FCP 224 ms, 596 KB of JS over 21 asset requests (uncompressed preview server)"
     }
   ]
 }

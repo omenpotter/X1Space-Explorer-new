@@ -26,6 +26,7 @@ run "live smoke"        env NODE_USE_ENV_PROXY=1 LIVE=1 npx vitest run tests/liv
 run "live accuracy"     env NODE_USE_ENV_PROXY=1 LIVE=1 npx vitest run tests/live/accuracy.test.ts --disable-console-intercept --reporter=verbose
 run "browser suite"     env NODE_USE_ENV_PROXY=1 node tests/e2e/run.mjs
 run "detail routes"     env NODE_USE_ENV_PROXY=1 node tests/e2e/detail.mjs
+run "X1 View"           env NODE_USE_ENV_PROXY=1 node tests/e2e/x1view.mjs
 run "network/credential audit" env NODE_USE_ENV_PROXY=1 node tests/e2e/network.mjs
 step "bundle credential scan"
 { grep -rlE "fbx_[0-9a-f]{20,}|api-key=[A-Za-z0-9]{16,}|X1_NINJA_API_KEY|x1_[A-Za-z0-9]{20,}" dist || echo "no credential patterns in dist"; find dist -name '*.map' | wc -l | sed 's/^/source maps in dist: /'; } >> "$LOG" 2>&1
