@@ -18,7 +18,15 @@ const ALL_KEYS = [...CATEGORIES, { key: 'nonvote', label: 'Non-vote', hint: 'Non
 
 const WindowCard = memo(/** @param {{ win: any, view: string, first: boolean, [key: string]: any }} props */ function WindowCard({ win, view, first }) {
   const dots = useMemo(() => matrixDots(win.counts), [win.counts]);
-  const parts = ALL_KEYS.filter((c) => win.counts[c.key] !== undefined && (win.counts[c.key] > 0 || c.key === 'vote'));
+  // Fixed slots so every card has the same layout in both modes: vote, transfer, token/program, other.
+  const c = win.counts;
+  const cells = [
+    c.vote !== undefined ? 'vote' : null,
+    c.transfer > 0 ? 'transfer' : c.nonvote > 0 ? 'nonvote' : null,
+    c.program > 0 ? 'program' : null,
+    c.other > 0 ? 'other' : null,
+  ];
+  const parts = ALL_KEYS.filter((k) => cells.includes(k.key));
   const summary = `${win.label}: ${integer(win.total)} transactions in ${integer(win.slots)} slots. ${parts.map((c) => `${integer(win.counts[c.key])} ${c.label.toLowerCase()}`).join(', ')}${win.estimated ? '. Non-vote split estimated from the latest blocks.' : ''}`;
   return (
     <li className="x1v__card" data-now={first && view === '1m' ? 'true' : 'false'} aria-label={summary} title={summary}>
@@ -33,7 +41,7 @@ const WindowCard = memo(/** @param {{ win: any, view: string, first: boolean, [k
         <p className="x1v__total">{integer(win.total)}</p>
         <p className="text-[11px] text-ink-muted">transactions</p>
         <div className="x1v__counts" aria-hidden="true">
-          {parts.map((c) => <span key={c.key} data-k={c.key} title={c.label}>{integer(win.counts[c.key])}</span>)}
+          {cells.map((k, i) => (k ? <span key={k} data-k={k} title={ALL_KEYS.find((x) => x.key === k).label}>{integer(c[k])}</span> : <span key={`e${i}`} />))}
         </div>
       </div>
     </li>

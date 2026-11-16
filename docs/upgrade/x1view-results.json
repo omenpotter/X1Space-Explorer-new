@@ -1,6 +1,6 @@
 {
-  "ranAt": "2026-11-16T12:38:22.140Z",
-  "passed": 17,
+  "ranAt": "2026-11-16T13:08:05.035Z",
+  "passed": 26,
   "failed": 0,
   "results": [
     {
@@ -16,7 +16,7 @@
     {
       "name": "1m totals and slots equal the RPC samples the page received (exact)",
       "pass": true,
-      "detail": "10/10 cards equal the node's samples (newest: 56021 tx, 165 slots)"
+      "detail": "10/10 cards equal the node's samples (newest: 55691 tx, 164 slots)"
     },
     {
       "name": "every card: categories add up to the total and the vote count is shown",
@@ -51,7 +51,7 @@
     {
       "name": "live XNT price is shown",
       "pass": true,
-      "detail": "XNT $0.1872"
+      "detail": "XNT $0.1863"
     },
     {
       "name": "keyboard: arrow keys move between the 1m and 10m tabs and focus follows",
@@ -75,6 +75,51 @@
     },
     {
       "name": "no serious/critical axe violations on the dashboard",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] 1m and 10m cards are identical in size, dot grid, typography, borders, padding and count positions",
+      "pass": true,
+      "detail": "95.00x226.19px, dot 4.09px"
+    },
+    {
+      "name": "[desktop] the five 10m cards are left-aligned and not stretched",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] cards keep identical size from 1m to 10m and back",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] 1m and 10m cards are identical in size, dot grid, typography, borders, padding and count positions",
+      "pass": true,
+      "detail": "120.00x221.19px, dot 6.59px"
+    },
+    {
+      "name": "[tablet] the five 10m cards are left-aligned and not stretched",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] cards keep identical size from 1m to 10m and back",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] 1m and 10m cards are identical in size, dot grid, typography, borders, padding and count positions",
+      "pass": true,
+      "detail": "133.00x231.19px, dot 7.89px"
+    },
+    {
+      "name": "[mobile] the five 10m cards are left-aligned and not stretched",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] cards keep identical size from 1m to 10m and back",
       "pass": true,
       "detail": ""
     },

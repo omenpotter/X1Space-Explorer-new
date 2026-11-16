@@ -51,3 +51,7 @@ New section `src/components/dashboard/X1View.jsx` (logic in `src/lib/x1/x1view.j
 ## Update: final comprehensive audit
 
 See `FINAL_COMPREHENSIVE_AUDIT.md`. Verdict **CONDITIONAL**: all code-level checks pass; Base44 runtime and Vercel preview verification are BLOCKED; owner actions (credential revocation, react-router decision, Base44/Vercel configuration) are listed there.
+
+## Update: X1 View final refinement
+
+Owner-approved compact sizing. One shared card with fixed sizes per breakpoint for both modes: desktop 95 x 226 px (was 104 x 251, -8.7% / -10%), tablet 120 x 221 (was 132 x 242), mobile 133 x 231 (was 146 x 253); dots about 9% smaller with proportional spacing. The 10m cards are left-aligned at the same size. `tests/e2e/x1view.mjs` compares size, dot grid, typography, borders, padding and count positions between the modes at three viewports. Data, estimate disclosure, refresh, accessibility and scrolling unchanged.

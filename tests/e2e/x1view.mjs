@@ -40,6 +40,31 @@ const cards = (page) => page.locator('section[aria-labelledby="x1view-title"] ul
 const labels = (page) => page.locator('section[aria-labelledby="x1view-title"] .x1v__label').allInnerTexts();
 const num = (t) => Number(t.replace(/[^0-9]/g, ''));
 
+
+/** Geometry and typography of every card in the current mode, relative to the card, for exact comparison. */
+const geometry = (page) => page.evaluate(() => {
+  const row = document.querySelector('.x1v__row');
+  const rr = row.getBoundingClientRect();
+  const cs = (el, props) => { const s = getComputedStyle(el); return props.map((p) => s[p]).join('|'); };
+  return {
+    rowLeft: rr.left,
+    rowRight: rr.right,
+    cards: [...document.querySelectorAll('.x1v__card')].map((c) => {
+      const r = c.getBoundingClientRect();
+      const rel = (sel) => { const e = c.querySelector(sel); const b = e.getBoundingClientRect(); return [b.left - r.left, b.top - r.top, b.width, b.height].map((n) => +n.toFixed(2)).join(','); };
+      const dot = c.querySelector('.x1v__dot');
+      return {
+        left: r.left, right: r.right,
+        size: `${r.width.toFixed(2)}x${r.height.toFixed(2)}`,
+        dot: `${dot.getBoundingClientRect().width.toFixed(2)}`,
+        matrix: rel('.x1v__matrix'), head: rel('.x1v__head'), total: rel('.x1v__total'), foot: rel('.x1v__foot'), counts: rel('.x1v__counts'),
+        type: cs(c.querySelector('.x1v__total'), ['fontSize', 'fontWeight', 'fontFamily']) + '#' + cs(c.querySelector('.x1v__label'), ['fontSize', 'fontWeight']) + '#' + cs(c.querySelector('.x1v__slots'), ['fontSize']) + '#' + cs(c.querySelector('.x1v__counts span'), ['fontSize']),
+        box: cs(c, ['borderTopWidth', 'borderRadius']) + '#' + cs(c.querySelector('.x1v__head'), ['paddingLeft', 'paddingRight']) + '#' + cs(c.querySelector('.x1v__foot'), ['paddingLeft', 'paddingTop']) + '#' + cs(c.querySelector('.x1v__matrix'), ['columnGap', 'rowGap']),
+      };
+    }),
+  };
+});
+
 const { ctx, page, errors } = await open({ width: 1280, height: 900 });
 let lastSamples = null;
 let sampleResponses = 0;
@@ -168,6 +193,43 @@ await check('no serious/critical axe violations on the dashboard', async () => {
 await page.getByRole('tab', { name: '1m' }).click();
 await page.screenshot({ path: `${OUT}/dashboard-desktop-full.png`, fullPage: true });
 await ctx.close();
+
+for (const [name, vp] of [['desktop', { width: 1440, height: 900 }], ['tablet', { width: 820, height: 1100 }], ['mobile', { width: 390, height: 844 }]]) {
+  const o = await open(vp);
+  await o.page.goto(APP + '/Dashboard');
+  await o.page.waitForSelector('.x1v__card', { timeout: 30000 });
+  await o.page.waitForTimeout(2000);
+  const g1 = await geometry(o.page);
+  await o.page.getByRole('tab', { name: '10m' }).click();
+  await o.page.waitForTimeout(500);
+  const g10 = await geometry(o.page);
+  await o.page.locator('.x1v').screenshot({ path: `${OUT}/x1view-10m-${name}.png` });
+  await o.page.getByRole('tab', { name: '1m' }).click();
+  await o.page.waitForTimeout(400);
+  await o.page.locator('.x1v').screenshot({ path: `${OUT}/x1view-1m-${name}.png` });
+  await check(`[${name}] 1m and 10m cards are identical in size, dot grid, typography, borders, padding and count positions`, async () => {
+    expect(g1.cards.length === 10 && g10.cards.length === 5, `card counts ${g1.cards.length}/${g10.cards.length}`);
+    const keys = ['size', 'dot', 'matrix', 'head', 'total', 'foot', 'counts', 'type', 'box'];
+    for (const k of keys) {
+      const all = new Set([...g1.cards, ...g10.cards].map((c) => c[k]));
+      expect(all.size === 1, `${k} differs: ${[...all].join(' vs ')}`);
+    }
+    return `${g1.cards[0].size}px, dot ${g1.cards[0].dot}px`;
+  });
+  await check(`[${name}] the five 10m cards are left-aligned and not stretched`, async () => {
+    expect(Math.abs(g10.cards[0].left - g1.cards[0].left) < 1, `first card starts at ${g10.cards[0].left} vs ${g1.cards[0].left}`);
+    const gaps = g10.cards.slice(1).map((c, i) => +(c.left - g10.cards[i].right).toFixed(1));
+    expect(new Set(gaps).size === 1, `uneven gaps ${gaps}`);
+    const used = g10.cards[4].right - g10.rowLeft;
+    expect(used < g10.rowRight - g10.rowLeft || name !== 'desktop', 'cards fill the row');
+    if (name === 'desktop') expect(g10.rowRight - g10.cards[4].right > 100, `right edge gap only ${g10.rowRight - g10.cards[4].right}px: stretched`);
+  });
+  await check(`[${name}] cards keep identical size from 1m to 10m and back`, async () => {
+    const back = await geometry(o.page);
+    expect(back.cards[0].size === g1.cards[0].size && back.cards.length === 10, 'size changed after switching back');
+  });
+  await o.ctx.close();
+}
 
 for (const [name, vp] of [['tablet', { width: 820, height: 1100 }], ['mobile', { width: 390, height: 844 }]]) {
   const o = await open(vp);
