@@ -1,38 +1,49 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { 
-  Globe, Calculator, Wallet, Star, Trophy, Coins, Map, Bell, Scale, PieChart, Fish, ArrowLeftRight, LayoutGrid, Droplet 
+import {
+  Activity, ArrowLeftRight, Bell, Boxes, Calculator, Coins, Droplet, Fish, LayoutGrid, Map, PieChart, Scale, Server, Star, Trophy, Wallet,
 } from 'lucide-react';
 
 const links = [
-  { page: 'CustomDashboard', icon: LayoutGrid, color: 'text-pink-400', title: 'Custom Dashboard', desc: 'Build your view' },
-  { page: 'NetworkHealth', icon: Globe, color: 'text-cyan-400', title: 'Network Health', desc: 'Monitor network status' },
-  { page: 'TransactionFlowPage', icon: ArrowLeftRight, color: 'text-blue-400', title: 'Transaction Flow', desc: 'Visualize address flows' },
-  { page: 'PortfolioTracker', icon: PieChart, color: 'text-pink-400', title: 'Portfolio', desc: 'Track your holdings' },
-  { page: 'WhaleWatcher', icon: Fish, color: 'text-blue-500', title: 'Whale Watcher', desc: 'Large transactions' },
-  { page: 'ValidatorCompare', icon: Scale, color: 'text-indigo-400', title: 'Compare', desc: 'Compare validators' },
-  { page: 'TokenExplorer', icon: Coins, color: 'text-yellow-400', title: 'Tokens', desc: 'Token Explorer' },
-  { page: 'LPExplorer', icon: Droplet, color: 'text-blue-400', title: 'Liquidity Pools', desc: 'XDEX pool tracking' },  
-  { page: 'NetworkMap', icon: Map, color: 'text-emerald-400', title: 'Network Map', desc: 'Global node distribution' },
-  { page: 'StakingCalculator', icon: Calculator, color: 'text-cyan-400', title: 'Staking Calculator', desc: 'Estimate rewards' },
-  { page: 'ValidatorAlerts', icon: Bell, color: 'text-yellow-400', title: 'Alerts', desc: 'Validator notifications' },
-  { page: 'Watchlist', icon: Star, color: 'text-orange-400', title: 'Watchlist', desc: 'Track validators' },
-  { page: 'Leaderboard', icon: Trophy, color: 'text-amber-400', title: 'Leaderboard', desc: 'Top validators' },
-  { page: 'AddressLookup', icon: Wallet, color: 'text-blue-400', title: 'Address Lookup', desc: 'Search accounts' },
+  { page: 'Blocks', icon: Boxes, title: 'Blocks', desc: 'Latest confirmed blocks' },
+  { page: 'Validators', icon: Server, title: 'Validators', desc: 'Stake, commission, vote rate' },
+  { page: 'NetworkHealth', icon: Activity, title: 'Network Health', desc: 'Live checks and throughput' },
+  { page: 'NetworkMap', icon: Map, title: 'Network Map', desc: 'Where validators run' },
+  { page: 'TokenExplorer', icon: Coins, title: 'Tokens', desc: 'Token explorer' },
+  { page: 'LPExplorer', icon: Droplet, title: 'Liquidity Pools', desc: 'XDEX pools' },
+  { page: 'AddressLookup', icon: Wallet, title: 'Address Lookup', desc: 'Accounts and balances' },
+  { page: 'TransactionFlowPage', icon: ArrowLeftRight, title: 'Transaction Flow', desc: 'Follow funds between addresses' },
+  { page: 'WhaleWatcher', icon: Fish, title: 'Whale Watcher', desc: 'Large transfers' },
+  { page: 'Leaderboard', icon: Trophy, title: 'Leaderboard', desc: 'Validator rankings' },
+  { page: 'ValidatorCompare', icon: Scale, title: 'Compare', desc: 'Validators side by side' },
+  { page: 'StakingCalculator', icon: Calculator, title: 'Staking Calculator', desc: 'Reward estimates' },
+  { page: 'PortfolioTracker', icon: PieChart, title: 'Portfolio', desc: 'Track holdings' },
+  { page: 'Watchlist', icon: Star, title: 'Watchlist', desc: 'Saved validators' },
+  { page: 'ValidatorAlerts', icon: Bell, title: 'Alerts', desc: 'Validator notifications' },
+  { page: 'CustomDashboard', icon: LayoutGrid, title: 'Custom Dashboard', desc: 'Build your own view' },
 ];
 
-const QuickLinks = memo(function QuickLinks() {
+const QuickLinks = memo(/** @param {{ className?: any, [key: string]: any }} props */ function QuickLinks({ className }) {
   return (
-    <div className="mt-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-      {links.map(({ page, icon: Icon, color, title, desc }) => (
-        <Link key={page} to={createPageUrl(page)} className="bg-[#24384a] rounded-xl p-4 hover:bg-[#2a4258] transition-colors">
-          <Icon className={`w-6 h-6 ${color} mb-2`} />
-          <p className="text-white font-medium">{title}</p>
-          <p className="text-gray-500 text-xs">{desc}</p>
-        </Link>
-      ))}
-    </div>
+    <nav aria-labelledby="quick-links-heading" className={className}>
+      <h2 id="quick-links-heading" className="mb-3 text-sm font-medium text-ink">Explore</h2>
+      <ul className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+        {links.map(({ page, icon: Icon, title, desc }) => (
+          <li key={page}>
+            <Link to={createPageUrl(page)} className="panel group flex h-full items-start gap-3 p-4 transition-colors hover:border-line-strong hover:bg-surface-2">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line bg-surface-2 text-ink-muted transition-colors group-hover:border-brand/30 group-hover:text-brand">
+                <Icon className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-ink">{title}</span>
+                <span className="block text-xs text-ink-muted">{desc}</span>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
   );
 });
 

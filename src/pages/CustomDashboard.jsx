@@ -1,620 +1,631 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { 
-  ChevronLeft, Plus, X, Save, LayoutGrid, Settings, 
-  Loader2, RefreshCw, GripVertical, Trash2, Eye, EyeOff,
-  Zap, Activity, Users, Coins, Clock, TrendingUp, Bell, Search
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  Activity, ArrowDown, ArrowUp, Bell, Clock, Coins, Layers, LayoutGrid, Plus, Save, Search, Settings, TrendingUp, Trash2, Users, X, Zap,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Area, AreaChart, Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import PageHeader from '@/components/shell/PageHeader';
+import { Freshness, Meter, Panel, Pill } from '@/components/ds/Primitives';
+import { EmptyState, ErrorState, Skeleton, Unavailable } from '@/components/ds/States';
+import X1Rpc from '@/components/x1/X1RpcService';
+import { rpcCall } from '@/lib/x1/rpcClient';
+import { api } from '@/lib/x1/api';
+import { X1_CONFIG } from '@/lib/x1/config';
+import { compact, integer, percent, usd } from '@/lib/format';
 import { createPageUrl } from '@/utils';
-import { LineChart, Line, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, BarChart, Bar } from 'recharts';
-import X1Rpc from '../components/x1/X1RpcService';
+import { cn } from '@/lib/utils';
 
-// Available widgets
+const LAYOUTS_KEY = 'x1_dashboard_layouts';
+const CURRENT_KEY = 'x1_dashboard_current';
+const ALERTS_KEY = 'x1_alerts';
+const BASE58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const MAX_LAYOUTS = 20;
+const MAX_WIDGETS = 16;
+const HISTORY_REFRESH_MS = 60000;
+
+const isNum = (n) => typeof n === 'number' && Number.isFinite(n);
+const inputClass = 'h-9 w-full rounded-lg border border-line bg-surface-2 px-3 text-sm text-ink placeholder:text-ink-faint focus:border-brand/50 focus:outline-none focus:ring-2 focus:ring-brand/25';
+const buttonClass = 'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line-strong px-3 text-sm text-ink-soft transition-colors hover:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-50';
+const primaryButton = 'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-brand px-3 text-sm font-medium text-brand-ink transition-colors hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-50';
+const iconButton = 'rounded p-1.5 text-ink-faint transition-colors hover:bg-surface-3 hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent';
+const tooltipStyle = { backgroundColor: 'hsl(var(--surface-2))', border: '1px solid hsl(var(--line))', borderRadius: 8, color: 'hsl(var(--ink))', fontSize: 12 };
+
+// Every widget shows live data. `needs` says which data source it reads.
 const WIDGET_TYPES = {
-  network_stats: { name: 'Network Stats', icon: Zap, size: 'medium' },
-  tps_chart: { name: 'TPS Chart', icon: Activity, size: 'large' },
-  validators: { name: 'Validator Summary', icon: Users, size: 'medium' },
-  supply: { name: 'Supply Info', icon: Coins, size: 'small' },
-  epoch: { name: 'Epoch Progress', icon: Clock, size: 'medium' },
-  recent_blocks: { name: 'Recent Blocks', icon: LayoutGrid, size: 'large' },
-  performance: { name: 'Performance History', icon: TrendingUp, size: 'large' },
-  block_time: { name: 'Block Time', icon: Clock, size: 'small' },
-  tx_types: { name: 'Transaction Types', icon: Activity, size: 'medium' },
-  network_health: { name: 'Network Health', icon: Activity, size: 'medium' },
-  price_widget: { name: 'XNT Price', icon: TrendingUp, size: 'small' },
-  stake_pool: { name: 'Stake Pool Stats', icon: Users, size: 'medium' },
-  whale_watcher: { name: 'Whale Activity', icon: TrendingUp, size: 'large' },
-  validator_alerts: { name: 'Validator Alerts', icon: Bell, size: 'medium' },
-  address_lookup: { name: 'Address Lookup', icon: Search, size: 'medium' },
-  tx_flow: { name: 'Transaction Flow', icon: Activity, size: 'large' },
+  network_stats: { name: 'Network Stats', icon: Zap, size: 'medium', needs: 'stats' },
+  epoch: { name: 'Epoch Progress', icon: Clock, size: 'medium', needs: 'stats' },
+  validators: { name: 'Validator Summary', icon: Users, size: 'medium', needs: 'stats' },
+  supply: { name: 'Supply', icon: Coins, size: 'small', needs: 'stats' },
+  staking: { name: 'Staked Share of Supply', icon: Layers, size: 'small', needs: 'stats' },
+  block_time: { name: 'Slot Time', icon: Clock, size: 'small', needs: 'stats' },
+  tps_chart: { name: 'TPS History', icon: Activity, size: 'large', needs: 'history' },
+  performance: { name: 'User TPS (non-vote)', icon: TrendingUp, size: 'large', needs: 'history' },
+  recent_blocks: { name: 'Recent Blocks', icon: LayoutGrid, size: 'large', needs: 'blocks' },
+  tx_types: { name: 'Transaction Types', icon: Activity, size: 'medium', needs: 'blocks' },
+  network_health: { name: 'RPC Health', icon: Activity, size: 'medium', needs: 'health' },
+  price_widget: { name: 'XNT Price', icon: TrendingUp, size: 'small', needs: 'price' },
+  validator_alerts: { name: 'Validator Alerts', icon: Bell, size: 'medium', needs: null },
+  address_lookup: { name: 'Address Lookup', icon: Search, size: 'medium', needs: null },
 };
 
-// Default layouts
 const DEFAULT_LAYOUTS = {
-  default: {
-    name: 'Default',
-    widgets: ['network_stats', 'epoch', 'validators', 'tps_chart', 'supply']
-  },
-  minimal: {
-    name: 'Minimal',
-    widgets: ['network_stats', 'epoch']
-  },
-  full: {
-    name: 'Full',
-    widgets: ['network_stats', 'epoch', 'validators', 'tps_chart', 'supply', 'recent_blocks', 'performance']
+  default: { name: 'Default', widgets: ['network_stats', 'epoch', 'validators', 'tps_chart', 'supply'] },
+  minimal: { name: 'Minimal', widgets: ['network_stats', 'epoch'] },
+  full: { name: 'Full', widgets: ['network_stats', 'epoch', 'validators', 'tps_chart', 'supply', 'recent_blocks', 'performance'] },
+};
+
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/** Layouts come from localStorage and are untrusted: keep only known widget ids, once each. */
+function cleanWidgets(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const id of list) {
+    if (typeof id === 'string' && Object.prototype.hasOwnProperty.call(WIDGET_TYPES, id) && !out.includes(id)) out.push(id);
+    if (out.length >= MAX_WIDGETS) break;
   }
-};
+  return out;
+}
 
-// Widget components
-const NetworkStatsWidget = ({ data }) => (
-  <div className="grid grid-cols-2 gap-3">
-    <div className="bg-[#1a2436] rounded-lg p-3">
-      <p className="text-gray-400 text-xs">Current Slot</p>
-      <p className="text-white font-bold text-lg font-mono">{data?.slot?.toLocaleString() || '-'}</p>
-    </div>
-    <div className="bg-[#1a2436] rounded-lg p-3">
-      <p className="text-gray-400 text-xs">Block Height</p>
-      <p className="text-white font-bold text-lg font-mono">{data?.blockHeight?.toLocaleString() || '-'}</p>
-    </div>
-    <div className="bg-[#1a2436] rounded-lg p-3">
-      <p className="text-gray-400 text-xs">TPS</p>
-      <p className="text-cyan-400 font-bold text-lg">{data?.tps?.toLocaleString() || '-'}</p>
-    </div>
-    <div className="bg-[#1a2436] rounded-lg p-3">
-      <p className="text-gray-400 text-xs">Total TXs</p>
-      <p className="text-white font-bold text-lg">{data?.transactionCount ? (data.transactionCount / 1e9).toFixed(2) + 'B' : '-'}</p>
-    </div>
-  </div>
-);
+function readLayouts() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LAYOUTS_KEY) || '{}');
+    const out = {};
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      for (const [key, value] of Object.entries(raw)) {
+        if (UNSAFE_KEYS.has(key) || !value || typeof value !== 'object' || Object.keys(out).length >= MAX_LAYOUTS) continue;
+        out[key.slice(0, 40)] = { name: key.slice(0, 40), widgets: cleanWidgets(value.widgets) };
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
 
-const EpochWidget = ({ data }) => (
-  <div>
-    <div className="flex items-center justify-between mb-2">
-      <span className="text-gray-400 text-sm">Epoch {data?.epoch || '-'}</span>
-      <span className="text-white font-bold">{data?.epochProgress || 0}%</span>
-    </div>
-    <div className="h-3 bg-[#1a2436] rounded-full overflow-hidden">
-      <div 
-        className="h-full bg-gradient-to-r from-cyan-500 to-emerald-500 rounded-full transition-all duration-500" 
-        style={{ width: `${data?.epochProgress || 0}%` }} 
-      />
-    </div>
-    <div className="flex justify-between mt-2 text-xs text-gray-500">
-      <span>{data?.slotsRemaining?.toLocaleString() || '-'} slots remaining</span>
-      <span>~{Math.round((data?.timeRemaining || 0) / 60)}m</span>
-    </div>
-  </div>
-);
+function readCurrent() {
+  try {
+    const v = localStorage.getItem(CURRENT_KEY);
+    return typeof v === 'string' ? v : null;
+  } catch {
+    return null;
+  }
+}
 
-const ValidatorsWidget = ({ data }) => (
-  <div className="grid grid-cols-3 gap-3">
-    <div className="text-center">
-      <p className="text-emerald-400 font-bold text-2xl">{data?.validators?.current || '-'}</p>
-      <p className="text-gray-400 text-xs">Active</p>
-    </div>
-    <div className="text-center">
-      <p className="text-red-400 font-bold text-2xl">{data?.validators?.delinquent || '-'}</p>
-      <p className="text-gray-400 text-xs">Delinquent</p>
-    </div>
-    <div className="text-center">
-      <p className="text-white font-bold text-2xl">{data?.validators?.totalStake ? (data.validators.totalStake / 1e6).toFixed(0) + 'M' : '-'}</p>
-      <p className="text-gray-400 text-xs">Total Stake</p>
-    </div>
-  </div>
-);
+function store(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage unavailable: layouts last for this visit only.
+  }
+}
 
-const SupplyWidget = ({ data }) => (
-  <div className="space-y-2">
-    <div className="flex justify-between">
-      <span className="text-gray-400 text-sm">Circulating</span>
-      <span className="text-cyan-400 font-mono">{data?.supply?.circulating ? (data.supply.circulating / 1e6).toFixed(0) + 'M' : '-'}</span>
-    </div>
-    <div className="flex justify-between">
-      <span className="text-gray-400 text-sm">Total</span>
-      <span className="text-white font-mono">{data?.supply?.total ? (data.supply.total / 1e6).toFixed(0) + 'M' : '-'}</span>
-    </div>
-  </div>
-);
+function initialState() {
+  const saved = readLayouts();
+  const current = readCurrent();
+  const has = (k) => k && (Object.prototype.hasOwnProperty.call(saved, k) || Object.prototype.hasOwnProperty.call(DEFAULT_LAYOUTS, k));
+  const key = has(current) ? current : 'default';
+  const layout = saved[key] || DEFAULT_LAYOUTS[key];
+  return { saved, key, widgets: layout.widgets };
+}
 
-const TpsChartWidget = ({ data }) => {
-  const chartData = data?.tpsHistory || [];
+function alertCount() {
+  try {
+    const list = JSON.parse(localStorage.getItem(ALERTS_KEY) || '[]');
+    return Array.isArray(list) ? list.filter((a) => a && a.enabled === true).length : null;
+  } catch {
+    return null;
+  }
+}
+
+/** @param {{ value?: any, children?: any, reason?: any, [key: string]: any }} props */
+function Num({ value, children, reason = 'Not available from the data source' }) {
+  return isNum(value) ? children : <Unavailable reason={reason} />;
+}
+
+/** @param {{ label?: any, children?: any, [key: string]: any }} props */
+function Metric({ label, children }) {
   return (
-    <div className="h-[180px]">
-      {chartData.length > 0 ? (
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData}>
-            <defs>
-              <linearGradient id="tpsGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
-              </linearGradient>
-            </defs>
-            <XAxis dataKey="time" hide />
-            <YAxis hide domain={['auto', 'auto']} />
-            <Tooltip 
-              contentStyle={{ backgroundColor: '#0d1525', border: '1px solid rgba(255,255,255,0.1)' }}
-              formatter={(value) => [`${value.toLocaleString()} TPS`, '']}
-            />
-            <Area type="monotone" dataKey="tps" stroke="#06b6d4" fill="url(#tpsGradient)" />
-          </AreaChart>
-        </ResponsiveContainer>
-      ) : (
-        <div className="h-full flex items-center justify-center text-gray-500">Loading...</div>
-      )}
+    <div className="rounded-lg bg-surface-2 p-3">
+      <p className="text-xs text-ink-muted">{label}</p>
+      <p className="mt-1 text-lg font-semibold tabular text-ink">{children}</p>
     </div>
   );
-};
+}
 
-const RecentBlocksWidget = ({ blocks }) => (
-  <div className="space-y-2 max-h-[200px] overflow-y-auto">
-    {(blocks || []).slice(0, 5).map(block => (
-      <div key={block.slot} className="flex items-center justify-between bg-[#1a2436] rounded-lg p-2">
-        <Link to={createPageUrl('BlockDetail') + `?slot=${block.slot}`} className="text-cyan-400 font-mono text-sm hover:underline">
-          #{block.slot?.toLocaleString()}
-        </Link>
-        <span className="text-gray-400 text-sm">{block.txCount} txs</span>
-      </div>
-    ))}
-    {(!blocks || blocks.length === 0) && (
-      <div className="text-gray-500 text-center py-4">Loading blocks...</div>
-    )}
-  </div>
-);
+/* ------------------------------ Widgets ------------------------------ */
 
-const PerformanceWidget = ({ perfData }) => {
-  const chartData = (perfData || []).slice(0, 30).reverse().map((s, i) => ({
-    minute: i,
-    tps: s.tps || 0,
-    txns: s.transactions || 0
-  }));
-  
+/** @param {{ stats?: any, [key: string]: any }} props */
+function NetworkStatsWidget({ stats }) {
   return (
-    <div className="h-[180px]">
-      {chartData.length > 0 ? (
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData}>
-            <XAxis dataKey="minute" hide />
-            <YAxis hide />
-            <Tooltip 
-              contentStyle={{ backgroundColor: '#0d1525', border: '1px solid rgba(255,255,255,0.1)' }}
-              formatter={(value, name) => [value.toLocaleString(), name === 'txns' ? 'Transactions' : 'TPS']}
-            />
-            <Bar dataKey="txns" fill="#10b981" />
-          </BarChart>
-        </ResponsiveContainer>
-      ) : (
-        <div className="h-full flex items-center justify-center text-gray-500">Loading...</div>
-      )}
+    <div className="grid grid-cols-2 gap-3">
+      <Metric label="Current slot"><Num value={stats?.slot}>{integer(stats?.slot)}</Num></Metric>
+      <Metric label="Block height"><Num value={stats?.blockHeight}>{integer(stats?.blockHeight)}</Num></Metric>
+      <Metric label="TPS"><Num value={stats?.tps}>{integer(stats?.tps)}</Num></Metric>
+      <Metric label="Total transactions"><Num value={stats?.transactionCount}>{compact(stats?.transactionCount)}</Num></Metric>
     </div>
   );
-};
+}
 
-const BlockTimeWidget = ({ data }) => (
-  <div className="text-center">
-    <p className="text-gray-400 text-xs mb-2">Avg Block Time</p>
-    <p className="text-2xl font-bold text-cyan-400">~400ms</p>
-  </div>
-);
-
-const TxTypesWidget = ({ blocks }) => {
-  const total = (blocks || []).reduce((sum, b) => sum + (b.txCount || 0), 0);
-  const votes = (blocks || []).reduce((sum, b) => sum + (b.voteCount || 0), 0);
-  const transfers = (blocks || []).reduce((sum, b) => sum + (b.transferCount || 0), 0);
-  
-  return (
-    <div className="grid grid-cols-3 gap-2 text-center">
-      <div>
-        <p className="text-purple-400 font-bold text-lg">{Math.round((votes/total)*100) || 0}%</p>
-        <p className="text-gray-500 text-xs">Votes</p>
-      </div>
-      <div>
-        <p className="text-blue-400 font-bold text-lg">{Math.round((transfers/total)*100) || 0}%</p>
-        <p className="text-gray-500 text-xs">Transfers</p>
-      </div>
-      <div>
-        <p className="text-emerald-400 font-bold text-lg">{Math.round(((total-votes-transfers)/total)*100) || 0}%</p>
-        <p className="text-gray-500 text-xs">Programs</p>
-      </div>
-    </div>
-  );
-};
-
-const NetworkHealthWidget = ({ data }) => (
-  <div className="text-center">
-    <div className="w-16 h-16 mx-auto mb-2 rounded-full bg-emerald-500/20 flex items-center justify-center">
-      <span className="text-2xl">✓</span>
-    </div>
-    <p className="text-emerald-400 font-bold">Healthy</p>
-    <p className="text-gray-500 text-xs mt-1">{data?.tps || 0} TPS</p>
-  </div>
-);
-
-const PriceWidget = () => (
-  <div className="text-center">
-    <p className="text-gray-400 text-xs mb-2">XNT Price</p>
-    <p className="text-2xl font-bold text-white">$1.00</p>
-    <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs mt-1">OTC</Badge>
-  </div>
-);
-
-const StakePoolWidget = ({ data }) => {
-  const stakeRatio = data?.validators?.totalStake && data?.supply?.total 
-    ? ((data.validators.totalStake / data.supply.total) * 100).toFixed(1) 
-    : 0;
+/** @param {{ stats?: any, [key: string]: any }} props */
+function EpochWidget({ stats }) {
+  const pct = isNum(stats?.epochProgress) ? stats.epochProgress * 100 : null;
+  const remaining = isNum(stats?.slotsInEpoch) && isNum(stats?.slotIndex) ? stats.slotsInEpoch - stats.slotIndex : null;
+  const minutes = remaining !== null && isNum(stats?.slotTimeSeconds) ? Math.round((remaining * stats.slotTimeSeconds) / 60) : null;
   return (
     <div>
-      <div className="flex justify-between mb-2">
-        <span className="text-gray-400 text-sm">Staked</span>
-        <span className="text-cyan-400 font-bold">{stakeRatio}%</span>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-sm text-ink-muted">Epoch <Num value={stats?.epoch}>{integer(stats?.epoch)}</Num></span>
+        <span className="font-semibold tabular text-ink">{pct !== null ? percent(pct, 1) : <Unavailable reason="Epoch progress is not available" />}</span>
       </div>
-      <div className="h-2 bg-[#1a2436] rounded-full overflow-hidden">
-        <div className="h-full bg-gradient-to-r from-purple-500 to-cyan-500" style={{ width: `${stakeRatio}%` }} />
+      {pct !== null && <Meter value={pct} label="Epoch progress" tone="brand" />}
+      <div className="mt-2 flex flex-wrap justify-between gap-x-3 text-xs text-ink-muted">
+        <span>{remaining !== null ? `${integer(remaining)} slots remaining` : 'Slots remaining unavailable'}</span>
+        <span>{minutes !== null ? `about ${minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m`} at the current slot time` : ''}</span>
       </div>
-      <p className="text-gray-500 text-xs mt-1">{data?.validators?.current || 0} validators</p>
     </div>
   );
-};
+}
 
-const WhaleWatcherWidget = () => (
-  <div className="space-y-2">
-    <Link to={createPageUrl('WhaleWatcher')} className="flex items-center justify-between p-2 bg-[#1a2436] rounded-lg hover:bg-[#1d2d3a] transition-colors">
-      <div className="flex items-center gap-2">
-        <span className="text-2xl">🐋</span>
-        <div>
-          <p className="text-white text-sm">Large Transfer</p>
-          <p className="text-gray-500 text-xs">1.2M XNT</p>
-        </div>
-      </div>
-      <span className="text-cyan-400 text-xs">2m ago</span>
-    </Link>
-    <Link to={createPageUrl('WhaleWatcher')} className="text-cyan-400 text-xs hover:underline">View all whale activity →</Link>
-  </div>
-);
-
-const ValidatorAlertsWidget = () => {
-  const alerts = JSON.parse(localStorage.getItem('x1_alerts') || '[]');
-  const activeAlerts = alerts.filter(a => a.enabled).length;
+/** @param {{ stats?: any, [key: string]: any }} props */
+function ValidatorsWidget({ stats }) {
   return (
-    <div className="text-center">
-      <Link to={createPageUrl('ValidatorAlerts')} className="block">
-        <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-yellow-500/20 flex items-center justify-center">
-          <Bell className="w-6 h-6 text-yellow-400" />
-        </div>
-        <p className="text-white font-bold text-lg">{activeAlerts}</p>
-        <p className="text-gray-400 text-xs">Active Alerts</p>
-      </Link>
+    <div className="grid grid-cols-3 gap-3 text-center">
+      <div>
+        <p className="text-2xl font-semibold tabular text-positive"><Num value={stats?.validators?.active}>{integer(stats?.validators?.active)}</Num></p>
+        <p className="text-xs text-ink-muted">Active</p>
+      </div>
+      <div>
+        <p className="text-2xl font-semibold tabular text-negative"><Num value={stats?.validators?.delinquent}>{integer(stats?.validators?.delinquent)}</Num></p>
+        <p className="text-xs text-ink-muted">Delinquent</p>
+      </div>
+      <div>
+        <p className="text-2xl font-semibold tabular text-ink"><Num value={stats?.stake?.activeXnt}>{compact(stats?.stake?.activeXnt)}</Num></p>
+        <p className="text-xs text-ink-muted">Active stake (XNT)</p>
+      </div>
     </div>
   );
-};
+}
 
-const AddressLookupWidget = () => {
-  const [address, setAddress] = React.useState('');
+/** @param {{ stats?: any, [key: string]: any }} props */
+function SupplyWidget({ stats }) {
+  return (
+    <dl className="space-y-2 text-sm">
+      <div className="flex justify-between"><dt className="text-ink-muted">Circulating</dt><dd className="tabular text-brand"><Num value={stats?.supply?.circulatingXnt}>{compact(stats?.supply?.circulatingXnt)} XNT</Num></dd></div>
+      <div className="flex justify-between"><dt className="text-ink-muted">Total</dt><dd className="tabular text-ink"><Num value={stats?.supply?.totalXnt}>{compact(stats?.supply?.totalXnt)} XNT</Num></dd></div>
+    </dl>
+  );
+}
+
+/** @param {{ stats?: any, [key: string]: any }} props */
+function StakingWidget({ stats }) {
+  const total = stats?.supply?.totalXnt;
+  const active = stats?.stake?.activeXnt;
+  const share = isNum(total) && total > 0 && isNum(active) ? (active / total) * 100 : null;
   return (
     <div>
-      <Input
-        placeholder="Enter address..."
-        value={address}
-        onChange={(e) => setAddress(e.target.value)}
-        className="bg-[#1a2436] border-0 text-white mb-2"
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && address) {
-            window.location.href = createPageUrl('AddressLookup') + `?address=${address}`;
-          }
-        }}
-      />
-      <Link to={createPageUrl('AddressLookup')} className="text-cyan-400 text-xs hover:underline">
-        Open Address Lookup →
-      </Link>
+      <div className="mb-2 flex justify-between text-sm">
+        <span className="text-ink-muted">Active stake / total supply</span>
+        <span className="font-semibold tabular text-brand">{share !== null ? percent(share, 1) : <Unavailable reason="Needs both active stake and total supply" />}</span>
+      </div>
+      {share !== null && <Meter value={share} label="Staked share of supply" />}
     </div>
   );
-};
+}
 
-const TxFlowWidget = ({ blocks }) => {
-  const recentTxs = (blocks || []).slice(0, 3);
+/** @param {{ stats?: any, [key: string]: any }} props */
+function BlockTimeWidget({ stats }) {
   return (
-    <div className="space-y-2">
-      {recentTxs.map((block, i) => (
-        <div key={i} className="flex items-center gap-2 text-xs">
-          <div className="w-2 h-2 rounded-full bg-cyan-400" />
-          <span className="text-gray-400">Slot {block.slot?.toLocaleString()}</span>
-          <span className="text-gray-600">→</span>
-          <span className="text-emerald-400">{block.txCount} txs</span>
-        </div>
+    <div className="text-center">
+      <p className="mb-1 text-xs text-ink-muted">Average slot time (recent samples)</p>
+      <p className="text-2xl font-semibold tabular text-brand"><Num value={stats?.slotTimeSeconds}>{Math.round(stats?.slotTimeSeconds * 1000)} ms</Num></p>
+    </div>
+  );
+}
+
+/** @param {{ label?: any, hasData?: any, children?: any, [key: string]: any }} props */
+function ChartBox({ label, hasData, children }) {
+  return (
+    <div className="h-[180px]" role="img" aria-label={label}>
+      {hasData ? <ResponsiveContainer width="100%" height="100%">{children}</ResponsiveContainer> : <div className="flex h-full items-center justify-center text-sm text-ink-muted">No history available</div>}
+    </div>
+  );
+}
+
+/** @param {{ history?: any, [key: string]: any }} props */
+function TpsChartWidget({ history }) {
+  const data = (history || []).filter((p) => isNum(p.tps)).slice(-90).map((p) => ({ time: p.time, tps: Math.round(p.tps) }));
+  const values = data.map((p) => p.tps);
+  const range = values.length ? `Range ${Math.min(...values).toLocaleString()} to ${Math.max(...values).toLocaleString()} TPS · axis starts at 0` : null;
+  return (
+    <>
+    <ChartBox label="Transactions per second over the last hour or more, from RPC performance samples" hasData={data.length > 1}>
+      <AreaChart data={data}>
+        <defs>
+          <linearGradient id="tpsFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="hsl(var(--brand))" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="hsl(var(--brand))" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <XAxis dataKey="time" hide />
+        <YAxis hide domain={[0, 'auto']} />
+        <Tooltip contentStyle={tooltipStyle} labelFormatter={(t) => new Date(t).toLocaleTimeString()} formatter={(v) => [`${Number(v).toLocaleString()} TPS`, '']} />
+        <Area type="monotone" dataKey="tps" stroke="hsl(var(--brand))" fill="url(#tpsFill)" isAnimationActive={false} />
+      </AreaChart>
+    </ChartBox>
+    {range && data.length > 1 && <p className="mt-2 text-xs text-ink-muted">{range}</p>}
+    </>
+  );
+}
+
+/** @param {{ history?: any, [key: string]: any }} props */
+function PerformanceWidget({ history }) {
+  const data = (history || []).filter((p) => isNum(p.userTps)).slice(-60).map((p) => ({ time: p.time, userTps: Math.round(p.userTps) }));
+  return (
+    <ChartBox label="User transactions per second (vote transactions excluded) per minute sample" hasData={data.length > 1}>
+      <BarChart data={data}>
+        <XAxis dataKey="time" hide />
+        <YAxis hide />
+        <Tooltip contentStyle={tooltipStyle} labelFormatter={(t) => new Date(t).toLocaleTimeString()} formatter={(v) => [`${Number(v).toLocaleString()} user TPS`, '']} />
+        <Bar dataKey="userTps" fill="hsl(var(--positive))" isAnimationActive={false} />
+      </BarChart>
+    </ChartBox>
+  );
+}
+
+/** @param {{ blocks?: any, [key: string]: any }} props */
+function RecentBlocksWidget({ blocks }) {
+  if (!blocks) return <Unavailable reason="Recent blocks could not be loaded" />;
+  if (blocks.length === 0) return <p className="py-4 text-center text-sm text-ink-muted">No blocks returned by the RPC.</p>;
+  return (
+    <ul className="max-h-[220px] space-y-2 overflow-y-auto">
+      {blocks.slice(0, 6).map((b) => (
+        <li key={b.slot} className="flex items-center justify-between rounded-lg bg-surface-2 px-3 py-2">
+          <Link to={`${createPageUrl('BlockDetail')}?slot=${b.slot}`} className="mono rounded text-sm text-brand hover:underline">#{integer(b.slot)}</Link>
+          <span className="text-sm tabular text-ink-muted">{integer(b.txCount)} txs</span>
+        </li>
       ))}
-      <Link to={createPageUrl('TransactionFlowPage')} className="text-cyan-400 text-xs hover:underline">
-        View transaction flow →
+    </ul>
+  );
+}
+
+/** @param {{ blocks?: any, [key: string]: any }} props */
+function TxTypesWidget({ blocks }) {
+  if (!blocks) return <Unavailable reason="Recent blocks could not be loaded" />;
+  const total = blocks.reduce((s, b) => s + (b.txCount || 0), 0);
+  if (total === 0) return <p className="py-4 text-center text-sm text-ink-muted">No transactions in the recent blocks.</p>;
+  const votes = blocks.reduce((s, b) => s + (b.voteCount || 0), 0);
+  const transfers = blocks.reduce((s, b) => s + (b.transferCount || 0), 0);
+  const other = total - votes - transfers;
+  const items = [['Votes', votes, 'text-violet'], ['System transfers', transfers, 'text-brand'], ['Other programs', other, 'text-positive']];
+  return (
+    <div>
+      <div className="grid grid-cols-3 gap-2 text-center">
+        {items.map(([label, n, tone]) => (
+          <div key={label}>
+            <p className={cn('text-lg font-semibold tabular', tone)}>{percent((n / total) * 100, 0)}</p>
+            <p className="text-xs text-ink-muted">{label}</p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-xs text-ink-faint">Across the last {integer(blocks.length)} blocks ({integer(total)} transactions).</p>
+    </div>
+  );
+}
+
+/** @param {{ health?: any, stats?: any, [key: string]: any }} props */
+function NetworkHealthWidget({ health, stats }) {
+  const share = stats?.stake?.delinquentShare;
+  return (
+    <div className="space-y-3 text-center">
+      {health === 'ok' ? <Pill tone="positive">RPC node reports ok</Pill> : health === 'error' ? <Pill tone="negative">RPC node reports not ok</Pill> : <Unavailable reason="The health check has not completed" />}
+      <p className="text-xs text-ink-muted">
+        Delinquent stake: {isNum(share) ? percent(share * 100, 1) : <Unavailable reason="Validator data is not available" />}
+      </p>
+    </div>
+  );
+}
+
+/** @param {{ price?: any, [key: string]: any }} props */
+function PriceWidget({ price }) {
+  return (
+    <div className="text-center">
+      <p className="mb-1 text-xs text-ink-muted">XNT price (XDEX market)</p>
+      <p className="text-2xl font-semibold tabular text-ink">{isNum(price) ? usd(price) : <Unavailable reason="No XNT market price is available right now" />}</p>
+    </div>
+  );
+}
+
+function ValidatorAlertsWidget() {
+  const count = alertCount();
+  return (
+    <div className="text-center">
+      <Link to={createPageUrl('ValidatorAlerts')} className="block rounded">
+        <span className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-warning/15"><Bell className="h-5 w-5 text-warning" aria-hidden="true" /></span>
+        <p className="text-lg font-semibold tabular text-ink">{count === null ? <Unavailable reason="Saved alerts could not be read in this browser" /> : integer(count)}</p>
+        <p className="text-xs text-ink-muted">Active alerts saved in this browser</p>
       </Link>
     </div>
   );
-};
+}
 
-// Widget wrapper
-const Widget = ({ type, data, blocks, perfData, onRemove, isEditing }) => {
-  const widgetInfo = WIDGET_TYPES[type];
-  if (!widgetInfo) return null;
-  
-  const Icon = widgetInfo.icon;
-  
+function AddressLookupWidget() {
+  const navigate = useNavigate();
+  const [address, setAddress] = useState('');
+  const [error, setError] = useState(null);
+  const submit = (e) => {
+    e.preventDefault();
+    const value = address.trim();
+    if (!BASE58.test(value)) return setError('Enter a valid address: 32 to 44 base58 characters.');
+    return navigate(`${createPageUrl('AddressLookup')}?address=${value}`);
+  };
   return (
-    <div className={`bg-[#0d1525] border border-white/10 rounded-xl p-4 ${widgetInfo.size === 'large' ? 'col-span-2' : ''}`}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          {isEditing && <GripVertical className="w-4 h-4 text-gray-600 cursor-move" />}
-          <Icon className="w-4 h-4 text-cyan-400" />
-          <span className="text-white font-medium text-sm">{widgetInfo.name}</span>
-        </div>
-        {isEditing && (
-          <Button variant="ghost" size="icon" onClick={onRemove} className="h-6 w-6 text-red-400 hover:text-red-300">
-            <X className="w-4 h-4" />
-          </Button>
+    <form onSubmit={submit} noValidate>
+      <label htmlFor="dash-address" className="sr-only">Address to look up</label>
+      <input id="dash-address" value={address} onChange={(e) => { setAddress(e.target.value); setError(null); }} maxLength={44} spellCheck={false} autoComplete="off" placeholder="Enter an address" aria-invalid={!!error} className={cn(inputClass, 'mono')} />
+      {error && <p role="alert" className="mt-1.5 text-xs text-negative">{error}</p>}
+      <button type="submit" className="mt-2 text-xs font-medium text-brand hover:underline">Look up address</button>
+    </form>
+  );
+}
+
+/** @param {{ id?: any, src?: any, [key: string]: any }} props */
+function WidgetBody({ id, src }) {
+  const { stats, history, blocks, health, price } = src;
+  switch (id) {
+    case 'network_stats': return <NetworkStatsWidget stats={stats} />;
+    case 'epoch': return <EpochWidget stats={stats} />;
+    case 'validators': return <ValidatorsWidget stats={stats} />;
+    case 'supply': return <SupplyWidget stats={stats} />;
+    case 'staking': return <StakingWidget stats={stats} />;
+    case 'block_time': return <BlockTimeWidget stats={stats} />;
+    case 'tps_chart': return <TpsChartWidget history={history} />;
+    case 'performance': return <PerformanceWidget history={history} />;
+    case 'recent_blocks': return <RecentBlocksWidget blocks={blocks} />;
+    case 'tx_types': return <TxTypesWidget blocks={blocks} />;
+    case 'network_health': return <NetworkHealthWidget health={health} stats={stats} />;
+    case 'price_widget': return <PriceWidget price={price} />;
+    case 'validator_alerts': return <ValidatorAlertsWidget />;
+    case 'address_lookup': return <AddressLookupWidget />;
+    default: return null;
+  }
+}
+
+/** @param {{ id?: any, src?: any, editing?: any, index?: any, count?: any, onRemove?: any, onMove?: any, [key: string]: any }} props */
+function Widget({ id, src, editing, index, count, onRemove, onMove }) {
+  const info = WIDGET_TYPES[id];
+  if (!info) return null;
+  const Icon = info.icon;
+  return (
+    <section aria-label={info.name} className={cn('panel p-4', info.size === 'large' && 'md:col-span-2')}>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="flex min-w-0 items-center gap-2 text-sm font-medium text-ink">
+          <Icon className="h-4 w-4 shrink-0 text-brand" aria-hidden="true" />
+          <span className="truncate">{info.name}</span>
+        </h2>
+        {editing && (
+          <div className="flex shrink-0 items-center">
+            <button type="button" onClick={() => onMove(index, -1)} disabled={index === 0} aria-label={`Move ${info.name} earlier`} className={iconButton}><ArrowUp className="h-4 w-4" aria-hidden="true" /></button>
+            <button type="button" onClick={() => onMove(index, 1)} disabled={index === count - 1} aria-label={`Move ${info.name} later`} className={iconButton}><ArrowDown className="h-4 w-4" aria-hidden="true" /></button>
+            <button type="button" onClick={() => onRemove(id)} aria-label={`Remove ${info.name}`} className={cn(iconButton, 'hover:text-negative')}><X className="h-4 w-4" aria-hidden="true" /></button>
+          </div>
         )}
       </div>
-      
-      {type === 'network_stats' && <NetworkStatsWidget data={data} />}
-      {type === 'epoch' && <EpochWidget data={data} />}
-      {type === 'validators' && <ValidatorsWidget data={data} />}
-      {type === 'supply' && <SupplyWidget data={data} />}
-      {type === 'tps_chart' && <TpsChartWidget data={data} />}
-      {type === 'recent_blocks' && <RecentBlocksWidget blocks={blocks} />}
-      {type === 'performance' && <PerformanceWidget perfData={perfData} />}
-      {type === 'block_time' && <BlockTimeWidget data={data} />}
-      {type === 'tx_types' && <TxTypesWidget blocks={blocks} />}
-      {type === 'network_health' && <NetworkHealthWidget data={data} />}
-      {type === 'price_widget' && <PriceWidget />}
-      {type === 'stake_pool' && <StakePoolWidget data={data} />}
-      {type === 'whale_watcher' && <WhaleWatcherWidget />}
-      {type === 'validator_alerts' && <ValidatorAlertsWidget />}
-      {type === 'address_lookup' && <AddressLookupWidget />}
-      {type === 'tx_flow' && <TxFlowWidget blocks={blocks} />}
-    </div>
+      <WidgetBody id={id} src={src} />
+    </section>
   );
-};
+}
+
+/* ------------------------------- Page -------------------------------- */
 
 export default function CustomDashboard() {
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState(null);
-  const [blocks, setBlocks] = useState([]);
-  const [perfData, setPerfData] = useState([]);
-  const [isEditing, setIsEditing] = useState(false);
-  const [widgets, setWidgets] = useState([]);
-  const [savedLayouts, setSavedLayouts] = useState({});
-  const [currentLayout, setCurrentLayout] = useState('default');
-  const [newLayoutName, setNewLayoutName] = useState('');
-  const [showAddWidget, setShowAddWidget] = useState(false);
+  const init = useMemo(initialState, []);
+  const [saved, setSaved] = useState(init.saved);
+  const [currentLayout, setCurrentLayout] = useState(init.key);
+  const [widgets, setWidgets] = useState(init.widgets);
+  const [editing, setEditing] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [layoutName, setLayoutName] = useState('');
+  const [layoutError, setLayoutError] = useState(null);
 
-  // Load saved layouts from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('x1_dashboard_layouts');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      setSavedLayouts(parsed);
-      // Load last used layout
-      const lastLayout = localStorage.getItem('x1_dashboard_current');
-      if (lastLayout && (parsed[lastLayout] || DEFAULT_LAYOUTS[lastLayout])) {
-        setCurrentLayout(lastLayout);
-        setWidgets((parsed[lastLayout] || DEFAULT_LAYOUTS[lastLayout]).widgets);
-      } else {
-        setWidgets(DEFAULT_LAYOUTS.default.widgets);
-      }
-    } else {
-      setWidgets(DEFAULT_LAYOUTS.default.widgets);
-    }
+  const [src, setSrc] = useState({ stats: null, history: null, blocks: null, health: null, price: null });
+  const [status, setStatus] = useState({ state: 'loading', loadedAt: null, stale: false });
+  const [refreshing, setRefreshing] = useState(false);
+  const historyAt = useRef(0);
+  const priceAt = useRef(0);
+  const mounted = useRef(true);
+  const busy = useRef(false);
+
+  const needs = useMemo(() => new Set(widgets.map((id) => WIDGET_TYPES[id]?.needs).filter(Boolean)), [widgets]);
+  const needsRef = useRef(needs);
+  needsRef.current = needs;
+  const needsKey = [...needs].sort().join(',');
+
+  const fetchData = useCallback(async (background = false) => {
+    if (busy.current) return;
+    busy.current = true;
+    if (background) setRefreshing(true);
+    const want = needsRef.current;
+    const wantHistory = want.has('history') && Date.now() - historyAt.current > HISTORY_REFRESH_MS;
+    // The price comes from a backend function (costs credits): never refresh it faster than the configured interval.
+    const wantPrice = want.has('price') && Date.now() - priceAt.current >= X1_CONFIG.polling.priceMs;
+    const jobs = {
+      stats: api.networkStats(),
+      history: wantHistory ? api.networkHistory(2) : null,
+      blocks: want.has('blocks') ? X1Rpc.getRecentBlocks(8) : null,
+      health: want.has('health') ? rpcCall('getHealth').then((r) => (r === 'ok' ? 'ok' : 'error')).catch((e) => (e?.kind === 'rpc' ? 'error' : Promise.reject(e))) : null,
+      price: wantPrice ? api.tokenPrice(X1_CONFIG.nativeMint) : null,
+    };
+    const keys = Object.keys(jobs).filter((k) => jobs[k]);
+    const settled = await Promise.allSettled(keys.map((k) => jobs[k]));
+    busy.current = false;
+    if (!mounted.current) return;
+    const failed = [];
+    setSrc((prev) => {
+      const next = { ...prev };
+      keys.forEach((k, i) => {
+        const r = settled[i];
+        if (r.status === 'rejected') {
+          failed.push(k);
+          return; // keep the last good value for this source
+        }
+        const v = r.value;
+        if (k === 'stats') next.stats = v && typeof v === 'object' ? v : null;
+        else if (k === 'history') next.history = Array.isArray(v?.data) ? v.data : null;
+        else if (k === 'blocks') next.blocks = Array.isArray(v) ? v : null;
+        else if (k === 'health') next.health = v;
+        else if (k === 'price') next.price = isNum(v?.data?.priceUsd) ? v.data.priceUsd : null;
+      });
+      return next;
+    });
+    if (keys.includes('history') && !failed.includes('history')) historyAt.current = Date.now();
+    if (keys.includes('price') && !failed.includes('price')) priceAt.current = Date.now();
+    setStatus((s) => {
+      if (failed.includes('stats') && s.state !== 'ready') return { state: 'error', loadedAt: null, stale: false };
+      return { state: 'ready', loadedAt: failed.length === keys.length ? s.loadedAt : Date.now(), stale: failed.length > 0 };
+    });
+    setRefreshing(false);
   }, []);
 
-  // Fetch data
-  const fetchData = useCallback(async () => {
-    try {
-      const [dashData, recentBlocks, perfHistory] = await Promise.all([
-        X1Rpc.getDashboardData(),
-        X1Rpc.getRecentBlocks(10),
-        X1Rpc.getPerformanceHistory(60)
-      ]);
-      setData(dashData);
-      setBlocks(recentBlocks);
-      setPerfData(perfHistory);
-    } catch (err) {
-      console.error('Dashboard fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
+    mounted.current = true;
     fetchData();
-    const interval = setInterval(fetchData, 5000);
-    return () => clearInterval(interval);
+    const id = setInterval(() => {
+      if (!document.hidden) fetchData(true);
+    }, X1_CONFIG.polling.dashboardMs);
+    return () => {
+      mounted.current = false;
+      clearInterval(id);
+    };
   }, [fetchData]);
 
-  // Save layout
-  const saveLayout = () => {
-    const name = newLayoutName || `Layout ${Object.keys(savedLayouts).length + 1}`;
-    const newLayouts = {
-      ...savedLayouts,
-      [name]: { name, widgets }
-    };
-    setSavedLayouts(newLayouts);
+  // Data for newly added widgets loads right away instead of at the next tick.
+  useEffect(() => {
+    if (status.state === 'ready') fetchData(true);
+  }, [needsKey]);
+
+  const loadLayout = (key) => {
+    const layout = saved[key] || DEFAULT_LAYOUTS[key];
+    if (!layout) return;
+    setWidgets(layout.widgets);
+    setCurrentLayout(key);
+    store(CURRENT_KEY, key);
+  };
+
+  const saveLayout = (e) => {
+    e.preventDefault();
+    const name = layoutName.trim().slice(0, 40) || `Layout ${Object.keys(saved).length + 1}`;
+    if (UNSAFE_KEYS.has(name) || Object.prototype.hasOwnProperty.call(DEFAULT_LAYOUTS, name.toLowerCase())) return setLayoutError('That name is reserved. Choose another.');
+    if (!Object.prototype.hasOwnProperty.call(saved, name) && Object.keys(saved).length >= MAX_LAYOUTS) return setLayoutError(`You can save up to ${MAX_LAYOUTS} layouts.`);
+    const next = { ...saved, [name]: { name, widgets } };
+    setSaved(next);
     setCurrentLayout(name);
-    localStorage.setItem('x1_dashboard_layouts', JSON.stringify(newLayouts));
-    localStorage.setItem('x1_dashboard_current', name);
-    setNewLayoutName('');
+    store(LAYOUTS_KEY, JSON.stringify(next));
+    store(CURRENT_KEY, name);
+    setLayoutName('');
+    return setLayoutError(null);
   };
 
-  // Load layout
-  const loadLayout = (layoutKey) => {
-    const layout = savedLayouts[layoutKey] || DEFAULT_LAYOUTS[layoutKey];
-    if (layout) {
-      setWidgets(layout.widgets);
-      setCurrentLayout(layoutKey);
-      localStorage.setItem('x1_dashboard_current', layoutKey);
-    }
-  };
-
-  // Add widget
-  const addWidget = (type) => {
-    if (!widgets.includes(type)) {
-      setWidgets([...widgets, type]);
-    }
-    setShowAddWidget(false);
-  };
-
-  // Remove widget
-  const removeWidget = (type) => {
-    setWidgets(widgets.filter(w => w !== type));
-  };
-
-  // Delete layout
-  const deleteLayout = (layoutKey) => {
-    const newLayouts = { ...savedLayouts };
-    delete newLayouts[layoutKey];
-    setSavedLayouts(newLayouts);
-    localStorage.setItem('x1_dashboard_layouts', JSON.stringify(newLayouts));
-    if (currentLayout === layoutKey) {
+  const deleteLayout = (key) => {
+    const next = { ...saved };
+    delete next[key];
+    setSaved(next);
+    store(LAYOUTS_KEY, JSON.stringify(next));
+    if (currentLayout === key) {
       setWidgets(DEFAULT_LAYOUTS.default.widgets);
       setCurrentLayout('default');
+      store(CURRENT_KEY, 'default');
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0a0f1a] text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
-      </div>
-    );
-  }
+  const addWidget = (id) => {
+    setWidgets((w) => (w.includes(id) || w.length >= MAX_WIDGETS ? w : [...w, id]));
+    setShowAdd(false);
+  };
+  const removeWidget = (id) => setWidgets((w) => w.filter((x) => x !== id));
+  const moveWidget = (index, delta) => setWidgets((w) => {
+    const to = index + delta;
+    if (to < 0 || to >= w.length) return w;
+    const copy = [...w];
+    [copy[index], copy[to]] = [copy[to], copy[index]];
+    return copy;
+  });
+
+  const layoutLabel = saved[currentLayout]?.name || DEFAULT_LAYOUTS[currentLayout]?.name || currentLayout;
 
   return (
-    <div className="min-h-screen bg-[#0a0f1a] text-white">
-      <header className="border-b border-white/10">
-        <div className="max-w-[1800px] mx-auto px-4 py-3">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-4">
-              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
-                <span className="font-bold text-xl"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
-              </Link>
-              <span className="text-gray-400">|</span>
-              <span className="text-white text-xl font-light">Custom Dashboard</span>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0">{currentLayout}</Badge>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setIsEditing(!isEditing)}
-                className={`border-white/20 ${isEditing ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                {isEditing ? 'Done' : 'Edit'}
-              </Button>
-              <Button variant="outline" size="sm" onClick={fetchData} className="border-white/20 text-gray-400">
-                <RefreshCw className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+    <>
+      <PageHeader
+        icon={LayoutGrid}
+        title="Custom Dashboard"
+        description="Arrange live network widgets. Layouts are saved only in this browser."
+        badge={<Pill tone="brand">{layoutLabel}</Pill>}
+        meta={status.state === 'ready' ? <Freshness at={status.loadedAt} stale={status.stale} source="X1 RPC" onRefresh={() => fetchData(true)} refreshing={refreshing} /> : null}
+        actions={(
+          <button type="button" onClick={() => setEditing((v) => !v)} aria-pressed={editing} className={cn(buttonClass, editing && 'border-brand/40 bg-brand/10 text-brand')}>
+            <Settings className="h-4 w-4" aria-hidden="true" />
+            {editing ? 'Done' : 'Edit layout'}
+          </button>
+        )}
+      />
 
-      <main className="max-w-[1800px] mx-auto px-4 py-6">
-        {/* Layout Selector */}
-        {isEditing && (
-          <div className="bg-[#0d1525] border border-white/10 rounded-xl p-4 mb-6">
-            <h3 className="text-white font-medium mb-3">Layouts</h3>
-            <div className="flex flex-wrap gap-2 mb-4">
-              {Object.keys(DEFAULT_LAYOUTS).map(key => (
-                <Button 
-                  key={key} 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => loadLayout(key)}
-                  className={`border-white/20 ${currentLayout === key ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
-                >
+      {editing && (
+        <Panel title="Layouts" className="mb-6">
+          <div className="space-y-4 p-4">
+            <div className="flex flex-wrap gap-2">
+              {Object.keys(DEFAULT_LAYOUTS).map((key) => (
+                <button key={key} type="button" onClick={() => loadLayout(key)} aria-pressed={currentLayout === key} className={cn(buttonClass, 'h-8', currentLayout === key && 'border-brand/40 bg-brand/10 text-brand')}>
                   {DEFAULT_LAYOUTS[key].name}
-                </Button>
+                </button>
               ))}
-              {Object.keys(savedLayouts).map(key => (
-                <div key={key} className="flex items-center gap-1">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => loadLayout(key)}
-                    className={`border-white/20 ${currentLayout === key ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400'}`}
-                  >
-                    {savedLayouts[key].name}
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => deleteLayout(key)} className="h-7 w-7 text-red-400">
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                </div>
+              {Object.keys(saved).map((key) => (
+                <span key={key} className="inline-flex items-center gap-1">
+                  <button type="button" onClick={() => loadLayout(key)} aria-pressed={currentLayout === key} className={cn(buttonClass, 'h-8', currentLayout === key && 'border-brand/40 bg-brand/10 text-brand')}>{saved[key].name}</button>
+                  <button type="button" onClick={() => deleteLayout(key)} aria-label={`Delete layout ${saved[key].name}`} className={cn(iconButton, 'hover:text-negative')}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                </span>
               ))}
             </div>
-            
-            <div className="flex gap-2">
-              <Input 
-                placeholder="New layout name..." 
-                value={newLayoutName}
-                onChange={(e) => setNewLayoutName(e.target.value)}
-                className="bg-[#1a2436] border-white/10 text-white w-48"
-              />
-              <Button onClick={saveLayout} className="bg-cyan-500 hover:bg-cyan-600">
-                <Save className="w-4 h-4 mr-2" /> Save Layout
-              </Button>
-              <Button variant="outline" onClick={() => setShowAddWidget(!showAddWidget)} className="border-white/20 text-gray-400">
-                <Plus className="w-4 h-4 mr-2" /> Add Widget
-              </Button>
-            </div>
-            
-            {/* Widget Picker */}
-            {showAddWidget && (
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
-                {Object.entries(WIDGET_TYPES).map(([key, info]) => {
+            <form onSubmit={saveLayout} className="flex flex-col gap-2 sm:flex-row sm:items-center" noValidate>
+              <label htmlFor="layout-name" className="sr-only">Layout name</label>
+              <input id="layout-name" value={layoutName} onChange={(e) => { setLayoutName(e.target.value); setLayoutError(null); }} maxLength={40} placeholder="New layout name" className={cn(inputClass, 'sm:w-56')} />
+              <button type="submit" className={primaryButton}><Save className="h-4 w-4" aria-hidden="true" />Save layout</button>
+              <button type="button" onClick={() => setShowAdd((v) => !v)} aria-expanded={showAdd} className={buttonClass}><Plus className="h-4 w-4" aria-hidden="true" />Add widget</button>
+            </form>
+            {layoutError && <p role="alert" className="text-xs text-negative">{layoutError}</p>}
+            {showAdd && (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {Object.entries(WIDGET_TYPES).map(([id, info]) => {
                   const Icon = info.icon;
-                  const isAdded = widgets.includes(key);
+                  const added = widgets.includes(id);
                   return (
-                    <Button 
-                      key={key}
-                      variant="outline"
-                      onClick={() => addWidget(key)}
-                      disabled={isAdded}
-                      className={`border-white/10 justify-start ${isAdded ? 'opacity-50' : 'text-gray-400 hover:text-white'}`}
-                    >
-                      <Icon className="w-4 h-4 mr-2" />
-                      {info.name}
-                      {isAdded && <span className="ml-auto text-xs">✓</span>}
-                    </Button>
+                    <button key={id} type="button" onClick={() => addWidget(id)} disabled={added} className={cn(buttonClass, 'justify-start')}>
+                      <Icon className="h-4 w-4" aria-hidden="true" />
+                      <span className="truncate">{info.name}</span>
+                      {added && <span className="ml-auto text-xs text-ink-faint">Added</span>}
+                    </button>
                   );
                 })}
               </div>
             )}
           </div>
-        )}
+        </Panel>
+      )}
 
-        {/* Widgets Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {widgets.map(type => (
-            <Widget 
-              key={type}
-              type={type}
-              data={data}
-              blocks={blocks}
-              perfData={perfData}
-              onRemove={() => removeWidget(type)}
-              isEditing={isEditing}
-            />
+      {status.state === 'loading' ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" role="status" aria-label="Loading">
+          {widgets.slice(0, 6).map((id) => <div key={id} className="panel p-4"><Skeleton className="mb-4 h-4 w-32" /><Skeleton className="h-20 w-full" /></div>)}
+        </div>
+      ) : status.state === 'error' && widgets.some((id) => WIDGET_TYPES[id].needs === 'stats') ? (
+        <Panel><ErrorState title="Could not load network data" onRetry={() => { setStatus({ state: 'loading', loadedAt: null, stale: false }); fetchData(); }} /></Panel>
+      ) : widgets.length === 0 ? (
+        <Panel><EmptyState icon={LayoutGrid} title="No widgets on this dashboard" description="Choose Edit layout, then Add widget." /></Panel>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {widgets.map((id, i) => (
+            <Widget key={id} id={id} src={src} editing={editing} index={i} count={widgets.length} onRemove={removeWidget} onMove={moveWidget} />
           ))}
         </div>
-
-        {widgets.length === 0 && (
-          <div className="text-center py-20">
-            <LayoutGrid className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400">No widgets added</p>
-            <p className="text-gray-500 text-sm mt-2">Click Edit to add widgets to your dashboard</p>
-          </div>
-        )}
-      </main>
-    </div>
+      )}
+    </>
   );
 }

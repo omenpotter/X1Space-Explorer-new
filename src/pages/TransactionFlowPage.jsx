@@ -1,504 +1,478 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { 
-  ChevronLeft, Loader2, Search, ArrowRight, ArrowLeftRight,
-  Filter, RefreshCw, Wallet, ExternalLink, Zap
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ArrowLeftRight, CheckCircle2, FileSearch, RefreshCw, Search, XCircle } from 'lucide-react';
+import PageHeader from '@/components/shell/PageHeader';
+import { CopyButton, Panel, Pill, StatCard } from '@/components/ds/Primitives';
+import { EmptyState, ErrorState, Skeleton, StatSkeleton, TableSkeleton, Unavailable } from '@/components/ds/States';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import X1Rpc from '@/components/x1/X1RpcService';
+import AddressFlowGraph from '@/components/transactions/AddressFlowGraph';
+import FlowFilters from '@/components/transactions/FlowFilters';
+import FlowExport from '@/components/transactions/FlowExport';
+import TransactionFlow from '@/components/transactions/TransactionFlow';
+import { PROGRAM_IDS, TX_TYPES, addressUrl, formatUnits, formatXnt, getProgramInfo, isValidAddress, isValidSignature, normalizeTransaction } from '@/components/transactions/ProgramDecoder';
+import { rpcCall } from '@/lib/x1/rpcClient';
+import { DASH, integer, shortAddress, timeAgo } from '@/lib/format';
 import { createPageUrl } from '@/utils';
-import X1Rpc from '../components/x1/X1RpcService';
-import AddressFlowGraph from '../components/transactions/AddressFlowGraph';
-import FlowFilters from '../components/transactions/FlowFilters';
-import FlowExport from '../components/transactions/FlowExport';
 
-export default function TransactionFlowPage() {
-  const [address, setAddress] = useState('');
-  const [inputAddress, setInputAddress] = useState('');
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [filterType, setFilterType] = useState('all');
-  const [flowData, setFlowData] = useState({ nodes: [], edges: [] });
-  const [dateRange, setDateRange] = useState({ from: null, to: null });
-  const [amountRange, setAmountRange] = useState({ min: '', max: '' });
-  const [searchSignature, setSearchSignature] = useState('');
-  const graphRef = useRef(null);
+// Per-address cap on fetched transactions: one signature page, then one getTransaction per signature.
+const MAX_TRANSACTIONS = 25;
+const CONCURRENCY = 5;
 
-  // Parse URL params
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const addr = params.get('address');
-    if (addr) {
-      setAddress(addr);
-      setInputAddress(addr);
+const detailUrl = (sig) => `${createPageUrl('TransactionDetail')}?sig=${encodeURIComponent(sig)}`;
+const addrLabel = (a) => getProgramInfo(a).name || shortAddress(a, 6, 6);
+
+/** Run `fn` over `items` with a small number in flight. `fn` must not throw. */
+async function mapPool(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
     }
+  }));
+  return out;
+}
+
+const view = (data) => new DataView(data.buffer, data.byteOffset, data.byteLength);
+
+/**
+ * XNT transfers that the System Program instructions of a transaction state outright
+ * (Transfer and TransferWithSeed, top level and inner). Nothing is paired or guessed.
+ */
+function systemTransfers(tx) {
+  const out = [];
+  const visit = (ix, inner) => {
+    if (ix.programId !== PROGRAM_IDS.system || !(ix.data instanceof Uint8Array) || ix.data.length < 12) return;
+    const kind = view(ix.data).getUint32(0, true);
+    const lamports = view(ix.data).getBigUint64(4, true);
+    if (kind === 2 && ix.accounts[0] && ix.accounts[1]) out.push({ from: ix.accounts[0], to: ix.accounts[1], lamports, inner });
+    if (kind === 11 && ix.accounts[0] && ix.accounts[2]) out.push({ from: ix.accounts[0], to: ix.accounts[2], lamports, inner });
+  };
+  for (const ix of tx.instructions) {
+    visit(ix, false);
+    for (const i of ix.inner) visit(i, true);
+  }
+  return out;
+}
+
+function aggregate(records, center) {
+  const incoming = new Map();
+  const outgoing = new Map();
+  let inflow = 0n;
+  let outflow = 0n;
+  const add = (map, address, lamports) => {
+    const cur = map.get(address) || { address, lamports: 0n, count: 0 };
+    cur.lamports += lamports;
+    cur.count += 1;
+    map.set(address, cur);
+  };
+  for (const r of records) {
+    for (const t of r.transfers) {
+      if (t.from === t.to) continue;
+      if (t.to === center) { add(incoming, t.from, t.lamports); inflow += t.lamports; }
+      else if (t.from === center) { add(outgoing, t.to, t.lamports); outflow += t.lamports; }
+    }
+  }
+  const sort = (m) => [...m.values()].sort((a, b) => (a.lamports === b.lamports ? 0 : a.lamports > b.lamports ? -1 : 1));
+  return { centerAddress: center, incoming: sort(incoming), outgoing: sort(outgoing), inflow, outflow };
+}
+
+/** @param {{ success?: any, [key: string]: any }} props */
+function StatusPill({ success }) {
+  if (success === null) return <Pill>Unknown</Pill>;
+  return success ? <Pill tone="positive" icon={CheckCircle2}>Success</Pill> : <Pill tone="negative" icon={XCircle}>Failed</Pill>;
+}
+
+/** @param {{ signature?: any, [key: string]: any }} props */
+function SignatureCell({ signature }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <Link to={detailUrl(signature)} title={signature} className="mono text-brand hover:underline">{shortAddress(signature, 8, 6)}</Link>
+      <CopyButton value={signature} label="Copy signature" />
+    </span>
+  );
+}
+
+/** @param {{ tx?: any, [key: string]: any }} props */
+function SignatureMode({ tx }) {
+  const transfers = useMemo(() => systemTransfers(tx), [tx]);
+  const type = TX_TYPES[tx.type];
+  return (
+    <div className="space-y-6">
+      <Panel
+        title="Flow of this transaction"
+        description="Signers, programs and balance changes read from the transaction. Category is derived from the program ids."
+        actions={<><StatusPill success={tx.success} /><Pill tone={type.tone} title={type.title}>{type.label}</Pill></>}
+      >
+        <div className="p-4"><TransactionFlow transaction={tx} /></div>
+      </Panel>
+
+      <Panel title="XNT transfers stated by the transaction" description="System Program Transfer instructions, including inner instructions. Balance changes made by other programs appear in the Balances changed list above.">
+        {transfers.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-ink-muted">This transaction contains no System Program transfer instructions.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <caption className="sr-only">XNT transfers decoded from this transaction</caption>
+              <thead><tr><th scope="col">From</th><th scope="col">To</th><th scope="col" className="text-right">Amount (XNT)</th><th scope="col" className="hidden md:table-cell">Level</th></tr></thead>
+              <tbody>
+                {transfers.map((t, i) => (
+                  <tr key={i}>
+                    <td><Link to={addressUrl(t.from)} title={t.from} className="mono text-ink-soft hover:text-brand">{addrLabel(t.from)}</Link></td>
+                    <td><Link to={addressUrl(t.to)} title={t.to} className="mono text-ink-soft hover:text-brand">{addrLabel(t.to)}</Link></td>
+                    <td className="tabular text-right">{formatUnits(t.lamports, 9)}</td>
+                    <td className="hidden text-ink-muted md:table-cell">{t.inner ? 'Inner instruction' : 'Top level'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+      <p className="text-sm text-ink-muted">
+        <Link to={detailUrl(tx.signature)} className="text-brand hover:underline">Open the full decoded transaction</Link>
+      </p>
+    </div>
+  );
+}
+
+/** @param {{ result?: any, [key: string]: any }} props */
+function AddressMode({ result }) {
+  const { address, records, flowData, balance, signaturesReturned, failedFetches, missing } = result;
+  const graphRef = useRef(null);
+  const [filterType, setFilterType] = useState('all');
+  const [dateRange, setDateRange] = useState({ from: '', to: '' });
+  const [amountRange, setAmountRange] = useState({ min: '', max: '' });
+  const [search, setSearch] = useState('');
+
+  const clear = useCallback(() => {
+    setFilterType('all');
+    setDateRange({ from: '', to: '' });
+    setAmountRange({ min: '', max: '' });
+    setSearch('');
   }, []);
 
-  const fetchTransactions = useCallback(async () => {
-    if (!address || address.length < 32) return;
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      // Get balance and signatures in parallel
-      const [balanceResult, signatures] = await Promise.all([
-        X1Rpc.getBalance(address).catch(() => ({ value: 0 })),
-        X1Rpc.getSignaturesForAddress(address, { limit: 50 }).catch(() => [])
-      ]);
-      
-      const balance = (balanceResult?.value || 0) / 1e9;
-      
-      if (!signatures || signatures.length === 0) {
-        if (balance > 0) {
-          setError(`Address has ${balance.toFixed(4)} XNT but no transaction history available.`);
-        } else {
-          setError('No transactions found. Address may be new or inactive.');
-        }
-        setTransactions([]);
-        buildFlowData([], address);
-        setLoading(false);
-        return;
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const from = dateRange.from ? new Date(`${dateRange.from}T00:00:00`).getTime() : null;
+    const to = dateRange.to ? new Date(`${dateRange.to}T23:59:59.999`).getTime() : null;
+    const min = amountRange.min !== '' ? Number(amountRange.min) : null;
+    const max = amountRange.max !== '' ? Number(amountRange.max) : null;
+    return records.filter((r) => {
+      if (filterType !== 'all' && r.type !== filterType) return false;
+      if (q && !r.signature.toLowerCase().includes(q) && !r.transfers.some((t) => t.from.toLowerCase().includes(q) || t.to.toLowerCase().includes(q))) return false;
+      if ((from !== null || to !== null) && !r.blockTime) return false;
+      if (from !== null && r.blockTime * 1000 < from) return false;
+      if (to !== null && r.blockTime * 1000 > to) return false;
+      if (min !== null || max !== null) {
+        if (r.netLamports === null) return false;
+        const abs = Math.abs(Number(r.netLamports)) / 1e9;
+        if (min !== null && abs < min) return false;
+        if (max !== null && abs > max) return false;
       }
-      
-      console.log(`Fetching ${signatures.length} transactions for ${address.substring(0, 8)}...`);
-      
-      const txDetails = [];
-      // Parallel fetch with Promise.all for speed
-      const txPromises = signatures.slice(0, 30).map(sig => 
-        X1Rpc.getTransaction(sig.signature)
-          .then(tx => ({ sig, tx }))
-          .catch(() => null)
-      );
-      
-      const results = await Promise.all(txPromises);
-      
-      results.forEach(result => {
-        if (!result?.tx) return;
-        
-        const { sig, tx } = result;
-        const message = tx.transaction?.message;
-        const accountKeys = message?.accountKeys || [];
-        const instructions = message?.instructions || [];
-        const preBalances = tx.meta?.preBalances || [];
-        const postBalances = tx.meta?.postBalances || [];
-        
-        // Determine type
-        let type = 'other';
-        for (const ix of instructions) {
-          const programId = accountKeys[ix.programIdIndex];
-          if (programId === 'Vote111111111111111111111111111111111111111') {
-            type = 'vote';
-            break;
-          } else if (programId === '11111111111111111111111111111111') {
-            type = 'transfer';
-          } else if (programId === 'Stake11111111111111111111111111111111111111') {
-            type = 'stake';
-          } else if (programId === 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') {
-            type = 'token';
-          }
-        }
-        
-        // Calculate amount and direction - analyze ALL balance changes
-        let amount = 0, from = '', to = '';
-        
-        // Build array of all balance changes
-        const allChanges = [];
-        for (let i = 0; i < accountKeys.length; i++) {
-          const change = (postBalances[i] - preBalances[i]) / 1e9;
-          if (Math.abs(change) > 0.00001) { // Ignore dust
-            allChanges.push({ 
-              address: accountKeys[i], 
-              change, 
-              index: i,
-              isSearchedAddress: accountKeys[i] === address
-            });
-          }
-        }
-        
-        // Find the searched address change
-        const searchedChange = allChanges.find(c => c.isSearchedAddress);
-        
-        if (searchedChange) {
-          amount = Math.abs(searchedChange.change);
-          
-          if (searchedChange.change > 0) {
-            // Address received funds
-            to = address;
-            // Find sender (largest negative change)
-            const senders = allChanges.filter(c => !c.isSearchedAddress && c.change < 0).sort((a, b) => a.change - b.change);
-            from = senders.length > 0 ? senders[0].address : accountKeys[0] || '';
-          } else if (searchedChange.change < 0) {
-            // Address sent funds
-            from = address;
-            // Find receiver (largest positive change)
-            const receivers = allChanges.filter(c => !c.isSearchedAddress && c.change > 0).sort((a, b) => b.change - a.change);
-            to = receivers.length > 0 ? receivers[0].address : accountKeys[1] || '';
-          }
-        } else {
-          // Address not in transaction accounts (might be program/contract)
-          if (allChanges.length >= 2) {
-            const negChanges = allChanges.filter(c => c.change < 0).sort((a, b) => a.change - b.change);
-            const posChanges = allChanges.filter(c => c.change > 0).sort((a, b) => b.change - a.change);
-            
-            if (negChanges.length > 0 && posChanges.length > 0) {
-              amount = Math.min(Math.abs(negChanges[0].change), Math.abs(posChanges[0].change));
-              from = negChanges[0].address;
-              to = posChanges[0].address;
-            }
-          }
-        }
-        
-        txDetails.push({
-          signature: sig.signature,
-          slot: sig.slot,
-          blockTime: sig.blockTime || tx.blockTime,
-          type,
-          amount,
-          from: from || accountKeys[0] || '',
-          to: to || accountKeys[1] || '',
-          status: tx.meta?.err ? 'failed' : 'success',
-          fee: (tx.meta?.fee || 0) / 1e9,
-          accountKeys
-        });
-      });
-      
-      console.log(`Transaction Flow: Loaded ${txDetails.length} transactions for ${address.substring(0, 8)}...`);
-      console.log('Sample transaction:', txDetails[0]);
-      
-      if (txDetails.length === 0) {
-        setError(`Found ${signatures.length} signatures but couldn't fetch details from RPC.`);
-      }
-      
-      setTransactions(txDetails);
-      buildFlowData(txDetails, address);
-    } catch (err) {
-      console.error('Transaction flow error:', err);
-      setError('RPC error: ' + err.message);
-      setTransactions([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [address]);
-
-  const buildFlowData = (txs, centerAddress) => {
-    const nodes = new Map();
-    const edges = [];
-    
-    // Center node (searched address)
-    nodes.set(centerAddress, {
-      id: centerAddress,
-      label: centerAddress.substring(0, 6) + '...',
-      type: 'center',
-      txCount: txs.length,
-      totalAmount: 0
-    });
-    
-    let centerInflow = 0;
-    let centerOutflow = 0;
-    
-    txs.forEach(tx => {
-      // Skip vote transactions and zero-amount transactions
-      if (tx.type === 'vote' || !tx.amount || tx.amount < 0.00001) return;
-      
-      // Determine flow direction
-      const isOutgoing = tx.from === centerAddress;
-      const otherAddress = isOutgoing ? tx.to : tx.from;
-      
-      if (!otherAddress || otherAddress === centerAddress) return;
-      
-      // Add/update other node
-      if (!nodes.has(otherAddress)) {
-        nodes.set(otherAddress, {
-          id: otherAddress,
-          label: otherAddress.substring(0, 6) + '...',
-          type: tx.type,
-          txCount: 0,
-          totalAmount: 0
-        });
-      }
-      const node = nodes.get(otherAddress);
-      node.txCount++;
-      node.totalAmount += tx.amount;
-      
-      // Track inflow/outflow
-      if (isOutgoing) {
-        centerOutflow += tx.amount;
-      } else {
-        centerInflow += tx.amount;
-      }
-      
-      // Add edge
-      edges.push({
-        from: isOutgoing ? centerAddress : otherAddress,
-        to: isOutgoing ? otherAddress : centerAddress,
-        amount: tx.amount,
-        type: tx.type,
-        signature: tx.signature
-      });
-    });
-    
-    // Update center node with totals
-    const centerNode = nodes.get(centerAddress);
-    centerNode.inflow = centerInflow;
-    centerNode.outflow = centerOutflow;
-    
-    const flowResult = {
-      nodes: Array.from(nodes.values()),
-      edges,
-      centerAddress
-    };
-    
-    console.log(`Flow built: ${flowResult.nodes.length} nodes (${flowResult.nodes.length - 1} connected), ${flowResult.edges.length} edges`);
-    setFlowData(flowResult);
-  };
-
-  useEffect(() => {
-    if (address && address.length >= 32) {
-      fetchTransactions();
-    }
-  }, [address]);
-
-  const handleSearch = () => {
-    if (inputAddress && inputAddress.length >= 32) {
-      setAddress(inputAddress);
-      window.history.pushState({}, '', `${window.location.pathname}?address=${inputAddress}`);
-    }
-  };
-
-  // Advanced filtering with memoization
-  const filteredTxs = useMemo(() => {
-    return transactions.filter(tx => {
-      // Type filter
-      if (filterType !== 'all' && tx.type !== filterType) return false;
-      
-      // Signature/address search
-      if (searchSignature) {
-        const search = searchSignature.toLowerCase();
-        const matchSig = tx.signature?.toLowerCase().includes(search);
-        const matchFrom = tx.from?.toLowerCase().includes(search);
-        const matchTo = tx.to?.toLowerCase().includes(search);
-        if (!matchSig && !matchFrom && !matchTo) return false;
-      }
-      
-      // Date range filter
-      if (dateRange.from && tx.blockTime) {
-        const txDate = new Date(tx.blockTime * 1000);
-        if (txDate < dateRange.from) return false;
-      }
-      if (dateRange.to && tx.blockTime) {
-        const txDate = new Date(tx.blockTime * 1000);
-        const endOfDay = new Date(dateRange.to);
-        endOfDay.setHours(23, 59, 59, 999);
-        if (txDate > endOfDay) return false;
-      }
-      
-      // Amount range filter
-      if (amountRange.min && tx.amount < parseFloat(amountRange.min)) return false;
-      if (amountRange.max && tx.amount > parseFloat(amountRange.max)) return false;
-      
       return true;
     });
-  }, [transactions, filterType, searchSignature, dateRange, amountRange]);
+  }, [records, filterType, search, dateRange, amountRange]);
 
-  const clearFilters = useCallback(() => {
-    setFilterType('all');
-    setDateRange({ from: null, to: null });
-    setAmountRange({ min: '', max: '' });
-    setSearchSignature('');
-  }, []);
-
-  const formatAmount = (amt) => {
-    if (amt >= 1e6) return (amt / 1e6).toFixed(2) + 'M';
-    if (amt >= 1e3) return (amt / 1e3).toFixed(2) + 'K';
-    return amt.toFixed(4);
-  };
-
-  const getTypeColor = (type) => {
-    const colors = {
-      transfer: 'bg-blue-500/20 text-blue-400',
-      stake: 'bg-emerald-500/20 text-emerald-400',
-      token: 'bg-yellow-500/20 text-yellow-400',
-      vote: 'bg-purple-500/20 text-purple-400',
-      other: 'bg-gray-500/20 text-gray-400'
-    };
-    return colors[type] || colors.other;
-  };
+  const counterparties = flowData.incoming.length + flowData.outgoing.length;
 
   return (
-    <div className="min-h-screen bg-[#1d2d3a] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
-        <div className="max-w-[1800px] mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
-                <span className="font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
-              </Link>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
-            </div>
-            <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('TransactionFlowPage')}><Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg"><ArrowLeftRight className="w-5 h-5" /></Button></Link>
-            </nav>
-          </div>
-        </div>
-      </header>
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Transactions analysed" value={integer(records.length)} hint={`Latest ${integer(signaturesReturned)} of up to ${MAX_TRANSACTIONS} requested`} tone="brand" />
+        <StatCard label="Counterparties" value={integer(counterparties)} hint="Distinct addresses in decoded transfers" />
+        <StatCard label="XNT received" value={formatUnits(flowData.inflow, 9)} hint="Decoded System transfers in" tone="positive" />
+        <StatCard label="XNT sent" value={formatUnits(flowData.outflow, 9)} hint="Decoded System transfers out" tone="negative" />
+      </div>
 
-      <main className="max-w-[1800px] mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-3 mb-6">
-          <ArrowLeftRight className="w-7 h-7 text-cyan-400" />
-          Transaction Flow
-        </h1>
+      <p role="note" className="rounded-lg border border-line bg-surface-2/50 px-3 py-2 text-sm text-ink-muted">
+        Only the latest {MAX_TRANSACTIONS} transactions of this address were fetched, so older activity is not included and the totals cover this window only.
+        {signaturesReturned >= MAX_TRANSACTIONS && ' The address has more history than this.'}
+        {failedFetches > 0 && ` ${failedFetches} transaction${failedFetches === 1 ? '' : 's'} could not be loaded and ${failedFetches === 1 ? 'is' : 'are'} left out.`}
+        {missing > 0 && ` ${missing} ${missing === 1 ? 'was' : 'were'} not returned by the node (possibly pruned).`}
+        {' '}Flows are System Program transfers decoded from the instructions; other balance changes are in the table below. Current balance: {balance === null ? DASH : `${formatXnt(balance)} XNT`}.
+      </p>
 
-        {/* Search */}
-        <div className="bg-[#24384a] rounded-xl p-4 mb-6">
-          <div className="flex gap-2">
-            <Input
-              placeholder="Enter X1 address to visualize transaction flow..."
-              value={inputAddress}
-              onChange={(e) => setInputAddress(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="bg-[#1d2d3a] border-0 text-white flex-1 font-mono"
-            />
-            <Button onClick={handleSearch} className="bg-cyan-500 hover:bg-cyan-600">
-              <Search className="w-4 h-4 mr-2" /> Analyze
-            </Button>
-          </div>
-        </div>
+      <Panel
+        title="XNT flow"
+        description="Who sent XNT to this address and who it sent XNT to, from decoded transfers."
+        actions={<FlowExport flowData={flowData} transactions={records} graphRef={graphRef} />}
+      >
+        <div ref={graphRef}><AddressFlowGraph flowData={flowData} /></div>
+      </Panel>
 
-        {loading && (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
-          </div>
-        )}
+      <FlowFilters
+        filterType={filterType}
+        setFilterType={setFilterType}
+        dateRange={dateRange}
+        setDateRange={setDateRange}
+        amountRange={amountRange}
+        setAmountRange={setAmountRange}
+        searchSignature={search}
+        setSearchSignature={setSearch}
+        onClearFilters={clear}
+      />
 
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6">
-            <p className="text-red-400">{error}</p>
-          </div>
-        )}
-
-        {!loading && address && flowData.nodes.length > 0 && (
-          <>
-            {/* Summary Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-[#24384a] rounded-xl p-4">
-                <p className="text-gray-400 text-xs mb-1">Total Transactions</p>
-                <p className="text-2xl font-bold text-white">{transactions.length}</p>
-              </div>
-              <div className="bg-[#24384a] rounded-xl p-4">
-                <p className="text-gray-400 text-xs mb-1">Connected Addresses</p>
-                <p className="text-2xl font-bold text-cyan-400">{flowData.nodes.length - 1}</p>
-              </div>
-              <div className="bg-[#24384a] rounded-xl p-4">
-                <p className="text-gray-400 text-xs mb-1">Total Inflow</p>
-                <p className="text-2xl font-bold text-emerald-400">+{formatAmount(flowData.nodes[0]?.inflow || 0)} XNT</p>
-              </div>
-              <div className="bg-[#24384a] rounded-xl p-4">
-                <p className="text-gray-400 text-xs mb-1">Total Outflow</p>
-                <p className="text-2xl font-bold text-red-400">-{formatAmount(flowData.nodes[0]?.outflow || 0)} XNT</p>
-              </div>
-            </div>
-
-            {/* Flow Graph */}
-            <div className="bg-[#24384a] rounded-xl p-4 mb-6" ref={graphRef}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-gray-400 text-sm">TRANSACTION FLOW VISUALIZATION</h3>
-                <div className="flex items-center gap-2">
-                  <FlowExport flowData={flowData} transactions={transactions} graphRef={graphRef} />
-                  <Button variant="ghost" size="sm" onClick={fetchTransactions} className="text-gray-400">
-                    <RefreshCw className="w-4 h-4 mr-2" /> Refresh
-                  </Button>
-                </div>
-              </div>
-              <AddressFlowGraph flowData={flowData} />
-            </div>
-
-            {/* Advanced Filters */}
-            <FlowFilters
-              filterType={filterType}
-              setFilterType={setFilterType}
-              dateRange={dateRange}
-              setDateRange={setDateRange}
-              amountRange={amountRange}
-              setAmountRange={setAmountRange}
-              searchSignature={searchSignature}
-              setSearchSignature={setSearchSignature}
-              onClearFilters={clearFilters}
-            />
-
-            {/* Filter results count */}
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-gray-400 text-sm">
-                Showing {filteredTxs.length} of {transactions.length} transactions
-              </span>
-            </div>
-
-            {/* Transaction List */}
-            <div className="bg-[#24384a] rounded-xl overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-white/10">
-                      <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Type</th>
-                      <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Signature</th>
-                      <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Amount</th>
-                      <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Counterparty</th>
-                      <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Time</th>
+      <Panel title="Transactions" description={`Showing ${filtered.length} of ${records.length} fetched transactions. Net change includes fees paid by this address.`}>
+        {filtered.length === 0 ? (
+          <EmptyState icon={FileSearch} title="No transactions match the filters" description="Clear or relax the filters to see the fetched transactions again." action={<Button type="button" variant="outline" size="sm" onClick={clear} className="border-line-strong bg-transparent text-ink hover:bg-surface-3">Clear filters</Button>} />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <caption className="sr-only">Transactions fetched for {address}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Signature</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">Status</th>
+                  <th scope="col" className="text-right">Net change (XNT)</th>
+                  <th scope="col" className="hidden md:table-cell">Transfers</th>
+                  <th scope="col" className="hidden lg:table-cell">Token changes</th>
+                  <th scope="col" className="text-right">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((r) => {
+                  const type = TX_TYPES[r.type];
+                  return (
+                    <tr key={r.signature}>
+                      <td><SignatureCell signature={r.signature} /></td>
+                      <td><Pill tone={type.tone} title={type.title}>{type.label}</Pill></td>
+                      <td><StatusPill success={r.success} /></td>
+                      <td className="tabular text-right">
+                        {r.netLamports === null ? <Unavailable reason="This address is not an account in the transaction" /> : (
+                          <span className={r.netLamports > 0n ? 'text-positive' : r.netLamports < 0n ? 'text-negative' : 'text-ink-muted'}>{formatUnits(r.netLamports, 9, { sign: true })}</span>
+                        )}
+                      </td>
+                      <td className="hidden md:table-cell">
+                        {r.transfers.length === 0 ? <span className="text-ink-faint">{DASH}</span> : (
+                          <ul className="space-y-0.5 text-xs">
+                            {r.transfers.slice(0, 3).map((t, i) => (
+                              <li key={i} className="whitespace-nowrap text-ink-muted">
+                                <Link to={addressUrl(t.from)} title={t.from} className="mono hover:text-brand">{addrLabel(t.from)}</Link>
+                                {' → '}
+                                <Link to={addressUrl(t.to)} title={t.to} className="mono hover:text-brand">{addrLabel(t.to)}</Link>
+                                <span className="tabular text-ink-soft"> {formatUnits(t.lamports, 9)}</span>
+                              </li>
+                            ))}
+                            {r.transfers.length > 3 && <li className="text-ink-faint">+{r.transfers.length - 3} more</li>}
+                          </ul>
+                        )}
+                      </td>
+                      <td className="hidden lg:table-cell">
+                        {r.tokenChanges.length === 0 ? <span className="text-ink-faint">{DASH}</span> : (
+                          <ul className="space-y-0.5 text-xs">
+                            {r.tokenChanges.slice(0, 3).map((t, i) => (
+                              <li key={i} className="whitespace-nowrap">
+                                <span className={`tabular ${t.delta > 0n ? 'text-positive' : 'text-negative'}`}>{formatUnits(t.delta, t.decimals ?? 0, { sign: true })}</span>
+                                <span className="text-ink-muted"> {t.decimals === null ? 'base units of ' : 'of '}</span>
+                                <span className="mono text-ink-muted" title={t.mint || undefined}>{shortAddress(t.mint)}</span>
+                              </li>
+                            ))}
+                            {r.tokenChanges.length > 3 && <li className="text-ink-faint">+{r.tokenChanges.length - 3} more</li>}
+                          </ul>
+                        )}
+                      </td>
+                      <td className="text-right text-ink-muted" title={r.blockTime ? new Date(r.blockTime * 1000).toLocaleString() : undefined}>{r.blockTime ? timeAgo(r.blockTime * 1000) : DASH}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTxs.slice(0, 20).map((tx) => (
-                      <tr key={tx.signature} className="border-b border-white/5 hover:bg-white/[0.02]">
-                        <td className="px-4 py-3">
-                          <Badge className={`${getTypeColor(tx.type)} border-0`}>
-                            {tx.type}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Link 
-                            to={createPageUrl('TransactionDetail') + `?sig=${tx.signature}`}
-                            className="text-cyan-400 hover:underline font-mono text-sm"
-                          >
-                            {tx.signature.substring(0, 16)}...
-                          </Link>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className={tx.from === address ? 'text-red-400' : 'text-emerald-400'}>
-                            {tx.from === address ? '-' : '+'}{formatAmount(tx.amount)} XNT
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Link 
-                            to={createPageUrl('AddressLookup') + `?address=${tx.from === address ? tx.to : tx.from}`}
-                            className="text-gray-400 hover:text-cyan-400 font-mono text-sm"
-                          >
-                            {(tx.from === address ? tx.to : tx.from)?.substring(0, 12)}...
-                          </Link>
-                        </td>
-                        <td className="px-4 py-3 text-right text-gray-400 text-sm">
-                          {tx.blockTime ? new Date(tx.blockTime * 1000).toLocaleString() : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
-        )}
-
-        {!loading && !address && (
-          <div className="bg-[#24384a] rounded-xl p-12 text-center">
-            <Wallet className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <h2 className="text-xl text-gray-400 mb-2">Enter an address to visualize</h2>
-            <p className="text-gray-500">See the flow of transactions to and from any X1 address</p>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-      </main>
+      </Panel>
     </div>
+  );
+}
+
+function LoadingView() {
+  return (
+    <div className="space-y-6" role="status" aria-label="Loading transaction flow">
+      <StatSkeleton count={4} />
+      <Skeleton className="h-56 w-full rounded-xl" />
+      <Panel><TableSkeleton rows={6} columns={5} /></Panel>
+    </div>
+  );
+}
+
+export default function TransactionFlowPage() {
+  const [params, setParams] = useSearchParams();
+  const query = (params.get('address') || params.get('sig') || params.get('signature') || '').trim();
+  const [input, setInput] = useState(query);
+  const [inputError, setInputError] = useState(null);
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState(/** @type {Record<string, any>} */ ({ status: 'idle' }));
+
+  const kind = isValidSignature(query) ? 'signature' : isValidAddress(query) ? 'address' : query ? 'invalid' : 'none';
+
+  useEffect(() => {
+    setInput(query);
+  }, [query]);
+
+  useEffect(() => {
+    if (kind !== 'signature' && kind !== 'address') {
+      setState({ status: 'idle' });
+      return undefined;
+    }
+    let cancelled = false;
+    setState({ status: 'loading' });
+
+    (async () => {
+      try {
+        if (kind === 'signature') {
+          const raw = await X1Rpc.getTransaction(query);
+          if (cancelled) return;
+          setState(raw ? { status: 'ready', mode: 'signature', tx: normalizeTransaction(raw) } : { status: 'notfound' });
+          return;
+        }
+
+        const [balanceRes, signatures] = await Promise.all([
+          X1Rpc.getBalance(query).catch(() => null),
+          rpcCall('getSignaturesForAddress', [query, { limit: MAX_TRANSACTIONS }]),
+        ]);
+        if (cancelled) return;
+        const sigs = Array.isArray(signatures) ? signatures.slice(0, MAX_TRANSACTIONS) : [];
+        if (sigs.length === 0) {
+          setState({ status: 'empty', balance: Number.isFinite(balanceRes?.value) ? balanceRes.value : null });
+          return;
+        }
+
+        // One failing getTransaction must not break the page: each result is { ok } or { failed }.
+        const results = await mapPool(sigs, CONCURRENCY, async (s) => {
+          try {
+            const raw = await X1Rpc.getTransaction(s.signature);
+            return raw ? { tx: normalizeTransaction(raw), sig: s } : { missing: true };
+          } catch {
+            return { failed: true };
+          }
+        });
+        if (cancelled) return;
+
+        const records = results.filter((r) => r.tx).map(({ tx, sig }) => {
+          const self = tx.accounts.find((a) => a.address === query);
+          return {
+            signature: tx.signature || sig.signature,
+            slot: tx.slot ?? sig.slot ?? null,
+            blockTime: tx.blockTime ?? sig.blockTime ?? null,
+            type: tx.type,
+            success: tx.success,
+            feeLamports: tx.feeLamports,
+            netLamports: self && Number.isFinite(self.delta) ? BigInt(self.delta) : null,
+            transfers: systemTransfers(tx),
+            tokenChanges: tx.tokenChanges.filter((t) => t.owner === query || t.account === query),
+          };
+        });
+        const failedFetches = results.filter((r) => r.failed).length;
+        const missing = results.filter((r) => r.missing).length;
+
+        if (records.length === 0) {
+          setState({ status: 'error', message: `The node listed ${sigs.length} signatures for this address but none of the transactions could be loaded.` });
+          return;
+        }
+        setState({
+          status: 'ready',
+          mode: 'address',
+          result: { address: query, records, flowData: aggregate(records, query), balance: Number.isFinite(balanceRes?.value) ? balanceRes.value : null, signaturesReturned: sigs.length, failedFetches, missing },
+        });
+      } catch (err) {
+        if (!cancelled) setState({ status: 'error', message: err?.message || 'The X1 RPC did not respond.' });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [query, kind, attempt]);
+
+  const submit = (e) => {
+    e.preventDefault();
+    const value = input.trim();
+    if (isValidSignature(value)) {
+      setInputError(null);
+      setParams({ sig: value });
+    } else if (isValidAddress(value)) {
+      setInputError(null);
+      setParams({ address: value });
+    } else {
+      setInputError('Enter a transaction signature (80 to 90 base58 characters) or an address (32 to 44 base58 characters). Base58 does not use 0, O, I or l.');
+    }
+  };
+
+  const retry = () => setAttempt((n) => n + 1);
+
+  return (
+    <>
+      <PageHeader
+        icon={ArrowLeftRight}
+        title="Transaction flow"
+        description="Follow the XNT and token movements of one transaction, or of the latest transactions of an address. Everything is derived from the transactions returned by the X1 RPC."
+        actions={kind === 'address' || kind === 'signature' ? (
+          <Button type="button" variant="outline" size="sm" onClick={retry} disabled={state.status === 'loading'} className="border-line-strong bg-transparent text-ink hover:bg-surface-3">
+            <RefreshCw className={`mr-2 h-4 w-4 ${state.status === 'loading' ? 'animate-spin' : ''}`} aria-hidden="true" />
+            Refresh
+          </Button>
+        ) : null}
+      />
+
+      <form onSubmit={submit} className="panel mb-6 p-4" noValidate>
+        <label htmlFor="flow-query" className="eyebrow mb-1.5 block">Signature or address</label>
+        <div className="flex flex-wrap gap-2">
+          <Input
+            id="flow-query"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Paste a transaction signature or an address"
+            autoComplete="off"
+            spellCheck={false}
+            aria-invalid={inputError ? 'true' : undefined}
+            aria-describedby={inputError ? 'flow-query-error' : undefined}
+            className="mono min-w-[16rem] flex-1"
+          />
+          <Button type="submit" className="bg-brand text-brand-ink hover:bg-brand/90">
+            <Search className="mr-2 h-4 w-4" aria-hidden="true" />
+            Analyse
+          </Button>
+        </div>
+        {inputError && <p id="flow-query-error" role="alert" className="mt-2 text-sm text-negative">{inputError}</p>}
+        <p className="mt-2 text-xs text-ink-muted">For an address, the latest {MAX_TRANSACTIONS} transactions are fetched.</p>
+      </form>
+
+      {kind === 'none' && (
+        <Panel><EmptyState icon={ArrowLeftRight} title="Enter a signature or an address" description="See who sent XNT to an address, who it paid, and what changed in a transaction." /></Panel>
+      )}
+
+      {kind === 'invalid' && (
+        <Panel>
+          <EmptyState icon={FileSearch} title="That is not a signature or an address" description="A signature is 80 to 90 base58 characters and an address is 32 to 44. Nothing was looked up." />
+        </Panel>
+      )}
+
+      {state.status === 'loading' && <LoadingView />}
+
+      {state.status === 'error' && (
+        <Panel><ErrorState title="The flow could not be loaded" description={state.message} onRetry={retry} /></Panel>
+      )}
+
+      {state.status === 'notfound' && (
+        <Panel><EmptyState icon={FileSearch} title="Transaction not found" description="The RPC node has no transaction with this signature. It may not exist, may not be confirmed yet, or may be older than the history the node keeps." /></Panel>
+      )}
+
+      {state.status === 'empty' && (
+        <Panel>
+          <EmptyState
+            icon={FileSearch}
+            title="No transactions found for this address"
+            description={`The node returned no signatures for this address${state.balance ? `, although it holds ${formatXnt(state.balance)} XNT` : ''}. It may be new, unused, or its history may be pruned.`}
+          />
+        </Panel>
+      )}
+
+      {state.status === 'ready' && state.mode === 'signature' && <SignatureMode tx={state.tx} />}
+      {state.status === 'ready' && state.mode === 'address' && <AddressMode key={state.result.address} result={state.result} />}
+    </>
   );
 }

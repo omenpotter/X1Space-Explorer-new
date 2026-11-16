@@ -1,109 +1,36 @@
 // X1 Blockchain RPC Service
 // Uses Solana-compatible JSON-RPC API with fallback endpoints
-// Ultra-optimized with caching, connection pooling, and request batching
+// All calls go through the unified client in src/lib/x1/rpcClient.js.
 
-import { getCached, setCache, debounceRpc } from './RpcCache';
+import { getCached, setCache } from './RpcCache';
 
-const RPC_ENDPOINTS = [
-  'https://rpc.mainnet.x1.xyz',
-  'https://rpc.x1galaxy.io/'
-];
+import { rpcCall } from '@/lib/x1/rpcClient';
+import { X1_CONFIG } from '@/lib/x1/config';
 
-// Test all RPCs and log status
+// Report which configured endpoints answer. Used by the RPC debugger only.
 export async function testAllRPCs() {
   const results = {};
-  for (const endpoint of RPC_ENDPOINTS) {
+  for (const endpoint of X1_CONFIG.rpcEndpoints) {
     try {
-      const headers = { 'Content-Type': 'application/json' };
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), X1_CONFIG.rpcTimeoutMs);
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers,
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getSlot', params: [] })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getSlot', params: [] }),
+        signal: controller.signal
       });
+      clearTimeout(timer);
       const data = await response.json();
       results[endpoint] = data.result ? 'OK - Slot: ' + data.result : 'Error: ' + (data.error?.message || 'Unknown');
     } catch (err) {
-      results[endpoint] = 'Failed: ' + err.message;
+      results[endpoint] = 'Failed: ' + (err?.name === 'AbortError' ? 'timeout' : 'network error');
     }
   }
-  console.log('RPC Status:', results);
   return results;
 }
 
-let currentEndpointIndex = 0;
-let lastSuccessfulEndpoint = 0;
-
-// Preconnect optimized - only primary endpoint
-if (typeof window !== 'undefined') {
-  const primaryEndpoint = RPC_ENDPOINTS[0];
-  try {
-    const link = document.createElement('link');
-    link.rel = 'preconnect';
-    link.href = new URL(primaryEndpoint).origin;
-    link.crossOrigin = 'anonymous';
-    document.head.appendChild(link);
-  } catch (e) {}
-}
-
-// Helper to make RPC calls with fallback and caching - ULTRA OPTIMIZED
-async function rpcCall(method, params = [], cacheKey = null, cacheDuration = 'short') {
-  // Check cache first
-  if (cacheKey) {
-    const cached = getCached(cacheKey);
-    if (cached) return cached;
-  }
-  
-  let lastError = null;
-  
-  // Start with last successful endpoint for faster response
-  const startIndex = lastSuccessfulEndpoint;
-  
-  for (let i = 0; i < RPC_ENDPOINTS.length; i++) {
-    const endpointIndex = (startIndex + i) % RPC_ENDPOINTS.length;
-    const endpoint = RPC_ENDPOINTS[endpointIndex];
-    
-    try {
-      const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout for faster failover
-
-              const headers = { 'Content-Type': 'application/json' };
-
-              const response = await fetch(endpoint, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({
-                  jsonrpc: '2.0',
-                  id: Date.now(),
-                  method,
-                  params
-                }),
-                signal: controller.signal
-              });
-      
-      clearTimeout(timeoutId);
-      
-      const data = await response.json();
-      if (data.error) {
-        lastError = new Error(data.error.message);
-        continue;
-      }
-      
-      // Success - update preferred endpoint and cache
-      currentEndpointIndex = endpointIndex;
-      lastSuccessfulEndpoint = endpointIndex;
-      if (cacheKey) {
-        setCache(cacheKey, data.result, cacheDuration);
-      }
-      return data.result;
-    } catch (err) {
-      lastError = err;
-      continue;
-    }
-  }
-  
-  console.error('All RPC endpoints failed:', lastError);
-  throw lastError || new Error('All RPC endpoints failed');
-}
+export { rpcCall };
 
 // Get current slot (block height)
 export async function getSlot() {
@@ -210,7 +137,6 @@ export async function getClusterNodes() {
 // Get supply info (cached for 5 minutes)
 export async function getSupply() {
   const result = await rpcCall('getSupply', [{ excludeNonCirculatingAccountsList: true }], 'supply', 'long');
-  console.log('getSupply RAW response:', JSON.stringify(result, null, 2));
   return result;
 }
 
@@ -467,28 +393,28 @@ export async function getFirstAvailableBlock() {
   return await rpcCall('getFirstAvailableBlock');
 }
 
-import { getValidatorName as getNameFromService, getDisplayName, getValidatorIcon, fetchAllValidatorIdentities } from './ValidatorNames';
+import { enrichValidators, fetchValidatorDirectory } from './ValidatorNames';
 
-// Generate validator names - uses ValidatorNames service
-function generateValidatorName(votePubkey, nodePubkey, activatedStake) {
-  const info = getNameFromService(votePubkey, nodePubkey, activatedStake);
-  return info || { name: `${votePubkey.substring(0, 6)}...${votePubkey.slice(-4)}`, icon: '⚪', website: null };
+// Share of the maximum possible vote credits earned so far this epoch (0-100), or null
+// when it cannot be measured. This is a measured on-chain value, not an estimate.
+function voteCreditRate(creditsThisEpoch, slotIndex) {
+  const max = slotIndex * X1_CONFIG.maxVoteCreditsPerSlot;
+  if (!(max > 0) || !Number.isFinite(creditsThisEpoch)) return null;
+  return Math.min(100, Math.max(0, (creditsThisEpoch / max) * 100));
 }
 
-// Get validator details with enhanced info
+// Validator list built from live RPC data plus the on-chain identity directory.
+// Fields that cannot be measured are null: nothing is estimated or randomised.
 export async function getValidatorDetails() {
-  // Fetch validator identities first for best name resolution
-  await fetchAllValidatorIdentities().catch(() => {});
-  
   const [voteAccounts, clusterNodes, epochInfo, currentSlot, blockProduction] = await Promise.all([
     getVoteAccounts(),
-    getClusterNodes(),
+    getClusterNodes().catch(() => []),
     getEpochInfo(),
     getSlot(),
-    getBlockProduction().catch(() => null)
+    getBlockProduction().catch(() => null),
+    fetchValidatorDirectory().catch(() => null)
   ]);
 
-  // Create a map of node pubkeys to their info
   const nodeMap = {};
   if (Array.isArray(clusterNodes)) {
     clusterNodes.forEach(node => {
@@ -496,107 +422,62 @@ export async function getValidatorDetails() {
     });
   }
 
-  // Calculate total stake for percentage calculations
-  const totalActiveStake = Array.isArray(voteAccounts?.current) 
-    ? voteAccounts.current.reduce((sum, v) => sum + v.activatedStake, 0)
-    : 0;
+  const current = voteAccounts?.current || [];
+  const delinquent = voteAccounts?.delinquent || [];
+  const totalStake = [...current, ...delinquent].reduce((sum, v) => sum + v.activatedStake, 0);
 
-  // Build skip rate map from block production data
-  const skipRateMap = {};
+  // Skip rate per identity for the current epoch: (leader slots - blocks produced) / leader slots.
+  const production = {};
   if (blockProduction?.value?.byIdentity) {
     Object.entries(blockProduction.value.byIdentity).forEach(([identity, [leaderSlots, blocksProduced]]) => {
-      const skipRate = leaderSlots > 0 ? ((leaderSlots - blocksProduced) / leaderSlots) * 100 : 0;
-      skipRateMap[identity] = skipRate;
+      production[identity] = {
+        leaderSlots,
+        blocksProduced,
+        skipRate: leaderSlots > 0 ? ((leaderSlots - blocksProduced) / leaderSlots) * 100 : null
+      };
     });
   }
 
-  // Combine vote accounts with node info
-  const validators = (voteAccounts?.current || []).map((v) => {
+  const build = (v, isDelinquent) => {
     const node = nodeMap[v.nodePubkey] || {};
-    
-    // Generate validator name based on stake amount
-    const validatorInfo = generateValidatorName(v.votePubkey, v.nodePubkey, v.activatedStake);
-    
-    let name = validatorInfo.name;
-    let website = validatorInfo.website;
-    let icon = validatorInfo.icon;
-    
-    // Calculate epoch credits for performance metrics
     const epochCredits = v.epochCredits || [];
-    const currentEpochCredits = epochCredits.length > 0 ? epochCredits[epochCredits.length - 1] : [0, 0, 0];
-    const prevEpochCredits = epochCredits.length > 1 ? epochCredits[epochCredits.length - 2] : [0, 0, 0];
-    
-    // Credits earned this epoch
-    const creditsThisEpoch = currentEpochCredits[1] - currentEpochCredits[2];
-    const creditsPrevEpoch = prevEpochCredits[1] - prevEpochCredits[2];
-    
-    // Calculate vote lag
-    const voteLag = currentSlot - v.lastVote;
-    
-    // Use real skip rate from block production, fallback to 0
-    const skipRate = skipRateMap[v.nodePubkey] !== undefined ? skipRateMap[v.nodePubkey] : 0;
-    
-    // Calculate uptime from epoch credits
-    const expectedCredits = epochInfo.slotIndex;
-    const uptime = expectedCredits > 0 ? Math.min(99.9, (creditsThisEpoch / expectedCredits) * 100) : 99.9;
-    
+    const last = epochCredits.length > 0 ? epochCredits[epochCredits.length - 1] : null;
+    const prev = epochCredits.length > 1 ? epochCredits[epochCredits.length - 2] : null;
+    const creditsThisEpoch = last && last[0] === epochInfo.epoch ? last[1] - last[2] : 0;
+    const creditsPrevEpoch = prev ? prev[1] - prev[2] : null;
+    const prod = production[v.nodePubkey];
+    const voteRate = voteCreditRate(creditsThisEpoch, epochInfo.slotIndex);
+
     return {
       votePubkey: v.votePubkey,
       nodePubkey: v.nodePubkey,
       activatedStake: v.activatedStake / 1e9,
-      stakePercent: ((v.activatedStake / totalActiveStake) * 100).toFixed(2),
-      commission: v.commission,
-      lastVote: v.lastVote,
-      voteLag,
-      rootSlot: v.rootSlot,
-      credits: currentEpochCredits[1] || 0,
-      creditsThisEpoch,
-      creditsPrevEpoch,
-      version: node.version || 'unknown',
-      gossip: node.gossip,
-      tpu: node.tpu,
-      rpc: node.rpc,
-      delinquent: false,
-      name,
-      website,
-      icon,
-      uptime,
-      skipRate,
-      featureSet: node.featureSet
-    };
-  });
-
-  // Add delinquent validators
-  (voteAccounts?.delinquent || []).forEach(v => {
-    const node = nodeMap[v.nodePubkey] || {};
-    const validatorInfo = generateValidatorName(v.votePubkey, v.nodePubkey, v.activatedStake);
-    const skipRate = skipRateMap[v.nodePubkey] !== undefined ? skipRateMap[v.nodePubkey] : 100;
-    
-    validators.push({
-      votePubkey: v.votePubkey,
-      nodePubkey: v.nodePubkey,
-      activatedStake: v.activatedStake / 1e9,
-      stakePercent: ((v.activatedStake / totalActiveStake) * 100).toFixed(2),
+      stakePercent: totalStake > 0 ? ((v.activatedStake / totalStake) * 100).toFixed(2) : '0.00',
       commission: v.commission,
       lastVote: v.lastVote,
       voteLag: currentSlot - v.lastVote,
       rootSlot: v.rootSlot,
-      credits: 0,
-      creditsThisEpoch: 0,
-      creditsPrevEpoch: 0,
-      version: node.version || 'unknown',
-      delinquent: true,
-      name: validatorInfo.name,
-      website: validatorInfo.website,
-      icon: validatorInfo.icon,
-      uptime: 0,
-      skipRate
-    });
-  });
+      credits: last ? last[1] : 0,
+      creditsThisEpoch,
+      creditsPrevEpoch,
+      version: node.version || null,
+      featureSet: node.featureSet,
+      delinquent: isDelinquent,
+      // "uptime" is kept as a field name for existing pages; it is the vote credit rate.
+      voteRate,
+      uptime: voteRate,
+      skipRate: prod ? prod.skipRate : null,
+      leaderSlots: prod ? prod.leaderSlots : null,
+      blocksProduced: prod ? prod.blocksProduced : null
+    };
+  };
 
-  // Sort by stake
+  const validators = enrichValidators([
+    ...current.map(v => build(v, false)),
+    ...delinquent.map(v => build(v, true))
+  ]);
+
   validators.sort((a, b) => b.activatedStake - a.activatedStake);
-
   return validators;
 }
 
@@ -792,6 +673,7 @@ export default {
   getAccountInfo,
   getStakeAccounts,
   getInflationReward,
+  getInflationRate,
   getMultipleAccounts,
   getBlockProduction,
   getBlockProductionForEpoch,

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Sun, Moon } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
@@ -31,7 +31,7 @@ export default function ThemeToggle() {
       variant="ghost"
       size="icon"
       onClick={toggleTheme}
-      className="text-gray-400 hover:text-white rounded-lg"
+      className="text-ink-muted hover:text-white rounded-lg"
       aria-label="Toggle theme"
     >
       {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}

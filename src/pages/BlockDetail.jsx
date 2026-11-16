@@ -1,238 +1,294 @@
-import React, { useState, useEffect } from 'react';
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { 
-  Search, 
-  Zap,
-  ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
-  Copy,
-  CheckCircle,
-  Clock,
-  Layers,
-  Loader2,
-  AlertCircle
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useMemo } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Boxes, ChevronLeft, ChevronRight, SearchX } from 'lucide-react';
+import PageHeader from '@/components/shell/PageHeader';
+import { CopyButton, Panel, Pill, StatCard } from '@/components/ds/Primitives';
+import { EmptyState, ErrorState, Skeleton, StatSkeleton, Unavailable } from '@/components/ds/States';
+import { Button } from '@/components/ui/button';
+import usePolling from '@/components/dashboard/usePolling';
+import { CompositionBar, TX_TYPES } from '@/components/x1/MempoolViz';
+import X1Rpc from '@/components/x1/X1RpcService';
+import { integer, shortAddress } from '@/lib/format';
 import { createPageUrl } from '@/utils';
-import X1Rpc from '../components/x1/X1RpcService';
+import { cn } from '@/lib/utils';
+
+const VOTE_PROGRAM = 'Vote111111111111111111111111111111111111111';
+const SYSTEM_PROGRAM = '11111111111111111111111111111111';
+const MAX_CELLS = 3000;
+const LIST_LIMIT = 25;
+const outlineBtn = 'border-line-strong bg-transparent text-ink-soft hover:bg-surface-3 hover:text-ink';
+
+function parseSlot(raw) {
+  if (!raw || !/^\d{1,16}$/.test(raw.trim())) return null;
+  const n = Number(raw.trim());
+  return Number.isSafeInteger(n) ? n : null;
+}
+
+function classify(tx) {
+  const msg = tx?.transaction?.message;
+  const keys = msg?.accountKeys || [];
+  const ixs = msg?.instructions || [];
+  const ids = ixs.map((ix) => keys[ix.programIdIndex]);
+  if (ids.includes(VOTE_PROGRAM)) return 'vote';
+  if (ids.includes(SYSTEM_PROGRAM)) return 'system';
+  if (ixs.length > 0) return 'program';
+  return 'other';
+}
+
+async function loadBlock(slot) {
+  if (slot === null) return { kind: 'invalid' };
+  let raw;
+  try {
+    raw = await X1Rpc.getBlock(slot, { transactionDetails: 'full' });
+  } catch (err) {
+    // A node-level error means the node answered but has no block for this slot (skipped, not yet produced or pruned).
+    if (err?.kind === 'rpc') return { kind: 'missing', message: err.message };
+    throw err;
+  }
+  if (!raw) return { kind: 'missing', message: null };
+  const txs = Array.isArray(raw.transactions) ? raw.transactions : [];
+  const items = txs.map((tx) => ({
+    type: classify(tx),
+    failed: !!tx?.meta?.err,
+    signature: tx?.transaction?.signatures?.[0] || null,
+    fee: Number(tx?.meta?.fee) || 0,
+  }));
+  const counts = { total: items.length, vote: 0, system: 0, program: 0, other: 0 };
+  let failed = 0;
+  let fees = 0;
+  for (const it of items) {
+    counts[it.type] += 1;
+    if (it.failed) failed += 1;
+    fees += it.fee;
+  }
+  return {
+    kind: 'ok',
+    block: {
+      slot,
+      blockhash: raw.blockhash,
+      previousBlockhash: raw.previousBlockhash,
+      parentSlot: raw.parentSlot,
+      blockTime: raw.blockTime,
+      blockHeight: raw.blockHeight,
+      leader: (raw.rewards || []).find((r) => r?.rewardType === 'Fee')?.pubkey || null,
+    },
+    items,
+    counts,
+    failed,
+    feesXnt: fees / 1e9,
+  };
+}
+
+const CELL_COLOR = Object.fromEntries(TX_TYPES.map((t) => [t.key, t.bar]));
+
+/** @param {{ items?: any, counts?: any, failed?: any, [key: string]: any }} props */
+function TxCells({ items, counts, failed }) {
+  const shown = items.slice(0, MAX_CELLS);
+  const summary = `${integer(counts.total)} transactions: ${TX_TYPES.map((t) => `${integer(counts[t.key])} ${t.label.toLowerCase()}`).join(', ')}; ${integer(failed)} failed.`;
+  return (
+    <div>
+      <div role="img" aria-label={summary} className="flex flex-wrap gap-[3px]">
+        {shown.map((it, i) => (
+          <span key={i} className={cn('h-2.5 w-2.5 rounded-[2px]', it.failed ? 'bg-negative' : CELL_COLOR[it.type])} />
+        ))}
+      </div>
+      {items.length > MAX_CELLS && <p className="mt-2 text-xs text-ink-muted">Showing the first {integer(MAX_CELLS)} of {integer(items.length)} transactions.</p>}
+      <ul className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted" aria-label="Legend">
+        {TX_TYPES.filter((t) => counts[t.key] > 0).map((t) => (
+          <li key={t.key} className="flex items-center gap-1.5" title={t.description}>
+            <span className={cn('h-2.5 w-2.5 rounded-sm', t.bar)} aria-hidden="true" />
+            {t.label} ({integer(counts[t.key])})
+          </li>
+        ))}
+        <li className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-negative" aria-hidden="true" />
+          Failed ({integer(failed)})
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+/** @param {{ label?: any, children?: any, [key: string]: any }} props */
+function Row({ label, children }) {
+  return (
+    <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <dt className="text-sm text-ink-muted">{label}</dt>
+      <dd className="min-w-0 text-sm text-ink">{children}</dd>
+    </div>
+  );
+}
 
 export default function BlockDetail() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const slot = parseInt(urlParams.get('slot')) || null;
-  
-  const [block, setBlock] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [copied, setCopied] = useState(null);
+  const [params] = useSearchParams();
+  const rawSlot = params.get('slot');
+  const slot = useMemo(() => parseSlot(rawSlot), [rawSlot]);
+  const { data, status, error, reload } = usePolling(() => loadBlock(slot), 0, { deps: [slot] });
 
-  const fetchBlock = async () => {
-    if (!slot) {
-      setError('No slot specified');
-      setLoading(false);
-      return;
-    }
-    
-    try {
-      const blockData = await X1Rpc.getBlock(slot, { transactionDetails: 'full' });
-      if (blockData) {
-        const successTx = blockData.transactions?.filter(tx => !tx.meta?.err).length || 0;
-        const failedTx = (blockData.transactions?.length || 0) - successTx;
-        const totalFees = blockData.transactions?.reduce((sum, tx) => sum + (tx.meta?.fee || 0), 0) / 1e9 || 0;
-        
-        setBlock({
-          slot,
-          blockhash: blockData.blockhash,
-          previousBlockhash: blockData.previousBlockhash,
-          parentSlot: blockData.parentSlot,
-          blockTime: blockData.blockTime,
-          blockHeight: blockData.blockHeight,
-          txCount: blockData.transactions?.length || 0,
-          successTx,
-          failedTx,
-          totalFees,
-          rewards: blockData.rewards || []
-        });
-        setError(null);
-      } else {
-        setError('Block not found');
-      }
-    } catch (err) {
-      console.error('Failed to fetch block:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const slotUrl = (n) => `${createPageUrl('BlockDetail')}?slot=${n}`;
+  const nav = slot !== null && (
+    <>
+      {slot > 0 && (
+        <Button asChild variant="outline" size="sm" className={outlineBtn}>
+          <Link to={slotUrl(slot - 1)}><ChevronLeft className="mr-1 h-4 w-4" aria-hidden="true" />Previous slot</Link>
+        </Button>
+      )}
+      <Button asChild variant="outline" size="sm" className={outlineBtn}>
+        <Link to={slotUrl(slot + 1)}>Next slot<ChevronRight className="ml-1 h-4 w-4" aria-hidden="true" /></Link>
+      </Button>
+    </>
+  );
 
-  useEffect(() => {
-    fetchBlock();
-  }, [slot]);
+  const header = (extra) => (
+    <PageHeader
+      icon={Boxes}
+      title={slot !== null ? `Block ${integer(slot)}` : 'Block'}
+      description={slot !== null ? 'Confirmed block contents read from the X1 RPC.' : undefined}
+      back={{ label: 'Blocks', to: createPageUrl('Blocks') }}
+      badge={extra}
+      actions={nav || undefined}
+    />
+  );
 
-  const handleCopy = (text, field) => {
-    navigator.clipboard.writeText(text);
-    setCopied(field);
-    setTimeout(() => setCopied(null), 2000);
-  };
-
-  const squares = Array.from({ length: 200 }, (_, i) => ({ id: i, opacity: 0.3 + Math.random() * 0.7 }));
-
-  if (loading) {
+  if (slot === null) {
     return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
-      </div>
+      <>
+        {header()}
+        <Panel>
+          <EmptyState
+            icon={SearchX}
+            title={rawSlot ? 'Invalid slot number' : 'No slot specified'}
+            description="Open a block from the Blocks page, or use a link of the form ?slot=123456 with a non-negative whole number."
+            action={<Button asChild variant="outline" size="sm" className={outlineBtn}><Link to={createPageUrl('Blocks')}>Go to Blocks</Link></Button>}
+          />
+        </Panel>
+      </>
     );
   }
 
+  if (status === 'loading') {
+    return (
+      <>
+        {header()}
+        <StatSkeleton count={4} />
+        <Skeleton className="mt-6 h-48 w-full" />
+      </>
+    );
+  }
+
+  if (status === 'error') {
+    return (
+      <>
+        {header()}
+        <Panel><ErrorState title="Could not load this block" description={error?.message} onRetry={reload} /></Panel>
+      </>
+    );
+  }
+
+  if (data.kind === 'missing') {
+    return (
+      <>
+        {header()}
+        <Panel>
+          <EmptyState
+            icon={SearchX}
+            title={`No block at slot ${integer(slot)}`}
+            description={`The slot may have been skipped by its leader, may not be produced yet, or may be older than the RPC node keeps.${data.message ? ` RPC message: ${data.message}` : ''} Try the previous or next slot.`}
+          />
+        </Panel>
+      </>
+    );
+  }
+
+  const { block, items, counts, failed, feesXnt } = data;
+  const breakdown = { total: counts.total, vote: counts.vote, system: counts.system, program: counts.program, other: counts.other };
+
   return (
-    <div className="min-h-screen bg-[#1d2d3a] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
-        <div className="max-w-[1800px] mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
-                <span className="font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
-              </Link>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
+    <>
+      {header(failed > 0 ? <Pill tone="warning">{integer(failed)} failed</Pill> : undefined)}
+
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Transactions" value={integer(counts.total)} />
+        <StatCard label="Successful" tone="positive" value={integer(counts.total - failed)} />
+        <StatCard label="Failed" tone={failed > 0 ? 'negative' : 'default'} value={integer(failed)} />
+        <StatCard label="Fees paid" value={`${feesXnt.toFixed(6)} XNT`} hint="Sum of transaction fees in this block" />
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+        <div className="space-y-6 lg:col-span-3">
+          <Panel title="Transactions in this block" description="One square per transaction, in block order.">
+            <div className="p-4">
+              {counts.total === 0 ? (
+                <p className="text-sm text-ink-muted">This block contains no transactions.</p>
+              ) : (
+                <>
+                  <CompositionBar breakdown={breakdown} className="mb-4" />
+                  <TxCells items={items} counts={counts} failed={failed} />
+                </>
+              )}
             </div>
-            
-            <div className="flex-1 max-w-md">
-              <div className="relative">
-                <Input placeholder="Search..." className="w-full bg-[#24384a] border-0 text-white placeholder:text-gray-500 pr-10 rounded-lg" />
-                <Button size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 bg-cyan-500 hover:bg-cyan-600 h-7 w-7 rounded"><Search className="w-4 h-4 text-black" /></Button>
+          </Panel>
+
+          {counts.total > 0 && (
+            <Panel title={`First ${Math.min(LIST_LIMIT, items.length)} transactions`}>
+              <div className="overflow-x-auto">
+                <table className="data-table">
+                  <caption className="sr-only">Transactions in block {integer(slot)}</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Signature</th>
+                      <th scope="col">Type</th>
+                      <th scope="col" className="text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.slice(0, LIST_LIMIT).map((it, i) => (
+                      <tr key={it.signature || i}>
+                        <td>
+                          {it.signature ? (
+                            <Link to={`${createPageUrl('TransactionDetail')}?sig=${encodeURIComponent(it.signature)}`} className="mono text-brand hover:underline" title={it.signature}>
+                              {shortAddress(it.signature, 10, 8)}
+                            </Link>
+                          ) : (
+                            <Unavailable />
+                          )}
+                        </td>
+                        <td className="text-ink-soft">{TX_TYPES.find((t) => t.key === it.type)?.label}</td>
+                        <td className="text-right"><Pill tone={it.failed ? 'negative' : 'positive'}>{it.failed ? 'Failed' : 'Success'}</Pill></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </div>
-          </div>
+            </Panel>
+          )}
         </div>
-      </header>
 
-      {error && (
-        <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2">
-          <div className="max-w-[1800px] mx-auto flex items-center gap-2 text-red-400 text-sm">
-            <AlertCircle className="w-4 h-4" /><span>{error}</span>
-          </div>
-        </div>
-      )}
-
-      <main className="max-w-[1800px] mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <Link to={createPageUrl('Blocks')}>
-            <Button variant="ghost" className="text-gray-400 hover:text-white"><ArrowLeft className="w-4 h-4 mr-2" /> Back to Blocks</Button>
-          </Link>
-          
-          <div className="flex items-center gap-2">
-            <Link to={createPageUrl('BlockDetail') + `?slot=${slot - 1}`}>
-              <Button variant="outline" size="icon" className="border-white/10 text-gray-400 hover:text-white h-8 w-8"><ChevronLeft className="w-4 h-4" /></Button>
-            </Link>
-            <span className="text-gray-400 text-sm px-2">Block #{slot?.toLocaleString()}</span>
-            <Link to={createPageUrl('BlockDetail') + `?slot=${slot + 1}`}>
-              <Button variant="outline" size="icon" className="border-white/10 text-gray-400 hover:text-white h-8 w-8"><ChevronRight className="w-4 h-4" /></Button>
-            </Link>
-          </div>
-        </div>
-
-        {block && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1">
-              <div className="bg-[#24384a] rounded-xl p-4">
-                <div className="relative w-full h-[300px] bg-gradient-to-b from-purple-500/30 to-purple-600/10 rounded-lg overflow-hidden">
-                  <div className="absolute inset-2 grid grid-cols-14 gap-[2px]">
-                    {squares.map((sq) => (<div key={sq.id} className="bg-[#9ACD32] rounded-[1px]" style={{ opacity: sq.opacity * 0.7 }} />))}
-                  </div>
-                  <div className="absolute top-3 left-3 right-3">
-                    <p className="text-cyan-400 font-mono font-bold text-2xl">#{block.slot?.toLocaleString()}</p>
-                  </div>
-                  <div className="absolute bottom-0 left-0 right-0 bg-black/40 p-4">
-                    <p className="text-white font-bold">{block.totalFees?.toFixed(6)} XNT fees</p>
-                    <p className="text-sm text-gray-400">{block.txCount?.toLocaleString()} transactions</p>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                  <div className="bg-[#1d2d3a] rounded-lg p-3">
-                    <p className="text-gray-400 text-xs">Success</p>
-                    <p className="text-emerald-400 font-bold">{block.successTx?.toLocaleString()}</p>
-                  </div>
-                  <div className="bg-[#1d2d3a] rounded-lg p-3">
-                    <p className="text-gray-400 text-xs">Failed</p>
-                    <p className="text-red-400 font-bold">{block.failedTx}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="lg:col-span-2">
-              <div className="bg-[#24384a] rounded-xl overflow-hidden">
-                <div className="p-4 border-b border-white/5">
-                  <h2 className="text-lg font-semibold flex items-center gap-2"><Layers className="w-5 h-5 text-purple-400" /> Block Overview</h2>
-                </div>
-                
-                <div className="divide-y divide-white/5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 gap-2">
-                    <span className="text-gray-400 text-sm">Slot</span>
-                    <span className="text-white font-mono">{block.slot?.toLocaleString()}</span>
-                  </div>
-                  
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 gap-2">
-                    <span className="text-gray-400 text-sm">Blockhash</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-cyan-400 font-mono text-xs truncate max-w-[300px]">{block.blockhash}</span>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => handleCopy(block.blockhash, 'hash')}>
-                        {copied === 'hash' ? <CheckCircle className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-gray-400" />}
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 gap-2">
-                    <span className="text-gray-400 text-sm">Parent Slot</span>
-                    <Link to={createPageUrl('BlockDetail') + `?slot=${block.parentSlot}`} className="text-cyan-400 hover:underline font-mono">
-                      {block.parentSlot?.toLocaleString()}
-                    </Link>
-                  </div>
-                  
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 gap-2">
-                    <span className="text-gray-400 text-sm">Block Height</span>
-                    <span className="text-white font-mono">{block.blockHeight?.toLocaleString()}</span>
-                  </div>
-                  
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 gap-2">
-                    <span className="text-gray-400 text-sm">Timestamp</span>
-                    <div className="flex items-center gap-2 text-gray-300">
-                      <Clock className="w-4 h-4" />
-                      <span className="text-sm">{block.blockTime ? new Date(block.blockTime * 1000).toLocaleString() : '-'}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 gap-2">
-                    <span className="text-gray-400 text-sm">Transactions</span>
-                    <div className="flex items-center gap-4">
-                      <span className="text-emerald-400"><CheckCircle className="w-4 h-4 inline mr-1" />{block.successTx} success</span>
-                      <span className="text-red-400">{block.failedTx} failed</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 gap-2">
-                    <span className="text-gray-400 text-sm">Total Fees</span>
-                    <span className="text-cyan-400 font-bold">{block.totalFees?.toFixed(6)} XNT</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mt-4">
-                <Link to={createPageUrl('Transactions') + `?slot=${slot}`}>
-                  <Button className="w-full bg-cyan-500 hover:bg-cyan-600 text-black font-semibold">
-                    View All {block.txCount?.toLocaleString()} Transactions <ChevronRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        )}
-      </main>
-    </div>
+        <Panel title="Block overview" className="lg:col-span-2">
+          <dl className="divide-y divide-line/60">
+            <Row label="Slot"><span className="mono">{integer(block.slot)}</span></Row>
+            <Row label="Block height">{block.blockHeight != null ? <span className="mono">{integer(block.blockHeight)}</span> : <Unavailable />}</Row>
+            <Row label="Time">
+              {block.blockTime ? <time dateTime={new Date(block.blockTime * 1000).toISOString()}>{new Date(block.blockTime * 1000).toLocaleString()}</time> : <Unavailable reason="Block time not reported by the RPC" />}
+            </Row>
+            <Row label="Blockhash">
+              <span className="flex items-center gap-1">
+                <span className="mono break-all text-xs" title={block.blockhash}>{shortAddress(block.blockhash, 10, 10)}</span>
+                {block.blockhash && <CopyButton value={block.blockhash} label="Copy blockhash" />}
+              </span>
+            </Row>
+            <Row label="Previous blockhash">
+              <span className="mono text-xs" title={block.previousBlockhash}>{shortAddress(block.previousBlockhash, 10, 10)}</span>
+            </Row>
+            <Row label="Parent slot">
+              {block.parentSlot != null ? <Link to={slotUrl(block.parentSlot)} className="mono text-brand hover:underline">{integer(block.parentSlot)}</Link> : <Unavailable />}
+            </Row>
+            <Row label="Leader">
+              {block.leader ? <span className="mono text-xs" title={block.leader}>{shortAddress(block.leader, 8, 8)}</span> : <Unavailable reason="The block reported no fee reward, so the leader is unknown" />}
+            </Row>
+          </dl>
+        </Panel>
+      </div>
+    </>
   );
 }

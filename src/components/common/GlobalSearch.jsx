@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, X, TrendingUp, Wallet, Hash, Activity } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { useNavigate } from 'react-router-dom';
@@ -82,7 +82,7 @@ export default function GlobalSearch() {
   return (
     <div className="relative w-full max-w-md">
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted" />
         <Input
           placeholder="Search address, transaction, block..."
           value={query}
@@ -92,7 +92,7 @@ export default function GlobalSearch() {
           }}
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
-          className="bg-[#1d2d3a] border-white/10 text-white pl-10 pr-10"
+          className="bg-surface-1 border-line text-white pl-10 pr-10"
         />
         {query && (
           <button
@@ -100,7 +100,7 @@ export default function GlobalSearch() {
               setQuery('');
               setSuggestions([]);
             }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-white"
           >
             <X className="w-4 h-4" />
           </button>
@@ -113,21 +113,21 @@ export default function GlobalSearch() {
             className="fixed inset-0 z-40" 
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute top-full mt-2 w-full bg-[#24384a] border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden">
+          <div className="absolute top-full mt-2 w-full bg-surface-2 border border-line rounded-lg shadow-xl z-50 overflow-hidden">
             {suggestions.map((suggestion, i) => {
               const Icon = suggestion.icon;
               return (
                 <button
                   key={i}
                   onClick={() => handleSelect(suggestion)}
-                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#1d2d3a] transition-colors text-left"
+                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-surface-1 transition-colors text-left"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center shrink-0">
-                    <Icon className="w-4 h-4 text-cyan-400" />
+                  <div className="w-8 h-8 rounded-lg bg-brand/20 flex items-center justify-center shrink-0">
+                    <Icon className="w-4 h-4 text-brand" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-sm font-medium">{suggestion.label}</p>
-                    <p className="text-gray-400 text-xs truncate">{suggestion.value}</p>
+                    <p className="text-ink-muted text-xs truncate">{suggestion.value}</p>
                   </div>
                 </button>
               );

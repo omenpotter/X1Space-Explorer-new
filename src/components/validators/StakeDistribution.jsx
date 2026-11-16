@@ -1,66 +1,73 @@
-import React from 'react';
+import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { ValidatorAvatar } from '@/components/ds/Avatar';
+import { Panel } from '@/components/ds/Primitives';
+import { integer, percent } from '@/lib/format';
+import { ValidatorName, validatorUrl } from './ValidatorCard';
 
-export default function StakeDistribution({ validators, totalStake }) {
-  // Get top 10 validators for visualization
-  const topValidators = validators.slice(0, 10);
-  const othersStake = validators.slice(10).reduce((sum, v) => sum + v.activatedStake, 0);
-  
-  const colors = [
-    'bg-cyan-500', 'bg-blue-500', 'bg-purple-500', 'bg-pink-500', 'bg-rose-500',
-    'bg-orange-500', 'bg-amber-500', 'bg-yellow-500', 'bg-lime-500', 'bg-emerald-500'
-  ];
+// One hue, stepped opacity: rank order is carried by position and the numbered legend, not by colour.
+const OPACITY = [1, 0.88, 0.78, 0.68, 0.6, 0.52, 0.45, 0.38, 0.32, 0.26];
 
-  const formatStake = (stake) => {
-    if (stake >= 1e6) return (stake / 1e6).toFixed(1) + 'M';
-    if (stake >= 1e3) return (stake / 1e3).toFixed(1) + 'K';
-    return stake.toFixed(0);
-  };
+/**
+ * Stake concentration computed from the live validator list: the ten largest validators,
+ * everyone else, and how many validators together hold more than one third of the stake.
+ */
+/** @param {{ validators?: any, className?: any, [key: string]: any }} props */
+export default function StakeDistribution({ validators, className }) {
+  const { top, others, total, superminority } = useMemo(() => {
+    const sorted = [...(validators || [])].filter((v) => Number.isFinite(v.activatedStake)).sort((a, b) => b.activatedStake - a.activatedStake);
+    const sum = sorted.reduce((s, v) => s + v.activatedStake, 0);
+    let acc = 0;
+    let count = 0;
+    for (const v of sorted) {
+      acc += v.activatedStake;
+      count += 1;
+      if (acc > sum / 3) break;
+    }
+    return {
+      top: sorted.slice(0, 10),
+      others: { count: Math.max(0, sorted.length - 10), stake: sorted.slice(10).reduce((s, v) => s + v.activatedStake, 0) },
+      total: sum,
+      superminority: sum > 0 ? count : null,
+    };
+  }, [validators]);
+
+  if (!(total > 0)) return null;
+  const share = (stake) => (stake / total) * 100;
 
   return (
-    <div className="bg-[#24384a] rounded-xl p-4 mb-6">
-      <h3 className="text-gray-400 text-sm mb-4">STAKE DISTRIBUTION (Top 10)</h3>
-      
-      {/* Bar visualization */}
-      <div className="h-8 rounded-lg overflow-hidden flex mb-4">
-        {topValidators.map((v, i) => {
-          const percent = (v.activatedStake / totalStake) * 100;
-          return (
-            <div
-              key={v.votePubkey}
-              className={`${colors[i]} transition-all hover:opacity-80`}
-              style={{ width: `${percent}%` }}
-              title={`${v.name || v.votePubkey.substring(0, 8)}: ${percent.toFixed(1)}%`}
-            />
-          );
-        })}
-        {othersStake > 0 && (
-          <div
-            className="bg-gray-600"
-            style={{ width: `${(othersStake / totalStake) * 100}%` }}
-            title={`Others: ${((othersStake / totalStake) * 100).toFixed(1)}%`}
-          />
-        )}
-      </div>
-      
-      {/* Legend */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-        {topValidators.map((v, i) => (
-          <div key={v.votePubkey} className="flex items-center gap-2 text-xs">
-            <div className={`w-3 h-3 rounded ${colors[i]}`} />
-            <span className="text-gray-400 truncate">
-              {v.name || `${v.votePubkey.substring(0, 6)}...`}
-            </span>
-            <span className="text-white ml-auto">{((v.activatedStake / totalStake) * 100).toFixed(1)}%</span>
-          </div>
+    <Panel
+      title="Stake distribution"
+      description={superminority ? `The ${integer(superminority)} largest validator${superminority === 1 ? '' : 's'} together hold more than one third of all active stake.` : undefined}
+      className={className}
+      bodyClassName="p-4"
+    >
+      <div className="flex h-3 w-full gap-px overflow-hidden rounded-full bg-surface-3" role="img" aria-label={`Top ${top.length} validators hold ${percent(share(total - others.stake), 1)} of stake; ${integer(others.count)} others hold ${percent(share(others.stake), 1)}`}>
+        {top.map((v, i) => (
+          <span key={v.votePubkey} className="h-full bg-brand" style={{ width: `${share(v.activatedStake)}%`, opacity: OPACITY[i] }} />
         ))}
-        {othersStake > 0 && (
-          <div className="flex items-center gap-2 text-xs">
-            <div className="w-3 h-3 rounded bg-gray-600" />
-            <span className="text-gray-400">Others</span>
-            <span className="text-white ml-auto">{((othersStake / totalStake) * 100).toFixed(1)}%</span>
-          </div>
-        )}
       </div>
-    </div>
+
+      <ol className="mt-4 grid gap-x-6 gap-y-2 sm:grid-cols-2 xl:grid-cols-5">
+        {top.map((v, i) => (
+          <li key={v.votePubkey}>
+            <Link to={validatorUrl(v)} className="flex items-center gap-2 rounded px-1 py-1 text-xs transition-colors hover:bg-surface-2">
+              <span className="w-4 shrink-0 text-right tabular text-ink-faint">{i + 1}</span>
+              <ValidatorAvatar validator={v} size={20} />
+              <ValidatorName validator={v} className="min-w-0 flex-1 truncate text-ink-soft" />
+              <span className="shrink-0 tabular text-ink">{percent(share(v.activatedStake), 1)}</span>
+            </Link>
+          </li>
+        ))}
+        {others.count > 0 && (
+          <li className="flex items-center gap-2 px-1 py-1 text-xs">
+            <span className="w-4 shrink-0" aria-hidden="true" />
+            <span className="h-5 w-5 shrink-0 rounded-full border border-line bg-surface-3" aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate text-ink-muted">{integer(others.count)} others</span>
+            <span className="shrink-0 tabular text-ink">{percent(share(others.stake), 1)}</span>
+          </li>
+        )}
+      </ol>
+    </Panel>
   );
 }

@@ -1,0 +1,23 @@
+ RUN  v5.1.0 /home/user/X1Space-Explorer-new
+index spl 23807 rpc spl 23807 | index token-2022 2111 rpc token-2022 2111
+ ✓ tests/live/accuracy.test.ts > token index accuracy > mint counts equal independent getProgramAccounts counts, per program 3759ms
+verified decimals+supply against getAccountInfo for 15 tokens
+ ✓ tests/live/accuracy.test.ts > token index accuracy > decimals, supply and authorities match getAccountInfo for a sample across both programs 528ms
+unlisted tokens in sample 185 with on-chain names 184 | e.g. bunt.fun/BUNT (token-2022); BURNIE X1/BURNIE (token-2022); ButtHole/BTH (token-2022)
+ ✓ tests/live/accuracy.test.ts > token index accuracy > non-pool tokens are listed with real on-chain names and no invented market values 51ms
+WXNT index 0.185914690130743 xdex oracle 0.185914690130743 diff 0.00%
+USDC.X index 0.9996847359000001 xdex oracle 0.9996847359000001 diff 0.00%
+ANL index 0.000097017384661 xdex oracle 0.000097017384661 diff 0.00%
+Test index 0.000014277978193 xdex oracle 0.000014277978193 diff 0.00%
+tvl served 104736.56942053784 xdex summary 104736.56942053784 pools 1466 1466
+ ✓ tests/live/accuracy.test.ts > token index accuracy > listed prices agree with XDEX price endpoint and pool TVL totals agree with the XDEX summary 6882ms
+index age ms 7874 {"chain":{"status":"ok","fetchedAt":"2026-11-15T08:01:29.409Z","count":25918},"xdex":{"status":"ok","fetchedAt":"2026-11-15T08:01:31.407Z","count":130},"x1ninja":{"status":"not_configured","fetchedAt":null}}
+ ✓ tests/live/accuracy.test.ts > token index accuracy > freshness: timestamps are current and source states are reported 6ms
+positions matching the provider: 38 / 38
+ ✓ tests/live/accuracy.test.ts > network map data provenance > every located validator position equals an independent geojs lookup of that node, rounded to 0.1 degree 869ms
+validators 388 located 344 unlocated 44 {"not in gossip (no address to look up)":44,"in gossip, address unresolved":0} of which delinquent 44
+ ✓ tests/live/accuracy.test.ts > network map data provenance > explains every validator without a position: no gossip node, or an unresolved address 74ms
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  08:01:27
+   Duration  12.44s (tests 99%)

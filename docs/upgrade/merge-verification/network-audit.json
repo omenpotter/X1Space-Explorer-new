@@ -1,0 +1,33 @@
+{
+  "ranAt": "2026-11-16T13:48:08.664Z",
+  "pages": [
+    "Dashboard",
+    "TokenExplorer",
+    "NetworkMap",
+    "Validators",
+    "LPExplorer",
+    "Blocks",
+    "Transactions",
+    "PortfolioTracker",
+    "ApiDocs"
+  ],
+  "requestsByHost": {
+    "127.0.0.1": 348,
+    "rpc.mainnet.x1.xyz": 61,
+    "app.xdex.xyz": 2,
+    "raw.githubusercontent.com": 14
+  },
+  "total": 425,
+  "functionRequestsByPage": {
+    "Dashboard": 1,
+    "TokenExplorer": 1,
+    "NetworkMap": 1,
+    "Validators": 0,
+    "LPExplorer": 2,
+    "Blocks": 0,
+    "Transactions": 0,
+    "PortfolioTracker": 1,
+    "ApiDocs": 0
+  },
+  "problems": []
+}

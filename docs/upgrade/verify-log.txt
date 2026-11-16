@@ -1,0 +1,377 @@
+commit: fb30f05e4e36e3c3a2dda74cd6bc591f10287679
+date: 2026-11-16T12:27:11Z
+=== eslint ===
+
+/home/user/X1Space-Explorer-new/src/components/x1/X1RpcService.jsx
+  198:12  warning  'e' is defined but never used  unused-imports/no-unused-vars
+  539:14  warning  'e' is defined but never used  unused-imports/no-unused-vars
+  645:12  warning  'e' is defined but never used  unused-imports/no-unused-vars
+
+/home/user/X1Space-Explorer-new/src/pages/OAuthConsent.jsx
+   76:16  warning  'e' is defined but never used  unused-imports/no-unused-vars
+  117:62  warning  '_' is defined but never used  unused-imports/no-unused-vars
+
+✖ 5 problems (0 errors, 5 warnings)
+
+[eslint] exit 0
+=== typecheck ===
+
+> base44-app@0.0.0 typecheck
+> tsc -p ./jsconfig.json
+
+[typecheck] exit 0
+=== production build ===
+
+> base44-app@0.0.0 build
+> vite build
+
+[base44] Warning: VITE_BASE44_APP_ID is not set — this build
+[base44] will not know its app id and its API calls will fail.
+[base44] Build with:  base44 build   (or base44 deploy --build)
+[base44] Proxy not enabled (VITE_BASE44_APP_BASE_URL not set)
+[production build] exit 0
+=== unit + contract tests ===
+
+ RUN  v5.1.0 /home/user/X1Space-Explorer-new
+
+
+ Test Files  8 passed (8)
+      Tests  149 passed (149)
+   Start at  12:27:24
+   Duration  6.49s (tests 96%, import 3%, transform 1%)
+
+[unit + contract tests] exit 0
+=== npm audit (all) ===
+
+minimatch  7.0.0 - 11.0.0
+Severity: moderate
+minimatch has potential denial of service via globparts amplification - https://github.com/advisories/GHSA-g3hv-75wg-m249
+fix available via `npm audit fix`
+node_modules/glob/node_modules/minimatch
+
+react-router  6.0.0 - 7.17.0
+Severity: moderate
+React Router: Open redirect via backslash in <Link> and useNavigate (CVE-2025-68470 bypass) - https://github.com/advisories/GHSA-wrjc-x8rr-h8h6
+React Router: Arbitrary Constructor Injection via deserializeErrors() in React Router SSR Hydration - https://github.com/advisories/GHSA-337j-9hxr-rhxg
+fix available via `npm audit fix --force`
+Will install react-router-dom@7.18.5, which is a breaking change
+node_modules/react-router
+  react-router-dom  6.0.0-alpha.0 - 7.17.0
+  Depends on vulnerable versions of react-router
+  node_modules/react-router-dom
+
+5 moderate severity vulnerabilities
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+=== npm audit (production) ===
+
+minimatch  7.0.0 - 11.0.0
+Severity: moderate
+minimatch has potential denial of service via globparts amplification - https://github.com/advisories/GHSA-g3hv-75wg-m249
+fix available via `npm audit fix`
+node_modules/glob/node_modules/minimatch
+
+react-router  6.0.0 - 7.17.0
+Severity: moderate
+React Router: Open redirect via backslash in <Link> and useNavigate (CVE-2025-68470 bypass) - https://github.com/advisories/GHSA-wrjc-x8rr-h8h6
+React Router: Arbitrary Constructor Injection via deserializeErrors() in React Router SSR Hydration - https://github.com/advisories/GHSA-337j-9hxr-rhxg
+fix available via `npm audit fix --force`
+Will install react-router-dom@7.18.5, which is a breaking change
+node_modules/react-router
+  react-router-dom  6.0.0-alpha.0 - 7.17.0
+  Depends on vulnerable versions of react-router
+  node_modules/react-router-dom
+
+5 moderate severity vulnerabilities
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+=== live smoke ===
+(node:13012) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:13024) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ RUN  v5.1.0 /home/user/X1Space-Explorer-new
+
+(node:13046) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  12:27:41
+   Duration  13.22s (tests 99%)
+
+[live smoke] exit 0
+=== live accuracy ===
+(node:13063) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:13075) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ RUN  v5.1.0 /home/user/X1Space-Explorer-new
+
+(node:13097) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+index spl 23837 rpc spl 23837 | index token-2022 2117 rpc token-2022 2117
+ ✓ tests/live/accuracy.test.ts > token index accuracy > mint counts equal independent getProgramAccounts counts, per program 6112ms
+verified decimals+supply against getAccountInfo for 15 tokens
+ ✓ tests/live/accuracy.test.ts > token index accuracy > decimals, supply and authorities match getAccountInfo for a sample across both programs 535ms
+unlisted tokens in sample 185 with on-chain names 184 | e.g. Bully/BULL (token-2022); bunt.fun/BUNT (token-2022); BURNIE X1/BURNIE (token-2022)
+ ✓ tests/live/accuracy.test.ts > token index accuracy > non-pool tokens are listed with real on-chain names and no invented market values 49ms
+WXNT index 0.187530015687612 xdex oracle 0.187530015687612 diff 0.00%
+USDC.X index 0.999729038125 xdex oracle 0.9997265409374999 diff 0.00%
+ANL index 0.0001006701193 xdex oracle 0.0001006701193 diff 0.00%
+Test index 0.000014414259795 xdex oracle 0.000014414259795 diff 0.00%
+tvl served 107433.54605320096 xdex summary 107433.54605320096 pools 1467 1467
+ ✓ tests/live/accuracy.test.ts > token index accuracy > listed prices agree with XDEX price endpoint and pool TVL totals agree with the XDEX summary 5831ms
+index age ms 7248 {"chain":{"status":"ok","fetchedAt":"2026-11-16T12:27:58.189Z","count":25954},"xdex":{"status":"ok","fetchedAt":"2026-11-16T12:28:01.075Z","count":133},"x1ninja":{"status":"not_configured","fetchedAt":null}}
+ ✓ tests/live/accuracy.test.ts > token index accuracy > freshness: timestamps are current and source states are reported 8ms
+positions matching the provider: 38 / 38
+ ✓ tests/live/accuracy.test.ts > network map data provenance > every located validator position equals an independent geojs lookup of that node, rounded to 0.1 degree 1263ms
+validators 386 located 341 unlocated 45 {"not in gossip (no address to look up)":45,"in gossip, address unresolved":0} of which delinquent 45
+ ✓ tests/live/accuracy.test.ts > network map data provenance > explains every validator without a position: no gossip node, or an unresolved address 135ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  12:27:55
+   Duration  14.19s (tests 100%)
+
+[live accuracy] exit 0
+=== browser suite ===
+(node:13115) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS  [desktop] Dashboard renders
+PASS  [desktop] NetworkHealth renders
+PASS  [desktop] NetworkMap renders
+PASS  [desktop] Blocks renders
+PASS  [desktop] Transactions renders
+PASS  [desktop] TransactionFlowPage renders
+PASS  [desktop] AddressLookup renders
+PASS  [desktop] Validators renders
+PASS  [desktop] Leaderboard renders
+PASS  [desktop] ValidatorCompare renders
+PASS  [desktop] ValidatorAlerts renders
+PASS  [desktop] StakingCalculator renders
+PASS  [desktop] TokenExplorer renders
+PASS  [desktop] LPExplorer renders
+PASS  [desktop] WhaleWatcher renders
+PASS  [desktop] PortfolioTracker renders
+PASS  [desktop] Watchlist renders
+PASS  [desktop] CustomDashboard renders
+PASS  [desktop] ApiDocs renders
+PASS  [desktop] Search renders
+PASS  [tablet] Dashboard renders
+PASS  [tablet] NetworkHealth renders
+PASS  [tablet] NetworkMap renders
+PASS  [tablet] Blocks renders
+PASS  [tablet] Transactions renders
+PASS  [tablet] TransactionFlowPage renders
+PASS  [tablet] AddressLookup renders
+PASS  [tablet] Validators renders
+PASS  [tablet] Leaderboard renders
+PASS  [tablet] ValidatorCompare renders
+PASS  [tablet] ValidatorAlerts renders
+PASS  [tablet] StakingCalculator renders
+PASS  [tablet] TokenExplorer renders
+PASS  [tablet] LPExplorer renders
+PASS  [tablet] WhaleWatcher renders
+PASS  [tablet] PortfolioTracker renders
+PASS  [tablet] Watchlist renders
+PASS  [tablet] CustomDashboard renders
+PASS  [tablet] ApiDocs renders
+PASS  [tablet] Search renders
+PASS  [mobile] Dashboard renders
+PASS  [mobile] NetworkHealth renders
+PASS  [mobile] NetworkMap renders
+PASS  [mobile] Blocks renders
+PASS  [mobile] Transactions renders
+PASS  [mobile] TransactionFlowPage renders
+PASS  [mobile] AddressLookup renders
+PASS  [mobile] Validators renders
+PASS  [mobile] Leaderboard renders
+PASS  [mobile] ValidatorCompare renders
+PASS  [mobile] ValidatorAlerts renders
+PASS  [mobile] StakingCalculator renders
+PASS  [mobile] TokenExplorer renders
+PASS  [mobile] LPExplorer renders
+PASS  [mobile] WhaleWatcher renders
+PASS  [mobile] PortfolioTracker renders
+PASS  [mobile] Watchlist renders
+PASS  [mobile] CustomDashboard renders
+PASS  [mobile] ApiDocs renders
+PASS  [mobile] Search renders
+PASS  tokens: table lists 50 rows from the live index  — 25954 mints indexed
+PASS  tokens: source status and freshness are shown
+PASS  tokens: unknown market values show a dash, never $0.00
+PASS  tokens: search filters server-side
+PASS  tokens: detail drawer shows chain facts and a risk review
+PASS  tokens: kind and program filters change the result set  — 1–50 of 22,042 -> 1–50 of 845
+PASS  tokens: no page errors
+PASS  tokens: backend failure shows an error state with retry, not empty or fake rows
+PASS  tokens: empty search result shows an empty state
+PASS  map: world outline and validator markers render  — 38 location markers
+PASS  map: located + unlocated accounts for every validator  — 341 located, 45 not located, 386 total
+PASS  map: no raw node addresses anywhere in the page
+PASS  map: selecting a marker lists its validators
+PASS  map: status filter narrows the markers
+PASS  map: markers are keyboard operable and zoom controls work
+PASS  map: resizes with the viewport
+PASS  map: no page errors
+PASS  map: location service failure places nothing and says so
+PASS  map: RPC outage shows an error state with retry
+PASS  validators: every row has an avatar; official icons load where reachable  — 1 official icons loaded, 34 generated avatars visible
+PASS  validators: when every icon fails, generated avatars are shown and nothing is broken
+PASS  validators: generated avatars are stable across reloads
+PASS  shell: skip link is the first focus stop
+PASS  shell: "/" focuses search and a mint address routes to the token
+PASS  shell: active page is marked in navigation
+PASS  shell: mobile drawer opens and navigates
+PASS  a11y: Dashboard has no serious or critical axe violations
+PASS  a11y: TokenExplorer has no serious or critical axe violations
+PASS  a11y: NetworkMap has no serious or critical axe violations
+PASS  a11y: Validators has no serious or critical axe violations
+PASS  a11y: LPExplorer has no serious or critical axe violations
+PASS  a11y: Blocks has no serious or critical axe violations
+PASS  a11y: Transactions has no serious or critical axe violations
+PASS  a11y: Search has no serious or critical axe violations
+PASS  performance: first paint and transfer size of the landing page  — FCP 144 ms, 368 KB of JS over 20 asset requests (uncompressed preview server)
+
+95 passed, 0 failed
+[browser suite] exit 0
+=== detail routes ===
+(node:14133) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+using slot 93674934 sig 2bXxoWhM… vote 5cH2kW…
+PASS  [desktop] BlockDetail with a real slot
+PASS  [desktop] BlockDetail with an invalid slot shows an empty state
+PASS  [desktop] BlockDetail far in the future shows a clear not-found state
+PASS  [desktop] TransactionDetail with a real signature
+PASS  [desktop] TransactionDetail with a malformed signature is rejected before any lookup
+PASS  [desktop] ValidatorDetail with a real vote account
+PASS  [desktop] ValidatorDetail with an unknown id shows not-found
+PASS  [desktop] AddressLookup with a real address
+PASS  [desktop] AddressLookup with an invalid address is rejected
+PASS  [desktop] TransactionFlowPage with a real signature
+PASS  [desktop] ValidatorCompare with two real validators
+PASS  [desktop] Search for a token name returns real results
+PASS  [desktop] Search for a slot finds the block
+PASS  [desktop] Search for an address classifies it
+PASS  [desktop] Search for something that does not exist shows an empty result, not demo data
+PASS  [mobile] BlockDetail with a real slot
+PASS  [mobile] BlockDetail with an invalid slot shows an empty state
+PASS  [mobile] BlockDetail far in the future shows a clear not-found state
+PASS  [mobile] TransactionDetail with a real signature
+PASS  [mobile] TransactionDetail with a malformed signature is rejected before any lookup
+PASS  [mobile] ValidatorDetail with a real vote account
+PASS  [mobile] ValidatorDetail with an unknown id shows not-found
+PASS  [mobile] AddressLookup with a real address
+PASS  [mobile] AddressLookup with an invalid address is rejected
+PASS  [mobile] TransactionFlowPage with a real signature
+PASS  [mobile] ValidatorCompare with two real validators
+PASS  [mobile] Search for a token name returns real results
+PASS  [mobile] Search for a slot finds the block
+PASS  [mobile] Search for an address classifies it
+PASS  [mobile] Search for something that does not exist shows an empty result, not demo data
+PASS  Home redirects to the dashboard
+PASS  unknown route shows the 404 page with a way back
+PASS  a11y: /BlockDetail has no serious or critical axe violations
+PASS  a11y: /TransactionDetail has no serious or critical axe violations
+PASS  a11y: /ValidatorDetail has no serious or critical axe violations
+PASS  a11y: /AddressLookup has no serious or critical axe violations
+PASS  a11y: /ValidatorCompare has no serious or critical axe violations
+PASS  a11y: /Search has no serious or critical axe violations
+
+38 passed, 0 failed
+[detail routes] exit 0
+=== X1 View ===
+(node:14637) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS  1m tab: Now, 1m ago ... 9m ago
+PASS  1m tab is selected by default and exposes tab semantics
+PASS  1m totals and slots equal the RPC samples the page received (exact)  — 10/10 cards equal the node's samples (newest: 56021 tx, 165 slots)
+PASS  every card: categories add up to the total and the vote count is shown
+PASS  dot matrices have at most 80 dots, never zero for a window with transactions
+PASS  matrices are deterministic across re-renders (no random dot order)
+PASS  10m tab: 10m ago, 20m ago, 30m ago, 40m ago, 50m ago
+PASS  10m totals and slots equal the sum of ten RPC samples each  — 5/5 windows equal the sums of their ten samples
+PASS  real-time: the section refreshes on its own (updated caption and LIVE badge)  — 1 new sample request(s) in 18s; caption before: "Totals and slot counts are exact RPC performance samples (up…" after: "Totals and slot counts are exact RPC performance samples (up…"
+PASS  live XNT price is shown  — XNT $0.1872
+PASS  keyboard: arrow keys move between the 1m and 10m tabs and focus follows
+PASS  legend lists the four original categories
+PASS  Latest block activity section and other dashboard sections are still present
+PASS  no page errors or console errors
+PASS  no serious/critical axe violations on the dashboard
+PASS  [tablet] no horizontal page overflow, section visible, row scrolls inside itself
+PASS  [mobile] no horizontal page overflow, section visible, row scrolls inside itself
+
+17 passed, 0 failed
+[X1 View] exit 0
+=== keyboard audit ===
+(node:14747) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS  Dashboard: 25 Tab presses move focus onward, each stop has a visible focus indicator  — 25 distinct stops
+PASS  TokenExplorer: 25 Tab presses move focus onward, each stop has a visible focus indicator  — 25 distinct stops
+PASS  Validators: 25 Tab presses move focus onward, each stop has a visible focus indicator  — 23 distinct stops
+PASS  NetworkMap: 25 Tab presses move focus onward, each stop has a visible focus indicator  — 25 distinct stops
+PASS  Blocks: 25 Tab presses move focus onward, each stop has a visible focus indicator  — 25 distinct stops
+PASS  Search: 25 Tab presses move focus onward, each stop has a visible focus indicator  — 25 distinct stops
+PASS  skip-to-content link is the first stop and moves focus to main content
+
+7 passed, 0 failed
+[keyboard audit] exit 0
+=== SEO metadata ===
+(node:14894) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS  /Dashboard: title, canonical and robots  — X1 Network Overview | X1 Space — X1 Blockchain Explorer | index, follow
+PASS  /TokenExplorer: title, canonical and robots  — Token Explorer | X1 Space | index, follow
+PASS  /Validators: title, canonical and robots  — Validators | X1 Space | index, follow
+PASS  /NetworkMap: title, canonical and robots  — Validator Network Map | X1 Space | index, follow
+PASS  /Watchlist: title, canonical and robots  — Watchlist | X1 Space | noindex, follow
+PASS  /AddressLookup?address=x: title, canonical and robots  — Address Lookup | X1 Space | noindex, follow
+PASS  /NoSuchPage: title, canonical and robots  — Page not found | X1 Space | noindex, nofollow
+PASS  titles are unique across list pages
+PASS  robots.txt and sitemap.xml are served and consistent  — 12 urls
+
+9 passed, 0 failed
+[SEO metadata] exit 0
+=== performance and RPC cost ===
+(node:15096) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Dashboard visible {"readyMs":315,"lcpMs":344,"transferKBAtLoad":5639,"rpcPerMin":72,"functionCallsPerMin":0,"imageCallsDuringWindow":0,"jsHeapMB":14,"domNodes":2787}
+NetworkHealth visible {"readyMs":413,"lcpMs":328,"transferKBAtLoad":1966,"rpcPerMin":24,"functionCallsPerMin":0,"imageCallsDuringWindow":0,"jsHeapMB":10,"domNodes":995}
+TokenExplorer visible {"readyMs":214,"lcpMs":228,"transferKBAtLoad":1472,"rpcPerMin":5,"functionCallsPerMin":1,"imageCallsDuringWindow":41,"jsHeapMB":6,"domNodes":2347}
+NetworkMap visible {"readyMs":288,"lcpMs":252,"transferKBAtLoad":3144,"rpcPerMin":5,"functionCallsPerMin":0,"imageCallsDuringWindow":0,"jsHeapMB":7,"domNodes":1587}
+Validators visible {"readyMs":314,"lcpMs":308,"transferKBAtLoad":1912,"rpcPerMin":5,"functionCallsPerMin":0,"imageCallsDuringWindow":0,"jsHeapMB":6,"domNodes":1908}
+Blocks visible {"readyMs":207,"lcpMs":236,"transferKBAtLoad":9491,"rpcPerMin":89,"functionCallsPerMin":0,"imageCallsDuringWindow":0,"jsHeapMB":8,"domNodes":1375}
+LPExplorer visible {"readyMs":289,"lcpMs":300,"transferKBAtLoad":5492,"rpcPerMin":5,"functionCallsPerMin":0,"imageCallsDuringWindow":0,"jsHeapMB":6,"domNodes":2679}
+Dashboard hidden  {"readyMs":296,"lcpMs":316,"transferKBAtLoad":5666,"rpcPerMin":0,"functionCallsPerMin":0,"imageCallsDuringWindow":0,"jsHeapMB":7,"domNodes":2340}
+NetworkHealth hidden  {"readyMs":237,"lcpMs":240,"transferKBAtLoad":1966,"rpcPerMin":0,"functionCallsPerMin":0,"imageCallsDuringWindow":0,"jsHeapMB":8,"domNodes":995}
+[performance and RPC cost] exit 0
+=== network/credential audit ===
+(node:15447) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+function requests on Dashboard: 1 (POST getTokenPrices)
+function requests on TokenExplorer: 1 (POST getTokens)
+function requests on NetworkMap: 1 (POST getValidators)
+function requests on Validators: 0
+function requests on LPExplorer: 2 (POST getLPTokens, POST getLPStats)
+function requests on Blocks: 0
+function requests on Transactions: 0
+function requests on PortfolioTracker: 1 (POST getTokens)
+function requests on ApiDocs: 0
+requests by host: {"127.0.0.1":349,"rpc.mainnet.x1.xyz":61,"app.xdex.xyz":2,"raw.githubusercontent.com":13}
+total requests: 425
+PASS: no credentials in requests or responses; only expected hosts contacted
+[network/credential audit] exit 0
+=== bundle credential scan ===
+no credential patterns in dist
+source maps in dist: 0
+DONE

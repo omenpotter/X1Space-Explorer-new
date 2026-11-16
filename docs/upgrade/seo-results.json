@@ -1,0 +1,52 @@
+{
+  "ranAt": "2026-11-16T13:01:10.801Z",
+  "passed": 9,
+  "failed": 0,
+  "results": [
+    {
+      "name": "/Dashboard: title, canonical and robots",
+      "pass": true,
+      "detail": "X1 Network Overview | X1 Space — X1 Blockchain Explorer | index, follow"
+    },
+    {
+      "name": "/TokenExplorer: title, canonical and robots",
+      "pass": true,
+      "detail": "Token Explorer | X1 Space | index, follow"
+    },
+    {
+      "name": "/Validators: title, canonical and robots",
+      "pass": true,
+      "detail": "Validators | X1 Space | index, follow"
+    },
+    {
+      "name": "/NetworkMap: title, canonical and robots",
+      "pass": true,
+      "detail": "Validator Network Map | X1 Space | index, follow"
+    },
+    {
+      "name": "/Watchlist: title, canonical and robots",
+      "pass": true,
+      "detail": "Watchlist | X1 Space | noindex, follow"
+    },
+    {
+      "name": "/AddressLookup?address=x: title, canonical and robots",
+      "pass": true,
+      "detail": "Address Lookup | X1 Space | noindex, follow"
+    },
+    {
+      "name": "/NoSuchPage: title, canonical and robots",
+      "pass": true,
+      "detail": "Page not found | X1 Space | noindex, nofollow"
+    },
+    {
+      "name": "titles are unique across list pages",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "robots.txt and sitemap.xml are served and consistent",
+      "pass": true,
+      "detail": "12 urls"
+    }
+  ]
+}

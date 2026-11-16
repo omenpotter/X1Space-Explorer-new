@@ -1,0 +1,57 @@
+{
+  "ranAt": "2026-11-16T13:00:48.665Z",
+  "passed": 10,
+  "failed": 0,
+  "results": [
+    {
+      "name": "[desktop] Dashboard renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] NetworkHealth renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] CustomDashboard renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] Dashboard renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] NetworkHealth renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[tablet] CustomDashboard renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] Dashboard renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] NetworkHealth renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] CustomDashboard renders",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "a11y: Dashboard has no serious or critical axe violations",
+      "pass": true,
+      "detail": ""
+    }
+  ]
+}

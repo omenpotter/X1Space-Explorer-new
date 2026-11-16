@@ -1,0 +1,42 @@
+{
+  "ranAt": "2026-11-16T13:01:06.594Z",
+  "passed": 7,
+  "failed": 0,
+  "results": [
+    {
+      "name": "Dashboard: 25 Tab presses move focus onward, each stop has a visible focus indicator",
+      "pass": true,
+      "detail": "25 distinct stops"
+    },
+    {
+      "name": "TokenExplorer: 25 Tab presses move focus onward, each stop has a visible focus indicator",
+      "pass": true,
+      "detail": "25 distinct stops"
+    },
+    {
+      "name": "Validators: 25 Tab presses move focus onward, each stop has a visible focus indicator",
+      "pass": true,
+      "detail": "23 distinct stops"
+    },
+    {
+      "name": "NetworkMap: 25 Tab presses move focus onward, each stop has a visible focus indicator",
+      "pass": true,
+      "detail": "25 distinct stops"
+    },
+    {
+      "name": "Blocks: 25 Tab presses move focus onward, each stop has a visible focus indicator",
+      "pass": true,
+      "detail": "25 distinct stops"
+    },
+    {
+      "name": "Search: 25 Tab presses move focus onward, each stop has a visible focus indicator",
+      "pass": true,
+      "detail": "25 distinct stops"
+    },
+    {
+      "name": "skip-to-content link is the first stop and moves focus to main content",
+      "pass": true,
+      "detail": ""
+    }
+  ]
+}

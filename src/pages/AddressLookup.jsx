@@ -1,359 +1,378 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { 
-  Zap, Search, Wallet, Copy, Check, ExternalLink, 
-  ArrowUpRight, ArrowDownLeft, Clock, Loader2, AlertCircle
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { CheckCircle2, ExternalLink, FileSearch, Search, Wallet, XCircle } from 'lucide-react';
+import PageHeader from '@/components/shell/PageHeader';
+import { CopyButton, Panel, Pill, StatCard } from '@/components/ds/Primitives';
+import { EmptyState, ErrorState, Skeleton, StatSkeleton, TableSkeleton, Unavailable } from '@/components/ds/States';
+import { TokenAvatar } from '@/components/ds/Avatar';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { PROGRAM_IDS, formatUnits, formatXnt, getProgramInfo, isValidAddress } from '@/components/transactions/ProgramDecoder';
+import { rpcCall } from '@/lib/x1/rpcClient';
+import { api } from '@/lib/x1/api';
+import { X1_CONFIG } from '@/lib/x1/config';
+import { safeUrl } from '@/lib/safeUrl';
+import { DASH, integer, shortAddress, timeAgo } from '@/lib/format';
 import { createPageUrl } from '@/utils';
-import X1Rpc from '../components/x1/X1RpcService';
 
-export default function AddressLookup() {
-  const [address, setAddress] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState(null);
+const MAX_SIGNATURES = 25;
+const MAX_TOKEN_NAMES = 20;
+const TOKEN_PROGRAMS = [
+  { id: PROGRAM_IDS.token, label: 'SPL Token', tone: 'neutral' },
+  { id: PROGRAM_IDS.token2022, label: 'Token-2022', tone: 'violet' },
+];
 
-  const urlParams = new URLSearchParams(window.location.search);
-  const queryAddress = urlParams.get('address');
+const detailUrl = (sig) => `${createPageUrl('TransactionDetail')}?sig=${encodeURIComponent(sig)}`;
+const message = (err) => err?.message || 'The X1 RPC did not respond.';
 
-  useEffect(() => {
-    if (queryAddress) {
-      setAddress(queryAddress);
-      handleSearch(queryAddress);
-    }
-  }, [queryAddress]);
+/** Size of the account data in bytes, or null when the response does not say. */
+function dataSize(data) {
+  if (data && typeof data === 'object' && !Array.isArray(data) && Number.isFinite(data.space)) return data.space;
+  if (Array.isArray(data) && typeof data[0] === 'string' && data[1] === 'base64') {
+    const s = data[0];
+    const padding = s.endsWith('==') ? 2 : s.endsWith('=') ? 1 : 0;
+    return Math.max(0, Math.floor((s.length * 3) / 4) - padding);
+  }
+  return null;
+}
 
-  const handleSearch = async (searchAddress = address) => {
-    if (!searchAddress || searchAddress.length < 32) {
-      setError('Please enter a valid address');
+function parseHoldings(settled) {
+  const holdings = [];
+  let emptyAccounts = 0;
+  const failedPrograms = [];
+  settled.forEach((res, i) => {
+    const program = TOKEN_PROGRAMS[i];
+    if (res.status !== 'fulfilled') {
+      failedPrograms.push(program.label);
       return;
     }
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      // Fetch real account info from RPC
-      const [accountInfo, balance, signatures] = await Promise.all([
-        X1Rpc.getAccountInfo(searchAddress).catch(() => null),
-        X1Rpc.getBalance(searchAddress).catch(() => ({ value: 0 })),
-        X1Rpc.getSignaturesForAddress(searchAddress, { limit: 20 }).catch(() => [])
-      ]);
-      
-      // Determine account type
-      let accountType = 'wallet';
-      let label = null;
-      let voteAccountData = null;
-      
-      if (accountInfo?.value) {
-        const owner = accountInfo.value.owner;
-        if (owner === 'Vote111111111111111111111111111111111111111') {
-          accountType = 'vote';
-          // Parse vote account data
-          const parsed = accountInfo.value.data?.parsed;
-          if (parsed?.info) {
-            voteAccountData = {
-              authorizedVoter: parsed.info.authorizedVoters?.[0]?.authorizedVoter,
-              authorizedWithdrawer: parsed.info.authorizedWithdrawer,
-              commission: parsed.info.commission,
-              rootSlot: parsed.info.rootSlot,
-              lastTimestamp: parsed.info.lastTimestamp?.timestamp
-            };
-          }
-        } else if (owner === 'Stake11111111111111111111111111111111111111') {
-          accountType = 'stake';
-        } else if (owner === 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') {
-          accountType = 'token';
-        }
+    for (const entry of res.value?.value || []) {
+      const info = entry?.account?.data?.parsed?.info;
+      const amount = info?.tokenAmount;
+      if (!info?.mint || !amount) continue;
+      let raw;
+      try {
+        raw = BigInt(amount.amount);
+      } catch {
+        continue;
       }
-      
-      // Fetch transaction details for recent transactions
-      const recentTxs = [];
-      for (const sig of signatures.slice(0, 10)) {
-        try {
-          const tx = await X1Rpc.getTransaction(sig.signature);
-          if (tx) {
-            const message = tx.transaction?.message;
-            const accountKeys = message?.accountKeys || [];
-            const instructions = message?.instructions || [];
-            const preBalances = tx.meta?.preBalances || [];
-            const postBalances = tx.meta?.postBalances || [];
-            
-            // Determine type and amount
-            let type = 'other';
-            let amount = 0;
-            
-            for (const ix of instructions) {
-              const programId = accountKeys[ix.programIdIndex];
-              if (programId === 'Vote111111111111111111111111111111111111111') {
-                type = 'vote';
-                break;
-              } else if (programId === '11111111111111111111111111111111') {
-                type = 'transfer';
-              } else if (programId === 'Stake11111111111111111111111111111111111111') {
-                type = 'stake';
-              } else if (programId === 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') {
-                type = 'token';
-              }
-            }
-            
-            // Calculate balance change for this address
-            for (let i = 0; i < accountKeys.length; i++) {
-              if (accountKeys[i] === searchAddress) {
-                amount = (postBalances[i] - preBalances[i]) / 1e9;
-                break;
-              }
-            }
-            
-            recentTxs.push({
-              signature: sig.signature,
-              type,
-              amount,
-              slot: sig.slot,
-              blockTime: sig.blockTime,
-              status: tx.meta?.err ? 'failed' : 'success'
-            });
-          }
-        } catch (e) {
-          // Skip failed tx fetch
-        }
+      if (raw === 0n) {
+        emptyAccounts += 1;
+        continue;
       }
-      
-      setResult({
-        address: searchAddress,
-        label,
-        type: accountType,
-        balance: (balance?.value || 0) / 1e9,
-        transactions: signatures.length,
-        firstSeen: signatures.length > 0 ? new Date(signatures[signatures.length - 1]?.blockTime * 1000) : null,
-        recentTxs,
-        voteAccountData
-      });
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      holdings.push({ account: entry.pubkey, mint: info.mint, raw, decimals: Number.isFinite(amount.decimals) ? amount.decimals : 0, program });
     }
+  });
+  return { holdings, emptyAccounts, failedPrograms };
+}
+
+/** @param {{ label?: any, children?: any, [key: string]: any }} props */
+function Row({ label, children }) {
+  return (
+    <div className="min-w-0">
+      <dt className="eyebrow">{label}</dt>
+      <dd className="mt-1 min-w-0 break-words text-sm text-ink">{children}</dd>
+    </div>
+  );
+}
+
+/** @param {{ address?: any, [key: string]: any }} props */
+function AddressLink({ address }) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1">
+      <Link to={`${createPageUrl('AddressLookup')}?address=${encodeURIComponent(address)}`} title={address} className="mono break-all text-ink-soft hover:text-brand">{address}</Link>
+      <CopyButton value={address} label="Copy address" />
+    </span>
+  );
+}
+
+function LoadingView() {
+  return (
+    <div className="space-y-6" role="status" aria-label="Loading address">
+      <Skeleton className="h-16 w-full rounded-xl" />
+      <StatSkeleton count={4} />
+      <Panel><TableSkeleton rows={4} columns={4} /></Panel>
+      <Panel><TableSkeleton rows={6} columns={4} /></Panel>
+    </div>
+  );
+}
+
+/** @param {{ parsed?: any, [key: string]: any }} props */
+function VoteDetails({ parsed }) {
+  const info = parsed?.info;
+  if (parsed?.type !== 'vote' || !info) return null;
+  const voter = info.authorizedVoters?.[0]?.authorizedVoter;
+  return (
+    <Panel title="Vote account details" description="Read from the parsed vote account.">
+      <dl className="grid gap-4 p-4 sm:grid-cols-2">
+        <Row label="Commission">{Number.isFinite(info.commission) ? `${info.commission}%` : <Unavailable />}</Row>
+        <Row label="Root slot">{Number.isFinite(info.rootSlot) ? <span className="tabular">{integer(info.rootSlot)}</span> : <Unavailable />}</Row>
+        <Row label="Node identity">{info.nodePubkey ? <AddressLink address={info.nodePubkey} /> : <Unavailable />}</Row>
+        <Row label="Authorized voter">{voter ? <AddressLink address={voter} /> : <Unavailable />}</Row>
+        <Row label="Authorized withdrawer">{info.authorizedWithdrawer ? <AddressLink address={info.authorizedWithdrawer} /> : <Unavailable />}</Row>
+      </dl>
+    </Panel>
+  );
+}
+
+export default function AddressLookup() {
+  const [params, setParams] = useSearchParams();
+  const address = (params.get('address') || '').trim();
+  const valid = isValidAddress(address);
+  const [input, setInput] = useState(address);
+  const [inputError, setInputError] = useState(null);
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState(/** @type {Record<string, any>} */ ({ status: 'idle' }));
+  const [names, setNames] = useState({});
+
+  useEffect(() => {
+    setInput(address);
+  }, [address]);
+
+  useEffect(() => {
+    if (!valid) {
+      setState({ status: 'idle' });
+      return undefined;
+    }
+    let cancelled = false;
+    setState({ status: 'loading' });
+    setNames({});
+
+    (async () => {
+      const [balanceRes, infoRes, sigRes, ...tokenRes] = await Promise.allSettled([
+        rpcCall('getBalance', [address]),
+        rpcCall('getAccountInfo', [address, { encoding: 'jsonParsed' }]),
+        rpcCall('getSignaturesForAddress', [address, { limit: MAX_SIGNATURES }]),
+        ...TOKEN_PROGRAMS.map((p) => rpcCall('getTokenAccountsByOwner', [address, { programId: p.id }, { encoding: 'jsonParsed' }])),
+      ]);
+      if (cancelled) return;
+
+      // Without the balance and the account there is nothing reliable to show.
+      if (balanceRes.status === 'rejected' && infoRes.status === 'rejected') {
+        setState({ status: 'error', message: message(balanceRes.reason) });
+        return;
+      }
+
+      const balance = balanceRes.status === 'fulfilled' && Number.isFinite(balanceRes.value?.value) ? balanceRes.value.value : null;
+      const account = infoRes.status === 'fulfilled' ? infoRes.value?.value || null : undefined; // null = does not exist, undefined = unknown
+      const signatures = sigRes.status === 'fulfilled' && Array.isArray(sigRes.value) ? sigRes.value.slice(0, MAX_SIGNATURES) : null;
+      const tokens = parseHoldings(tokenRes);
+
+      if (account === null && !balance && signatures && signatures.length === 0 && tokens.holdings.length === 0) {
+        setState({ status: 'notfound' });
+        return;
+      }
+      setState({ status: 'ready', balance, account, accountError: infoRes.status === 'rejected' ? message(infoRes.reason) : null, signatures, signaturesError: sigRes.status === 'rejected' ? message(sigRes.reason) : null, tokens });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [address, valid, attempt]);
+
+  // Token names for the first holdings only, so one page never fans out into many requests.
+  const holdings = state.status === 'ready' ? state.tokens.holdings : null;
+  useEffect(() => {
+    if (!holdings || holdings.length === 0) return undefined;
+    let cancelled = false;
+    const mints = [...new Set(holdings.map((h) => h.mint))].slice(0, MAX_TOKEN_NAMES);
+    Promise.allSettled(mints.map((m) => api.token(m))).then((results) => {
+      if (cancelled) return;
+      const found = {};
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled' && r.value?.token) found[mints[i]] = r.value.token;
+      });
+      setNames(found);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [holdings]);
+
+  const submit = (e) => {
+    e.preventDefault();
+    const value = input.trim();
+    if (!isValidAddress(value)) {
+      setInputError('An address is 32 to 44 base58 characters (letters and digits, without 0, O, I or l).');
+      return;
+    }
+    setInputError(null);
+    setParams({ address: value });
   };
 
-  const copyAddress = () => {
-    navigator.clipboard.writeText(result?.address || address);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const formatTime = (blockTime) => {
-    if (!blockTime) return '-';
-    const date = new Date(blockTime * 1000);
-    const now = new Date();
-    const diff = (now - date) / 1000;
-    
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return date.toLocaleDateString();
-  };
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  const ownerName = useMemo(() => (state.status === 'ready' && state.account ? getProgramInfo(state.account.owner).name : null), [state]);
+  const explorer = safeUrl(`${X1_CONFIG.explorerUrl}/address/${encodeURIComponent(address)}`);
 
   return (
-    <div className="min-h-screen bg-[#1d2d3a] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
-        <div className="max-w-[1800px] mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
-                  <span className="text-black font-black text-sm">X1</span>
-                </div>
-                <span className="text-white font-bold hidden sm:inline">X1</span>
-                <span className="text-cyan-400 font-bold hidden sm:inline">.space</span>
-              </Link>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
-            </div>
-            <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('AddressLookup')}><Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg"><Wallet className="w-5 h-5" /></Button></Link>
-            </nav>
-          </div>
+    <>
+      <PageHeader icon={Wallet} title="Address lookup" description="Balance, account details, token holdings and recent activity of any X1 address, read from the X1 RPC." />
+
+      <form onSubmit={submit} className="panel mb-6 p-4" noValidate>
+        <label htmlFor="address-query" className="eyebrow mb-1.5 block">Address</label>
+        <div className="flex flex-wrap gap-2">
+          <Input
+            id="address-query"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Paste an X1 address"
+            autoComplete="off"
+            spellCheck={false}
+            aria-invalid={inputError ? 'true' : undefined}
+            aria-describedby={inputError ? 'address-query-error' : undefined}
+            className="mono min-w-[16rem] flex-1"
+          />
+          <Button type="submit" className="bg-brand text-brand-ink hover:bg-brand/90">
+            <Search className="mr-2 h-4 w-4" aria-hidden="true" />
+            Look up
+          </Button>
         </div>
-      </header>
+        {inputError && <p id="address-query-error" role="alert" className="mt-2 text-sm text-negative">{inputError}</p>}
+      </form>
 
-      <main className="max-w-4xl mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-3 mb-6">
-          <Wallet className="w-7 h-7 text-cyan-400" />
-          Address Lookup
-        </h1>
+      {!address && <Panel><EmptyState icon={Wallet} title="Enter an address" description="Paste an address above, or open one from a transaction." /></Panel>}
 
-        {/* Search */}
-        <div className="bg-[#24384a] rounded-xl p-6 mb-6">
-          <div className="flex gap-2">
-            <Input
-              placeholder="Enter wallet address..."
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className="bg-[#1d2d3a] border-0 text-white font-mono flex-1"
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            />
-            <Button onClick={() => handleSearch()} className="bg-cyan-500 hover:bg-cyan-600" disabled={loading}>
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            </Button>
+      {address && !valid && (
+        <Panel><EmptyState icon={FileSearch} title="That is not a valid address" description="An address is 32 to 44 base58 characters. Nothing was looked up." /></Panel>
+      )}
+
+      {valid && state.status === 'loading' && <LoadingView />}
+
+      {valid && state.status === 'error' && <Panel><ErrorState title="The address could not be loaded" description={state.message} onRetry={retry} /></Panel>}
+
+      {valid && state.status === 'notfound' && (
+        <Panel>
+          <EmptyState
+            icon={FileSearch}
+            title="Address not found on chain"
+            description="This address has no account, no balance, no token holdings and no transaction history on this node. It may never have received funds."
+            action={<p className="mono break-all text-xs text-ink-muted">{address}</p>}
+          />
+        </Panel>
+      )}
+
+      {valid && state.status === 'ready' && (
+        <div className="space-y-6">
+          <div className="panel flex flex-wrap items-center justify-between gap-3 p-4">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="mono break-all text-sm text-ink">{address}</span>
+              <CopyButton value={address} label="Copy address" />
+              {ownerName && <Pill tone="brand" title="The program that owns this account">Owner: {ownerName}</Pill>}
+              {state.account?.executable && <Pill tone="warning">Executable program</Pill>}
+            </div>
+            <span className="flex items-center gap-4 text-sm">
+              <Link to={`${createPageUrl('TransactionFlowPage')}?address=${encodeURIComponent(address)}`} className="text-brand hover:underline">View flow</Link>
+              <a href={explorer} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-ink-muted hover:text-ink">
+                X1 explorer<ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /><span className="sr-only"> (opens in a new tab)</span>
+              </a>
+            </span>
           </div>
-          {error && (
-            <div className="flex items-center gap-2 mt-3 text-red-400 text-sm">
-              <AlertCircle className="w-4 h-4" />
-              <span>{error}</span>
-            </div>
-          )}
+
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="Balance" value={state.balance === null ? DASH : <span>{formatXnt(state.balance)} <span className="text-base text-ink-muted">XNT</span></span>} hint={state.balance === null ? 'Balance could not be read' : state.account === null ? 'No account data: the address holds no funds' : undefined} tone="brand" />
+            <StatCard label="Token holdings" value={integer(state.tokens.holdings.length)} hint={state.tokens.failedPrograms.length ? `${state.tokens.failedPrograms.join(' and ')} not read` : 'Non-empty token accounts'} />
+            <StatCard label="Recent signatures" value={state.signatures ? integer(state.signatures.length) : DASH} hint={state.signatures ? (state.signatures.length >= MAX_SIGNATURES ? `Latest ${MAX_SIGNATURES} (there may be more)` : 'All the node has') : 'Not available'} />
+            <StatCard label="Data size" value={state.account ? (dataSize(state.account.data) === null ? DASH : <span>{integer(dataSize(state.account.data))} <span className="text-base text-ink-muted">bytes</span></span>) : DASH} hint={state.account === undefined ? 'Account info not read' : state.account === null ? 'No account' : undefined} />
+          </div>
+
+          <Panel title="Account" description="Raw account fields from the RPC.">
+            {state.accountError ? (
+              <p className="px-4 py-5 text-sm text-ink-muted">Account info could not be loaded: {state.accountError}</p>
+            ) : state.account === null ? (
+              <p className="px-4 py-5 text-sm text-ink-muted">No account exists at this address on chain. It is not holding any data, but the node still reports the activity shown below.</p>
+            ) : (
+              <dl className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Row label="Owner program">
+                  <span className="inline-flex flex-wrap items-center gap-x-2">
+                    {ownerName && <span className="font-medium">{ownerName}</span>}
+                    <Link to={`${createPageUrl('AddressLookup')}?address=${encodeURIComponent(state.account.owner)}`} title={state.account.owner} className="mono text-xs text-ink-muted hover:text-brand">{shortAddress(state.account.owner, 6, 6)}</Link>
+                  </span>
+                </Row>
+                <Row label="Executable">{state.account.executable ? 'Yes' : 'No'}</Row>
+                <Row label="Data size">{dataSize(state.account.data) === null ? <Unavailable reason="The RPC did not report a size" /> : <span className="tabular">{integer(dataSize(state.account.data))} bytes</span>}</Row>
+                <Row label="Lamports"><span className="tabular">{integer(state.account.lamports)}</span></Row>
+              </dl>
+            )}
+          </Panel>
+
+          {state.account?.data?.parsed && <VoteDetails parsed={state.account.data.parsed} />}
+
+          <Panel
+            title="Token holdings"
+            description={`Token accounts owned by this address, from both SPL Token and Token-2022.${state.tokens.holdings.length > MAX_TOKEN_NAMES ? ` Names are looked up for the first ${MAX_TOKEN_NAMES} only.` : ''}${state.tokens.emptyAccounts ? ` ${state.tokens.emptyAccounts} empty token account${state.tokens.emptyAccounts === 1 ? '' : 's'} hidden.` : ''}`}
+          >
+            {state.tokens.failedPrograms.length > 0 && (
+              <p role="alert" className="border-b border-line px-4 py-3 text-sm text-warning">Holdings under {state.tokens.failedPrograms.join(' and ')} could not be loaded, so this list may be incomplete.</p>
+            )}
+            {state.tokens.holdings.length === 0 ? (
+              <EmptyState icon={Wallet} title="No token holdings" description="This address holds no non-empty token accounts." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="data-table">
+                  <caption className="sr-only">Token holdings of {address}</caption>
+                  <thead><tr><th scope="col">Token</th><th scope="col" className="text-right">Balance</th><th scope="col" className="hidden md:table-cell">Program</th><th scope="col" className="hidden lg:table-cell">Token account</th></tr></thead>
+                  <tbody>
+                    {state.tokens.holdings.map((h) => {
+                      const t = names[h.mint];
+                      return (
+                        <tr key={h.account}>
+                          <td>
+                            <span className="flex min-w-0 items-center gap-3">
+                              <TokenAvatar token={t || { mint: h.mint }} size={28} />
+                              <span className="min-w-0">
+                                <span className="block truncate font-medium text-ink">{t ? t.name || t.symbol || 'Unnamed token' : 'Unknown token'}{t?.symbol && t?.name ? <span className="ml-2 text-xs text-ink-muted">{t.symbol}</span> : null}</span>
+                                <span className="mono block text-xs text-ink-faint" title={h.mint}>{shortAddress(h.mint, 6, 6)}</span>
+                              </span>
+                            </span>
+                          </td>
+                          <td className="tabular text-right">{formatUnits(h.raw, h.decimals)}</td>
+                          <td className="hidden md:table-cell"><Pill tone={h.program.tone}>{h.program.label}</Pill></td>
+                          <td className="hidden lg:table-cell"><span className="mono text-xs text-ink-muted" title={h.account}>{shortAddress(h.account, 6, 6)}</span></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
+
+          <Panel
+            title="Recent transactions"
+            description={state.signatures ? `The latest ${state.signatures.length} signature${state.signatures.length === 1 ? '' : 's'} (up to ${MAX_SIGNATURES}) involving this address.` : undefined}
+          >
+            {state.signaturesError ? (
+              <ErrorState title="Recent transactions could not be loaded" description={state.signaturesError} onRetry={retry} className="py-8" />
+            ) : !state.signatures || state.signatures.length === 0 ? (
+              <EmptyState icon={FileSearch} title="No transactions found" description="The node has no signatures for this address. It may be new, unused, or its history may be pruned." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="data-table">
+                  <caption className="sr-only">Recent transaction signatures involving {address}</caption>
+                  <thead><tr><th scope="col">Signature</th><th scope="col">Status</th><th scope="col" className="hidden sm:table-cell">Slot</th><th scope="col" className="text-right">Time</th></tr></thead>
+                  <tbody>
+                    {state.signatures.map((s) => (
+                      <tr key={s.signature}>
+                        <td>
+                          <span className="inline-flex items-center gap-1">
+                            <Link to={detailUrl(s.signature)} title={s.signature} className="mono text-brand hover:underline">{shortAddress(s.signature, 8, 6)}</Link>
+                            <CopyButton value={s.signature} label="Copy signature" />
+                          </span>
+                        </td>
+                        <td>{s.err ? <Pill tone="negative" icon={XCircle}>Failed</Pill> : <Pill tone="positive" icon={CheckCircle2}>Success</Pill>}</td>
+                        <td className="hidden sm:table-cell">
+                          {Number.isFinite(s.slot) ? <Link to={`${createPageUrl('BlockDetail')}?slot=${s.slot}`} className="mono tabular text-ink-soft hover:text-brand">{integer(s.slot)}</Link> : DASH}
+                        </td>
+                        <td className="text-right text-ink-muted" title={s.blockTime ? new Date(s.blockTime * 1000).toLocaleString() : undefined}>{s.blockTime ? timeAgo(s.blockTime * 1000) : DASH}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
         </div>
-
-        {result && (
-          <>
-            {/* Account Overview */}
-            <div className="bg-[#24384a] rounded-xl p-6 mb-6">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge className="bg-purple-500/20 text-purple-400 border-0 capitalize">{result.type} Account</Badge>
-                    {result.type === 'vote' && result.voteAccountData?.commission !== undefined && (
-                      <Badge className="bg-cyan-500/20 text-cyan-400 border-0">
-                        {result.voteAccountData.commission}% Commission
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <code className="text-cyan-400 font-mono text-sm md:text-lg break-all">{result.address}</code>
-                    <button onClick={copyAddress} className="text-gray-500 hover:text-white shrink-0">
-                      {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                    </button>
-                    <a 
-                      href={`https://explorer.mainnet.x1.xyz/address/${result.address}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-gray-500 hover:text-cyan-400 shrink-0"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="bg-[#1d2d3a] rounded-lg p-4">
-                  <p className="text-gray-400 text-xs mb-1">Balance</p>
-                  <p className="text-xl font-bold text-cyan-400">{result.balance.toLocaleString(undefined, { maximumFractionDigits: 9 })} XNT</p>
-                </div>
-                <div className="bg-[#1d2d3a] rounded-lg p-4">
-                  <p className="text-gray-400 text-xs mb-1">Recent Transactions</p>
-                  <p className="text-xl font-bold text-white">{result.transactions}</p>
-                </div>
-                {result.firstSeen && (
-                  <div className="bg-[#1d2d3a] rounded-lg p-4">
-                    <p className="text-gray-400 text-xs mb-1">First Activity</p>
-                    <p className="text-xl font-bold text-white">{result.firstSeen.toLocaleDateString()}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Vote Account Details */}
-              {result.type === 'vote' && result.voteAccountData && (
-                <div className="mt-4 pt-4 border-t border-white/10">
-                  <h4 className="text-gray-400 text-sm mb-3">VOTE ACCOUNT DETAILS</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                    {result.voteAccountData.authorizedVoter && (
-                      <div>
-                        <span className="text-gray-500">Authorized Voter:</span>
-                        <p className="text-cyan-400 font-mono text-xs truncate">{result.voteAccountData.authorizedVoter}</p>
-                      </div>
-                    )}
-                    {result.voteAccountData.authorizedWithdrawer && (
-                      <div>
-                        <span className="text-gray-500">Authorized Withdrawer:</span>
-                        <p className="text-cyan-400 font-mono text-xs truncate">{result.voteAccountData.authorizedWithdrawer}</p>
-                      </div>
-                    )}
-                    {result.voteAccountData.rootSlot && (
-                      <div>
-                        <span className="text-gray-500">Root Slot:</span>
-                        <p className="text-white font-mono">{result.voteAccountData.rootSlot.toLocaleString()}</p>
-                      </div>
-                    )}
-                    {result.voteAccountData.lastTimestamp && (
-                      <div>
-                        <span className="text-gray-500">Last Timestamp:</span>
-                        <p className="text-white">{new Date(result.voteAccountData.lastTimestamp * 1000).toLocaleString()}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Recent Transactions */}
-            <div className="bg-[#24384a] rounded-xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-gray-400 text-sm">RECENT TRANSACTIONS</h3>
-                <Link to={createPageUrl('TransactionFlowPage') + `?address=${result.address}`}>
-                  <Button variant="ghost" size="sm" className="text-cyan-400 hover:text-cyan-300">
-                    View Flow →
-                  </Button>
-                </Link>
-              </div>
-              {!result.recentTxs || result.recentTxs.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No recent transactions found</p>
-              ) : (
-                <div className="space-y-3">
-                  {result.recentTxs.map((tx, i) => (
-                    <Link 
-                      key={i} 
-                      to={createPageUrl('TransactionDetail') + `?sig=${tx.signature}`}
-                      className="flex items-center gap-4 p-3 bg-[#1d2d3a] rounded-lg hover:bg-[#2a4055] transition-colors"
-                    >
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                        tx.amount > 0 ? 'bg-emerald-500/20' : tx.amount < 0 ? 'bg-red-500/20' : 'bg-gray-500/20'
-                      }`}>
-                        {tx.amount > 0 ? (
-                          <ArrowDownLeft className="w-5 h-5 text-emerald-400" />
-                        ) : tx.amount < 0 ? (
-                          <ArrowUpRight className="w-5 h-5 text-red-400" />
-                        ) : (
-                          <Clock className="w-5 h-5 text-gray-400" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-cyan-400 font-mono text-sm truncate">{tx.signature}</p>
-                        <div className="flex items-center gap-2">
-                          <Badge className={`text-xs border-0 ${
-                            tx.type === 'vote' ? 'bg-purple-500/20 text-purple-400' :
-                            tx.type === 'transfer' ? 'bg-blue-500/20 text-blue-400' :
-                            tx.type === 'stake' ? 'bg-emerald-500/20 text-emerald-400' :
-                            'bg-gray-500/20 text-gray-400'
-                          }`}>
-                            {tx.type}
-                          </Badge>
-                          <span className="text-gray-500 text-xs">Slot {tx.slot?.toLocaleString()}</span>
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        {tx.amount !== 0 && (
-                          <p className={`font-mono ${tx.amount > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {tx.amount > 0 ? '+' : ''}{tx.amount.toFixed(6)} XNT
-                          </p>
-                        )}
-                        <p className="text-gray-500 text-xs flex items-center gap-1 justify-end">
-                          <Clock className="w-3 h-3" /> {formatTime(tx.blockTime)}
-                        </p>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </main>
-    </div>
+      )}
+    </>
   );
 }

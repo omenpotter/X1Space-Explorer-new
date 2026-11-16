@@ -1,103 +1,56 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Shield, AlertTriangle, CheckCircle, Loader2, Sparkles } from 'lucide-react';
-import { base44 } from "@/api/base44Client";
+import { useCallback, useEffect, useState } from 'react';
+import { ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Panel, Pill } from '@/components/ds/Primitives';
+import { ErrorState, Skeleton } from '@/components/ds/States';
+import { api } from '@/lib/x1/api';
+import { cn } from '@/lib/utils';
 
-export default function TokenHealthScore({ mint, tokenName }) {
-    const [analysis, setAnalysis] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+/** Rule-based review of a token's on-chain facts (authorities, holder concentration, liquidity). */
+/** @param {{ mint?: any, [key: string]: any }} props */
+export default function TokenHealthScore({ mint }) {
+  const [state, setState] = useState({ status: 'loading' });
 
-    const analyzeToken = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const { data } = await base44.functions.invoke('analyzeToken', { mint });
-            setAnalysis(data.analysis);
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
+  const load = useCallback(async () => {
+    setState({ status: 'loading' });
+    try {
+      const data = await api.tokenAnalysis(mint);
+      setState({ status: 'ready', analysis: data.analysis });
+    } catch (err) {
+      setState({ status: 'error', message: err.message });
+    }
+  }, [mint]);
 
-    const getRiskColor = (level) => {
-        const colors = {
-            'Low': 'text-emerald-400 bg-emerald-500/20',
-            'Medium': 'text-yellow-400 bg-yellow-500/20',
-            'High': 'text-red-400 bg-red-500/20'
-        };
-        return colors[level] || colors.Medium;
-    };
+  useEffect(() => {
+    load();
+  }, [load]);
 
-    const getHealthColor = (score) => {
-        if (score >= 8) return 'text-emerald-400';
-        if (score >= 5) return 'text-yellow-400';
-        return 'text-red-400';
-    };
-
-    return (
-        <Card className="bg-[#24384a] border-purple-500/20">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-purple-400" />
-                    <span className="text-white">AI Health Analysis</span>
-                </CardTitle>
-            </CardHeader>
-            <CardContent>
-                {!analysis && !loading && (
-                    <Button onClick={analyzeToken} className="w-full bg-purple-600 hover:bg-purple-700">
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Analyze Token Health
-                    </Button>
-                )}
-
-                {loading && (
-                    <div className="flex items-center justify-center py-8">
-                        <Loader2 className="w-8 h-8 animate-spin text-purple-400" />
-                        <span className="ml-2 text-gray-400">Analyzing...</span>
-                    </div>
-                )}
-
-                {error && (
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-400">
-                        {error}
-                    </div>
-                )}
-
-                {analysis && (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-[#1d2d3a] rounded-lg p-4">
-                                <p className="text-gray-400 text-sm mb-2">Health Score</p>
-                                <p className={`text-3xl font-bold ${getHealthColor(analysis.health_score)}`}>
-                                    {analysis.health_score}/10
-                                </p>
-                            </div>
-                            <div className="bg-[#1d2d3a] rounded-lg p-4">
-                                <p className="text-gray-400 text-sm mb-2">Risk Level</p>
-                                <Badge className={getRiskColor(analysis.risk_level)}>
-                                    {analysis.risk_level}
-                                </Badge>
-                            </div>
-                        </div>
-
-                        <div className="bg-[#1d2d3a] rounded-lg p-4">
-                            <p className="text-white font-medium mb-3">Key Factors:</p>
-                            <ul className="space-y-2">
-                                {analysis.summary.map((factor, i) => (
-                                    <li key={i} className="flex items-start gap-2 text-gray-300 text-sm">
-                                        <CheckCircle className="w-4 h-4 text-cyan-400 mt-0.5 flex-shrink-0" />
-                                        <span>{factor}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-    );
+  const a = state.analysis;
+  const tone = a?.risk_level === 'Low' ? 'positive' : a?.risk_level === 'Medium' ? 'warning' : 'negative';
+  return (
+    <Panel title="Risk review" description="Rule-based check of on-chain facts" bodyClassName="p-4">
+      {state.status === 'loading' && <Skeleton className="h-24 w-full" />}
+      {state.status === 'error' && <ErrorState description={state.message} onRetry={load} className="py-6" />}
+      {a && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2 text-sm text-ink">
+              {a.risk_level === 'Low' ? <ShieldCheck className="h-4 w-4 text-positive" aria-hidden="true" /> : <ShieldAlert className="h-4 w-4 text-warning" aria-hidden="true" />}
+              Health score {a.health_score}/10
+            </span>
+            <Pill tone={tone}>{a.risk_level} risk</Pill>
+          </div>
+          <ul className="space-y-1.5 text-sm">
+            {a.findings.map((f, i) => (
+              <li key={i} className="flex gap-2 text-ink-soft">
+                <span className={cn('mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full', f.level === 'risk' ? 'bg-negative' : f.level === 'warn' ? 'bg-warning' : 'bg-positive')} aria-hidden="true" />
+                <span><span className="sr-only">{f.level}: </span>{f.text}</span>
+              </li>
+            ))}
+          </ul>
+          {a.not_assessed?.length > 0 && <p className="text-xs text-ink-faint">Not assessed: {a.not_assessed.join(', ')}.</p>}
+          <p className="text-xs text-ink-faint">{a.method}</p>
+        </div>
+      )}
+    </Panel>
+  );
 }

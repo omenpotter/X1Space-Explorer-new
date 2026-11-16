@@ -1,0 +1,197 @@
+{
+  "ranAt": "2026-11-16T13:38:36.422Z",
+  "passed": 38,
+  "failed": 0,
+  "results": [
+    {
+      "name": "[desktop] BlockDetail with a real slot",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] BlockDetail with an invalid slot shows an empty state",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] BlockDetail far in the future shows a clear not-found state",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] TransactionDetail with a real signature",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] TransactionDetail with a malformed signature is rejected before any lookup",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] ValidatorDetail with a real vote account",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] ValidatorDetail with an unknown id shows not-found",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] AddressLookup with a real address",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] AddressLookup with an invalid address is rejected",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] TransactionFlowPage with a real signature",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] ValidatorCompare with two real validators",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] Search for a token name returns real results",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] Search for a slot finds the block",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] Search for an address classifies it",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] Search for something that does not exist shows an empty result, not demo data",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] BlockDetail with a real slot",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] BlockDetail with an invalid slot shows an empty state",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] BlockDetail far in the future shows a clear not-found state",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] TransactionDetail with a real signature",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] TransactionDetail with a malformed signature is rejected before any lookup",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] ValidatorDetail with a real vote account",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] ValidatorDetail with an unknown id shows not-found",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] AddressLookup with a real address",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] AddressLookup with an invalid address is rejected",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] TransactionFlowPage with a real signature",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] ValidatorCompare with two real validators",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] Search for a token name returns real results",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] Search for a slot finds the block",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] Search for an address classifies it",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] Search for something that does not exist shows an empty result, not demo data",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "Home redirects to the dashboard",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "unknown route shows the 404 page with a way back",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "a11y: /BlockDetail has no serious or critical axe violations",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "a11y: /TransactionDetail has no serious or critical axe violations",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "a11y: /ValidatorDetail has no serious or critical axe violations",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "a11y: /AddressLookup has no serious or critical axe violations",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "a11y: /ValidatorCompare has no serious or critical axe violations",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "a11y: /Search has no serious or critical axe violations",
+      "pass": true,
+      "detail": ""
+    }
+  ]
+}

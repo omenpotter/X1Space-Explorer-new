@@ -1,22 +1,36 @@
-// src/App.jsx
-import './App.css'
 import { Toaster } from "@/components/ui/toaster"
+import { Suspense, lazy } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import VisualEditAgent from '@/lib/VisualEditAgent'
 import NavigationTracker from '@/lib/NavigationTracker'
-import { pagesConfig } from './pages.config'
+import Layout from './Layout.jsx'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import { Analytics } from "@vercel/analytics/react"; // ✅ Only Analytics
+import { Analytics } from "@vercel/analytics/react";
 
-const { Pages, Layout, mainPage } = pagesConfig;
-const mainPageKey = mainPage ?? Object.keys(Pages)[0];
-const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
+// Routes come from the files in ./pages, each loaded as its own chunk on first visit.
+// (pages.config.js is not imported here because it imports every page eagerly.)
+const MAIN_PAGE = 'Dashboard';
+const loaders = import.meta.glob('./pages/*.jsx');
+const Pages = Object.fromEntries(
+  Object.entries(loaders).map(([file, load]) => [file.replace('./pages/', '').replace('.jsx', ''), lazy(load)]),
+);
+const mainPageKey = MAIN_PAGE in Pages ? MAIN_PAGE : Object.keys(Pages)[0];
+const MainPage = Pages[mainPageKey];
+
+function PageFallback() {
+  return (
+    <div role="status" aria-label="Loading page" className="flex min-h-[40vh] items-center justify-center">
+      <div className="h-7 w-7 animate-spin rounded-full border-2 border-line-strong border-t-brand" />
+    </div>
+  );
+}
 
 // Layout wrapper for all pages
+/** @param {{ children?: any, currentPageName?: any, [key: string]: any }} props */
 const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
   : <>{children}</>;
@@ -27,8 +41,8 @@ const AuthenticatedApp = () => {
 
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+      <div className="fixed inset-0 flex items-center justify-center bg-canvas" role="status" aria-label="Loading X1 Space">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-brand"></div>
       </div>
     );
   }
@@ -45,7 +59,7 @@ const AuthenticatedApp = () => {
     <Routes>
       <Route path="/" element={
         <LayoutWrapper currentPageName={mainPageKey}>
-          <MainPage />
+          <Suspense fallback={<PageFallback />}><MainPage /></Suspense>
         </LayoutWrapper>
       } />
       {Object.entries(Pages).map(([path, Page]) => (
@@ -54,7 +68,7 @@ const AuthenticatedApp = () => {
           path={`/${path}`}
           element={
             <LayoutWrapper currentPageName={path}>
-              <Page />
+              <Suspense fallback={<PageFallback />}><Page /></Suspense>
             </LayoutWrapper>
           }
         />

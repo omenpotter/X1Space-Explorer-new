@@ -1,59 +1,107 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowRight, Boxes } from 'lucide-react';
 import { createPageUrl } from '@/utils';
-import { Button } from "@/components/ui/button";
-import { ExternalLink } from 'lucide-react';
+import { Panel } from '@/components/ds/Primitives';
+import { EmptyState, ErrorState, TableSkeleton, Unavailable } from '@/components/ds/States';
+import { CompositionBar, TxTypeLegend, txBreakdown } from '@/components/x1/MempoolViz';
+import { integer, shortAddress, timeAgo } from '@/lib/format';
 
-const RecentBlocksTable = memo(function RecentBlocksTable({ blocks }) {
-  if (!blocks?.length) return null;
-  
+/**
+ * Table of confirmed blocks (summaries from X1Rpc.getRecentBlocks).
+ * `status` is 'loading' | 'ready' | 'error'; with data present an error never hides the rows.
+ */
+const RecentBlocksTable = memo(/** @param {{ blocks?: any, status?: any, error?: any, onRetry?: any, limit?: any, title?: any, description?: any, showViewAll?: any, className?: any, [key: string]: any }} props */ function RecentBlocksTable({
+  blocks,
+  status = 'ready',
+  error,
+  onRetry,
+  limit = 6,
+  title = 'Recent blocks',
+  description = 'Latest confirmed blocks with their transaction mix.',
+  showViewAll = true,
+  className,
+}) {
+  const rows = (blocks || []).slice(0, limit);
   return (
-    <div className="mt-8 bg-[#24384a] rounded-xl p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-gray-400 text-sm flex items-center gap-2">
-          Recent Blocks
-          <ExternalLink className="w-3 h-3" />
-        </h3>
-        <Link to={createPageUrl('Blocks')}>
-          <Button variant="ghost" size="sm" className="text-cyan-400 hover:text-cyan-300">
-            View All
-          </Button>
-        </Link>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-white/5">
-              <th className="text-left text-gray-400 text-xs font-medium px-4 py-2">Slot</th>
-              <th className="text-left text-gray-400 text-xs font-medium px-4 py-2">Block Hash</th>
-              <th className="text-right text-gray-400 text-xs font-medium px-4 py-2">Transactions</th>
-              <th className="text-right text-gray-400 text-xs font-medium px-4 py-2">Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {blocks.slice(0, 5).map((block) => (
-              <tr key={block.slot} className="border-b border-white/5 hover:bg-white/[0.02]">
-                <td className="px-4 py-3">
-                  <Link to={createPageUrl('BlockDetail') + `?slot=${block.slot}`} className="text-cyan-400 hover:underline font-mono">
-                    {block.slot.toLocaleString()}
-                  </Link>
-                </td>
-                <td className="px-4 py-3">
-                  <span className="text-gray-400 font-mono text-sm">{block.blockhash?.substring(0, 20)}...</span>
-                </td>
-                <td className="px-4 py-3 text-right text-white font-mono">{block.txCount.toLocaleString()}</td>
-                <td className="px-4 py-3 text-right text-gray-400 text-sm">
-                  {block.blockTime ? new Date(block.blockTime * 1000).toLocaleTimeString() : block.timeAgo}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <Panel
+      className={className}
+      title={title}
+      description={description}
+      actions={
+        showViewAll ? (
+          <Link to={createPageUrl('Blocks')} className="inline-flex items-center gap-1 rounded text-xs font-medium text-brand hover:underline">
+            All blocks
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </Link>
+        ) : undefined
+      }
+    >
+      {rows.length === 0 && status === 'loading' && <TableSkeleton rows={Math.min(limit, 6)} columns={4} />}
+      {rows.length === 0 && status === 'error' && <ErrorState title="Blocks are unavailable" description={error} onRetry={onRetry} />}
+      {rows.length === 0 && status === 'ready' && (
+        <EmptyState icon={Boxes} title="No blocks returned" description="The RPC returned no block data for the most recent slots. They may have been skipped." />
+      )}
+      {rows.length > 0 && (
+        <>
+          <div className="overflow-x-auto">
+            <table className="data-table [&_td]:!px-3 [&_th]:!px-3 2xl:[&_td]:!px-4 2xl:[&_th]:!px-4">
+              <caption className="sr-only">{title}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Slot</th>
+                  <th scope="col" className="hidden 2xl:table-cell">Block hash</th>
+                  <th scope="col" className="text-right">Transactions</th>
+                  <th scope="col" className="hidden sm:table-cell">Vote / system / other</th>
+                  <th scope="col" className="text-right">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((block) => {
+                  const b = txBreakdown(block);
+                  return (
+                    <tr key={block.slot}>
+                      <td>
+                        <Link to={`${createPageUrl('BlockDetail')}?slot=${block.slot}`} className="mono text-brand hover:underline">
+                          {integer(block.slot)}
+                        </Link>
+                      </td>
+                      <td className="hidden 2xl:table-cell">
+                        <span className="mono text-ink-muted" title={block.blockhash || undefined}>{shortAddress(block.blockhash, 8, 8)}</span>
+                      </td>
+                      <td className="text-right tabular text-ink">{b ? integer(b.total) : <Unavailable reason="Transaction count not returned" />}</td>
+                      <td className="hidden sm:table-cell">
+                        {b ? (
+                          <div className="flex items-center gap-2">
+                            <CompositionBar breakdown={b} className="hidden w-24 shrink-0 2xl:flex" />
+                            <span className="whitespace-nowrap text-xs tabular text-ink-muted">
+                              {integer(b.vote)} / {integer(b.system)} / {integer(b.program + b.other)}
+                            </span>
+                          </div>
+                        ) : (
+                          <Unavailable />
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap text-right text-ink-muted">
+                        {block.blockTime ? (
+                          <time dateTime={new Date(block.blockTime * 1000).toISOString()} title={new Date(block.blockTime * 1000).toLocaleString()}>
+                            {timeAgo(block.blockTime * 1000)}
+                          </time>
+                        ) : (
+                          <Unavailable reason="Block time not reported by the RPC" />
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <TxTypeLegend className="hidden px-4 py-3 md:flex" />
+        </>
+      )}
+    </Panel>
   );
 });
-
-RecentBlocksTable.displayName = 'RecentBlocksTable';
 
 export default RecentBlocksTable;

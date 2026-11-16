@@ -1,225 +1,238 @@
-import React, { useState, useEffect } from 'react';
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { 
-  Search, 
-  Zap,
-  Clock,
-  ChevronLeft,
-  ChevronRight,
-  CheckCircle,
-  XCircle,
-  Pause,
-  Play,
-  Loader2,
-  AlertCircle
-} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { CheckCircle2, Pause, Play, Receipt, XCircle } from 'lucide-react';
+import PageHeader from '@/components/shell/PageHeader';
+import { CopyButton, Freshness, Panel, Pill, StatCard } from '@/components/ds/Primitives';
+import { EmptyState, ErrorState, StatSkeleton, TableSkeleton } from '@/components/ds/States';
+import { Button } from '@/components/ui/button';
+import { TX_TYPES, classifyPrograms, formatXnt } from '@/components/transactions/ProgramDecoder';
+import { rpcCall } from '@/lib/x1/rpcClient';
+import { X1_CONFIG } from '@/lib/x1/config';
+import { DASH, integer, percent, shortAddress, timeAgo } from '@/lib/format';
 import { createPageUrl } from '@/utils';
-import X1Rpc from '../components/x1/X1RpcService';
 
-export default function Transactions() {
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isLive, setIsLive] = useState(true);
-  const [stats, setStats] = useState({ total: 0, tps: 0 });
-  const [currentSlot, setCurrentSlot] = useState(null);
+// How many of the latest blocks to read on each refresh, and the most rows kept from them.
+const BLOCKS_PER_REFRESH = 3;
+const MAX_ROWS = 100;
 
-  const fetchTransactions = async () => {
-    try {
-      const [slot, dashData] = await Promise.all([
-        X1Rpc.getSlot(),
-        X1Rpc.getDashboardData().catch(() => null)
-      ]);
-      
-      setCurrentSlot(slot);
-      if (dashData) {
-        setStats({ total: dashData.transactionCount, tps: dashData.tps });
-      }
+const FILTERS = ['all', 'vote', 'stake', 'token', 'system', 'other'];
 
-      // Fetch transactions from recent blocks
-      const block = await X1Rpc.getBlock(slot, { transactionDetails: 'full' });
-      
-      if (block?.transactions) {
-        const txs = block.transactions.slice(0, 30).map((tx, i) => ({
-          signature: tx.transaction?.signatures?.[0] || `tx-${slot}-${i}`,
-          slot,
-          status: tx.meta?.err ? 'Failed' : 'Success',
-          fee: (tx.meta?.fee || 0) / 1e9,
-          blockTime: block.blockTime,
-          accounts: tx.transaction?.message?.accountKeys?.length || 0
-        }));
-        setTransactions(txs);
-      }
-      
-      setError(null);
-    } catch (err) {
-      console.error('Failed to fetch transactions:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchTransactions();
-    if (isLive) {
-      const interval = setInterval(fetchTransactions, 3000);
-      return () => clearInterval(interval);
-    }
-  }, [isLive]);
-
-  const formatTime = (blockTime) => {
-    if (!blockTime) return '-';
-    const diff = (Date.now() / 1000) - blockTime;
-    if (diff < 60) return `${Math.floor(diff)}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    return `${Math.floor(diff / 3600)}h ago`;
-  };
-
-  const formatNumber = (num) => {
-    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
-    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
-    return num?.toLocaleString() || '0';
-  };
-
-  if (loading && transactions.length === 0) {
-    return (
-      <div className="min-h-screen bg-[#1d2d3a] text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
-      </div>
-    );
+/** Read the newest blocks and flatten their transactions. Skipped slots are ignored. */
+async function fetchRecentTransactions() {
+  const slot = await rpcCall('getSlot');
+  const slots = Array.from({ length: BLOCKS_PER_REFRESH }, (_, i) => slot - i);
+  const settled = await Promise.allSettled(
+    slots.map((s) => rpcCall('getBlock', [s, { encoding: 'json', transactionDetails: 'full', rewards: false, maxSupportedTransactionVersion: 0 }])),
+  );
+  const blocks = settled.map((r, i) => ({ slot: slots[i], block: r.status === 'fulfilled' ? r.value : null }));
+  const ok = blocks.filter((b) => b.block);
+  if (ok.length === 0) {
+    const reason = settled.find((r) => r.status === 'rejected')?.reason;
+    throw new Error(reason?.message || 'No block could be read from the RPC.');
   }
 
-  return (
-    <div className="min-h-screen bg-[#1d2d3a] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
-        <div className="max-w-[1800px] mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 hover:opacity-80">
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
-                <span className="font-bold"><span className="text-cyan-400">X1</span><span className="text-white">Space</span></span>
-              </Link>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">Mainnet</Badge>
-            </div>
-            
-            <nav className="hidden md:flex items-center gap-1">
-              <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><Zap className="w-5 h-5" /></Button></Link>
-              <Link to={createPageUrl('Blocks')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg></Button></Link>
-              <Link to={createPageUrl('Validators')}><Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></svg></Button></Link>
-              <Link to={createPageUrl('Transactions')}><Button variant="ghost" size="icon" className="text-cyan-400 bg-cyan-500/10 rounded-lg"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg></Button></Link>
-            </nav>
-            
-            <div className="flex-1 max-w-md">
-              <div className="relative">
-                <Input placeholder="Search by signature..." className="w-full bg-[#24384a] border-0 text-white placeholder:text-gray-500 pr-10 rounded-lg" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                <Button size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 bg-cyan-500 hover:bg-cyan-600 h-7 w-7 rounded"><Search className="w-4 h-4 text-black" /></Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+  const txs = [];
+  for (const { slot: s, block } of ok) {
+    for (const tx of block.transactions || []) {
+      const message = tx?.transaction?.message || {};
+      const keys = (message.accountKeys || []).map((k) => (typeof k === 'string' ? k : k?.pubkey || null));
+      const loaded = (tx?.meta?.loadedAddresses?.writable?.length || 0) + (tx?.meta?.loadedAddresses?.readonly?.length || 0);
+      const programIds = [...new Set((message.instructions || []).map((ix) => keys[ix?.programIdIndex]).filter(Boolean))];
+      const signature = tx?.transaction?.signatures?.[0];
+      if (!signature) continue;
+      txs.push({
+        signature,
+        slot: s,
+        blockTime: Number.isFinite(block.blockTime) ? block.blockTime : null,
+        success: tx.meta ? !tx.meta.err : null,
+        feeLamports: Number.isFinite(tx?.meta?.fee) ? tx.meta.fee : null,
+        accountCount: keys.length + loaded,
+        type: classifyPrograms(programIds),
+      });
+    }
+  }
+  return { slot, blocksRead: ok.length, blocksRequested: slots.length, txs: txs.slice(0, MAX_ROWS), truncated: txs.length > MAX_ROWS, at: Date.now() };
+}
 
-      {error && (
-        <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2">
-          <div className="max-w-[1800px] mx-auto flex items-center gap-2 text-red-400 text-sm">
-            <AlertCircle className="w-4 h-4" /><span>{error}</span>
-          </div>
+export default function Transactions() {
+  const [state, setState] = useState({ status: 'loading', data: null, error: null, stale: false });
+  const [live, setLive] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const [refreshing, setRefreshing] = useState(false);
+  const mounted = useRef(true);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const data = await fetchRecentTransactions();
+      if (mounted.current) setState({ status: 'ready', data, error: null, stale: false });
+    } catch (err) {
+      // Keep the last good data and mark it stale; only show the error state when there is nothing to show.
+      if (mounted.current) setState((prev) => (prev.data ? { ...prev, stale: true, error: err?.message } : { status: 'error', data: null, error: err?.message || 'The X1 RPC did not respond.', stale: false }));
+    } finally {
+      if (mounted.current) setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (!live) return undefined;
+    const id = setInterval(() => {
+      if (!document.hidden) refresh();
+    }, X1_CONFIG.polling.transactionsMs);
+    return () => clearInterval(id);
+  }, [live, refresh]);
+
+  const data = state.data;
+  const counts = useMemo(() => {
+    const c = { all: 0 };
+    for (const tx of data?.txs || []) {
+      c.all += 1;
+      c[tx.type] = (c[tx.type] || 0) + 1;
+    }
+    return c;
+  }, [data]);
+  const rows = useMemo(() => (data?.txs || []).filter((tx) => filter === 'all' || tx.type === filter), [data, filter]);
+  const failed = useMemo(() => (data?.txs || []).filter((tx) => tx.success === false).length, [data]);
+
+  const retry = () => {
+    setState({ status: 'loading', data: null, error: null, stale: false });
+    refresh();
+  };
+
+  return (
+    <>
+      <PageHeader
+        icon={Receipt}
+        title="Transactions"
+        description="Transactions in the most recent confirmed blocks. This is a rolling sample of the newest blocks, not a searchable history. Open a transaction for the full decoded view."
+        meta={<Freshness at={data?.at} source="X1 RPC" stale={state.stale} onRefresh={refresh} refreshing={refreshing} />}
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setLive((v) => !v)}
+            aria-pressed={live}
+            className="border-line-strong bg-transparent text-ink hover:bg-surface-3"
+          >
+            {live ? <Pause className="mr-2 h-4 w-4" aria-hidden="true" /> : <Play className="mr-2 h-4 w-4" aria-hidden="true" />}
+            {live ? 'Pause updates' : 'Resume updates'}
+          </Button>
+        }
+      />
+
+      {state.status === 'loading' && (
+        <div className="space-y-6">
+          <StatSkeleton count={4} />
+          <Panel><TableSkeleton rows={10} columns={6} /></Panel>
         </div>
       )}
 
-      <main className="max-w-[1800px] mx-auto px-4 py-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Total Transactions</p>
-            <p className="text-2xl font-bold text-white">{formatNumber(stats.total)}</p>
-          </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Current TPS</p>
-            <p className="text-2xl font-bold text-cyan-400">{stats.tps?.toLocaleString()}</p>
-          </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Current Slot</p>
-            <p className="text-2xl font-bold text-white">{currentSlot?.toLocaleString()}</p>
-          </div>
-          <div className="bg-[#24384a] rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-1">Shown TXs</p>
-            <p className="text-2xl font-bold text-white">{transactions.length}</p>
-          </div>
-        </div>
+      {state.status === 'error' && (
+        <Panel>
+          <ErrorState title="Transactions could not be loaded" description={state.error} onRetry={retry} />
+        </Panel>
+      )}
 
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">Recent Transactions</h2>
-          <Button onClick={() => setIsLive(!isLive)} variant="outline" size="sm" className={`border-white/10 ${isLive ? 'text-emerald-400' : 'text-gray-400'}`}>
-            {isLive ? <><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-2" /><Pause className="w-3 h-3 mr-1" /> Live</> : <><Play className="w-3 h-3 mr-1" /> Paused</>}
-          </Button>
-        </div>
+      {data && (
+        <div className="space-y-6">
+          {state.stale && (
+            <p role="status" className="rounded-lg border border-warning/25 bg-warning/10 px-3 py-2 text-sm text-warning">
+              The last refresh failed{state.error ? ` (${state.error})` : ''}. Showing the previous results.
+            </p>
+          )}
 
-        <div className="bg-[#24384a] rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-white/5">
-                  <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Signature</th>
-                  <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Slot</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Fee</th>
-                  <th className="text-center text-gray-400 text-xs font-medium px-4 py-3">Accounts</th>
-                  <th className="text-center text-gray-400 text-xs font-medium px-4 py-3">Status</th>
-                  <th className="text-right text-gray-400 text-xs font-medium px-4 py-3">Age</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((tx, index) => (
-                  <tr key={tx.signature + index} className={`border-b border-white/5 hover:bg-white/[0.02] ${index === 0 && isLive ? 'bg-cyan-500/5' : ''}`}>
-                    <td className="px-4 py-3">
-                      <Link to={createPageUrl('TransactionDetail') + `?sig=${tx.signature}`} className="text-cyan-400 hover:underline font-mono text-sm">
-                        {tx.signature.substring(0, 16)}...{tx.signature.slice(-8)}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link to={createPageUrl('BlockDetail') + `?slot=${tx.slot}`} className="text-gray-400 hover:text-cyan-400 font-mono text-sm">
-                        {tx.slot?.toLocaleString()}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <span className="text-gray-400 font-mono text-xs">{tx.fee.toFixed(6)} XNT</span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <Badge className="bg-white/5 text-gray-400 border-0 text-xs">{tx.accounts}</Badge>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {tx.status === 'Success' ? (
-                        <CheckCircle className="w-4 h-4 text-emerald-400 mx-auto" />
-                      ) : (
-                        <XCircle className="w-4 h-4 text-red-400 mx-auto" />
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <span className="text-gray-500 text-xs flex items-center justify-end gap-1">
-                        <Clock className="w-3 h-3" />
-                        {formatTime(tx.blockTime)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="Latest slot" value={integer(data.slot)} hint="Newest slot read this refresh" />
+            <StatCard label="Blocks sampled" value={`${data.blocksRead} of ${data.blocksRequested}`} hint={data.blocksRead < data.blocksRequested ? 'Skipped slots have no block' : 'Latest slots'} />
+            <StatCard label="Transactions in sample" value={integer(data.txs.length)} hint={data.truncated ? `Capped at ${MAX_ROWS}` : 'Across the sampled blocks'} tone="brand" />
+            <StatCard label="Failed in sample" value={integer(failed)} hint={data.txs.length ? `${percent((failed / data.txs.length) * 100, 1)} of the sample` : DASH} tone={failed ? 'warning' : 'default'} />
           </div>
-        </div>
 
-        <div className="flex items-center justify-center gap-4 mt-6">
-          <Button variant="outline" className="border-white/10 text-gray-400 hover:text-white">
-            <ChevronLeft className="w-4 h-4 mr-1" /> Older
-          </Button>
-          <Button variant="outline" className="border-white/10 text-gray-400 hover:text-white">
-            Newer <ChevronRight className="w-4 h-4 ml-1" />
-          </Button>
+          <Panel
+            title="Transactions in the most recent confirmed blocks"
+            description={`Newest ${data.blocksRead} block${data.blocksRead === 1 ? '' : 's'} with transactions. Type is derived from the programs each transaction invokes. ${live ? `Updates every ${X1_CONFIG.polling.transactionsMs / 1000}s.` : 'Updates are paused.'}`}
+          >
+            <div role="group" aria-label="Filter by transaction type" className="flex flex-wrap gap-2 border-b border-line px-4 py-3">
+              {FILTERS.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setFilter(f)}
+                  aria-pressed={filter === f}
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${filter === f ? 'border-brand/40 bg-brand/10 text-brand' : 'border-line-strong text-ink-muted hover:bg-surface-3 hover:text-ink'}`}
+                >
+                  {f === 'all' ? 'All' : TX_TYPES[f].label}
+                  <span className="tabular ml-1.5 text-ink-faint">{integer(counts[f] || 0)}</span>
+                </button>
+              ))}
+            </div>
+
+            {rows.length === 0 ? (
+              <EmptyState
+                icon={Receipt}
+                title={data.txs.length === 0 ? 'No transactions in the sampled blocks' : 'No transactions of this type in the sample'}
+                description={data.txs.length === 0 ? 'The newest blocks contained no transactions. This updates as new blocks arrive.' : 'Choose another type, or wait for the next refresh.'}
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="data-table">
+                  <caption className="sr-only">Transactions in the most recent confirmed blocks, newest block first</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Signature</th>
+                      <th scope="col">Type</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Slot</th>
+                      <th scope="col" className="hidden text-right md:table-cell">Fee (XNT)</th>
+                      <th scope="col" className="hidden text-right lg:table-cell">Accounts</th>
+                      <th scope="col" className="text-right">Age</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((tx) => {
+                      const type = TX_TYPES[tx.type];
+                      return (
+                        <tr key={tx.signature}>
+                          <td>
+                            <span className="inline-flex items-center gap-1">
+                              <Link to={`${createPageUrl('TransactionDetail')}?sig=${encodeURIComponent(tx.signature)}`} title={tx.signature} className="mono text-brand hover:underline">
+                                {shortAddress(tx.signature, 8, 6)}
+                              </Link>
+                              <CopyButton value={tx.signature} label="Copy signature" />
+                            </span>
+                          </td>
+                          <td><Pill tone={type.tone} title={type.title}>{type.label}</Pill></td>
+                          <td>
+                            {tx.success === null ? <Pill>Unknown</Pill> : tx.success ? <Pill tone="positive" icon={CheckCircle2}>Success</Pill> : <Pill tone="negative" icon={XCircle}>Failed</Pill>}
+                          </td>
+                          <td>
+                            <Link to={`${createPageUrl('BlockDetail')}?slot=${tx.slot}`} className="mono tabular text-ink-soft hover:text-brand">{integer(tx.slot)}</Link>
+                          </td>
+                          <td className="tabular hidden text-right md:table-cell">{formatXnt(tx.feeLamports)}</td>
+                          <td className="tabular hidden text-right lg:table-cell">{integer(tx.accountCount)}</td>
+                          <td className="tabular text-right text-ink-muted">{tx.blockTime ? timeAgo(tx.blockTime * 1000) : DASH}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
         </div>
-      </main>
-    </div>
+      )}
+    </>
   );
 }

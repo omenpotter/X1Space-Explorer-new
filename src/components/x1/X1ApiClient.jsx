@@ -1,263 +1,74 @@
-// X1 Blockchain Explorer API Client - Base44 Version
-import API_CONFIG from '@/config/api.config';
+// Compatibility layer over the backend token API (src/lib/x1/api.js).
+// Values the backend does not know are passed through as null: nothing is defaulted to 0.
+import { api } from '@/lib/x1/api';
 
-// Support both base44.app and x1space.xyz domains
-const isProduction = window.location.hostname.includes('base44.app') || 
-                     window.location.hostname.includes('x1space.xyz');
-const API_BASE_URL = isProduction ? window.location.origin : API_CONFIG.baseURL;
-const WS_URL = isProduction ? `wss://${window.location.host}` : API_CONFIG.wsURL;
-
-console.log('🔧 X1ApiClient Config:', {
-  hostname: window.location.hostname,
-  isProduction,
-  API_BASE_URL,
-  configBaseURL: API_CONFIG.baseURL
-});
-
-// Cache for API responses
-const cache = new Map();
-const CACHE_TTL = API_CONFIG.cache.ttl;
-
-function getCacheKey(endpoint, params) {
-  return `${endpoint}:${JSON.stringify(params || {})}`;
+function toLegacy(t) {
+  return {
+    mint: t.mint,
+    name: t.name,
+    symbol: t.symbol,
+    logo_uri: t.logoUrl,
+    decimals: t.decimals,
+    total_supply: t.supply,
+    token_type: t.program === 'token-2022' ? 'Token-2022' : t.program === 'spl-token' ? 'SPL Token' : null,
+    kind: t.kind,
+    listed: t.listed,
+    price: t.priceUsd,
+    price_change_24h: t.priceChange24h,
+    market_cap: t.marketCapUsd,
+    liquidity: t.liquidityUsd,
+    volume_24h: t.volume24hUsd,
+    pool_count: t.poolCount,
+    holders: t.holders,
+    metadata_source: t.metadataSource,
+  };
 }
 
-function setCache(key, data) {
-  if (!API_CONFIG.cache.enabled) return;
-  cache.set(key, { data, timestamp: Date.now() });
-}
-
-function getCache(key) {
-  if (!API_CONFIG.cache.enabled) return null;
-  const cached = cache.get(key);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.data;
-  }
-  cache.delete(key);
-  return null;
-}
-
-// Health check
-export async function checkHealth() {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(`${API_BASE_URL}/health`, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    if (response.ok) return await response.json();
-    return { status: 'offline' };
-  } catch (error) {
-    return { status: 'offline' };
-  }
-}
-
-// Generic API request handler with retry
-async function apiRequest(url, options = {}, retries = 3) {
-  console.log(`📡 API Request: ${url}`);
-  
-  for (let i = 0; i < retries; i++) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.timeout);
-      const response = await fetch(url, { ...options, signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      return await response.json();
-    } catch (error) {
-      console.error(`Request failed (attempt ${i + 1}/${retries}):`, error.message);
-      if (i === retries - 1) throw error;
-      await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
-    }
-  }
-}
-
-// List all tokens
+/** Tokens that have a DEX market, highest liquidity first (used for prices and symbols). */
 export async function listTokens(params = {}) {
-  const { limit = 100, offset = 0, verified = true } = params;
-  const cacheKey = getCacheKey('tokens', params);
-  const cached = getCache(cacheKey);
-  if (cached) {
-    console.log('📦 Using cached tokens');
-    return cached;
-  }
-
+  const { limit = 200, offset = 0 } = params;
   try {
-    const url = `${API_BASE_URL}${API_CONFIG.endpoints.tokens}?limit=${limit}&offset=${offset}&verified_only=${verified}`;
-    const data = await apiRequest(url);
-    
-    console.log('✅ Tokens received:', data.tokens?.length || 0);
-    
-    const result = {
-      success: data.success !== false,
-      data: {
-        tokens: data.tokens || [],
-        total: data.total || 0,
-        verified: data.verified || 0,
-        discovered: data.discovered || 0
-      }
+    const data = await api.tokens({ listed: true, kind: 'all', sort: 'liquidity', limit: Math.min(limit, 200), offset });
+    return {
+      success: true,
+      data: { tokens: data.tokens.map(toLegacy), total: data.total, sources: data.sources, fetchedAt: data.fetchedAt },
     };
-    setCache(cacheKey, result);
-    return result;
-  } catch (error) {
-    console.error('❌ Failed to fetch tokens:', error);
-    return { success: false, error: error.message, data: { tokens: [], total: 0, verified: 0, discovered: 0 } };
-  }
-}
-
-// Search tokens
-export async function searchTokens(query, params = {}) {
-  const { limit = 50, offset = 0 } = params;
-  if (!query) return { success: false, data: { tokens: [], total: 0 } };
-
-  try {
-    const url = `${API_BASE_URL}${API_CONFIG.endpoints.search}?q=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`;
-    const data = await apiRequest(url);
-    return { success: true, data: { tokens: data.tokens || [], total: data.total || 0 } };
   } catch (error) {
     return { success: false, error: error.message, data: { tokens: [], total: 0 } };
   }
 }
 
-// Get token details
-export async function getTokenDetails(mint) {
-  const cacheKey = getCacheKey(`token/${mint}`);
-  const cached = getCache(cacheKey);
-  if (cached) return cached;
-
+export async function searchTokens(query, params = {}) {
+  if (!query || query.trim().length < 2) return { success: false, data: { tokens: [], total: 0 } };
   try {
-    const url = `${API_BASE_URL}${API_CONFIG.endpoints.tokenDetail}?mint=${mint}`;
-    const data = await apiRequest(url);
-    const result = { success: true, data: data.token || null };
-    setCache(cacheKey, result);
-    return result;
+    const data = await api.searchTokens(query.trim(), params.limit || 20);
+    return { success: true, data: { tokens: data.results.map(toLegacy), total: data.total } };
+  } catch (error) {
+    return { success: false, error: error.message, data: { tokens: [], total: 0 } };
+  }
+}
+
+export async function getTokenDetails(mint) {
+  try {
+    const data = await api.token(mint);
+    return { success: true, data: { token: { ...toLegacy(data.token), ...data.token } } };
   } catch (error) {
     return { success: false, error: error.message, data: null };
   }
 }
 
-// Verify token
-export async function verifyToken(tokenData) {
-  try {
-    const url = `${API_BASE_URL}/functions/verify-token`;
-    const data = await apiRequest(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tokenData) });
-    return { success: true, data };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-}
-
-// Get token holders
-export async function getTokenHolders(mint, params = {}) {
-  const { limit = 50, offset = 0 } = params;
-  try {
-    const url = `${API_BASE_URL}/functions/tokens/${mint}/holders?limit=${limit}&offset=${offset}`;
-    const data = await apiRequest(url);
-    return { success: true, data: { holders: data.holders || [], total: data.total || 0 } };
-  } catch (error) {
-    return { success: false, error: error.message, data: { holders: [], total: 0 } };
-  }
-}
-
-// Get token transactions
-export async function getTokenTransactions(mint, params = {}) {
-  const { limit = 50, offset = 0 } = params;
-  try {
-    const url = `${API_BASE_URL}/functions/tokens/${mint}/transactions?limit=${limit}&offset=${offset}`;
-    const data = await apiRequest(url);
-    return { success: true, data: { transactions: data.transactions || [], total: data.total || 0 } };
-  } catch (error) {
-    return { success: false, error: error.message, data: { transactions: [], total: 0 } };
-  }
-}
-
-// Get liquidity pools
 export async function getLiquidityPools(mint) {
-  const cacheKey = getCacheKey(`pools/${mint}`);
-  const cached = getCache(cacheKey);
-  if (cached) return cached;
-
   try {
-    const url = `${API_BASE_URL}/functions/pools?token=${mint}`;
-    const data = await apiRequest(url);
-    const result = { success: true, data: { pools: data.pools || [] } };
-    setCache(cacheKey, result);
-    return result;
+    const data = await api.tokenPools(mint);
+    return { success: true, data: { pools: data.pools } };
   } catch (error) {
     return { success: false, error: error.message, data: { pools: [] } };
   }
 }
 
-// Get creator profile
-export async function getCreatorProfile(address) {
-  const cacheKey = getCacheKey(`creator/${address}`);
-  const cached = getCache(cacheKey);
-  if (cached) return cached;
-
-  try {
-    const url = `${API_BASE_URL}/functions/creator/${address}`;
-    const data = await apiRequest(url);
-    const result = { success: true, data };
-    setCache(cacheKey, result);
-    return result;
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
+// Live token streaming is not offered by the backend; kept as a no-op for existing callers.
+export function subscribeToTokenUpdates() {
+  return () => {};
 }
 
-// Get token price history
-export async function getTokenPriceHistory(mint, params = {}) {
-  const { period = '7d' } = params;
-  const cacheKey = getCacheKey(`price/${mint}`, { period });
-  const cached = getCache(cacheKey);
-  if (cached) return cached;
-
-  try {
-    const url = `${API_BASE_URL}/functions/tokens/${mint}/price-history?period=${period}`;
-    const data = await apiRequest(url);
-    const result = { success: true, data: { history: data.history || [] } };
-    setCache(cacheKey, result);
-    return result;
-  } catch (error) {
-    return { success: false, error: error.message, data: { history: [] } };
-  }
-}
-
-// WebSocket
-let ws = null;
-let reconnectTimer = null;
-const subscribers = new Set();
-let isConnecting = false;
-
-export function subscribeToTokenUpdates(callback) {
-  if (!API_CONFIG.features.websocket) return () => {};
-  subscribers.add(callback);
-  if ((!ws || ws.readyState === WebSocket.CLOSED) && !isConnecting) connectWebSocket();
-  return () => {
-    subscribers.delete(callback);
-    if (subscribers.size === 0 && ws) { ws.close(); ws = null; }
-  };
-}
-
-function connectWebSocket() {
-  if (isConnecting) return;
-  try {
-    isConnecting = true;
-    ws = new WebSocket(WS_URL);
-    ws.onopen = () => { isConnecting = false; ws.send(JSON.stringify({ action: 'subscribe', channel: 'tokens' })); };
-    ws.onmessage = (event) => { try { const update = JSON.parse(event.data); subscribers.forEach(cb => cb(update)); } catch (e) {} };
-    ws.onerror = () => { isConnecting = false; };
-    ws.onclose = () => { isConnecting = false; ws = null; if (subscribers.size > 0) { reconnectTimer = setTimeout(connectWebSocket, 5000); } };
-  } catch (error) { isConnecting = false; }
-}
-
-export function disconnectWebSocket() {
-  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-  if (ws) { ws.close(); ws = null; }
-  subscribers.clear();
-}
-
-export default {
-  checkHealth, listTokens, searchTokens, getTokenDetails, verifyToken,
-  getLiquidityPools, getCreatorProfile, getTokenHolders, getTokenTransactions,
-  getTokenPriceHistory, subscribeToTokenUpdates, disconnectWebSocket
-};
+export default { listTokens, searchTokens, getTokenDetails, getLiquidityPools, subscribeToTokenUpdates };

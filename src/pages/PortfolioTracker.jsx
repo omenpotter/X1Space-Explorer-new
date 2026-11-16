@@ -1,696 +1,480 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { 
-  ChevronLeft, Loader2, Wallet, RefreshCw,
-  Trash2, Eye, EyeOff, Search, ArrowUpDown, ArrowUp, ArrowDown
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
-import X1Api from '../components/x1/X1ApiClient';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDown, ArrowUp, Eye, EyeOff, Plus, Search, Trash2, Wallet } from 'lucide-react';
+import PageHeader from '@/components/shell/PageHeader';
+import { TokenAvatar } from '@/components/ds/Avatar';
+import { CopyButton, Freshness, Panel, Pill, StatCard } from '@/components/ds/Primitives';
+import { EmptyState, ErrorState, Skeleton, Unavailable } from '@/components/ds/States';
+import { rpcCall } from '@/lib/x1/rpcClient';
+import { api } from '@/lib/x1/api';
+import { X1_CONFIG } from '@/lib/x1/config';
+import { integer, shortAddress, usd } from '@/lib/format';
+import { cn } from '@/lib/utils';
+
+const STORAGE_KEY = 'x1_portfolio_wallets';
+const BASE58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const MAX_WALLETS = 10;
+const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
+const LAMPORTS_PER_XNT = 1e9;
+const NATIVE_KEY = 'native';
+
+const isNum = (n) => typeof n === 'number' && Number.isFinite(n);
+const inputClass = 'h-9 w-full rounded-lg border border-line bg-surface-2 px-3 text-sm text-ink placeholder:text-ink-faint focus:border-brand/50 focus:outline-none focus:ring-2 focus:ring-brand/25';
+const primaryButton = 'inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-brand px-3 text-sm font-medium text-brand-ink transition-colors hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-50';
+const ghostButton = 'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line-strong px-3 text-sm text-ink-soft transition-colors hover:bg-surface-3 disabled:opacity-50';
+
+function readWallets() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    if (!Array.isArray(raw)) return [];
+    const seen = new Set();
+    const out = [];
+    for (const w of raw) {
+      if (!w || typeof w.address !== 'string' || !BASE58.test(w.address) || seen.has(w.address)) continue;
+      seen.add(w.address);
+      out.push({ address: w.address, label: typeof w.label === 'string' ? w.label.slice(0, 40) : '' });
+      if (out.length >= MAX_WALLETS) break;
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+function writeWallets(list) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  } catch {
+    // Storage unavailable: the list still works for this visit.
+  }
+}
+
+function formatAmount(n) {
+  if (!isNum(n)) return null;
+  return n.toLocaleString('en-US', { maximumFractionDigits: n >= 1000 ? 2 : 6 });
+}
+
+/** Reads one wallet from the RPC. Each call can fail on its own; a missing part is reported, never zeroed. */
+async function fetchWallet(address) {
+  const tokenQuery = (programId) => rpcCall('getTokenAccountsByOwner', [address, { programId }, { encoding: 'jsonParsed' }]);
+  const [balance, legacy, token2022] = await Promise.allSettled([
+    rpcCall('getBalance', [address]),
+    tokenQuery(TOKEN_PROGRAM),
+    tokenQuery(TOKEN_2022_PROGRAM),
+  ]);
+  if (balance.status === 'rejected' && legacy.status === 'rejected' && token2022.status === 'rejected') {
+    return { failed: true, message: balance.reason?.message || 'The X1 RPC did not respond.' };
+  }
+  const lamports = balance.status === 'fulfilled' ? balance.value?.value : null;
+  const byMint = new Map();
+  for (const res of [legacy, token2022]) {
+    if (res.status !== 'fulfilled') continue;
+    for (const account of res.value?.value || []) {
+      const info = account?.account?.data?.parsed?.info;
+      const mint = info?.mint;
+      const amount = Number(info?.tokenAmount?.uiAmountString ?? info?.tokenAmount?.uiAmount);
+      if (typeof mint !== 'string' || !Number.isFinite(amount) || amount <= 0) continue;
+      byMint.set(mint, (byMint.get(mint) || 0) + amount);
+    }
+  }
+  return {
+    failed: false,
+    native: isNum(lamports) ? lamports / LAMPORTS_PER_XNT : null,
+    tokens: [...byMint].map(([mint, amount]) => ({ mint, amount })),
+    partial: balance.status === 'rejected' || legacy.status === 'rejected' || token2022.status === 'rejected',
+  };
+}
+
+/** @param {{ label?: any, sortKey?: any, sort?: any, onSort?: any, align?: any, className?: any, [key: string]: any }} props */
+function SortHeader({ label, sortKey, sort, onSort, align = 'left', className }) {
+  const active = sort.key === sortKey;
+  return (
+    <th scope="col" aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'} className={cn(align === 'right' && '!text-right', className)}>
+      <button type="button" onClick={() => onSort(sortKey)} className={cn('inline-flex items-center gap-1 rounded hover:text-ink', active && 'text-ink')}>
+        {label}
+        {active && (sort.dir === 'asc' ? <ArrowUp className="h-3 w-3 text-brand" aria-hidden="true" /> : <ArrowDown className="h-3 w-3 text-brand" aria-hidden="true" />)}
+      </button>
+    </th>
+  );
+}
+
+/** @param {{ wallet?: any, entry?: any, holdings?: any, hide?: any, sort?: any, onSort?: any, query?: any, onRemove?: any, onRetry?: any, [key: string]: any }} props */
+function WalletPanel({ wallet, entry, holdings, hide, sort, onSort, query, onRemove, onRetry }) {
+  const hidden = '••••';
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q ? holdings.filter((h) => `${h.symbol} ${h.name} ${h.mint}`.toLowerCase().includes(q)) : holdings;
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    const key = { token: (h) => h.symbol.toLowerCase(), balance: (h) => h.amount, price: (h) => h.priceUsd, value: (h) => h.value }[sort.key];
+    return [...filtered].sort((a, b) => {
+      const av = key(a);
+      const bv = key(b);
+      // Unknown values always sort last, whatever the direction.
+      if (av === null || av === undefined) return bv === null || bv === undefined ? 0 : 1;
+      if (bv === null || bv === undefined) return -1;
+      return typeof av === 'string' ? dir * av.localeCompare(bv) : dir * (av - bv);
+    });
+  }, [holdings, sort, query]);
+
+  const priced = holdings.filter((h) => h.value !== null);
+  const total = priced.reduce((s, h) => s + h.value, 0);
+  const title = wallet.label || shortAddress(wallet.address, 6, 6);
+
+  return (
+    <Panel
+      title={title}
+      actions={(
+        <button type="button" onClick={onRemove} aria-label={`Remove wallet ${title}`} className="rounded p-1.5 text-ink-faint transition-colors hover:bg-surface-3 hover:text-negative">
+          <Trash2 className="h-4 w-4" aria-hidden="true" />
+        </button>
+      )}
+      bodyClassName="p-0"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+        <div className="flex min-w-0 items-center gap-1">
+          <span className="mono truncate text-xs text-ink-muted" title={wallet.address}>{shortAddress(wallet.address, 10, 10)}</span>
+          <CopyButton value={wallet.address} label="Copy wallet address" />
+        </div>
+        {entry?.data && (
+          <div className="text-right">
+            <p className="eyebrow">Value of priced holdings</p>
+            <p className="tabular text-lg font-semibold text-brand">{priced.length > 0 ? (hide ? hidden : usd(total)) : <Unavailable reason="None of this wallet's holdings has a price" />}</p>
+          </div>
+        )}
+      </div>
+
+      {!entry ? (
+        <div className="space-y-3 p-4"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-2/3" /></div>
+      ) : entry.failed && !entry.data ? (
+        <ErrorState title="Could not read this wallet" description={`${entry.message || 'The X1 RPC did not respond.'} Nothing is shown rather than a zero balance.`} onRetry={onRetry} className="py-10" />
+      ) : (
+        <>
+          {(entry.stale || entry.data.partial) && (
+            <p role="status" className="border-b border-line bg-warning/10 px-4 py-2.5 text-xs text-ink-soft">
+              {entry.stale ? 'The latest refresh failed, so these are the last values that loaded.' : 'Part of this wallet could not be read from the RPC (balance or one token program). Holdings below may be incomplete.'}
+            </p>
+          )}
+          {rows.length === 0 ? (
+            <EmptyState icon={Wallet} title={holdings.length === 0 ? 'No holdings found' : 'No holdings match your search'} description={holdings.length === 0 ? 'This wallet has no XNT and no token balances on X1.' : undefined} className="py-10" />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="data-table">
+                <caption className="sr-only">Holdings of wallet {title}</caption>
+                <thead>
+                  <tr>
+                    <SortHeader label="Token" sortKey="token" sort={sort} onSort={onSort} />
+                    <SortHeader label="Balance" sortKey="balance" sort={sort} onSort={onSort} align="right" />
+                    <SortHeader label="Price" sortKey="price" sort={sort} onSort={onSort} align="right" className="hidden sm:table-cell" />
+                    <SortHeader label="Value" sortKey="value" sort={sort} onSort={onSort} align="right" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((h) => (
+                    <tr key={h.mint}>
+                      <td>
+                        <div className="flex max-w-[44vw] items-center gap-3 sm:max-w-none">
+                          <TokenAvatar token={{ mint: h.mint === NATIVE_KEY ? X1_CONFIG.nativeMint : h.mint, symbol: h.symbol, name: h.name, logoUrl: h.logoUrl }} size={28} />
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium text-ink">{h.symbol}</span>
+                            <span className="block truncate text-xs text-ink-muted">{h.name}</span>
+                          </span>
+                          {h.known === false && <Pill tone="warning" className="shrink-0">Unlisted</Pill>}
+                        </div>
+                      </td>
+                      <td className="text-right tabular text-ink">{hide ? hidden : formatAmount(h.amount)}</td>
+                      <td className="hidden text-right tabular text-ink-soft sm:table-cell">{h.priceUsd !== null ? usd(h.priceUsd) : <Unavailable reason="No price for this token" />}</td>
+                      <td className="text-right tabular text-ink">
+                        {h.value !== null ? (hide ? hidden : usd(h.value)) : <Unavailable reason="Unavailable: no price for this token, so it is left out of totals" />}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </Panel>
+  );
+}
 
 export default function PortfolioTracker() {
-  const [wallets, setWallets] = useState([]);
+  const [wallets, setWallets] = useState(readWallets);
   const [newWallet, setNewWallet] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [portfolioData, setPortfolioData] = useState(null);
-  const [hideBalances, setHideBalances] = useState(false);
-  const [allTokens, setAllTokens] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('value'); // value, balance, symbol, price
-  const [sortDirection, setSortDirection] = useState('desc');
-  const [loadingTokens, setLoadingTokens] = useState(true);
+  const [newLabel, setNewLabel] = useState('');
+  const [formError, setFormError] = useState(null);
+  const [hide, setHide] = useState(false);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState({ key: 'value', dir: 'desc' });
+  const [entries, setEntries] = useState({}); // address -> { data, failed, stale, message }
+  const [prices, setPrices] = useState({ status: 'loading', byMint: new Map(), native: null, at: null, stale: false });
+  const [loadedAt, setLoadedAt] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const walletsRef = useRef(wallets);
+  walletsRef.current = wallets;
+  const mounted = useRef(true);
 
-  useEffect(() => {
-    const saved = localStorage.getItem('x1_portfolio_wallets');
-    if (saved) setWallets(JSON.parse(saved));
-  }, []);
-
-  // Load ALL tokens using SAME API as Token Explorer
-  useEffect(() => {
-    const loadAllTokens = async () => {
-      try {
-        setLoadingTokens(true);
-        console.log('📡 Loading tokens from API (same as Token Explorer)...');
-        
-        // Use EXACT same call as TokenExplorer.jsx line 61
-        const allTokensResponse = await X1Api.listTokens({ limit: 500, offset: 0, verified: false });
-
-        console.log('📊 API Response:', allTokensResponse);
-
-        if (allTokensResponse.success && allTokensResponse.data?.tokens) {
-          const tokens = allTokensResponse.data.tokens;
-          
-          console.log(`✅ Loaded ${tokens.length} tokens from API`);
-          
-          // Map using EXACT same structure as TokenExplorer.jsx line 70-87
-          const tokenData = tokens.map(token => ({
-            mint: token.mint,
-            name: token.name || 'Unknown Token',
-            symbol: token.symbol || 'UNKNOWN',
-            logo: token.logo_uri,
-            decimals: token.decimals || 9,
-            totalSupply: token.total_supply || 0,
-            tokenType: token.token_type || 'SPL Token',
-            price: token.price ? parseFloat(token.price).toFixed(4) : '0.0000',
-            priceNum: token.price ? parseFloat(token.price) : 0,
-            marketCap: token.market_cap || 0,
-            priceChange24h: token.price_change_24h ? parseFloat(token.price_change_24h).toFixed(2) : '0.00',
-            liquidity: token.liquidity || 0,
-            poolCount: token.pool_count || 0,
-            website: token.website,
-            twitter: token.twitter,
-            verified: token.verification_count > 0,
-            priceHistory: token.price_history || []
-          }));
-
-          setAllTokens(tokenData);
-          console.log(`✅ Total tokens ready: ${tokenData.length}`);
-        } else {
-          console.log('⚠️ No token data available');
-          setAllTokens([]);
-        }
-      } catch (err) {
-        console.error('Failed to load tokens:', err);
-        setAllTokens([]);
-      } finally {
-        setLoadingTokens(false);
+  const loadPrices = useCallback(async () => {
+    const [list, native] = await Promise.allSettled([
+      api.tokens({ listed: 'true', kind: 'all', limit: 200 }),
+      api.tokenPrice(X1_CONFIG.nativeMint),
+    ]);
+    if (!mounted.current) return;
+    setPrices((prev) => {
+      if (list.status === 'rejected' && native.status === 'rejected') {
+        return prev.status === 'ready' ? { ...prev, stale: true } : { ...prev, status: 'error', stale: false };
       }
-    };
-
-    loadAllTokens();
+      const byMint = list.status === 'fulfilled' && Array.isArray(list.value?.tokens)
+        ? new Map(list.value.tokens.filter((t) => t && typeof t.mint === 'string').map((t) => [t.mint, t]))
+        : prev.byMint;
+      const nativePrice = native.status === 'fulfilled' ? native.value?.data?.priceUsd : null;
+      return {
+        status: 'ready',
+        byMint,
+        native: isNum(nativePrice) ? nativePrice : native.status === 'fulfilled' ? null : prev.native,
+        at: Date.now(),
+        stale: list.status === 'rejected' || native.status === 'rejected',
+      };
+    });
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('x1_portfolio_wallets', JSON.stringify(wallets));
-  }, [wallets]);
-
-  const addWallet = () => {
-    if (!newWallet || wallets.find(w => w.address === newWallet)) return;
-    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(newWallet)) {
-      setError('Invalid wallet address format');
-      return;
+  const loadWallets = useCallback(async (list, background = false) => {
+    if (list.length === 0) return;
+    if (background) setRefreshing(true);
+    // Wallets are read one after another so a long list never floods the RPC.
+    for (const { address } of list) {
+      let result;
+      try {
+        result = await fetchWallet(address);
+      } catch (err) {
+        result = { failed: true, message: err?.message };
+      }
+      if (!mounted.current) return;
+      setEntries((prev) => {
+        const old = prev[address];
+        if (result.failed) {
+          // A failed refresh keeps the last good data and marks it stale.
+          return { ...prev, [address]: old?.data ? { ...old, stale: true } : { failed: true, message: result.message } };
+        }
+        return { ...prev, [address]: { data: result, failed: false, stale: false } };
+      });
     }
-    setWallets([...wallets, { address: newWallet, label: `Wallet ${wallets.length + 1}` }]);
+    if (mounted.current) {
+      setLoadedAt(Date.now());
+      setRefreshing(false);
+    }
+  }, []);
+
+  const refreshAll = useCallback((background = true) => {
+    loadPrices();
+    loadWallets(walletsRef.current, background);
+  }, [loadPrices, loadWallets]);
+
+  useEffect(() => {
+    mounted.current = true;
+    refreshAll(false);
+    const id = setInterval(() => {
+      if (!document.hidden) refreshAll(true);
+    }, X1_CONFIG.polling.tokensMs);
+    return () => {
+      mounted.current = false;
+      clearInterval(id);
+    };
+  }, [refreshAll]);
+
+  const addWallet = (e) => {
+    e.preventDefault();
+    const address = newWallet.trim();
+    if (!BASE58.test(address)) return setFormError('This is not a valid X1 address. Addresses are 32 to 44 characters of base58 (letters and digits, without 0, O, I or l).');
+    if (wallets.some((w) => w.address === address)) return setFormError('This wallet is already in your portfolio.');
+    if (wallets.length >= MAX_WALLETS) return setFormError(`You can track up to ${MAX_WALLETS} wallets.`);
+    const entry = { address, label: newLabel.trim().slice(0, 40) };
+    const next = [...wallets, entry];
+    setWallets(next);
+    writeWallets(next);
     setNewWallet('');
-    setError(null);
+    setNewLabel('');
+    setFormError(null);
+    loadWallets([entry]);
+    return undefined;
   };
 
   const removeWallet = (address) => {
-    setWallets(wallets.filter(w => w.address !== address));
-  };
-
-  const handleSort = useCallback((column) => {
-    if (sortBy === column) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(column);
-      setSortDirection('desc');
-    }
-  }, [sortBy]);
-
-  const filterAndSortTokens = useCallback((tokens) => {
-    let filtered = [...tokens];
-    
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(token =>
-        token.symbol.toLowerCase().includes(query) ||
-        token.name.toLowerCase().includes(query) ||
-        token.mint.toLowerCase().includes(query)
-      );
-    }
-    
-    // Apply sorting
-    filtered.sort((a, b) => {
-      const direction = sortDirection === 'asc' ? 1 : -1;
-      switch (sortBy) {
-        case 'value':
-          return direction * (b.currentValue - a.currentValue);
-        case 'balance':
-          return direction * (b.amount - a.amount);
-        case 'symbol':
-          return direction * a.symbol.localeCompare(b.symbol);
-        case 'price':
-          return direction * (b.priceNum - a.priceNum);
-        default:
-          return 0;
-      }
+    const next = wallets.filter((w) => w.address !== address);
+    setWallets(next);
+    writeWallets(next);
+    setEntries((prev) => {
+      const copy = { ...prev };
+      delete copy[address];
+      return copy;
     });
-    
-    return filtered;
-  }, [searchQuery, sortBy, sortDirection]);
+  };
 
-  const fetchPortfolio = async () => {
-    if (wallets.length === 0) {
-      setPortfolioData(null);
-      return;
+  const onSort = useCallback((key) => {
+    setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'token' ? 'asc' : 'desc' }));
+  }, []);
+
+  /** Joins raw balances with prices. A holding without a price keeps its amount and has value null. */
+  const holdingsFor = useCallback((data) => {
+    if (!data) return [];
+    const out = [];
+    if (isNum(data.native) && data.native > 0) {
+      const price = isNum(prices.native) ? prices.native : null;
+      out.push({ mint: NATIVE_KEY, symbol: 'XNT', name: 'X1 native token', logoUrl: null, amount: data.native, priceUsd: price, value: price !== null ? data.native * price : null, known: true });
     }
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const balancePromises = wallets.map(async (wallet) => {
-        try {
-          console.log('🔍 Fetching tokens for wallet:', wallet.address);
-          
-          // Use RPC failover endpoints (same as other explorers)
-          const RPC_ENDPOINTS = [
-            'https://rpc.mainnet.x1.xyz',
-            'https://rpc.x1galaxy.io/'
-          ];
+    for (const t of data.tokens) {
+      const info = prices.byMint.get(t.mint);
+      let price = isNum(info?.priceUsd) ? info.priceUsd : null;
+      if (price === null && t.mint === X1_CONFIG.nativeMint && isNum(prices.native)) price = prices.native;
+      out.push({
+        mint: t.mint,
+        symbol: info?.symbol || shortAddress(t.mint, 4, 4),
+        name: info?.name || 'Unlisted token',
+        logoUrl: info?.logoUrl || null,
+        amount: t.amount,
+        priceUsd: price,
+        value: price !== null ? t.amount * price : null,
+        known: !!info,
+      });
+    }
+    return out;
+  }, [prices]);
 
-          let rpcData = null;
-          let nativeBalance = 0;
-
-          // Fetch native XNT balance + token accounts from BOTH programs
-          for (const endpoint of RPC_ENDPOINTS) {
-            try {
-              // Fetch native balance + Token Program + Token-2022 Program in parallel
-              const [balanceResponse, tokenProgramResponse, token2022Response] = await Promise.all([
-                // Get native XNT balance
-                fetch(endpoint, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    jsonrpc: '2.0',
-                    id: 1,
-                    method: 'getBalance',
-                    params: [wallet.address]
-                  }),
-                  signal: AbortSignal.timeout(5000)
-                }),
-                // Get Token Program accounts
-                fetch(endpoint, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    jsonrpc: '2.0',
-                    id: 2,
-                    method: 'getTokenAccountsByOwner',
-                    params: [
-                      wallet.address,
-                      { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' }, // Legacy Token Program
-                      { encoding: 'jsonParsed' }
-                    ]
-                  }),
-                  signal: AbortSignal.timeout(5000)
-                }),
-                // Get Token-2022 Program accounts
-                fetch(endpoint, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    jsonrpc: '2.0',
-                    id: 3,
-                    method: 'getTokenAccountsByOwner',
-                    params: [
-                      wallet.address,
-                      { programId: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb' }, // Token-2022 Program
-                      { encoding: 'jsonParsed' }
-                    ]
-                  }),
-                  signal: AbortSignal.timeout(5000)
-                })
-              ]);
-
-              const balanceData = await balanceResponse.json();
-              const tokenProgramData = await tokenProgramResponse.json();
-              const token2022Data = await token2022Response.json();
-              
-              if (balanceData.result?.value !== undefined) {
-                nativeBalance = balanceData.result.value / 1e9; // Convert lamports to XNT
-                console.log(`✓ Native XNT balance: ${nativeBalance}`);
-              }
-              
-              // Combine tokens from both programs
-              const legacyTokens = tokenProgramData.result?.value || [];
-              const token2022Tokens = token2022Data.result?.value || [];
-              
-              console.log(`✓ Legacy Token Program: ${legacyTokens.length} tokens`);
-              console.log(`✓ Token-2022 Program: ${token2022Tokens.length} tokens`);
-              
-              if (legacyTokens.length > 0 || token2022Tokens.length > 0) {
-                rpcData = {
-                  result: {
-                    value: [...legacyTokens, ...token2022Tokens]
-                  }
-                };
-                console.log(`✓ RPC success: ${endpoint} (Total: ${rpcData.result.value.length} tokens)`);
-                break;
-              }
-            } catch (err) {
-              console.warn(`RPC failed: ${endpoint}`);
-              continue;
-            }
-          }
-
-          if (!rpcData?.result?.value && nativeBalance === 0) {
-            console.warn('No RPC data for wallet:', wallet.address);
-            return { address: wallet.address, label: wallet.label, tokens: [], totalValue: 0 };
-          }
-
-          // Extract wallet token balances
-          const walletTokens = rpcData?.result?.value
-            ? rpcData.result.value
-                .map(account => {
-                  const info = account.account.data.parsed.info;
-                  return {
-                    mint: info.mint,
-                    amount: Number(info.tokenAmount.uiAmount),
-                    decimals: info.tokenAmount.decimals
-                  };
-                })
-                .filter(t => t.amount > 0)
-            : [];
-
-          console.log(`✓ Found ${walletTokens.length} SPL tokens + native XNT in wallet`);
-          
-          // DEBUG: Log all wallet token mints
-          console.log('═══ WALLET TOKENS ═══');
-          walletTokens.forEach((t, i) => {
-            console.log(`${i+1}. Mint: ${t.mint} | Amount: ${t.amount}`);
-          });
-          
-          // DEBUG: Log total tokens in price database
-          console.log(`═══ PRICE DATABASE ═══`);
-          console.log(`Total tokens in database: ${allTokens.length}`);
-          console.log('Sample mints from database:', allTokens.slice(0, 5).map(t => `${t.symbol}: ${t.mint}`));
-          
-          // Match with price data from API (ONLY show tokens with known prices)
-          const enrichedWalletTokens = walletTokens
-            .map((walletToken, idx) => {
-              const tokenData = allTokens.find(t => t.mint === walletToken.mint);
-              
-              if (tokenData) {
-                console.log(`✓ MATCH ${idx+1}: ${tokenData.symbol} (${tokenData.name}) @ $${tokenData.price} | Wallet: ${walletToken.amount}`);
-                const currentValue = walletToken.amount * tokenData.priceNum;
-                
-                return {
-                  mint: walletToken.mint,
-                  amount: walletToken.amount,
-                  decimals: walletToken.decimals,
-                  name: tokenData.name,
-                  symbol: tokenData.symbol,
-                  logo: tokenData.logo,
-                  price: tokenData.price,
-                  priceNum: tokenData.priceNum,
-                  currentValue: currentValue,
-                  verified: tokenData.verified
-                };
-              } else {
-                // Token not in price database - SKIP IT
-                console.log(`✗ NO MATCH ${idx+1}: ${walletToken.mint} (not in price database)`);
-                
-                // DEBUG: Try to find similar tokens
-                const similar = allTokens.filter(t => 
-                  t.mint.toLowerCase().includes(walletToken.mint.toLowerCase().slice(0, 8)) ||
-                  walletToken.mint.toLowerCase().includes(t.mint.toLowerCase().slice(0, 8))
-                );
-                if (similar.length > 0) {
-                  console.log(`  → Similar: `, similar.map(t => `${t.symbol}: ${t.mint}`));
-                }
-                
-                return null;
-              }
-            })
-            .filter(token => token !== null); // Remove null entries (unknown tokens)
-
-          // Add native XNT if balance > 0
-          if (nativeBalance > 0) {
-            // Find XNT price from token list (WXNT or XNT)
-            const xntToken = allTokens.find(t => 
-              t.symbol === 'WXNT' || 
-              t.symbol === 'XNT' ||
-              t.name.toLowerCase().includes('x1 native')
-            );
-            
-            if (xntToken) {
-              enrichedWalletTokens.unshift({
-                mint: 'native',
-                amount: nativeBalance,
-                decimals: 9,
-                name: 'X1 Native Token',
-                symbol: 'XNT',
-                logo: xntToken.logo || '/assets/images/tokens/x1.webp',
-                price: xntToken.price,
-                priceNum: xntToken.priceNum,
-                currentValue: nativeBalance * xntToken.priceNum,
-                verified: true
-              });
-              console.log(`✓ Added native XNT: ${nativeBalance} @ $${xntToken.price}`);
-            }
-          }
-
-          // Fetch stake accounts for this wallet
-          let stakeBalance = 0;
-          try {
-            for (const endpoint of RPC_ENDPOINTS) {
-              try {
-                const stakeResponse = await fetch(endpoint, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    jsonrpc: '2.0',
-                    id: 4,
-                    method: 'getProgramAccounts',
-                    params: [
-                      'Stake11111111111111111111111111111111111111', // Stake program
-                      {
-                        encoding: 'jsonParsed',
-                        filters: [
-                          {
-                            memcmp: {
-                              offset: 12, // Staker authority offset
-                              bytes: wallet.address
-                            }
-                          }
-                        ]
-                      }
-                    ]
-                  }),
-                  signal: AbortSignal.timeout(5000)
-                });
-
-                const stakeData = await stakeResponse.json();
-                
-                if (stakeData.result && Array.isArray(stakeData.result)) {
-                  stakeData.result.forEach(account => {
-                    const lamports = account.account?.lamports || 0;
-                    stakeBalance += lamports / 1e9;
-                  });
-                  
-                  if (stakeBalance > 0) {
-                    console.log(`✓ Found staked XNT: ${stakeBalance}`);
-                    
-                    // Add staked XNT as a separate entry
-                    const xntToken = allTokens.find(t => 
-                      t.symbol === 'WXNT' || t.symbol === 'XNT'
-                    );
-                    
-                    if (xntToken) {
-                      enrichedWalletTokens.push({
-                        mint: 'staked',
-                        amount: stakeBalance,
-                        decimals: 9,
-                        name: 'Staked XNT',
-                        symbol: '💎 XNT',
-                        logo: xntToken.logo,
-                        price: xntToken.price,
-                        priceNum: xntToken.priceNum,
-                        currentValue: stakeBalance * xntToken.priceNum,
-                        verified: true,
-                        isStaked: true
-                      });
-                    }
-                  }
-                  break;
-                }
-              } catch (err) {
-                continue;
-              }
-            }
-          } catch (err) {
-            console.warn('Failed to fetch stake accounts:', err);
-          }
-
-          console.log(`✅ Showing ${enrichedWalletTokens.length} tokens with prices (filtered out unknowns)`);
-
-          return {
-            address: wallet.address,
-            label: wallet.label,
-            tokens: enrichedWalletTokens,
-            stakeBalance: stakeBalance,
-            totalValue: enrichedWalletTokens.reduce((sum, t) => sum + t.currentValue, 0)
-          };
-        } catch (err) {
-          console.error('Wallet error:', err);
-          return { address: wallet.address, label: wallet.label, tokens: [], totalValue: 0 };
+  const summary = useMemo(() => {
+    let total = 0;
+    let pricedCount = 0;
+    let unpriced = 0;
+    let ready = 0;
+    for (const w of wallets) {
+      const data = entries[w.address]?.data;
+      if (!data) continue;
+      ready += 1;
+      for (const h of holdingsFor(data)) {
+        if (h.value !== null) {
+          total += h.value;
+          pricedCount += 1;
+        } else {
+          unpriced += 1;
         }
-      });
-
-      const results = await Promise.all(balancePromises);
-      setPortfolioData({
-        wallets: results,
-        totalPortfolioValue: results.reduce((sum, w) => sum + w.totalValue, 0)
-      });
-    } catch (error) {
-      console.error('Portfolio error:', error);
-      setError(error.message);
-    } finally {
-      setLoading(false);
+      }
     }
-  };
+    return { total, pricedCount, unpriced, ready };
+  }, [wallets, entries, holdingsFor]);
 
-  useEffect(() => {
-    if (wallets.length > 0 && allTokens.length > 0) {
-      console.log(`🚀 Auto-fetching portfolio: ${wallets.length} wallets × ${allTokens.length} tokens`);
-      fetchPortfolio();
-    }
-  }, [wallets, allTokens]);
-
-  const SortIndicator = ({ columnKey }) => {
-    if (sortBy !== columnKey) {
-      return <ArrowUpDown className="h-3 w-3 ml-1 inline text-gray-500" />;
-    }
-    return sortDirection === 'asc' 
-      ? <ArrowUp className="h-3 w-3 ml-1 inline text-cyan-400" />
-      : <ArrowDown className="h-3 w-3 ml-1 inline text-cyan-400" />;
-  };
+  const loadingWallets = wallets.length > 0 && summary.ready === 0 && wallets.some((w) => !entries[w.address]);
 
   return (
-    <div className="min-h-screen bg-[#0f1419] text-white">
-      <header className="bg-[#1d2d3a] border-b border-white/5">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
-            <Link to={createPageUrl('Dashboard')}>
-              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-            </Link>
-            <Wallet className="w-6 h-6 text-cyan-400" />
-            <h1 className="text-2xl font-bold">Portfolio Tracker</h1>
-            {allTokens.length > 0 && (
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-0 text-xs">
-                {allTokens.length} Tokens Loaded
-              </Badge>
-            )}
-          </div>
-        </div>
-      </header>
+    <>
+      <PageHeader
+        icon={Wallet}
+        title="Portfolio Tracker"
+        description="Track XNT and token balances for wallets you add. Balances are read live from the X1 RPC. Wallet addresses are stored only in this browser and are never sent to X1 Space."
+        meta={wallets.length > 0 ? <Freshness at={loadedAt} stale={prices.stale || Object.values(entries).some((e) => e?.stale)} source="X1 RPC + XDEX prices" onRefresh={() => refreshAll(true)} refreshing={refreshing} /> : null}
+        actions={wallets.length > 0 ? (
+          <button type="button" onClick={() => setHide((h) => !h)} aria-pressed={hide} className={ghostButton}>
+            {hide ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+            {hide ? 'Show balances' : 'Hide balances'}
+          </button>
+        ) : null}
+      />
 
-      <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-        <div className="bg-[#1d2d3a] border border-white/10 rounded-xl p-6">
-          <h2 className="text-lg font-bold mb-4">Add Wallet</h2>
-          <div className="flex gap-2">
-            <Input
-              placeholder="Enter wallet address"
-              value={newWallet}
-              onChange={(e) => setNewWallet(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && addWallet()}
-              className="bg-[#0f1419] border-white/10 text-white placeholder:text-gray-500"
-            />
-            <Button onClick={addWallet} className="bg-cyan-500 hover:bg-cyan-600">Add</Button>
-          </div>
-          {error && <div className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-sm">{error}</div>}
-        </div>
-
-        {loadingTokens && (
-          <div className="flex items-center justify-center p-8">
-            <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mr-2" />
-            <span className="text-gray-400">Loading token prices from XDEX...</span>
-          </div>
-        )}
-
-        {!loadingTokens && allTokens.length > 0 && wallets.length > 0 && (
-          <div className="bg-[#1d2d3a] border border-white/10 rounded-xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">Wallets ({wallets.length})</h2>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setHideBalances(!hideBalances)} className="text-gray-400 hover:text-white">
-                  {hideBalances ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={fetchPortfolio} disabled={loading} className="text-gray-400 hover:text-white">
-                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                </Button>
+      <div className="space-y-6">
+        <Panel title="Add a wallet" description={`Up to ${MAX_WALLETS} wallets. Only the public address is needed.`}>
+          <form onSubmit={addWallet} noValidate className="p-4">
+            <div className="grid gap-3 sm:grid-cols-[1fr_200px_auto] sm:items-end">
+              <div>
+                <label htmlFor="pf-address" className="mb-1.5 block text-xs font-medium text-ink-muted">Wallet address</label>
+                <input
+                  id="pf-address"
+                  value={newWallet}
+                  onChange={(e) => { setNewWallet(e.target.value); setFormError(null); }}
+                  maxLength={44}
+                  spellCheck={false}
+                  autoComplete="off"
+                  placeholder="X1 wallet address"
+                  aria-invalid={!!formError}
+                  aria-describedby={formError ? 'pf-error' : undefined}
+                  className={cn(inputClass, 'mono')}
+                />
               </div>
+              <div>
+                <label htmlFor="pf-label" className="mb-1.5 block text-xs font-medium text-ink-muted">Label (optional)</label>
+                <input id="pf-label" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} maxLength={40} autoComplete="off" placeholder="e.g. Main wallet" className={inputClass} />
+              </div>
+              <button type="submit" disabled={!newWallet.trim()} className={primaryButton}>
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Add wallet
+              </button>
+            </div>
+            {formError && <p id="pf-error" role="alert" className="mt-2 text-xs text-negative">{formError}</p>}
+          </form>
+        </Panel>
+
+        {wallets.length === 0 ? (
+          <Panel>
+            <EmptyState icon={Wallet} title="No wallets added yet" description="Add a wallet address above to see its XNT and token balances." />
+          </Panel>
+        ) : (
+          <>
+            <section aria-label="Portfolio summary" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+              <StatCard
+                label="Value of priced holdings"
+                tone="brand"
+                value={loadingWallets ? <Skeleton className="h-7 w-28" /> : summary.ready === 0 ? <Unavailable reason="No wallet has loaded yet" /> : summary.pricedCount === 0 ? <Unavailable reason="None of the holdings has a price" /> : hide ? '••••' : usd(summary.total)}
+                hint="Holdings without a price are left out of this total."
+                className="col-span-2 lg:col-span-1"
+              />
+              <StatCard label="Wallets" value={integer(wallets.length)} hint={summary.ready < wallets.length ? `${integer(summary.ready)} loaded` : undefined} />
+              <StatCard
+                label="Holdings without a price"
+                value={summary.ready === 0 ? <Unavailable reason="No wallet has loaded yet" /> : integer(summary.unpriced)}
+                hint={prices.status === 'error' ? 'Price data could not be loaded.' : 'Shown with their amount; value Unavailable.'}
+                tone={summary.unpriced > 0 ? 'warning' : 'default'}
+              />
+            </section>
+
+            {prices.status === 'error' && (
+              <p role="status" className="rounded-lg border border-warning/25 bg-warning/10 px-4 py-3 text-sm text-ink-soft">
+                Token prices could not be loaded, so every holding shows its amount with an unavailable value. Prices are retried automatically.
+              </p>
+            )}
+
+            <div className="relative sm:max-w-sm">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" aria-hidden="true" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                maxLength={64}
+                aria-label="Search holdings by symbol, name or mint"
+                placeholder="Search holdings"
+                className={cn(inputClass, 'pl-9')}
+              />
             </div>
 
-            {loading && (
-              <div className="flex items-center justify-center p-8">
-                <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mr-2" />
-                <span className="text-gray-400">Loading portfolio...</span>
-              </div>
-            )}
-
-            {!loading && portfolioData && (
-              <div className="space-y-4">
-                {/* Search and Sort Controls */}
-                <div className="bg-[#0f1419] border border-white/5 rounded-lg p-4">
-                  <div className="flex gap-3 items-center flex-wrap">
-                    <div className="relative flex-1 min-w-[200px]">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <Input
-                        placeholder="Search tokens..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="bg-[#1d2d3a] border-white/10 text-white placeholder:text-gray-500 pl-10"
-                      />
-                    </div>
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      className="bg-[#1d2d3a] border border-white/10 text-white rounded px-3 py-2"
-                    >
-                      <option value="value">Sort by Value</option>
-                      <option value="balance">Sort by Balance</option>
-                      <option value="symbol">Sort by Symbol</option>
-                      <option value="price">Sort by Price</option>
-                    </select>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
-                      className="text-gray-400 hover:text-white"
-                    >
-                      {sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
-                    </Button>
-                  </div>
-                </div>
-
-                {portfolioData.wallets.map((wallet) => {
-                  const filteredTokens = filterAndSortTokens(wallet.tokens);
-                  
-                  return (
-                  <div key={wallet.address} className="bg-[#0f1419] border border-white/5 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                      <div>
-                        <h3 className="font-bold">{wallet.label}</h3>
-                        <p className="text-gray-400 text-sm font-mono">{wallet.address.slice(0, 12)}...{wallet.address.slice(-12)}</p>
-                        {wallet.stakeBalance > 0 && (
-                          <div className="mt-2 inline-flex items-center gap-2 bg-purple-500/10 border border-purple-500/30 rounded px-2 py-1">
-                            <span className="text-purple-400 text-xs">💎 Staked:</span>
-                            <span className="text-purple-300 text-xs font-mono font-bold">
-                              {wallet.stakeBalance.toFixed(2)} XNT
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <p className="text-lg font-bold text-cyan-400">${hideBalances ? '••••' : wallet.totalValue.toFixed(2)}</p>
-                        <p className="text-gray-400 text-sm">
-                          {wallet.tokens.length} tokens
-                          {filteredTokens.length !== wallet.tokens.length && ` (${filteredTokens.length} shown)`}
-                        </p>
-                      </div>
-                      <Button variant="ghost" size="sm" onClick={() => removeWallet(wallet.address)} className="text-red-400 hover:bg-red-500/10">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-
-                    {filteredTokens.length > 0 && (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b border-white/10">
-                              <th 
-                                className="text-left py-2 px-2 text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
-                                onClick={() => handleSort('symbol')}
-                              >
-                                Token <SortIndicator columnKey="symbol" />
-                              </th>
-                              <th 
-                                className="text-right py-2 px-2 text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
-                                onClick={() => handleSort('balance')}
-                              >
-                                Balance <SortIndicator columnKey="balance" />
-                              </th>
-                              <th 
-                                className="text-right py-2 px-2 text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
-                                onClick={() => handleSort('price')}
-                              >
-                                Price <SortIndicator columnKey="price" />
-                              </th>
-                              <th 
-                                className="text-right py-2 px-2 text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
-                                onClick={() => handleSort('value')}
-                              >
-                                Value <SortIndicator columnKey="value" />
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {filteredTokens.map((token) => (
-                              <tr key={token.mint} className={`border-b border-white/5 hover:bg-white/[0.02] ${token.isStaked ? 'bg-purple-500/5' : ''}`}>
-                                <td className="py-2 px-2">
-                                  <div className="flex items-center gap-2">
-                                    {token.logo ? (
-                                      <img src={token.logo} alt={token.symbol} className="w-6 h-6 rounded-full" onError={(e) => e.target.style.display = 'none'} />
-                                    ) : (
-                                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-xs">
-                                        {token.symbol.substring(0, 1)}
-                                      </div>
-                                    )}
-                                    <div>
-                                      <div className="flex items-center gap-1">
-                                        <p className="font-semibold">{token.symbol}</p>
-                                        {token.verified && <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-xs">✓</Badge>}
-                                        {token.isStaked && <Badge className="bg-purple-500/20 text-purple-400 border-0 text-xs">Staked</Badge>}
-                                      </div>
-                                      <p className="text-gray-400 text-xs">{token.name}</p>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="text-right py-2 px-2 font-mono text-sm">{token.amount.toFixed(4)}</td>
-                                <td className="text-right py-2 px-2 font-mono text-sm">${token.price}</td>
-                                <td className="text-right py-2 px-2 font-mono text-sm text-cyan-400">
-                                  {hideBalances ? '••••' : `$${token.currentValue.toFixed(2)}`}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-
-                    {filteredTokens.length === 0 && wallet.tokens.length > 0 && (
-                      <div className="text-center py-4 text-gray-400">
-                        <p>No tokens found matching "{searchQuery}"</p>
-                      </div>
-                    )}
-
-                    {wallet.tokens.length === 0 && (
-                      <div className="text-center py-4 text-gray-400">
-                        <p>No tokens found in this wallet</p>
-                      </div>
-                    )}
-                  </div>
-                )})}
-
-                {portfolioData.wallets.length > 0 && (
-                  <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 rounded-lg p-6 mt-6">
-                    <p className="text-gray-400 mb-1">Total Portfolio Value</p>
-                    <p className="text-3xl font-bold text-cyan-400">
-                      {hideBalances ? '••••••••' : `$${portfolioData.totalPortfolioValue.toFixed(2)}`}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+            {wallets.map((w) => {
+              const entry = entries[w.address];
+              return (
+                <WalletPanel
+                  key={w.address}
+                  wallet={w}
+                  entry={entry}
+                  holdings={holdingsFor(entry?.data)}
+                  hide={hide}
+                  sort={sort}
+                  onSort={onSort}
+                  query={query}
+                  onRemove={() => removeWallet(w.address)}
+                  onRetry={() => loadWallets([w], true)}
+                />
+              );
+            })}
+            <p className="text-xs text-ink-faint">
+              Value of priced holdings uses XDEX market prices for listed tokens and the XNT price for native XNT. A price reflects a DEX market, not a guaranteed sale value. Staked XNT is not included.
+            </p>
+          </>
         )}
-
-        {!loadingTokens && allTokens.length > 0 && wallets.length === 0 && (
-          <div className="text-center py-12 text-gray-400">
-            <Wallet className="w-16 h-16 mx-auto mb-4 opacity-30" />
-            <p>No wallets added yet. Add one above to get started!</p>
-          </div>
-        )}
-      </main>
-    </div>
+      </div>
+    </>
   );
 }

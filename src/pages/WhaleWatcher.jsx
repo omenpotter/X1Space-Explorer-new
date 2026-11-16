@@ -1,884 +1,412 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  ChevronLeft, Loader2, RefreshCw, Bell, BellOff, Fish, ArrowRight, 
-  TrendingUp, TrendingDown, AlertTriangle, Search, Volume2, VolumeX,
-  ExternalLink, Layers, ArrowUpDown, ArrowUp, ArrowDown, Info, Users, Percent
-} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowDown, ArrowRight, ArrowUp, Fish, Pause, Play, Search } from 'lucide-react';
+import PageHeader from '@/components/shell/PageHeader';
+import { CopyButton, Freshness, Panel, Pill, StatCard } from '@/components/ds/Primitives';
+import { EmptyState, ErrorState, Skeleton, TableSkeleton, Unavailable } from '@/components/ds/States';
+import { rpcCall } from '@/lib/x1/rpcClient';
+import { api } from '@/lib/x1/api';
+import { X1_CONFIG } from '@/lib/x1/config';
+import { compact, integer, shortAddress, timeAgo, usd } from '@/lib/format';
 import { createPageUrl } from '@/utils';
-import { safeUrl } from '@/lib/safeUrl';
-import X1Rpc from '../components/x1/X1RpcService';
+import { cn } from '@/lib/utils';
 
-// Complete X1 Delegation Pool data from delegation.mainnet.x1.xyz/info
-const KNOWN_ADDRESSES = {
-  'pXNTyoqQsskHdZ7Q1rnP25FEyHHjissbs7n6RRN2nP5': {
-    label: 'X1 Stake Delegation Pool',
-    shortLabel: 'X1 Pool',
-    type: 'stake_pool',
-    tokenSymbol: 'pXNT',
-    url: 'https://delegation.mainnet.x1.xyz/',
-    infoUrl: 'https://delegation.mainnet.x1.xyz/info',
-    color: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-    poolInfo: {
-      totalStaked: '343,546,600.448 XNT',
-      totalSupply: '357,206,329.955 pXNT',
-      exchangeRate: '1 pXNT = 0.9618 XNT',
-      epochFee: '4.00%',
-      withdrawalFee: '0.10%',
-      depositFee: '0.10%',
-      totalValidators: 2108,
-      activeValidators: 2031,
-      activeDelegations: 1881,
-      poolSize: 1915,
-      maxCommission: '10%',
-      minSelfStake: '2 XNT',
-      reserveStake: '10%'
-    }
-  },
-  'R1PP3RkqTJniWgzJgeymd4rFpdpXcmjywVomMpd8eAY': {
-    label: 'R1PPER Stake Pool',
-    shortLabel: 'R1PPER',
-    type: 'stake_pool',
-    url: 'https://x1ripper.xyz/dashboard',
-    infoUrl: 'https://x1ripper.xyz/dashboard',
-    color: 'bg-blue-500/20 text-blue-400 border-blue-500/30'
-  },
-  // X1 Pool related addresses (for transaction labeling)
-  'X1SPaMUM1A8E1vKL8XQAB5rxKarJbqtWFFSNFs8f7Av': {
-    label: 'X1 Pool Account',
-    shortLabel: 'X1 Pool',
-    type: 'pool_account',
-    color: 'bg-purple-500/20 text-purple-400 border-purple-500/30'
-  },
-  'Ha194AW38mWCMTGEt3kUQrrvz7eXKpsNRFQx6WrhMQNw': {
-    label: 'X1 Pool Manager',
-    shortLabel: 'X1 Manager',
-    type: 'pool_manager',
-    color: 'bg-purple-500/20 text-purple-400 border-purple-500/30'
-  },
-  '6ndZaqsg4Ps8HBTgdistqQu2GaqLbTGDgULPBYoNtJQt': {
-    label: 'X1 Pool Staker',
-    shortLabel: 'X1 Staker',
-    type: 'pool_staker',
-    color: 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+const SETTINGS_KEY = 'x1_whale_settings';
+const VOTE_PROGRAM = 'Vote111111111111111111111111111111111111111';
+const SYSTEM_PROGRAM = '11111111111111111111111111111111';
+const STAKE_PROGRAM = 'Stake11111111111111111111111111111111111111';
+const LAMPORTS_PER_XNT = 1e9;
+
+// Work bounds: how many blocks are read per poll and how many transfers are kept in memory.
+const INITIAL_BLOCKS = 24;
+const BLOCKS_PER_POLL = 16;
+const BLOCK_CONCURRENCY = 4;
+const MAX_KEPT = 300;
+// Candidates at or above this size are kept so the threshold can be lowered without rescanning.
+const DETECT_FLOOR_XNT = 100;
+const PRESETS = [1000, 10000, 50000, 100000, 500000];
+const DEFAULT_MIN = 10000;
+const POLL_MS = Math.max(X1_CONFIG.polling.transactionsMs, 5000);
+
+const BASE58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const isNum = (n) => typeof n === 'number' && Number.isFinite(n);
+const inputClass = 'h-9 w-full rounded-lg border border-line bg-surface-2 px-3 text-sm text-ink placeholder:text-ink-faint focus:border-brand/50 focus:outline-none focus:ring-2 focus:ring-brand/25';
+const chipClass = 'inline-flex h-8 items-center rounded-lg border px-3 text-xs font-medium transition-colors';
+const TYPE_FILTERS = [
+  { id: 'all', label: 'All types' },
+  { id: 'transfer', label: 'Transfers' },
+  { id: 'stake', label: 'Stake program' },
+];
+
+function readSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+    const min = Number(s?.minAmount);
+    return {
+      minAmount: Number.isFinite(min) && min >= DETECT_FLOOR_XNT && min <= 1e12 ? min : DEFAULT_MIN,
+      filterType: TYPE_FILTERS.some((t) => t.id === s?.filterType) ? s.filterType : 'all',
+    };
+  } catch {
+    return { minAmount: DEFAULT_MIN, filterType: 'all' };
   }
-};
+}
+
+function writeSettings(settings) {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch {
+    // Storage unavailable: settings last for this visit only.
+  }
+}
+
+/** Reads transfers out of one block. Amounts come from the pre/post lamport balances in the block's metadata. */
+function extractTransfers(block, slot) {
+  const found = [];
+  for (const tx of block?.transactions || []) {
+    const meta = tx?.meta;
+    const message = tx?.transaction?.message;
+    if (!meta || meta.err || !message) continue; // failed transactions moved no funds
+    const keys = [...(message.accountKeys || []), ...(meta.loadedAddresses?.writable || []), ...(meta.loadedAddresses?.readonly || [])]
+      .map((k) => (typeof k === 'string' ? k : k?.pubkey));
+    const programs = (message.instructions || []).map((ix) => keys[ix.programIdIndex]);
+    if (programs.includes(VOTE_PROGRAM)) continue;
+    const isStake = programs.includes(STAKE_PROGRAM);
+    if (!isStake && !programs.includes(SYSTEM_PROGRAM)) continue;
+    const pre = meta.preBalances || [];
+    const post = meta.postBalances || [];
+    let sender = null;
+    let receiver = null;
+    for (let i = 0; i < Math.min(pre.length, post.length, keys.length); i++) {
+      const delta = (post[i] - pre[i]) / LAMPORTS_PER_XNT;
+      if (!Number.isFinite(delta)) continue;
+      if (delta < 0 && (!sender || delta < sender.delta)) sender = { address: keys[i], delta };
+      if (delta > 0 && (!receiver || delta > receiver.delta)) receiver = { address: keys[i], delta };
+    }
+    if (!sender || !receiver || sender.address === receiver.address) continue;
+    // The receiver's gain is the amount that arrived; the sender's loss also includes the fee.
+    const amount = receiver.delta;
+    if (amount < DETECT_FLOOR_XNT) continue;
+    const signature = tx.transaction?.signatures?.[0];
+    if (typeof signature !== 'string') continue;
+    found.push({
+      id: signature,
+      signature,
+      from: sender.address,
+      to: receiver.address,
+      amount,
+      type: isStake ? 'stake' : 'transfer',
+      slot,
+      timestamp: isNum(block.blockTime) ? block.blockTime * 1000 : null,
+    });
+  }
+  return found;
+}
+
+async function readBlock(slot) {
+  try {
+    const block = await rpcCall('getBlock', [slot, { encoding: 'json', transactionDetails: 'full', rewards: false, maxSupportedTransactionVersion: 0 }]);
+    return block ? { slot, block } : null;
+  } catch {
+    return null; // a block that cannot be read is skipped, never invented
+  }
+}
+
+/** @param {{ label?: any, field?: any, sort?: any, onSort?: any, className?: any, [key: string]: any }} props */
+function SortButton({ label, field, sort, onSort, className }) {
+  const active = sort.field === field;
+  return (
+    <th scope="col" aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'} className={className}>
+      <button type="button" onClick={() => onSort(field)} className={cn('inline-flex items-center gap-1 rounded hover:text-ink', active && 'text-ink')}>
+        {label}
+        {active && (sort.dir === 'asc' ? <ArrowUp className="h-3 w-3 text-brand" aria-hidden="true" /> : <ArrowDown className="h-3 w-3 text-brand" aria-hidden="true" />)}
+      </button>
+    </th>
+  );
+}
+
+/** @param {{ address?: any, [key: string]: any }} props */
+function Party({ address }) {
+  return (
+    <span className="flex items-center gap-1">
+      <Link to={`${createPageUrl('AddressLookup')}?address=${address}`} className="mono rounded text-xs text-ink-soft hover:text-brand" title={address}>
+        {shortAddress(address, 6, 6)}
+      </Link>
+    </span>
+  );
+}
 
 export default function WhaleWatcher() {
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [minAmount, setMinAmount] = useState(10000);
-  const [alertsEnabled, setAlertsEnabled] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(false);
-  const [isLive, setIsLive] = useState(true);
-  const [filterType, setFilterType] = useState('all');
-  const [alertHistory, setAlertHistory] = useState([]);
+  const [settings, setSettings] = useState(readSettings);
+  const [customValue, setCustomValue] = useState('');
+  const [customError, setCustomError] = useState(null);
+  const [live, setLive] = useState(true);
   const [filterAddress, setFilterAddress] = useState('');
-  const [sortField, setSortField] = useState('amount');
-  const [sortOrder, setSortOrder] = useState('desc');
-  const [stakePoolStats, setStakePoolStats] = useState(null);
-  const [loadingStakeStats, setLoadingStakeStats] = useState(false);
-  const [showPoolDetails, setShowPoolDetails] = useState({});
+  const [sort, setSort] = useState({ field: 'slot', dir: 'desc' });
+  const [scan, setScan] = useState({ status: 'loading', transfers: [], blocks: 0, fromSlot: null, toSlot: null, loadedAt: null, stale: false, error: null });
+  const [xntPrice, setXntPrice] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    const saved = localStorage.getItem('x1_whale_settings');
-    if (saved) {
-      const settings = JSON.parse(saved);
-      setMinAmount(settings.minAmount || 10000);
-      setAlertsEnabled(settings.alertsEnabled || false);
-      setSoundEnabled(settings.soundEnabled || false);
-      setFilterType(settings.filterType || 'all');
-    }
-    
-    const savedAlerts = localStorage.getItem('x1_whale_alerts');
-    if (savedAlerts) {
-      setAlertHistory(JSON.parse(savedAlerts).slice(0, 50));
-    }
-  }, []);
+  const mounted = useRef(true);
+  const busy = useRef(false);
+  const lastSlot = useRef(null);
 
-  useEffect(() => {
-    localStorage.setItem('x1_whale_settings', JSON.stringify({
-      minAmount, alertsEnabled, soundEnabled, filterType
-    }));
-  }, [minAmount, alertsEnabled, soundEnabled, filterType]);
-
-  useEffect(() => {
-    if (alertsEnabled && 'Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, [alertsEnabled]);
-
-  const fetchStakePoolStats = async () => {
-    setLoadingStakeStats(true);
+  const poll = useCallback(async () => {
+    if (busy.current) return;
+    busy.current = true;
+    setRefreshing(true);
     try {
-      const poolAddresses = Object.keys(KNOWN_ADDRESSES).filter(
-        addr => KNOWN_ADDRESSES[addr].type === 'stake_pool'
-      );
-      
-      const poolStats = await Promise.all(
-        poolAddresses.map(async (address) => {
-          try {
-            const accountInfo = await X1Rpc.getAccountInfo(address);
-            const balance = accountInfo?.value ? accountInfo.value.lamports / 1e9 : 0;
-            
-            return {
-              address,
-              label: KNOWN_ADDRESSES[address].label,
-              shortLabel: KNOWN_ADDRESSES[address].shortLabel,
-              tokenSymbol: KNOWN_ADDRESSES[address].tokenSymbol,
-              balance,
-              color: KNOWN_ADDRESSES[address].color,
-              url: KNOWN_ADDRESSES[address].url,
-              infoUrl: KNOWN_ADDRESSES[address].infoUrl,
-              poolInfo: KNOWN_ADDRESSES[address].poolInfo
-            };
-          } catch (err) {
-            return {
-              address,
-              label: KNOWN_ADDRESSES[address].label,
-              shortLabel: KNOWN_ADDRESSES[address].shortLabel,
-              balance: 0,
-              color: KNOWN_ADDRESSES[address].color,
-              url: KNOWN_ADDRESSES[address].url,
-              infoUrl: KNOWN_ADDRESSES[address].infoUrl,
-              poolInfo: KNOWN_ADDRESSES[address].poolInfo
-            };
-          }
-        })
-      );
-      
-      setStakePoolStats(poolStats);
-    } catch (err) {
-      console.error('Failed to fetch stake pool stats:', err);
-    } finally {
-      setLoadingStakeStats(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchStakePoolStats();
-  }, []);
-
-  const triggerAlert = useCallback((tx) => {
-    if (alertsEnabled && 'Notification' in window && Notification.permission === 'granted') {
-      new Notification('🐋 Whale Alert!', {
-        body: `${formatAmount(tx.amount)} XNT ${tx.type} detected`,
-        icon: '/favicon.ico'
-      });
-    }
-    
-    if (soundEnabled) {
-      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQkuod3v4rZTBQCNzfn/9cRpDACK0///+shqCgCI0///+cpsCAB60P3/88VpAgBzyPr/7rlgAABqwPX/4qlZAABftO7/1plSAABUqOj/y4lLAABKnOL/wXlEAABAkNz/t2k9AAA2hNb/rVk2');
-      audio.volume = 0.3;
-      audio.play().catch(() => {});
-    }
-    
-    const newAlert = {
-      ...tx,
-      alertTime: Date.now()
-    };
-    setAlertHistory(prev => {
-      const updated = [newAlert, ...prev].slice(0, 50);
-      localStorage.setItem('x1_whale_alerts', JSON.stringify(updated));
-      return updated;
-    });
-  }, [alertsEnabled, soundEnabled]);
-
-  const getAddressLabel = (address) => {
-    if (KNOWN_ADDRESSES[address]) {
-      return {
-        label: KNOWN_ADDRESSES[address].shortLabel || KNOWN_ADDRESSES[address].label,
-        color: KNOWN_ADDRESSES[address].color,
-        isKnown: true
-      };
-    }
-    return { label: null, color: null, isKnown: false };
-  };
-
-  const fetchWhaleTransactions = async () => {
-    setLoading(true);
-    try {
-      const currentSlot = await X1Rpc.getSlot();
-      const whaleTxs = [];
-      
-      for (let i = 0; i < 30; i++) {
-        try {
-          const block = await X1Rpc.getBlock(currentSlot - i, { transactionDetails: 'full' });
-          if (!block?.transactions) continue;
-          
-          block.transactions.forEach(tx => {
-            if (!tx.transaction || !tx.meta) return;
-            
-            const message = tx.transaction.message;
-            const accountKeys = message?.accountKeys || [];
-            const instructions = message?.instructions || [];
-            const preBalances = tx.meta.preBalances || [];
-            const postBalances = tx.meta.postBalances || [];
-            
-            const isVote = instructions.some(ix => {
-              const programId = accountKeys[ix.programIdIndex];
-              return programId === 'Vote111111111111111111111111111111111111111';
-            });
-            if (isVote) return;
-            
-            const balanceChanges = [];
-            for (let j = 0; j < Math.min(preBalances.length, accountKeys.length); j++) {
-              const change = (postBalances[j] - preBalances[j]) / 1e9;
-              if (Math.abs(change) > 0.00001) {
-                balanceChanges.push({ 
-                  idx: j, 
-                  change, 
-                  address: accountKeys[j] || 'unknown'
-                });
-              }
-            }
-            
-            balanceChanges.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
-            
-            const sender = balanceChanges.find(c => c.change < -0.00001);
-            const receiver = balanceChanges.find(c => c.change > 0.00001);
-            
-            if (sender && receiver && sender.address && receiver.address) {
-              const maxTransfer = Math.abs(sender.change);
-              const fromAddress = sender.address;
-              const toAddress = receiver.address;
-              
-              if (maxTransfer >= minAmount) {
-                let type = 'transfer';
-                const hasStakeProgram = instructions.some(ix => 
-                  accountKeys[ix.programIdIndex] === 'Stake11111111111111111111111111111111111111'
-                );
-                if (hasStakeProgram) {
-                  type = sender.change < 0 ? 'stake' : 'unstake';
-                }
-                
-                whaleTxs.push({
-                  id: tx.transaction.signatures[0],
-                  signature: tx.transaction.signatures[0],
-                  from: fromAddress,
-                  to: toAddress,
-                  amount: maxTransfer,
-                  type,
-                  slot: currentSlot - i,
-                  timestamp: block.blockTime ? block.blockTime * 1000 : Date.now(),
-                  status: tx.meta.err ? 'failed' : 'success',
-                  isNew: false
-                });
-              }
-            }
-          });
-          
-          if (whaleTxs.length >= 50) break;
-        } catch (e) {
-          // Skip failed blocks
-        }
+      const head = await rpcCall('getSlot');
+      if (!isNum(head)) throw new Error('The RPC returned no current slot.');
+      const first = lastSlot.current === null ? head - INITIAL_BLOCKS + 1 : Math.max(lastSlot.current + 1, head - BLOCKS_PER_POLL + 1);
+      if (first > head) {
+        if (mounted.current) setScan((s) => ({ ...s, status: 'ready', loadedAt: Date.now(), stale: false }));
+        return;
       }
-      
-      const prevIds = new Set(transactions.map(t => t.id));
-      whaleTxs.forEach(tx => {
-        if (!prevIds.has(tx.id)) {
-          tx.isNew = true;
-          triggerAlert(tx);
-        }
+      // getBlocks lists only slots that have a block, so skipped slots cost no request.
+      const slots = await rpcCall('getBlocks', [first, head]);
+      const list = Array.isArray(slots) ? slots.slice(-(lastSlot.current === null ? INITIAL_BLOCKS : BLOCKS_PER_POLL)) : [];
+      const results = [];
+      for (let i = 0; i < list.length; i += BLOCK_CONCURRENCY) {
+        if (!mounted.current) return;
+        results.push(...(await Promise.all(list.slice(i, i + BLOCK_CONCURRENCY).map(readBlock))));
+      }
+      if (!mounted.current) return;
+      const read = results.filter(Boolean);
+      const fresh = read.flatMap(({ slot, block }) => extractTransfers(block, slot));
+      lastSlot.current = head;
+      setScan((s) => {
+        const known = new Set(s.transfers.map((t) => t.id));
+        const merged = [...fresh.filter((t) => !known.has(t.id)), ...s.transfers].sort((a, b) => b.slot - a.slot).slice(0, MAX_KEPT);
+        return {
+          status: 'ready',
+          transfers: merged,
+          blocks: s.blocks + read.length,
+          fromSlot: s.fromSlot ?? (read[0]?.slot ?? first),
+          toSlot: head,
+          loadedAt: Date.now(),
+          stale: false,
+          error: null,
+        };
       });
-      
-      setTransactions(whaleTxs);
-      console.log(`Found ${whaleTxs.length} whale transactions >= ${minAmount} XNT`);
     } catch (err) {
-      console.error('Whale watcher error:', err);
-      setTransactions([]);
+      if (!mounted.current) return;
+      // Keep the last good transfers and mark them stale.
+      setScan((s) => (s.status === 'ready' ? { ...s, stale: true } : { ...s, status: 'error', error: err?.message || 'The X1 RPC did not respond.' }));
     } finally {
-      setLoading(false);
+      busy.current = false;
+      if (mounted.current) setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchWhaleTransactions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [minAmount]);
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
-    if (isLive) {
-      const interval = setInterval(() => {
-        fetchWhaleTransactions();
-      }, 15000);
-      return () => clearInterval(interval);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLive, minAmount]);
+    if (!live) return undefined;
+    poll();
+    const id = setInterval(() => {
+      if (!document.hidden) poll();
+    }, POLL_MS);
+    return () => clearInterval(id);
+  }, [live, poll]);
 
-  const formatAmount = (amount) => {
-    if (amount >= 1e6) return (amount / 1e6).toFixed(2) + 'M';
-    if (amount >= 1e3) return (amount / 1e3).toFixed(1) + 'K';
-    return amount.toFixed(0);
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => api.tokenPrice(X1_CONFIG.nativeMint)
+      .then((res) => { if (!cancelled) setXntPrice(isNum(res?.data?.priceUsd) ? res.data.priceUsd : null); })
+      .catch(() => { if (!cancelled) setXntPrice((p) => p); });
+    load();
+    const id = setInterval(() => { if (!document.hidden) load(); }, X1_CONFIG.polling.tokensMs);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  const update = (patch) => {
+    const next = { ...settings, ...patch };
+    setSettings(next);
+    writeSettings(next);
   };
 
-  const formatTime = (timestamp) => {
-    if (!timestamp) return 'now';
-    const diff = (Date.now() - timestamp) / 1000;
-    if (diff < 60) return `${Math.floor(diff)}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    return `${Math.floor(diff / 3600)}h ago`;
+  const submitCustom = (e) => {
+    e.preventDefault();
+    const value = Number(customValue.replace(/,/g, ''));
+    if (!Number.isFinite(value) || value < DETECT_FLOOR_XNT || value > 1e12) {
+      setCustomError(`Enter an amount between ${integer(DETECT_FLOOR_XNT)} and 1,000,000,000,000 XNT.`);
+      return;
+    }
+    setCustomError(null);
+    setCustomValue('');
+    update({ minAmount: value });
   };
 
-  const getTypeColor = (type) => {
-    switch (type) {
-      case 'transfer': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      case 'stake': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-      case 'unstake': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
-    }
-  };
+  const onSort = (field) => setSort((s) => (s.field === field ? { field, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { field, dir: 'desc' }));
 
-  const getTypeIcon = (type) => {
-    switch (type) {
-      case 'stake': return <TrendingUp className="w-4 h-4" />;
-      case 'unstake': return <TrendingDown className="w-4 h-4" />;
-      default: return <ArrowRight className="w-4 h-4" />;
-    }
-  };
+  const rows = useMemo(() => {
+    const addr = filterAddress.trim();
+    const filtered = scan.transfers.filter((t) => {
+      if (t.amount < settings.minAmount) return false;
+      if (settings.filterType !== 'all' && t.type !== settings.filterType) return false;
+      if (addr.length >= 8 && !t.from.includes(addr) && !t.to.includes(addr)) return false;
+      return true;
+    });
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    return [...filtered].sort((a, b) => dir * ((a[sort.field] ?? 0) - (b[sort.field] ?? 0)));
+  }, [scan.transfers, settings, filterAddress, sort]);
 
-  let filteredTxs = transactions.filter(tx => {
-    if (filterType !== 'all' && tx.type !== filterType) return false;
-    
-    if (filterAddress && filterAddress.length >= 8) {
-      const addrLower = filterAddress.toLowerCase();
-      const fromMatch = tx.from?.toLowerCase().includes(addrLower);
-      const toMatch = tx.to?.toLowerCase().includes(addrLower);
-      if (!fromMatch && !toMatch) return false;
-    }
-    
-    return true;
-  });
-  
-  filteredTxs = [...filteredTxs].sort((a, b) => {
-    let aVal, bVal;
-    switch (sortField) {
-      case 'amount':
-        aVal = a.amount;
-        bVal = b.amount;
-        break;
-      case 'timestamp':
-        aVal = a.timestamp;
-        bVal = b.timestamp;
-        break;
-      case 'slot':
-        aVal = a.slot;
-        bVal = b.slot;
-        break;
-      default:
-        return 0;
-    }
-    return sortOrder === 'desc' ? bVal - aVal : aVal - bVal;
-  });
-
-  const totalVolume = filteredTxs.reduce((sum, tx) => sum + tx.amount, 0);
-  const stakeVolume = transactions.filter(t => t.type === 'stake').reduce((sum, t) => sum + t.amount, 0);
-  const unstakeVolume = transactions.filter(t => t.type === 'unstake').reduce((sum, t) => sum + t.amount, 0);
-  const totalStaked = stakePoolStats?.reduce((sum, pool) => sum + pool.balance, 0) || 0;
-
-  const SortIndicator = ({ columnKey }) => {
-    if (sortField !== columnKey) {
-      return <ArrowUpDown className="h-3 w-3 ml-1 inline text-gray-500" />;
-    }
-    return sortOrder === 'asc' 
-      ? <ArrowUp className="h-3 w-3 ml-1 inline text-cyan-400" />
-      : <ArrowDown className="h-3 w-3 ml-1 inline text-cyan-400" />;
-  };
+  const volume = rows.reduce((s, t) => s + t.amount, 0);
+  const largest = rows.reduce((m, t) => Math.max(m, t.amount), 0);
+  const withUsd = (xnt) => (isNum(xntPrice) ? usd(xnt * xntPrice) : null);
+  const ready = scan.status === 'ready';
 
   return (
-    <div className="min-h-screen bg-[#0f1419] text-white">
-      {/* Header */}
-      <div className="border-b border-white/10 bg-[#1d2d3a]">
-        <div className="max-w-[1600px] mx-auto px-4 py-4">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-4">
-              <Link to={createPageUrl('Dashboard')}>
-                <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                  <ChevronLeft className="w-4 h-4 mr-2" />
-                  Back
-                </Button>
-              </Link>
+    <>
+      <PageHeader
+        icon={Fish}
+        title="Whale Watcher"
+        description="Large native XNT movements found in recent X1 blocks. Amounts are read from on-chain balance changes; nothing is simulated."
+        meta={<Freshness at={scan.loadedAt} stale={scan.stale} source="X1 RPC" onRefresh={live ? () => poll() : undefined} refreshing={refreshing} />}
+        actions={(
+          <button
+            type="button"
+            onClick={() => setLive((v) => !v)}
+            aria-pressed={live}
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-line-strong px-3 text-sm text-ink-soft transition-colors hover:bg-surface-3"
+          >
+            {live ? <Pause className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
+            {live ? 'Pause scanning' : 'Resume scanning'}
+          </button>
+        )}
+      />
+
+      <div className="space-y-6">
+        <section aria-label="Scan summary" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard label="Large transfers" value={ready ? integer(rows.length) : <Skeleton className="h-7 w-16" />} hint={`At or above ${compact(settings.minAmount)} XNT`} />
+          <StatCard label="Volume" tone="brand" value={ready ? `${compact(volume)} XNT` : <Skeleton className="h-7 w-24" />} hint={ready ? (withUsd(volume) ?? 'USD value unavailable: no XNT price') : undefined} />
+          <StatCard label="Largest" value={ready ? (rows.length ? `${compact(largest)} XNT` : <Unavailable reason="No transfers in range" />) : <Skeleton className="h-7 w-24" />} hint={ready && rows.length ? (withUsd(largest) ?? 'USD value unavailable: no XNT price') : undefined} />
+          <StatCard
+            label="Blocks scanned"
+            value={ready ? integer(scan.blocks) : <Skeleton className="h-7 w-16" />}
+            hint={ready && isNum(scan.fromSlot) ? `Slots ${integer(scan.fromSlot)} to ${integer(scan.toSlot)}` : undefined}
+          />
+        </section>
+
+        <Panel title="Filters" description={`Saved in this browser. Transfers of ${integer(DETECT_FLOOR_XNT)} XNT or more are kept in memory, so you can lower the threshold without rescanning.`}>
+          <div className="space-y-5 p-4">
+            <div>
+              <p id="min-label" className="mb-2 text-xs font-medium text-ink-muted">Minimum amount</p>
+              <div role="group" aria-labelledby="min-label" className="flex flex-wrap items-center gap-2">
+                {[...new Set([...PRESETS, settings.minAmount])].sort((a, b) => a - b).map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => update({ minAmount: val })}
+                    aria-pressed={settings.minAmount === val}
+                    className={cn(chipClass, settings.minAmount === val ? 'border-brand/40 bg-brand/10 text-brand' : 'border-line-strong text-ink-muted hover:bg-surface-3')}
+                  >
+                    {compact(val)}+ XNT
+                  </button>
+                ))}
+                <form onSubmit={submitCustom} className="flex items-center gap-2" noValidate>
+                  <label htmlFor="ww-custom" className="sr-only">Custom minimum amount in XNT</label>
+                  <input id="ww-custom" inputMode="decimal" value={customValue} onChange={(e) => { setCustomValue(e.target.value); setCustomError(null); }} placeholder="Custom XNT" maxLength={16} aria-invalid={!!customError} aria-describedby={customError ? 'ww-custom-error' : undefined} className={cn(inputClass, 'h-8 w-32')} />
+                  <button type="submit" disabled={!customValue.trim()} className={cn(chipClass, 'border-line-strong text-ink-soft hover:bg-surface-3 disabled:opacity-50')}>Set</button>
+                </form>
+              </div>
+              {customError && <p id="ww-custom-error" role="alert" className="mt-2 text-xs text-negative">{customError}</p>}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <h1 className="text-4xl font-bold text-white flex items-center gap-3">
-                  <Fish className="w-8 h-8 text-cyan-400" />
-                  Whale Watcher
-                </h1>
-                <p className="text-gray-400 mt-1">Track large XNT transactions in real-time</p>
+                <p id="type-label" className="mb-2 text-xs font-medium text-ink-muted">Type</p>
+                <div role="group" aria-labelledby="type-label" className="flex flex-wrap gap-2">
+                  {TYPE_FILTERS.map((t) => (
+                    <button key={t.id} type="button" onClick={() => update({ filterType: t.id })} aria-pressed={settings.filterType === t.id} className={cn(chipClass, settings.filterType === t.id ? 'border-brand/40 bg-brand/10 text-brand' : 'border-line-strong text-ink-muted hover:bg-surface-3')}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label htmlFor="ww-address" className="mb-2 block text-xs font-medium text-ink-muted">Filter by address (8 or more characters)</label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" aria-hidden="true" />
+                  <input id="ww-address" value={filterAddress} onChange={(e) => setFilterAddress(e.target.value)} maxLength={44} spellCheck={false} autoComplete="off" placeholder="Sender or receiver address" className={cn(inputClass, 'mono pl-9')} />
+                </div>
+                {filterAddress.trim().length > 0 && filterAddress.trim().length < 8 && !BASE58.test(filterAddress.trim()) && (
+                  <p className="mt-1.5 text-xs text-ink-faint">Keep typing: the filter starts at 8 characters.</p>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setSoundEnabled(!soundEnabled)}
-                className={`border-white/20 ${soundEnabled ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : 'text-gray-400'}`}
-              >
-                {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setAlertsEnabled(!alertsEnabled)}
-                className={`border-white/20 ${alertsEnabled ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' : 'text-gray-400'}`}
-              >
-                {alertsEnabled ? <Bell className="w-4 h-4 mr-2" /> : <BellOff className="w-4 h-4 mr-2" />}
-                Alerts
-              </Button>
-              {isLive ? (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setIsLive(false)}
-                  className="border-white/20 text-red-400 border-red-500/30 hover:bg-red-500/10"
-                >
-                  <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse mr-2" />
-                  Stop
-                </Button>
-              ) : (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setIsLive(true)}
-                  className="border-white/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
-                >
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 mr-2" />
-                  Start
-                </Button>
-              )}
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => { fetchWhaleTransactions(); fetchStakePoolStats(); }}
-                className="border-gray-600 text-gray-300 hover:bg-gray-800"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Refresh
-              </Button>
-            </div>
           </div>
-        </div>
-      </div>
+        </Panel>
 
-      <main className="max-w-[1600px] mx-auto px-4 py-8">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-          <Card className="bg-[#1d2d3a] border-white/10">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Whale Txs</CardTitle>
-              <Fish className="h-4 w-4 text-cyan-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{filteredTxs.length}</div>
-              <p className="text-xs text-gray-500">Transactions found</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-[#1d2d3a] border-white/10">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Total Volume</CardTitle>
-              <TrendingUp className="h-4 w-4 text-cyan-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-cyan-400">{formatAmount(totalVolume)}</div>
-              <p className="text-xs text-gray-500">XNT transferred</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-[#1d2d3a] border-white/10">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Stake Inflow</CardTitle>
-              <TrendingUp className="h-4 w-4 text-emerald-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-emerald-400">+{formatAmount(stakeVolume)}</div>
-              <p className="text-xs text-gray-500">XNT staked</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-[#1d2d3a] border-white/10">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Unstake Outflow</CardTitle>
-              <TrendingDown className="h-4 w-4 text-red-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-400">-{formatAmount(unstakeVolume)}</div>
-              <p className="text-xs text-gray-500">XNT unstaked</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-[#1d2d3a] border-white/10">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Stake Pools</CardTitle>
-              <Layers className="h-4 w-4 text-purple-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-400">{formatAmount(totalStaked)}</div>
-              <p className="text-xs text-gray-500">Total staked</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Stake Pools Details */}
-        {stakePoolStats && stakePoolStats.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            {stakePoolStats.map((pool) => (
-              <Card key={pool.address} className="bg-[#1d2d3a] border-white/10">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <Badge className={`${pool.color} text-sm px-3 py-1`}>
-                      {pool.label}
-                    </Badge>
-                    <div className="flex gap-2">
-                      <a 
-                        href={safeUrl(pool.url)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 text-xs"
-                      >
-                        Dashboard
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                      {pool.infoUrl && pool.infoUrl !== pool.url && (
-                        <a 
-                          href={safeUrl(pool.infoUrl)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-purple-400 hover:text-purple-300 flex items-center gap-1 text-xs"
-                        >
-                          Info
-                          <Info className="w-3 h-3" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {/* Balance */}
-                    <div className="flex justify-between items-center pb-2 border-b border-white/5">
-                      <span className="text-gray-400 text-sm">Current Balance:</span>
-                      <span className="text-white font-mono font-bold">{formatAmount(pool.balance)} XNT</span>
-                    </div>
-
-                    {/* Pool Info (X1 Pool Only) */}
-                    {pool.poolInfo && (
-                      <>
-                        <div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowPoolDetails(prev => ({ ...prev, [pool.address]: !prev[pool.address] }))}
-                            className="w-full text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 mb-2"
-                          >
-                            {showPoolDetails[pool.address] ? 'Hide' : 'Show'} Pool Details
-                          </Button>
-                          
-                          {showPoolDetails[pool.address] && (
-                            <div className="space-y-2 text-xs">
-                              <div className="bg-[#0f1419] rounded p-3 space-y-2">
-                                <div className="flex justify-between">
-                                  <span className="text-gray-400">Total Staked:</span>
-                                  <span className="text-white font-mono">{pool.poolInfo.totalStaked}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-400">pXNT Supply:</span>
-                                  <span className="text-white font-mono">{pool.poolInfo.totalSupply}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-400">Exchange Rate:</span>
-                                  <span className="text-emerald-400 font-mono">{pool.poolInfo.exchangeRate}</span>
-                                </div>
-                              </div>
-
-                              <div className="bg-[#0f1419] rounded p-3 space-y-2">
-                                <div className="text-purple-400 font-semibold mb-1">Fees</div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-400">Epoch Fee:</span>
-                                  <span className="text-white">{pool.poolInfo.epochFee}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-400">Withdrawal:</span>
-                                  <span className="text-white">{pool.poolInfo.withdrawalFee}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-400">Deposit:</span>
-                                  <span className="text-white">{pool.poolInfo.depositFee}</span>
-                                </div>
-                              </div>
-
-                              <div className="bg-[#0f1419] rounded p-3 space-y-2">
-                                <div className="text-blue-400 font-semibold mb-1">Validators</div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-400">Total:</span>
-                                  <span className="text-white">{pool.poolInfo.totalValidators}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-400">Active:</span>
-                                  <span className="text-emerald-400">{pool.poolInfo.activeValidators}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-400">Pool Size:</span>
-                                  <span className="text-cyan-400">{pool.poolInfo.poolSize}</span>
-                                </div>
-                              </div>
-
-                              <div className="bg-[#0f1419] rounded p-3 space-y-2">
-                                <div className="text-orange-400 font-semibold mb-1">Criteria</div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-400">Max Commission:</span>
-                                  <span className="text-white">{pool.poolInfo.maxCommission}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-400">Min Self Stake:</span>
-                                  <span className="text-white">{pool.poolInfo.minSelfStake}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-400">Reserve:</span>
-                                  <span className="text-white">{pool.poolInfo.reserveStake}</span>
-                                </div>
-                              </div>
-                            </div>
-                          )}
+        <Panel
+          title="Large transfers"
+          description={ready ? `Scanning the latest blocks: ${integer(scan.blocks)} blocks read since you opened this page, ${integer(BLOCKS_PER_POLL)} or fewer per update, every ${Math.round(POLL_MS / 1000)}s while this tab is visible.` : undefined}
+          bodyClassName="p-0"
+        >
+          {scan.status === 'loading' ? (
+            <TableSkeleton rows={6} columns={5} />
+          ) : scan.status === 'error' ? (
+            <ErrorState title="Could not scan recent blocks" description={`${scan.error} Nothing is shown rather than estimated transfers.`} onRetry={() => poll()} />
+          ) : rows.length === 0 ? (
+            <EmptyState
+              icon={Fish}
+              title="No large transfers in the scanned blocks"
+              description={`None of the ${integer(scan.blocks)} blocks scanned so far moved ${compact(settings.minAmount)} XNT or more${settings.filterType !== 'all' || filterAddress.trim().length >= 8 ? ' with these filters' : ''}. ${live ? 'New blocks are scanned automatically.' : 'Scanning is paused.'}`}
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="data-table">
+                <caption className="sr-only">Large XNT transfers found in recent blocks</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Type</th>
+                    <SortButton label="Amount" field="amount" sort={sort} onSort={onSort} />
+                    <th scope="col">From</th>
+                    <th scope="col" className="hidden sm:table-cell"><span className="sr-only">To</span></th>
+                    <SortButton label="Slot" field="slot" sort={sort} onSort={onSort} className="hidden md:table-cell" />
+                    <SortButton label="Time" field="timestamp" sort={sort} onSort={onSort} className="hidden lg:table-cell" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((t) => (
+                    <tr key={t.id}>
+                      <td><Pill tone={t.type === 'stake' ? 'violet' : 'brand'}>{t.type === 'stake' ? 'Stake program' : 'Transfer'}</Pill></td>
+                      <td>
+                        <Link to={`${createPageUrl('TransactionDetail')}?sig=${t.signature}`} className="block rounded tabular font-medium text-ink hover:text-brand">
+                          {compact(t.amount)} XNT
+                        </Link>
+                        {withUsd(t.amount) && <span className="block text-xs text-ink-muted tabular">{withUsd(t.amount)}</span>}
+                      </td>
+                      <td>
+                        <div className="flex flex-col gap-1">
+                          <Party address={t.from} />
+                          <span className="flex items-center gap-1 text-ink-faint sm:hidden"><ArrowRight className="h-3 w-3" aria-hidden="true" /><span className="sr-only">to</span><Party address={t.to} /></span>
                         </div>
-                      </>
-                    )}
-
-                    {/* Address */}
-                    <div className="flex justify-between items-center pt-2">
-                      <span className="text-gray-400 text-xs">Address:</span>
-                      <span className="text-gray-500 font-mono text-xs">{pool.address.slice(0, 8)}...{pool.address.slice(-8)}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        {/* Filters */}
-        <Card className="bg-[#1d2d3a] border-white/10 mb-8">
-          <CardHeader>
-            <CardTitle className="text-white">Filters</CardTitle>
-            <CardDescription className="text-gray-400">
-              Customize whale transaction search parameters
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Amount Filters */}
-            <div>
-              <label className="text-sm text-gray-400 mb-2 block">Minimum Amount</label>
-              <div className="flex gap-2 flex-wrap items-center">
-                {[1000, 10000, 50000, 100000, 500000].map((val) => (
-                  <Button 
-                    key={val} 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setMinAmount(val)}
-                    className={`border-white/20 ${minAmount === val ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' : 'text-gray-400'}`}
-                  >
-                    {formatAmount(val)}+ XNT
-                  </Button>
-                ))}
-                <div className="flex gap-2 items-center">
-                  <Input 
-                    type="number"
-                    placeholder="Custom amount"
-                    className="w-36 bg-[#0f1419] border-white/10 text-white placeholder:text-gray-500"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        const value = parseFloat(e.target.value);
-                        if (!isNaN(value) && value > 0) {
-                          setMinAmount(value);
-                        }
-                      }
-                    }}
-                  />
-                  <span className="text-gray-500 text-xs">Press Enter</span>
-                </div>
-              </div>
-              <div className="mt-2 text-xs text-gray-500">
-                Current threshold: <span className="text-cyan-400 font-mono">{formatAmount(minAmount)}+ XNT</span>
-              </div>
-            </div>
-
-            {/* Type Filters */}
-            <div>
-              <label className="text-sm text-gray-400 mb-2 block">Transaction Type</label>
-              <div className="flex gap-2 flex-wrap">
-                {['all', 'transfer', 'stake', 'unstake'].map((type) => (
-                  <Button 
-                    key={type} 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setFilterType(type)}
-                    className={`border-white/20 ${filterType === type ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' : 'text-gray-400'}`}
-                  >
-                    {type === 'all' ? 'All Types' : type.charAt(0).toUpperCase() + type.slice(1)}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            {/* Address Filter */}
-            <div>
-              <label className="text-sm text-gray-400 mb-2 block">Filter by Address</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input 
-                  placeholder="Enter wallet address..."
-                  value={filterAddress}
-                  onChange={(e) => setFilterAddress(e.target.value)}
-                  className="pl-10 bg-[#0f1419] border-white/10 text-white placeholder:text-gray-500"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Transactions Table */}
-        <Card className="bg-[#1d2d3a] border-white/10">
-          <CardHeader>
-            <CardTitle className="text-white">Whale Transactions</CardTitle>
-            <CardDescription className="text-gray-400">
-              {filteredTxs.length} large transactions detected - Click headers to sort
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            {loading ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
-              </div>
-            ) : filteredTxs.length === 0 ? (
-              <div className="text-center py-20">
-                <Fish className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                <h3 className="text-xl text-gray-400 mb-2">No whale transactions found</h3>
-                <p className="text-gray-500">Try lowering the minimum amount or wait for new activity</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-white/10">
-                      <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">Type</th>
-                      <th 
-                        className="text-left text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-cyan-400 select-none"
-                        onClick={() => { setSortField('amount'); setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc'); }}
-                      >
-                        Amount <SortIndicator columnKey="amount" />
-                      </th>
-                      <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">From</th>
-                      <th className="text-left text-gray-400 text-xs font-medium px-4 py-3">To</th>
-                      <th 
-                        className="text-left text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-cyan-400 select-none"
-                        onClick={() => { setSortField('slot'); setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc'); }}
-                      >
-                        Slot <SortIndicator columnKey="slot" />
-                      </th>
-                      <th 
-                        className="text-right text-gray-400 text-xs font-medium px-4 py-3 cursor-pointer hover:text-cyan-400 select-none"
-                        onClick={() => { setSortField('timestamp'); setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc'); }}
-                      >
-                        Time <SortIndicator columnKey="timestamp" />
-                      </th>
+                      </td>
+                      <td className="hidden sm:table-cell">
+                        <span className="flex items-center gap-2"><ArrowRight className="h-3.5 w-3.5 text-ink-faint" aria-hidden="true" /><Party address={t.to} /><CopyButton value={t.to} label="Copy receiving address" /></span>
+                      </td>
+                      <td className="hidden tabular text-ink-muted md:table-cell">{integer(t.slot)}</td>
+                      <td className="hidden text-ink-muted lg:table-cell">{t.timestamp ? timeAgo(t.timestamp) : <Unavailable reason="This block has no timestamp" />}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTxs.map((tx) => {
-                      const fromLabel = getAddressLabel(tx.from);
-                      const toLabel = getAddressLabel(tx.to);
-                      
-                      return (
-                      <tr 
-                        key={tx.id} 
-                        className={`border-b border-white/5 hover:bg-white/[0.02] ${tx.isNew ? 'bg-cyan-500/5' : ''}`}
-                      >
-                        <td className="px-4 py-3">
-                          <Badge className={`${getTypeColor(tx.type)} flex items-center gap-1 w-fit`}>
-                            {getTypeIcon(tx.type)}
-                            {tx.type}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            {tx.amount >= 1000000 && <Fish className="w-4 h-4 text-yellow-400" />}
-                            <span className="text-white font-mono font-bold">{formatAmount(tx.amount)} XNT</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          {fromLabel.isKnown ? (
-                            <div>
-                              <Badge className={`${fromLabel.color} text-xs mb-1`}>
-                                {fromLabel.label}
-                              </Badge>
-                              <div className="text-gray-500 text-xs font-mono">
-                                {tx.from.substring(0, 8)}...
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-cyan-400 font-mono text-sm">
-                              {tx.from.substring(0, 12)}...{tx.from.slice(-6)}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {toLabel.isKnown ? (
-                            <div>
-                              <Badge className={`${toLabel.color} text-xs mb-1`}>
-                                {toLabel.label}
-                              </Badge>
-                              <div className="text-gray-500 text-xs font-mono">
-                                {tx.to.substring(0, 8)}...
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-emerald-400 font-mono text-sm">
-                              {tx.to.substring(0, 12)}...{tx.to.slice(-6)}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-gray-400 font-mono text-sm">
-                            {tx.slot?.toLocaleString()}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className={`text-sm ${tx.isNew ? 'text-cyan-400' : 'text-gray-400'}`}>
-                            {tx.isNew && <span className="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse mr-2" />}
-                            {formatTime(tx.timestamp)}
-                          </span>
-                        </td>
-                      </tr>
-                    )})}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Alert Status */}
-        {alertsEnabled && (
-          <Card className="bg-yellow-500/10 border-yellow-500/30 mt-6">
-            <CardContent className="py-4">
-              <div className="flex items-center gap-3">
-                <AlertTriangle className="w-5 h-5 text-yellow-400" />
-                <div>
-                  <span className="text-yellow-400 font-medium">Whale Alert Active</span>
-                  <p className="text-gray-400 text-sm mt-1">
-                    Browser notifications enabled for transactions ≥{formatAmount(minAmount)} XNT
-                    {soundEnabled && ' · Sound alerts enabled'}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </main>
-    </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="border-t border-line px-4 py-3 text-xs text-ink-faint">
+            Only successful, non-vote transactions with a system or stake program instruction are considered. The amount is the largest balance increase in the transaction and the sender is the account with the largest decrease; complex transactions (swaps, multi-party payments) can be summarised imperfectly. {isNum(xntPrice) ? 'USD values use the current XNT market price.' : 'No XNT price is available, so amounts are shown in XNT only.'}
+          </p>
+        </Panel>
+      </div>
+    </>
   );
 }

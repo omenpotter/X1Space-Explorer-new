@@ -1,374 +1,292 @@
-// src/pages/LPExplorer.jsx
-// Clean version - Only Pools tab (removed empty Top Holders and Recent Activity tabs)
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowDown, ArrowUp, Droplets, ExternalLink, Search, X } from 'lucide-react';
+import PageHeader from '@/components/shell/PageHeader';
+import { TokenAvatar } from '@/components/ds/Avatar';
+import { CopyButton, Freshness, Panel, StatCard } from '@/components/ds/Primitives';
+import { EmptyState, ErrorState, Skeleton, TableSkeleton, Unavailable } from '@/components/ds/States';
+import { api } from '@/lib/x1/api';
+import { X1_CONFIG } from '@/lib/x1/config';
+import { integer, percent, shortAddress, usd } from '@/lib/format';
+import { cn } from '@/lib/utils';
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table';
-import {
-  DropletIcon, 
-  TrendingUpIcon, 
-  UsersIcon, 
-  SearchIcon,
-  ExternalLinkIcon,
-  ArrowLeftIcon,
-  RefreshCwIcon,
-  AlertCircleIcon,
-  ArrowUpDown,
-  ArrowUpIcon,
-  ArrowDownIcon
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
-import { 
-  getLPStats,
-  getLPTokens
-} from '../components/x1/lpApi';
+const POOL_LIMIT = 500;
+const PAGE_SIZE = 50;
 
-const LPExplorer = () => {
-  const [stats, setStats] = useState(null);
-  const [lpTokens, setLpTokens] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [sortConfig, setSortConfig] = useState({ key: 'liquidity_usd', direction: 'desc' });
+const isNum = (n) => typeof n === 'number' && Number.isFinite(n);
 
-  useEffect(() => {
-    loadData();
+/** Accepts an ISO string, epoch seconds or epoch milliseconds. Returns ms or null. */
+function toTime(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? (value < 1e12 ? value * 1000 : value) : null;
+  const t = Date.parse(value);
+  return Number.isFinite(t) ? t : null;
+}
+
+const COLUMNS = [
+  { key: 'tvlUsd', label: 'TVL', className: '', get: (p) => p.tvlUsd },
+  { key: 'txns24h', label: '24h txns', className: 'hidden sm:table-cell', get: (p) => p.txns24h },
+  { key: 'apr24h', label: '24h fee APR (XDEX)', className: 'hidden md:table-cell', get: (p) => p.apr24h },
+  { key: 'lpHolders', label: 'LP holders', className: 'hidden lg:table-cell', get: (p) => p.lpHolders },
+  { key: 'createdAt', label: 'Created', className: 'hidden xl:table-cell', get: (p) => toTime(p.createdAt) },
+];
+
+function tokenOf(t) {
+  return { mint: t?.mint, symbol: t?.symbol, name: t?.symbol, logoUrl: t?.logo };
+}
+
+function pairLabel(p) {
+  if (p.pair) return p.pair;
+  const a = p.token1?.symbol;
+  const b = p.token2?.symbol;
+  return a || b ? `${a || '?'}/${b || '?'}` : 'Unnamed pair';
+}
+
+/** @param {{ loading?: any, value?: any, format?: any, reason?: any, [key: string]: any }} props */
+function Stat({ loading, value, format, reason }) {
+  if (loading) return <Skeleton className="h-7 w-24" />;
+  return isNum(value) ? format(value) : <Unavailable reason={reason} />;
+}
+
+export default function LPExplorer() {
+  const [state, setState] = useState({ status: 'loading', pools: [], meta: null, stats: null, statsMeta: null, error: null, refreshFailed: false });
+  const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState({ key: 'tvlUsd', dir: 'desc' });
+  const [page, setPage] = useState(0);
+
+  const load = useCallback(async (background = false) => {
+    if (background) setRefreshing(true);
+    else setState((s) => ({ ...s, status: 'loading', error: null }));
+    const [poolsRes, statsRes] = await Promise.allSettled([api.pools({ limit: POOL_LIMIT, offset: 0 }), api.poolStats()]);
+    setState((s) => {
+      if (poolsRes.status === 'rejected') {
+        // A failed background refresh keeps the last good data on screen and marks it stale.
+        if (background && s.status === 'ready') return { ...s, refreshFailed: true };
+        return { status: 'error', pools: [], meta: null, stats: null, statsMeta: null, error: poolsRes.reason?.message || 'The pool list could not be loaded.', refreshFailed: false };
+      }
+      const data = poolsRes.value;
+      const statsOk = statsRes.status === 'fulfilled';
+      return {
+        status: 'ready',
+        pools: Array.isArray(data.pools) ? data.pools : [],
+        meta: { stale: !!data.stale, fetchedAt: data.fetchedAt, count: data.count },
+        // Stats that fail to refresh keep their last value; on first load they stay unknown.
+        stats: statsOk ? statsRes.value.stats || null : s.stats,
+        statsMeta: statsOk ? { stale: !!statsRes.value.stale, failed: false } : { stale: true, failed: true },
+        error: null,
+        refreshFailed: false,
+      };
+    });
+    setRefreshing(false);
   }, []);
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const [statsData, tokensData] = await Promise.all([
-        getLPStats(),
-        getLPTokens(500)
-      ]);
+  useEffect(() => {
+    load();
+    const id = setInterval(() => {
+      if (!document.hidden) load(true);
+    }, X1_CONFIG.polling.tokensMs);
+    return () => clearInterval(id);
+  }, [load]);
 
-      setStats(statsData.stats);
-      setLpTokens(tokensData.tokens);
-    } catch (error) {
-      console.error('Failed to load LP data:', error);
-      setError(error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Sorting function
-  const handleSort = (key) => {
-    let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
-  };
-
-  // Filter and sort tokens
-  const filteredTokens = lpTokens
-    .filter(token =>
-      token.lp_mint.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      token.token_a_symbol?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      token.token_b_symbol?.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .sort((a, b) => {
-      let aValue, bValue;
-
-      switch (sortConfig.key) {
-        case 'holder_count':
-          aValue = a.holder_count || 0;
-          bValue = b.holder_count || 0;
-          break;
-        case 'liquidity_usd':
-          aValue = a.liquidity_usd || 0;
-          bValue = b.liquidity_usd || 0;
-          break;
-        case 'updated_at':
-          aValue = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-          bValue = b.updated_at ? new Date(b.updated_at).getTime() : 0;
-          break;
-        default:
-          return 0;
-      }
-
-      if (sortConfig.direction === 'asc') {
-        return aValue - bValue;
-      } else {
-        return bValue - aValue;
-      }
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const rows = q
+      ? state.pools.filter((p) =>
+          [p.pair, p.token1?.symbol, p.token2?.symbol].some((v) => typeof v === 'string' && v.toLowerCase().includes(q)) ||
+          // Addresses are case-sensitive, so they are matched exactly as typed.
+          [p.address, p.lpMint, p.token1?.mint, p.token2?.mint].some((v) => typeof v === 'string' && v.includes(search.trim())))
+      : state.pools;
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    const column = COLUMNS.find((c) => c.key === sort.key);
+    return [...rows].sort((a, b) => {
+      if (sort.key === 'pair') return dir * pairLabel(a).localeCompare(pairLabel(b));
+      const av = column?.get(a);
+      const bv = column?.get(b);
+      // Unknown values always sort last, whichever direction is chosen.
+      if (!isNum(av) && !isNum(bv)) return 0;
+      if (!isNum(av)) return 1;
+      if (!isNum(bv)) return -1;
+      return dir * (av - bv);
     });
+  }, [state.pools, search, sort]);
 
-  // Sort indicator component
-  const SortIndicator = ({ columnKey }) => {
-    if (sortConfig.key !== columnKey) {
-      return <ArrowUpDown className="h-3 w-3 ml-1 text-gray-500" />;
-    }
-    return sortConfig.direction === 'asc' 
-      ? <ArrowUpIcon className="h-3 w-3 ml-1 text-cyan-400" />
-      : <ArrowDownIcon className="h-3 w-3 ml-1 text-cyan-400" />;
-  };
+  useEffect(() => {
+    setPage(0);
+  }, [search, sort]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0f1419] text-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-cyan-400/20 border-t-cyan-400 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading LP data...</p>
-        </div>
-      </div>
-    );
-  }
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const current = Math.min(page, pages - 1);
+  const visible = filtered.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE);
+  const sortBy = (key) => setSort((s) => ({ key, dir: s.key === key && s.dir === 'desc' ? 'asc' : 'desc' }));
+  const ariaSort = (key) => (sort.key === key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none');
+  const arrow = (key) => sort.key === key && (sort.dir === 'asc' ? <ArrowUp className="h-3 w-3" aria-hidden="true" /> : <ArrowDown className="h-3 w-3" aria-hidden="true" />);
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-[#0f1419] text-white">
-        <div className="max-w-[1800px] mx-auto px-4 py-8">
-          <div className="flex items-center gap-4 mb-6">
-            <Link to={createPageUrl('Dashboard')}>
-              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                <ArrowLeftIcon className="w-4 h-4 mr-2" />
-                Back to Dashboard
-              </Button>
-            </Link>
-          </div>
-
-          <Card className="bg-[#1d2d3a] border-red-500/20">
-            <CardContent className="pt-6">
-              <div className="text-center py-12">
-                <AlertCircleIcon className="w-16 h-16 text-red-400 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-white mb-2">Failed to Load LP Data</h3>
-                <p className="text-gray-400 mb-4">{error}</p>
-                <div className="space-y-2 text-sm text-gray-500 mb-6">
-                  <p>Please check:</p>
-                  <ul className="list-disc list-inside">
-                    <li>XDEX API is available</li>
-                    <li>Network connection is stable</li>
-                  </ul>
-                </div>
-                <Button onClick={loadData} className="bg-cyan-500 hover:bg-cyan-600">
-                  <RefreshCwIcon className="w-4 h-4 mr-2" />
-                  Try Again
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
+  const stats = state.stats;
+  const statsLoading = state.status === 'loading';
+  const statsReason = state.statsMeta?.failed ? 'XDEX pool statistics could not be loaded' : 'Not reported by XDEX';
+  const stale = state.refreshFailed || !!state.meta?.stale || !!state.statsMeta?.stale;
 
   return (
-    <div className="min-h-screen bg-[#0f1419] text-white">
-      <div className="max-w-[1800px] mx-auto px-4 py-8 space-y-8">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to={createPageUrl('Dashboard')}>
-              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                <ArrowLeftIcon className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-4xl font-bold text-white">Liquidity Pools</h1>
-              <p className="text-gray-400 mt-1">
-                Explore XDEX liquidity pools on X1 Mainnet
-              </p>
-            </div>
-          </div>
-          <Button 
-            onClick={loadData} 
-            variant="outline" 
-            size="sm"
-            className="border-gray-600 text-gray-300 hover:bg-gray-800"
-          >
-            <RefreshCwIcon className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
-        </div>
+    <>
+      <PageHeader
+        icon={Droplets}
+        title="Liquidity Pools"
+        description="Liquidity pools on X1 mainnet as reported by XDEX: value locked, activity and fee yield for each pair."
+        meta={<Freshness at={state.meta?.fetchedAt} stale={stale} source="XDEX" onRefresh={() => load(true)} refreshing={refreshing} />}
+      />
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="bg-[#1d2d3a] border-white/10">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Total Pools</CardTitle>
-              <DropletIcon className="h-4 w-4 text-cyan-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{stats?.total_pools || 0}</div>
-              <p className="text-xs text-gray-500">Active liquidity pools</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-[#1d2d3a] border-white/10">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Total Holders</CardTitle>
-              <UsersIcon className="h-4 w-4 text-blue-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{stats?.total_holders || 0}</div>
-              <p className="text-xs text-gray-500">Unique LP holders</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-[#1d2d3a] border-white/10">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Total TVL</CardTitle>
-              <TrendingUpIcon className="h-4 w-4 text-emerald-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">
-                ${lpTokens.reduce((sum, t) => sum + (t.liquidity_usd || 0), 0).toLocaleString()}
-              </div>
-              <p className="text-xs text-gray-500">Total value locked</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Pools Table - No Tabs */}
-        <Card className="bg-[#1d2d3a] border-white/10">
-          <CardHeader>
-            <CardTitle className="text-white">Liquidity Pools</CardTitle>
-            <CardDescription className="text-gray-400">
-              {lpTokens.length} pools - Click column headers to sort
-            </CardDescription>
-            <div className="flex items-center space-x-2 pt-4">
-              <SearchIcon className="h-4 w-4 text-gray-500" />
-              <Input
-                placeholder="Search by token pair or address..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="max-w-sm bg-[#0f1419] border-white/10 text-white placeholder:text-gray-500"
-              />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow className="border-white/5 hover:bg-transparent">
-                  <TableHead className="text-gray-400 w-16">#</TableHead>
-                  <TableHead className="text-gray-400">Token Pair</TableHead>
-                  <TableHead 
-                    className="text-right text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
-                    onClick={() => handleSort('holder_count')}
-                  >
-                    <div className="flex items-center justify-end">
-                      Holders
-                      <SortIndicator columnKey="holder_count" />
-                    </div>
-                  </TableHead>
-                  <TableHead 
-                    className="text-right text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
-                    onClick={() => handleSort('liquidity_usd')}
-                  >
-                    <div className="flex items-center justify-end">
-                      TVL (USD)
-                      <SortIndicator columnKey="liquidity_usd" />
-                    </div>
-                  </TableHead>
-                  <TableHead 
-                    className="text-right text-gray-400 cursor-pointer hover:text-cyan-400 transition-colors select-none"
-                    onClick={() => handleSort('updated_at')}
-                  >
-                    <div className="flex items-center justify-end">
-                      Updated
-                      <SortIndicator columnKey="updated_at" />
-                    </div>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTokens.length > 0 ? filteredTokens.map((token, index) => (
-                  <TableRow key={token.lp_mint} className="border-white/5 hover:bg-white/5">
-                    <TableCell className="text-gray-400 font-medium">
-                      {index + 1}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">
-                      <div className="flex items-center space-x-3">
-                        {/* Token Logos */}
-                        {(token.token_a_logo || token.token_b_logo) && (
-                          <div className="flex -space-x-2">
-                            {token.token_a_logo && (
-                              <img 
-                                src={token.token_a_logo} 
-                                alt={token.token_a_symbol}
-                                className="w-6 h-6 rounded-full border-2 border-[#1d2d3a] bg-gray-800"
-                                onError={(e) => e.target.style.display = 'none'}
-                              />
-                            )}
-                            {token.token_b_logo && (
-                              <img 
-                                src={token.token_b_logo} 
-                                alt={token.token_b_symbol}
-                                className="w-6 h-6 rounded-full border-2 border-[#1d2d3a] bg-gray-800"
-                                onError={(e) => e.target.style.display = 'none'}
-                              />
-                            )}
-                          </div>
-                        )}
-                        
-                        <div className="flex items-center gap-2">
-                          <span className="text-cyan-400 font-semibold">
-                            {token.pair_symbol || `${token.token_a_symbol}/${token.token_b_symbol}`}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 hover:bg-white/10"
-                            onClick={() => window.open(`https://explorer.mainnet.x1.xyz/address/${token.lp_mint}`, '_blank')}
-                            title={`View on X1 Explorer`}
-                          >
-                            <ExternalLinkIcon className="h-3 w-3 text-cyan-400" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 hover:bg-white/10"
-                            onClick={() => window.open(`https://app.xdex.xyz/liquidity`, '_blank')}
-                            title={`Trade on XDEX`}
-                          >
-                            <ExternalLinkIcon className="h-3 w-3 text-purple-400" />
-                          </Button>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Badge variant="outline" className="border-cyan-400/30 text-cyan-400">
-                        {token.holder_count || 0}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-emerald-400 font-semibold">
-                      ${(token.liquidity_usd || 0).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-right text-sm text-gray-500">
-                      {token.updated_at ? new Date(token.updated_at).toLocaleDateString() : '—'}
-                    </TableCell>
-                  </TableRow>
-                )) : (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-gray-500">
-                      {searchTerm ? 'No pools found matching your search' : 'No pools available'}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Total value locked" tone="brand" value={<Stat loading={statsLoading} value={stats?.tvlUsd} format={usd} reason={statsReason} />} hint="XDEX, all pools" />
+        <StatCard label="Volume 24h" value={<Stat loading={statsLoading} value={stats?.volume24hUsd} format={usd} reason={statsReason} />} hint="XDEX, all pools" />
+        <StatCard
+          label="Pools listed"
+          value={<Stat loading={statsLoading} value={stats?.poolsCount ?? (state.status === 'ready' ? state.pools.length : null)} format={integer} reason={statsReason} />}
+          hint={state.status === 'ready' ? `${integer(state.pools.length)} shown here (largest by TVL)` : undefined}
+        />
+        <StatCard label="LP holders" value={<Stat loading={statsLoading} value={stats?.totalHolders} format={integer} reason={statsReason} />} hint="LP token accounts, all pools" />
       </div>
-    </div>
-  );
-};
 
-export default LPExplorer;
+      <Panel bodyClassName="p-0">
+        <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full sm:max-w-sm">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" aria-hidden="true" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              maxLength={64}
+              placeholder="Search pair, token or address"
+              aria-label="Search pools by pair, token symbol or address"
+              className="h-9 w-full rounded-lg border border-line bg-surface-2 pl-9 pr-8 text-sm text-ink placeholder:text-ink-faint focus:border-brand/50 focus:outline-none focus:ring-2 focus:ring-brand/25"
+            />
+            {search && (
+              <button type="button" onClick={() => setSearch('')} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-ink-faint hover:text-ink">
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
+          </div>
+          {state.status === 'ready' && (
+            <p className="text-xs text-ink-muted" aria-live="polite">
+              {search.trim() ? `${integer(filtered.length)} of ${integer(state.pools.length)} pools` : `${integer(state.pools.length)} pools`}
+            </p>
+          )}
+        </div>
+
+        {state.status === 'loading' && <TableSkeleton rows={10} columns={5} />}
+        {state.status === 'error' && <ErrorState title="Pool data is unavailable" description={state.error} onRetry={() => load()} />}
+        {state.status === 'ready' && state.pools.length === 0 && (
+          <EmptyState icon={Droplets} title="No pools reported" description="XDEX did not report any liquidity pools on X1 mainnet." />
+        )}
+        {state.status === 'ready' && state.pools.length > 0 && filtered.length === 0 && (
+          <EmptyState title="No pools match" description={`Nothing matches "${search.trim()}". Search covers pair names, token symbols and exact pool, LP mint or token addresses.`} />
+        )}
+
+        {state.status === 'ready' && filtered.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <caption className="sr-only">XDEX liquidity pools on X1 mainnet, sorted by {sort.key}, {sort.dir === 'desc' ? 'descending' : 'ascending'}</caption>
+              <thead>
+                <tr>
+                  <th scope="col" aria-sort={ariaSort('pair')}>
+                    <button type="button" onClick={() => sortBy('pair')} className="inline-flex items-center gap-1 uppercase tracking-[0.08em] hover:text-ink">
+                      Pool {arrow('pair')}
+                    </button>
+                  </th>
+                  {COLUMNS.map((c) => (
+                    <th key={c.key} scope="col" className={cn('!text-right', c.className)} aria-sort={ariaSort(c.key)}>
+                      <button type="button" onClick={() => sortBy(c.key)} className="inline-flex items-center gap-1 uppercase tracking-[0.08em] hover:text-ink">
+                        {c.label} {arrow(c.key)}
+                      </button>
+                    </th>
+                  ))}
+                  <th scope="col" className="!text-right">Links</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((p) => {
+                  const created = toTime(p.createdAt);
+                  const label = pairLabel(p);
+                  const canTrade = p.token1?.mint && p.token2?.mint;
+                  return (
+                    <tr key={p.address}>
+                      <td>
+                        <div className="flex max-w-[58vw] items-center gap-3 sm:max-w-none">
+                          <span className="flex shrink-0 -space-x-2">
+                            <TokenAvatar token={tokenOf(p.token1)} size={28} />
+                            <TokenAvatar token={tokenOf(p.token2)} size={28} />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium text-ink">{label}</span>
+                            <span className="flex items-center gap-1 text-xs text-ink-faint">
+                              <span className="mono">{shortAddress(p.address, 6, 6)}</span>
+                              {p.address && <CopyButton value={p.address} label={`Copy ${label} pool address`} />}
+                            </span>
+                          </span>
+                        </div>
+                      </td>
+                      <td className="text-right tabular text-ink">{isNum(p.tvlUsd) ? usd(p.tvlUsd) : <Unavailable reason="TVL not reported by XDEX" />}</td>
+                      <td className="hidden text-right tabular text-ink-soft sm:table-cell">{isNum(p.txns24h) ? integer(p.txns24h) : <Unavailable reason="24h transaction count not reported by XDEX" />}</td>
+                      <td className="hidden text-right tabular text-ink-soft md:table-cell">{isNum(p.apr24h) ? percent(p.apr24h) : <Unavailable reason="24h fee APR not reported by XDEX" />}</td>
+                      <td className="hidden text-right tabular text-ink-soft lg:table-cell">{isNum(p.lpHolders) ? integer(p.lpHolders) : <Unavailable reason="LP holder count not reported by XDEX" />}</td>
+                      <td className="hidden text-right tabular text-ink-muted xl:table-cell">
+                        {created ? <time dateTime={new Date(created).toISOString()}>{new Date(created).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</time> : <Unavailable reason="Creation date not reported by XDEX" />}
+                      </td>
+                      <td className="text-right">
+                        <span className="inline-flex items-center justify-end gap-1">
+                          <a
+                            href={`${X1_CONFIG.explorerUrl}/address/${p.address}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={`View ${label} pool on X1 Explorer`}
+                            className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-ink-soft transition-colors hover:bg-surface-3 hover:text-ink"
+                          >
+                            <span className="hidden sm:inline">Explorer</span>
+                            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                          </a>
+                          {canTrade && (
+                            <a
+                              href={`${X1_CONFIG.xdexSwapUrl}?inputMint=${encodeURIComponent(p.token1.mint)}&outputMint=${encodeURIComponent(p.token2.mint)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label={`Trade ${label} on XDEX`}
+                              className="inline-flex items-center gap-1 rounded-md border border-brand/30 bg-brand/10 px-2 py-1 text-xs font-medium text-brand transition-colors hover:bg-brand/20"
+                            >
+                              XDEX
+                              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                            </a>
+                          )}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {state.status === 'ready' && filtered.length > PAGE_SIZE && (
+          <nav aria-label="Pagination" className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 text-xs text-ink-muted">
+            <span>
+              {integer(current * PAGE_SIZE + 1)}–{integer(Math.min(filtered.length, (current + 1) * PAGE_SIZE))} of {integer(filtered.length)}
+            </span>
+            <span className="flex items-center gap-2">
+              <button type="button" disabled={current === 0} onClick={() => setPage(current - 1)} className="rounded-md border border-line px-2.5 py-1.5 text-ink transition-colors hover:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40">
+                Previous
+              </button>
+              <span aria-current="page">Page {current + 1} of {integer(pages)}</span>
+              <button type="button" disabled={current + 1 >= pages} onClick={() => setPage(current + 1)} className="rounded-md border border-line px-2.5 py-1.5 text-ink transition-colors hover:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40">
+                Next
+              </button>
+            </span>
+          </nav>
+        )}
+      </Panel>
+
+      <p className="mt-4 text-xs text-ink-faint">
+        All figures are reported by XDEX and are not recalculated by X1 Space. The 24h fee APR annualises the trading fees a pool earned over the last 24 hours;
+        it is a snapshot, not a forecast. The list holds the {integer(POOL_LIMIT)} largest pools by value locked. Per-pool trade history is not connected.
+      </p>
+    </>
+  );
+}
