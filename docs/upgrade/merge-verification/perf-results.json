@@ -1,0 +1,139 @@
+{
+  "ranAt": "2026-11-16T13:39:45.941Z",
+  "windowMs": 45000,
+  "pages": {
+    "Dashboard": {
+      "visible": {
+        "readyMs": 377,
+        "lcpMs": 392,
+        "transferKBAtLoad": 5638,
+        "rpcPerMin": 73,
+        "functionCallsPerMin": 0,
+        "imageCallsDuringWindow": 0,
+        "jsHeapMB": 14,
+        "domNodes": 2803,
+        "rpcMethods": {
+          "getEpochInfo": 10,
+          "getRecentPerformanceSamples": 12,
+          "getSlot": 3,
+          "getBlock": 30
+        }
+      },
+      "hidden": {
+        "readyMs": 293,
+        "lcpMs": 312,
+        "transferKBAtLoad": 5643,
+        "rpcPerMin": 0,
+        "functionCallsPerMin": 0,
+        "imageCallsDuringWindow": 0,
+        "jsHeapMB": 7,
+        "domNodes": 2345,
+        "rpcMethods": {}
+      }
+    },
+    "NetworkHealth": {
+      "visible": {
+        "readyMs": 315,
+        "lcpMs": 292,
+        "transferKBAtLoad": 1967,
+        "rpcPerMin": 24,
+        "functionCallsPerMin": 0,
+        "imageCallsDuringWindow": 0,
+        "jsHeapMB": 10,
+        "domNodes": 995,
+        "rpcMethods": {
+          "getEpochInfo": 9,
+          "getRecentPerformanceSamples": 9
+        }
+      },
+      "hidden": {
+        "readyMs": 255,
+        "lcpMs": 284,
+        "transferKBAtLoad": 1967,
+        "rpcPerMin": 0,
+        "functionCallsPerMin": 0,
+        "imageCallsDuringWindow": 0,
+        "jsHeapMB": 8,
+        "domNodes": 995,
+        "rpcMethods": {}
+      }
+    },
+    "TokenExplorer": {
+      "visible": {
+        "readyMs": 253,
+        "lcpMs": 288,
+        "transferKBAtLoad": 1473,
+        "rpcPerMin": 5,
+        "functionCallsPerMin": 1,
+        "imageCallsDuringWindow": 41,
+        "jsHeapMB": 6,
+        "domNodes": 2347,
+        "rpcMethods": {
+          "getEpochInfo": 4
+        }
+      }
+    },
+    "NetworkMap": {
+      "visible": {
+        "readyMs": 274,
+        "lcpMs": 264,
+        "transferKBAtLoad": 3145,
+        "rpcPerMin": 5,
+        "functionCallsPerMin": 0,
+        "imageCallsDuringWindow": 0,
+        "jsHeapMB": 7,
+        "domNodes": 1587,
+        "rpcMethods": {
+          "getEpochInfo": 4
+        }
+      }
+    },
+    "Validators": {
+      "visible": {
+        "readyMs": 273,
+        "lcpMs": 268,
+        "transferKBAtLoad": 1912,
+        "rpcPerMin": 5,
+        "functionCallsPerMin": 0,
+        "imageCallsDuringWindow": 0,
+        "jsHeapMB": 6,
+        "domNodes": 1908,
+        "rpcMethods": {
+          "getEpochInfo": 4
+        }
+      }
+    },
+    "Blocks": {
+      "visible": {
+        "readyMs": 206,
+        "lcpMs": 228,
+        "transferKBAtLoad": 9468,
+        "rpcPerMin": 89,
+        "functionCallsPerMin": 0,
+        "imageCallsDuringWindow": 0,
+        "jsHeapMB": 8,
+        "domNodes": 1374,
+        "rpcMethods": {
+          "getEpochInfo": 4,
+          "getSlot": 3,
+          "getBlock": 60
+        }
+      }
+    },
+    "LPExplorer": {
+      "visible": {
+        "readyMs": 322,
+        "lcpMs": 332,
+        "transferKBAtLoad": 5613,
+        "rpcPerMin": 5,
+        "functionCallsPerMin": 0,
+        "imageCallsDuringWindow": 0,
+        "jsHeapMB": 6,
+        "domNodes": 2679,
+        "rpcMethods": {
+          "getEpochInfo": 4
+        }
+      }
+    }
+  }
+}
