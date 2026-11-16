@@ -45,7 +45,7 @@ const RecentBlocksTable = memo(/** @param {{ blocks?: any, status?: any, error?:
       {rows.length > 0 && (
         <>
           <div className="overflow-x-auto">
-            <table className="data-table">
+            <table className="data-table [&_td]:!px-3 [&_th]:!px-3 2xl:[&_td]:!px-4 2xl:[&_th]:!px-4">
               <caption className="sr-only">{title}</caption>
               <thead>
                 <tr>
@@ -72,8 +72,8 @@ const RecentBlocksTable = memo(/** @param {{ blocks?: any, status?: any, error?:
                       <td className="text-right tabular text-ink">{b ? integer(b.total) : <Unavailable reason="Transaction count not returned" />}</td>
                       <td className="hidden sm:table-cell">
                         {b ? (
-                          <div className="flex min-w-[110px] items-center gap-3">
-                            <CompositionBar breakdown={b} className="max-w-[120px]" />
+                          <div className="flex items-center gap-2">
+                            <CompositionBar breakdown={b} className="hidden w-24 shrink-0 2xl:flex" />
                             <span className="whitespace-nowrap text-xs tabular text-ink-muted">
                               {integer(b.vote)} / {integer(b.system)} / {integer(b.program + b.other)}
                             </span>

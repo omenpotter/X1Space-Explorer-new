@@ -47,3 +47,7 @@ Every automated check I could run passes on commit `f4cab15` (lint, typecheck, b
 ## Update: X1 View redesign (dashboard section)
 
 New section `src/components/dashboard/X1View.jsx` (logic in `src/lib/x1/x1view.js`, tests in `tests/frontend/x1view.test.js` and `tests/e2e/x1view.mjs`); the only change to `Dashboard.jsx` is mounting it. Totals and slot counts are exact RPC performance samples, the vote count is exact, and the transfer / token-program / other split of non-vote transactions is estimated from the latest confirmed blocks and labelled as such. The original view's hard-coded fallback mix, random dot order and filler dots were not carried over. 10m tab shows 10m ago to 50m ago (five windows). Screenshots: `docs/upgrade/screenshots/x1view/`.
+
+## Update: final comprehensive audit
+
+See `FINAL_COMPREHENSIVE_AUDIT.md`. Verdict **CONDITIONAL**: all code-level checks pass; Base44 runtime and Vercel preview verification are BLOCKED; owner actions (credential revocation, react-router decision, Base44/Vercel configuration) are listed there.

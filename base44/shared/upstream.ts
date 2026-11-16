@@ -17,6 +17,11 @@ export interface FetchJsonOptions {
   method?: string;
   body?: string;
   maxBytes?: number;
+  /**
+   * For URLs that come from untrusted data: redirects are followed by hand (at most 3) and every target must pass
+   * this check, so a public address cannot bounce the request to an internal one. Return null to refuse.
+   */
+  validateRedirect?: (url: string) => string | null;
   sleep?: (ms: number) => Promise<void>;
 }
 
@@ -49,12 +54,25 @@ export async function fetchJson<T = any>(fetchImpl: FetchLike, url: string, opts
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 10_000);
     try {
-      const res = await fetchImpl(url, {
+      const init: RequestInit = {
         method: opts.method || 'GET',
         headers: { Accept: 'application/json', ...(opts.headers || {}) },
         body: opts.body,
         signal: controller.signal,
-      });
+        ...(opts.validateRedirect ? { redirect: 'manual' as const } : {}),
+      };
+      let res = await fetchImpl(url, init);
+      if (opts.validateRedirect) {
+        let target = url;
+        for (let hop = 0; res.status >= 300 && res.status < 400; hop++) {
+          const loc = res.headers.get('location');
+          try { await res.body?.cancel(); } catch { /* ignore */ }
+          const next = loc && hop < 3 ? opts.validateRedirect(new URL(loc, target).toString()) : null;
+          if (!next) throw new UpstreamError(opts.source, 502, 'redirect_refused');
+          target = next;
+          res = await fetchImpl(next, init);
+        }
+      }
       if (res.ok) {
         const text = await readCapped(res, opts.maxBytes ?? 8_000_000, opts.source);
         try {

@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /functions/
+Disallow: /OAuthConsent
+Disallow: /CustomDashboard
+Disallow: /PortfolioTracker
+Disallow: /Watchlist
+
+Sitemap: https://x1space.xyz/sitemap.xml

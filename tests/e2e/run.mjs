@@ -106,6 +106,8 @@ for (const [vpName, viewport] of Object.entries(VIEWPORTS)) {
         hasShell: !!document.querySelector('nav[aria-label="Main"]') || !!document.querySelector('button[aria-label="Open navigation"]'),
         rawHex: document.querySelectorAll('[class*="bg-[#"]').length,
         text: document.body.innerText.length,
+        // An error panel on a healthy backend means a broken page, even though it "renders".
+        errorPanels: [...document.querySelectorAll('main [role="alert"]')].map((e) => e.innerText.replace(/\s+/g, ' ').slice(0, 120)).filter((t) => /unavailable|could not|not a function|failed|went wrong/i.test(t)),
       }));
       await page.screenshot({ path: path.join(OUT, `${name}-${vpName}.png`), fullPage: false });
       expect(errors.length === 0, `page errors: ${errors.join(' | ')}`);
@@ -114,6 +116,7 @@ for (const [vpName, viewport] of Object.entries(VIEWPORTS)) {
       expect(info.hasShell, 'application shell missing');
       expect(info.rawHex === 0, `${info.rawHex} elements still use raw hex backgrounds`);
       expect(info.text > 200, 'page looks empty');
+      expect(info.errorPanels.length === 0, `error panel shown with a healthy backend: ${info.errorPanels.join(' | ')}`);
     });
     await context.close();
   }

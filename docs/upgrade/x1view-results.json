@@ -1,6 +1,6 @@
 {
-  "ranAt": "2026-11-16T09:35:22.541Z",
-  "passed": 16,
+  "ranAt": "2026-11-16T12:38:22.140Z",
+  "passed": 17,
   "failed": 0,
   "results": [
     {
@@ -16,7 +16,7 @@
     {
       "name": "1m totals and slots equal the RPC samples the page received (exact)",
       "pass": true,
-      "detail": "10/10 cards equal the node's samples (newest: 55303 tx, 163 slots)"
+      "detail": "10/10 cards equal the node's samples (newest: 56021 tx, 165 slots)"
     },
     {
       "name": "every card: categories add up to the total and the vote count is shown",
@@ -51,7 +51,12 @@
     {
       "name": "live XNT price is shown",
       "pass": true,
-      "detail": "XNT $0.1838"
+      "detail": "XNT $0.1872"
+    },
+    {
+      "name": "keyboard: arrow keys move between the 1m and 10m tabs and focus follows",
+      "pass": true,
+      "detail": ""
     },
     {
       "name": "legend lists the four original categories",

@@ -12,8 +12,11 @@ export const X1_CONFIG = {
   // Maximum vote credits a validator can earn per slot (timely vote credits).
   maxVoteCreditsPerSlot: 16,
   polling: {
-    blocksMs: 4000,
-    transactionsMs: 5000,
+    // Each block is ~400 KB of JSON (full transaction details are needed to classify transactions) and every poll reads
+    // 10-20 new blocks, so a 4 s interval cost about 60 MB per minute per open tab. 15 s keeps the data current
+    // enough (slots are 0.4 s, the UI shows its age) at a quarter of that.
+    blocksMs: 15000,
+    transactionsMs: 15000,
     dashboardMs: 5000,
     validatorsMs: 60000,
     // Backend-function polling is deliberately slow: each function run costs workspace credits.

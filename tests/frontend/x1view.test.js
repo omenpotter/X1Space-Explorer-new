@@ -85,3 +85,20 @@ describe('mix and matrix', () => {
     expect(matrixDots({ vote: 0, transfer: 0 })).toEqual([]);
   });
 });
+
+import { metaFor, NOINDEX, PAGE_TITLES } from '@/lib/pageMeta';
+describe('page meta (SEO)', () => {
+  it('gives each list page its own canonical and the home page the root', () => {
+    expect(metaFor('/').canonical).toBe('https://x1space.xyz/');
+    expect(metaFor('/Dashboard').canonical).toBe('https://x1space.xyz/');
+    expect(metaFor('/TokenExplorer')).toMatchObject({ canonical: 'https://x1space.xyz/TokenExplorer', robots: 'index, follow' });
+  });
+  it('keeps personal, transient and unknown pages out of the index', () => {
+    for (const p of ['/Watchlist', '/OAuthConsent', '/Search', '/AddressLookup']) expect(metaFor(p).robots).toMatch(/^noindex/);
+    expect(metaFor('/Nope')).toMatchObject({ canonical: '', robots: 'noindex, nofollow' });
+    expect(metaFor('/Anything', false).robots).toMatch(/noindex/);
+  });
+  it('every noindex page is a real page', () => {
+    for (const n of NOINDEX) expect(PAGE_TITLES[n]).toBeTruthy();
+  });
+});

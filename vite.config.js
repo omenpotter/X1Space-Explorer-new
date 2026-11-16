@@ -25,7 +25,8 @@ export default defineConfig({
           if (/[\\/]node_modules[\\/](recharts|d3-[^\\/]+|victory-vendor)[\\/]/.test(id)) return 'charts';
           if (/[\\/]node_modules[\\/](@radix-ui|cmdk|vaul|lucide-react)[\\/]/.test(id)) return 'ui';
           if (/[\\/]node_modules[\\/](framer-motion|motion-dom|motion-utils)[\\/]/.test(id)) return 'motion';
-          if (/[\\/]node_modules[\\/](html2canvas|jspdf|fflate|canvg|dompurify)[\\/]/.test(id)) return 'export';
+          // html2canvas / jspdf are only imported dynamically by the flow export. Forcing them into a named chunk made
+          // the entry import that chunk (for the preload helper), so every page downloaded ~780 KB of PDF code.
           return undefined;
         },
       },

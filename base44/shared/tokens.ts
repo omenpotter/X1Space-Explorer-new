@@ -485,7 +485,7 @@ export async function getOffChainMeta(ctx: Pick<TokenCtx, 'rpc' | 'fetch' | 'cac
     const uri = await getMetadataUri(ctx.rpc, mint);
     if (!uri) return { image: null, description: null, uri: null };
     try {
-      const j = await fetchJson<any>(ctx.fetch, uri, { source: 'token-metadata', timeoutMs: 5_000, retries: 0, maxBytes: 128_000 });
+      const j = await fetchJson<any>(ctx.fetch, uri, { source: 'token-metadata', timeoutMs: 5_000, retries: 0, maxBytes: 128_000, validateRedirect: safeHttpsUrl });
       return {
         image: safeHttpsUrl(j?.image),
         description: typeof j?.description === 'string' ? cleanString(j.description, 600) || null : null,

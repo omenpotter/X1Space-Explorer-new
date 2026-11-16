@@ -2,9 +2,11 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Compass } from 'lucide-react';
 import { createPageUrl } from '@/utils';
+import usePageMeta from '@/lib/pageMeta';
 
 // Rendered outside the application shell, so it carries its own full-height layout.
 export default function PageNotFound() {
+  usePageMeta(false);
   const { pathname } = useLocation();
   // The path is user-controlled: shown as plain text, shortened so it cannot break the layout.
   const shown = pathname.length > 80 ? `${pathname.slice(0, 80)}…` : pathname;

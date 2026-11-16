@@ -141,6 +141,16 @@ await check('live XNT price is shown', async () => {
   expect(/XNT \$\d|No XNT price|—/.test(t), t);
   return t.trim();
 });
+await check('keyboard: arrow keys move between the 1m and 10m tabs and focus follows', async () => {
+  await page.getByRole('tab', { name: '10m' }).focus();
+  await page.keyboard.press('ArrowLeft');
+  expect((await page.getByRole('tab', { name: '1m' }).getAttribute('aria-selected')) === 'true', 'ArrowLeft did not select 1m');
+  expect(await page.evaluate(() => document.activeElement?.id) === 'x1v-tab-1m', 'focus did not follow');
+  await page.keyboard.press('End');
+  expect((await page.getByRole('tab', { name: '10m' }).getAttribute('aria-selected')) === 'true', 'End did not select 10m');
+  await page.keyboard.press('Home');
+  expect((await page.getByRole('tab', { name: '1m' }).getAttribute('aria-selected')) === 'true', 'Home did not select 1m');
+});
 await check('legend lists the four original categories', async () => {
   const t = await page.locator('.x1v__legend').innerText();
   for (const w of ['Vote', 'Transfer', 'Token/Program', 'Other']) expect(t.includes(w), `missing ${w}`);

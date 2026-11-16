@@ -1,7 +1,7 @@
 // X1 View: premium transaction-activity section of the dashboard. Real network data only: totals and slot
 // counts per minute from the RPC performance samples; the non-vote split is estimated from the latest blocks
 // and labelled as such (see src/lib/x1/x1view.js).
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import usePolling from '@/components/dashboard/usePolling';
 import { EmptyState, ErrorState, Skeleton, Unavailable } from '@/components/ds/States';
 import X1Rpc from '@/components/x1/X1RpcService';
@@ -42,6 +42,22 @@ const WindowCard = memo(/** @param {{ win: any, view: string, first: boolean, [k
 
 export default function X1View() {
   const [view, setView] = useState('1m');
+  const tabRefs = useRef({});
+  const VIEW_KEYS = ['1m', '10m'];
+  // Arrow keys, Home and End move between the tabs, as the ARIA tabs pattern expects.
+  const onTabKey = (e) => {
+    const i = VIEW_KEYS.indexOf(view);
+    let next = null;
+    if (e.key === 'ArrowRight') next = VIEW_KEYS[(i + 1) % VIEW_KEYS.length];
+    else if (e.key === 'ArrowLeft') next = VIEW_KEYS[(i + VIEW_KEYS.length - 1) % VIEW_KEYS.length];
+    else if (e.key === 'Home') next = VIEW_KEYS[0];
+    else if (e.key === 'End') next = VIEW_KEYS[VIEW_KEYS.length - 1];
+    if (next) {
+      e.preventDefault();
+      setView(next);
+      tabRefs.current[next]?.focus();
+    }
+  };
   const samples = usePolling(() => X1Rpc.getRecentPerformanceSamples(SAMPLES_NEEDED), SAMPLES_POLL_MS);
   const blocks = usePolling(() => X1Rpc.getRecentBlocks(10), X1_CONFIG.polling.blocksMs);
   const price = usePolling(() => api.tokenPrice(X1_CONFIG.nativeMint), X1_CONFIG.polling.priceMs);
@@ -62,9 +78,9 @@ export default function X1View() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
             <h2 id="x1view-title" className="font-display text-lg font-semibold text-ink">X1 View</h2>
-            <div className="x1v__tabs" role="tablist" aria-label="X1 View time scale">
-              {['1m', '10m'].map((v) => (
-                <button key={v} role="tab" type="button" aria-selected={view === v} className="x1v__tab" onClick={() => setView(v)}>{v}</button>
+            <div className="x1v__tabs" role="tablist" aria-label="X1 View time scale" onKeyDown={onTabKey}>
+              {VIEW_KEYS.map((v) => (
+                <button key={v} ref={(el) => { tabRefs.current[v] = el; }} role="tab" id={`x1v-tab-${v}`} type="button" aria-selected={view === v} aria-controls="x1v-panel" tabIndex={view === v ? 0 : -1} className="x1v__tab" onClick={() => setView(v)}>{v}</button>
               ))}
             </div>
           </div>
@@ -86,9 +102,11 @@ export default function X1View() {
         {samples.status === 'error' && <ErrorState title="Transaction activity is unavailable" description={samples.error?.message} onRetry={samples.reload} className="py-8" />}
         {samples.status === 'ready' && windows.length === 0 && <EmptyState icon={Activity} title="Not enough samples yet" description="The RPC node returned too few performance samples for this view." />}
         {samples.status === 'ready' && windows.length > 0 && (
+          <div id="x1v-panel" role="tabpanel" aria-labelledby={`x1v-tab-${view}`}>
           <ul className="x1v__row" tabIndex={0} aria-label={`Transactions per ${view === '1m' ? 'minute' : 'ten minutes'}`}>
             {windows.map((w, i) => <WindowCard key={w.key} win={w} view={view} first={i === 0} />)}
           </ul>
+          </div>
         )}
 
         <p className="mt-1 text-xs text-ink-muted">

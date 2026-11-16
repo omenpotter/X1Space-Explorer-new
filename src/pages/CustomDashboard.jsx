@@ -161,7 +161,7 @@ function EpochWidget({ stats }) {
       {pct !== null && <Meter value={pct} label="Epoch progress" tone="brand" />}
       <div className="mt-2 flex flex-wrap justify-between gap-x-3 text-xs text-ink-muted">
         <span>{remaining !== null ? `${integer(remaining)} slots remaining` : 'Slots remaining unavailable'}</span>
-        <span>{minutes !== null ? `about ${integer(minutes)} min at the current slot time` : ''}</span>
+        <span>{minutes !== null ? `about ${minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m`} at the current slot time` : ''}</span>
       </div>
     </div>
   );
@@ -235,7 +235,10 @@ function ChartBox({ label, hasData, children }) {
 /** @param {{ history?: any, [key: string]: any }} props */
 function TpsChartWidget({ history }) {
   const data = (history || []).filter((p) => isNum(p.tps)).slice(-90).map((p) => ({ time: p.time, tps: Math.round(p.tps) }));
+  const values = data.map((p) => p.tps);
+  const range = values.length ? `Range ${Math.min(...values).toLocaleString()} to ${Math.max(...values).toLocaleString()} TPS · axis starts at 0` : null;
   return (
+    <>
     <ChartBox label="Transactions per second over the last hour or more, from RPC performance samples" hasData={data.length > 1}>
       <AreaChart data={data}>
         <defs>
@@ -245,11 +248,13 @@ function TpsChartWidget({ history }) {
           </linearGradient>
         </defs>
         <XAxis dataKey="time" hide />
-        <YAxis hide domain={['auto', 'auto']} />
+        <YAxis hide domain={[0, 'auto']} />
         <Tooltip contentStyle={tooltipStyle} labelFormatter={(t) => new Date(t).toLocaleTimeString()} formatter={(v) => [`${Number(v).toLocaleString()} TPS`, '']} />
         <Area type="monotone" dataKey="tps" stroke="hsl(var(--brand))" fill="url(#tpsFill)" isAnimationActive={false} />
       </AreaChart>
     </ChartBox>
+    {range && data.length > 1 && <p className="mt-2 text-xs text-ink-muted">{range}</p>}
+    </>
   );
 }
 

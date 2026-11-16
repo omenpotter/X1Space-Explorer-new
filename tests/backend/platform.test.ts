@@ -104,3 +104,26 @@ describe('token endpoints stay light', () => {
     expect(w.rpcCalls.filter((c) => c.method === 'getProgramAccounts')).toHaveLength(0);
   });
 });
+
+describe('untrusted metadata URLs cannot redirect to internal hosts (SSRF)', () => {
+  const redirectTo = (loc: string) => new Response(null, { status: 302, headers: { location: loc } });
+  it('refuses a redirect to a private or non-https target and makes no second request', async () => {
+    const { fetchJson } = await import('../../base44/shared/upstream.ts');
+    const { safeHttpsUrl: real } = await import('../../base44/shared/validate.ts');
+    for (const loc of ['http://169.254.169.254/latest/meta-data', 'https://127.0.0.1/x', 'https://localhost/x', 'https://10.0.0.5/x', 'file:///etc/passwd']) {
+      const calls: string[] = [];
+      const f = async (u: string) => { calls.push(u); return redirectTo(loc); };
+      await expect(fetchJson(f as any, 'https://example.com/meta.json', { source: 't', retries: 0, validateRedirect: real })).rejects.toMatchObject({ kind: 'redirect_refused' });
+      expect(calls).toEqual(['https://example.com/meta.json']);
+    }
+  });
+  it('follows a redirect to another public https URL, at most three times', async () => {
+    const { fetchJson } = await import('../../base44/shared/upstream.ts');
+    const { safeHttpsUrl: real } = await import('../../base44/shared/validate.ts');
+    let n = 0;
+    const ok = async (u: string) => (++n < 3 ? redirectTo('https://cdn.example.org/m' + n + '.json') : new Response('{"a":1}', { status: 200 }));
+    await expect(fetchJson(ok as any, 'https://example.com/meta.json', { source: 't', retries: 0, validateRedirect: real })).resolves.toEqual({ a: 1 });
+    const loop = async () => redirectTo('https://example.com/again');
+    await expect(fetchJson(loop as any, 'https://example.com/meta.json', { source: 't', retries: 0, validateRedirect: real })).rejects.toMatchObject({ kind: 'redirect_refused' });
+  });
+});

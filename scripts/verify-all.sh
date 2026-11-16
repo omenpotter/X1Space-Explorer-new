@@ -27,6 +27,9 @@ run "live accuracy"     env NODE_USE_ENV_PROXY=1 LIVE=1 npx vitest run tests/liv
 run "browser suite"     env NODE_USE_ENV_PROXY=1 node tests/e2e/run.mjs
 run "detail routes"     env NODE_USE_ENV_PROXY=1 node tests/e2e/detail.mjs
 run "X1 View"           env NODE_USE_ENV_PROXY=1 node tests/e2e/x1view.mjs
+run "keyboard audit"     env NODE_USE_ENV_PROXY=1 node tests/e2e/keyboard.mjs
+run "SEO metadata"      env NODE_USE_ENV_PROXY=1 node tests/e2e/seo.mjs
+run "performance and RPC cost" env NODE_USE_ENV_PROXY=1 PERF_WINDOW_MS=45000 node tests/e2e/perf.mjs
 run "network/credential audit" env NODE_USE_ENV_PROXY=1 node tests/e2e/network.mjs
 step "bundle credential scan"
 { grep -rlE "fbx_[0-9a-f]{20,}|api-key=[A-Za-z0-9]{16,}|X1_NINJA_API_KEY|x1_[A-Za-z0-9]{20,}" dist || echo "no credential patterns in dist"; find dist -name '*.map' | wc -l | sed 's/^/source maps in dist: /'; } >> "$LOG" 2>&1
