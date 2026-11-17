@@ -6,7 +6,9 @@
 //      octal and short IPv4 forms and IPv4-mapped IPv6 into canonical text).
 //   2. Resolved-address: when the runtime can resolve DNS (`Deno.resolveDns`), every A/AAAA answer must be a public
 //      address (isPublicIp), checked before the first request and before every redirect hop. NOT available on
-//      Cloudflare Workers, which is what Base44 backend functions run on, so on Base44 this layer is dormant.
+//      (so it is a no-op wherever the runtime offers no resolver). Base44's documentation calls its backend runtime
+//      "Deno" but also describes isolates as "Workers"; whether `Deno.resolveDns` exists there is UNVERIFIED, and this
+//      layer activates only if it does.
 //   3. Network: the platform must refuse private and link-local destinations itself. Not verifiable from code.
 //
 // What cannot be done from code: pin the connection to the address that was checked. `fetch` resolves the name again,
@@ -142,7 +144,7 @@ export function isPublicIp(address: string): boolean {
 /** Resolves a hostname to every address it points to. Rejects when the name does not resolve. */
 export type Resolver = (hostname: string) => Promise<string[]>;
 
-/** A resolver backed by `Deno.resolveDns`, or null where the runtime has none (Cloudflare Workers). */
+/** A resolver backed by `Deno.resolveDns`, or null where the runtime has none (checked at runtime, never assumed). */
 export function runtimeResolver(): Resolver | null {
   const dns = (globalThis as any).Deno?.resolveDns;
   if (typeof dns !== 'function') return null;

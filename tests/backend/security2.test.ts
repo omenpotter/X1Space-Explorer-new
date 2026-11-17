@@ -201,8 +201,8 @@ describe('R5 guarded fetch (resolved-address layer)', () => {
     expect(resolved).toEqual(['first.example.org', 'second.example.org']);
     expect(calls).toEqual(['https://first.example.org/a.png']); // the second hop was never requested
   });
-  it('is dormant where the runtime has no DNS API (Cloudflare Workers): documented residual exposure', () => {
-    expect(runtimeResolver()).toBeNull(); // Node has no Deno.resolveDns, exactly like Workers
+  it('is dormant where the runtime has no DNS API (feature-detected): documented residual exposure', () => {
+    expect(runtimeResolver()).toBeNull(); // Node has no Deno.resolveDns
   });
 });
 

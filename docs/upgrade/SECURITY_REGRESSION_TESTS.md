@@ -1,6 +1,6 @@
 # Security Regression Tests
 
-Branch `claude/x1space-security-hardening`. Baseline `374f05fc8b0e392723c7d3801fa23c3294ff916a`. Phase 1 commit `3c33045` (accepted at `ecfeb77`), phase 2 commit `dcb3dff` plus the final dependency/documentation commit.
+Branch `claude/x1space-security-hardening`. Baseline `374f05fc8b0e392723c7d3801fa23c3294ff916a`. Phase 1 commit `3c33045` (accepted at `ecfeb77`), phase 2 commits `dcb3dff` and `b728682`, closure commits `cbb06c2` (react-router 7) and the final documentation commit.
 
 ## 0. What these tests do and do not prove
 
@@ -32,10 +32,10 @@ Run with `npx vitest run` (repeated, no flakes). A deliberate-mutation check was
 | Typecheck | clean | clean |
 | Build | success | success; output **byte-identical** before and after the lockfile change |
 | `tsc --noEmit` over `base44/shared/*.ts` (extra, non-strict) | not run | clean |
-| `npm audit` | 5 moderate | **2 moderate** (react-router, react-router-dom: major upgrade held for approval) |
+| `npm audit` | 5 moderate | **0 vulnerabilities** (sucrase 3.35.1 and react-router-dom 7.18.5) |
 | Credential scan of `dist/` (key name, `api.x1.ninja`, key pattern) | none | none |
 | Source maps in `dist/` | 0 | 0 |
-| Router smoke test (Playwright, 6 routes + 404, no page errors) | n/a | identical on react-router 6.30.6 and on the trialled 7.18.5 |
+| Router verification (Playwright against a production build; script described below) | n/a | **identical** on react-router 6.30.6 and 7.18.5; **7.18.5 adopted** |
 
 Existing tests were adapted only where a dependency field was renamed on purpose (`aiDailyQuota` to `aiQuotaConfig`, `quotaStore` to `aiQuota`) and where strict mode deliberately changed behaviour: the entity-store AI test now asserts that the ledger is **refused** by default and used only with `best_effort`. No assertion about public-endpoint behaviour was weakened.
 
@@ -54,6 +54,24 @@ Existing tests were adapted only where a dependency field was renamed on purpose
 **R8 governor v2.** Minute boundary (50 at 12:00:59.5 allow at most 1 more at 12:01:00.1; gradual return; no 60-second span above 60 over a 10-minute simulation with 3 attempts per second); a 429 seen by one instance pauses the others, and stays local without a shared store; header reconciliation (a lower provider limit lowers ours, a higher one never raises it, near-exhaustion pauses, malformed headers ignored, values recorded); backend chain (failed backend skipped for 60 s then retried, all failing means per-instance counting, 300 reservations over 5 instances through the actor grant exactly 50, Deno KV still honoured); monthly reset keyed by UTC cycle with the actor.
 
 **Ops.** Every function entry that pins the SDK pins 0.8.62 or later (actor calls require it).
+
+## 2b. React Router 7 compatibility verification (browser-level, not in the unit suite)
+
+The same script ran against the 6.30.6 production build and the 7.18.5 production build (`vite preview`, Playwright/Chromium) and the two JSON results were **diffed: identical**. Coverage:
+
+| Area | Cases |
+|---|---|
+| Direct navigation | all 25 page routes, `/`, an unknown path, a deep unknown path, lower-case `/validators`, trailing slash `/Validators/` (30 in total) |
+| URL parameters | 7 deep links with query strings (`?address=`, `?slot=`, `?mint=`, `?q=`, `?search=`, `?id=`, encoded values) keep route and query |
+| Browser refresh | reload on 4 routes keeps path and query, including the 404 |
+| Search | the global search sends an address, a slot number, free text and a transaction signature to the right page with the right query |
+| Navigation history | link click is a client-side navigation (no full reload), then back, back, forward return the expected paths |
+| Error pages | unknown paths render the "Page not found" page |
+| Authentication surfaces (signed out) | `/OAuthConsent` with and without a handle renders the consent page; `/Home` redirects to the dashboard |
+| Open redirect | `/%5Cevil.example/x`, `//evil.example/x`, `/\\evil.example` stay on the origin |
+| Page errors | 2 page errors in both versions (pre-existing in this sandbox, not router related) |
+
+Not covered: pages that need live RPC and XDEX data (the sandbox has restricted network), and signed-in flows (no account). Vercel: the SPA rewrite in `vercel.json` matches all 28 route shapes and excludes `/functions/*` and `/assets/*`. React Router 7 needs Node 20 or later; Base44's sandbox reports Node v24.22.1 and npm 10.9.9 [API-READ], Vercel's default is 24 [PLATFORM-DOC], local runs used 22.
 
 ## 3. Existing suites kept green
 

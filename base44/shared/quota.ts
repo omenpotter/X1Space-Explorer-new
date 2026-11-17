@@ -6,8 +6,9 @@
 //   actor    A Base44 actor (a Cloudflare Durable Object): one single-threaded instance per shard, called from backend
 //            functions through `asServiceRole.actors`. Atomic and shared by every function instance. This is the
 //            supported atomic primitive on Base44 (see quotaCounter.ts and base44/actors/QuotaCounter).
-//   kv       Deno KV compare-and-set. Atomic and shared, but Base44 backend functions run on Cloudflare Workers, which
-//            has no Deno KV, so this only applies if the runtime ever changes or in Deno-based local tooling.
+//   kv       Deno KV compare-and-set. Atomic and shared, but only if the runtime exposes `Deno.openKv`. Base44 does not
+//            document it (its functions are described as Deno, with limits phrased in terms of "Workers"), so it is
+//            used opportunistically and never relied on.
 //   ledger   Reserve-then-verify on the RateLimit entity: every reservation is its own row, and a reservation is
 //            granted only if its row ranks inside the first `limit` rows of the window. Parallel requests are
 //            ranked by one total order, so they cannot both take the last slot, provided the entity reads its

@@ -1,6 +1,6 @@
 // Atomic counters held by the QuotaCounter actor (base44/actors/QuotaCounter), and the client that calls it.
 //
-// An actor is a Cloudflare Durable Object: one live instance per session id, and an instance handles one event at a
+// An actor is a Durable Object (Base44 documents actors as such): one live instance per session id, and an instance handles one event at a
 // time. CounterBook relies on exactly that: after its state is loaded, a reservation reads the counter, compares it
 // with the limit and writes it back WITHOUT any `await` in between, so two callers can never both take the last unit.
 // If the platform ever ran an instance's handlers concurrently across an await, that guarantee would not hold; that is
