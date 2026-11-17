@@ -84,22 +84,32 @@ class DenoKvStore implements KVStore {
   }
 }
 
+let kvPromise: Promise<any | null> | null = null;
+
+/** The platform's Deno KV handle, or null when it is not offered. Never throws. */
+export function getKv(): Promise<any | null> {
+  if (!kvPromise) {
+    kvPromise = (async () => {
+      try {
+        const g = globalThis as any;
+        if (typeof g.Deno?.openKv === 'function') return await g.Deno.openKv();
+      } catch {
+        // KV not enabled on this platform.
+      }
+      return null;
+    })();
+  }
+  return kvPromise;
+}
+
 let storePromise: Promise<KVStore> | null = null;
 
 /** Returns the shared store. Never throws: falls back to memory when KV is unavailable. */
 export function getStore(): Promise<KVStore> {
   if (!storePromise) {
     storePromise = (async () => {
-      try {
-        const g = globalThis as any;
-        if (typeof g.Deno?.openKv === 'function') {
-          const kv = await g.Deno.openKv();
-          return new DenoKvStore(kv) as KVStore;
-        }
-      } catch {
-        // KV not enabled on this platform.
-      }
-      return new MemoryStore();
+      const kv = await getKv();
+      return kv ? (new DenoKvStore(kv) as KVStore) : new MemoryStore();
     })();
   }
   return storePromise;

@@ -22,7 +22,7 @@ import {
   TOKEN_PROGRAM,
 } from './solana.ts';
 import { isAddress, safeHttpsUrl } from './validate.ts';
-import { type FetchLike, fetchJson } from './upstream.ts';
+import { type FetchLike, fetchJson, UpstreamError } from './upstream.ts';
 
 export const NATIVE_MINT = 'So11111111111111111111111111111111111111112';
 
@@ -58,7 +58,7 @@ export interface TokenRow {
 }
 
 export interface SourceStatus {
-  status: 'ok' | 'stale' | 'error' | 'not_configured';
+  status: 'ok' | 'stale' | 'error' | 'not_configured' | 'quota_exhausted';
   fetchedAt: string | null;
   count?: number;
 }
@@ -176,8 +176,10 @@ async function settle<T>(cache: Cache, key: string, ttlMs: number, staleMs: numb
   try {
     const r = await cache.get(key, { ttlMs, staleMs }, loader);
     return { value: r.value as T | null, status: (r.stale ? 'stale' : 'ok') as SourceStatus['status'], fetchedAt: r.fetchedAt as number | null };
-  } catch {
-    return { value: null as T | null, status: 'error' as SourceStatus['status'], fetchedAt: null as number | null };
+  } catch (err) {
+    // X1 Ninja held back by its quota or cooldown is reported as such, not as a fault.
+    const limited = err instanceof UpstreamError && err.kind.startsWith('quota_');
+    return { value: null as T | null, status: (limited ? 'quota_exhausted' : 'error') as SourceStatus['status'], fetchedAt: null as number | null };
   }
 }
 

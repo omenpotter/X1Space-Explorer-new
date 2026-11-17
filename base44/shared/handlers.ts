@@ -2,14 +2,15 @@
 // which keeps all logic testable outside the platform.
 import { Cache } from './cache.ts';
 import { env } from './env.ts';
-import { BodyError, fail, json, logError, preflight, readJsonBody, tooMany } from './http.ts';
-import { limitByIp } from './rateLimit.ts';
+import { BodyError, fail, json, logError, logOnce, preflight, readJsonBody, tooMany } from './http.ts';
+import { getClientIp, limitByIp } from './rateLimit.ts';
 import { getStore, type KVStore } from './store.ts';
-import { EntityStore, FallbackStore } from './entityStore.ts';
+import { aiQuotaBackend, type EntityApi, EntityCounterQuota, kvBackend, type QuotaBackend } from './quota.ts';
+import { NinjaGovernor, ninjaLimitsFrom } from './ninjaQuota.ts';
 import { createRpc, type RpcCall } from './rpc.ts';
 import { createXdex, type Xdex } from './xdex.ts';
 import { createNinja, type Ninja, NINJA_TIMEFRAMES, NINJA_TRADE_TYPES } from './ninja.ts';
-import type { FetchLike } from './upstream.ts';
+import { type FetchLike, UpstreamError } from './upstream.ts';
 import { clampInt, cleanText, isAddress, oneOf } from './validate.ts';
 import {
   analyzeDetail,
@@ -29,13 +30,15 @@ import { detectAnomalies, getNetworkHistory, getNetworkStats } from './network.t
 import { fetchImage, imageNotFound, imageResponse } from './image.ts';
 import {
   AI_BODY_LIMIT,
-  checkQuota,
+  type AiQuotaConfig,
+  type AiReservation,
+  aiQuotaConfigFrom,
   dataBlock,
-  DEFAULT_DAILY_QUOTA,
   pickForm,
   pickTokenDetails,
   promptData,
   requireUser,
+  reserveAiQuota,
   validateReadiness,
   validateSearchInterpretation,
   validateText,
@@ -50,14 +53,17 @@ export interface Deps {
   store: () => Promise<KVStore>;
   now: () => number;
   geoEnabled: boolean;
-  aiDailyQuota: number;
-  /** Creates the platform client for a request (sign-in lookup and model calls). */
+  /** Daily AI limits (per user, per IP, global). Read on use, because secrets resolve per request. */
+  aiQuotaConfig: AiQuotaConfig;
+  /** Creates the platform client for a request (sign-in lookup, model calls and, where used, quota storage). */
   clientFor?: (req: Request) => any;
   /**
-   * Persistent store for per-user AI quotas, built from the request's platform client. Returns null when
-   * persistence is unavailable, in which case the shared per-instance store is used.
+   * Backend for billable AI quotas, built from the request's platform client. Null means no reliable shared
+   * backend is available, and the AI functions refuse instead of running unmetered.
    */
-  quotaStore?: (client: any) => KVStore | null;
+  aiQuota?: (client: any) => Promise<QuotaBackend | null>;
+  /** Tells the shared X1 Ninja governor which request's client it may use for quota storage. Optional. */
+  bindRequest?: (req: Request) => void;
 }
 
 let defaults: Deps | null = null;
@@ -69,35 +75,51 @@ let defaults: Deps | null = null;
 export function defaultDeps(): Deps {
   if (!defaults) {
     const f: FetchLike = (input, init) => fetch(input, init);
-    let warned = false;
+    // The X1 Ninja governor stores its counters in the platform's Deno KV when it exists, otherwise in the
+    // RateLimit entity through the most recent request's service-role client, otherwise in memory (per instance).
+    let entity: EntityApi | null = null;
+    const governor = new NinjaGovernor({
+      onEnforcement: (e) => logOnce('x1ninja-quota', `enforcement=${e}`),
+      limits: () => ninjaLimitsFrom(env),
+      backend: async (): Promise<QuotaBackend | null> => (await kvBackend()) ?? (entity ? new EntityCounterQuota(entity) : null),
+    });
     const d: Deps = {
       fetch: f,
       rpc: createRpc(f),
       xdex: createXdex(f),
-      ninja: createNinja(f, () => env('X1_NINJA_API_KEY')),
+      ninja: createNinja(f, () => env('X1_NINJA_API_KEY'), { governor }),
       cache: new Cache(),
       store: getStore,
       now: Date.now,
       get geoEnabled() {
         return env('GEOLOCATION_DISABLED') !== 'true';
       },
-      get aiDailyQuota() {
-        return clampInt(env('AI_DAILY_QUOTA'), DEFAULT_DAILY_QUOTA, 1, 1000);
+      get aiQuotaConfig() {
+        return aiQuotaConfigFrom(env);
       },
-      quotaStore: (client) => {
-        const entity = client?.asServiceRole?.entities?.RateLimit;
-        if (!entity) return null;
-        return new FallbackStore(new EntityStore(entity), undefined, () => {
-          if (!warned) {
-            warned = true;
-            console.error('[quota] persistent store unavailable; using per-instance counters');
-          }
-        });
-      },
+      aiQuota: (client) => aiQuotaBackend(client?.asServiceRole?.entities?.RateLimit ?? null),
     } as Deps;
+    d.bindRequest = (req) => {
+      try {
+        const api = d.clientFor?.(req)?.asServiceRole?.entities?.RateLimit;
+        if (api) entity = api;
+      } catch {
+        // No platform client for this request: the governor keeps using what it has.
+      }
+    };
     defaults = d;
   }
   return defaults;
+}
+
+/**
+ * The production dependencies with the platform client factory attached. Mutates the shared instance instead of
+ * copying it: copying would freeze the secret-backed getters (limits, geolocation) at their first value.
+ */
+export function depsWithClient(clientFor: (req: Request) => any): Deps {
+  const d = defaultDeps();
+  d.clientFor = clientFor;
+  return d;
 }
 
 type Handler = (req: Request) => Promise<Response>;
@@ -114,6 +136,9 @@ async function readParams(req: Request): Promise<Params> {
   return out;
 }
 
+/** 'quota_exhausted' when the X1 Ninja limits (not a fault) kept the data back, otherwise 'error'. */
+const ninjaFailureStatus = (err: unknown) => (err instanceof UpstreamError && err.kind.startsWith('quota_') ? 'quota_exhausted' : 'error');
+
 const tokenCtx = (d: Deps): TokenCtx => ({ rpc: d.rpc, xdex: d.xdex, ninja: d.ninja, cache: d.cache, fetch: d.fetch });
 
 /** Wraps a public, read-only endpoint: preflight, method check, per-IP limit, safe errors. */
@@ -129,8 +154,11 @@ function publicEndpoint(
     try {
       if (req.method === 'OPTIONS') return preflight(req, PUBLIC_METHODS);
       if (req.method !== 'GET' && req.method !== 'POST') return fail(req, 405, 'method_not_allowed', undefined, { methods: PUBLIC_METHODS });
-      const limit = await limitByIp(await d.store(), name, req, perMinute, d.now);
+      const store = await d.store();
+      logOnce('rate-limit', store.persistent ? 'public limiter store=shared-kv' : 'public limiter store=per-instance-memory');
+      const limit = await limitByIp(store, name, req, perMinute, d.now);
       if (!limit.allowed) return tooMany(req, limit, PUBLIC_METHODS);
+      d.bindRequest?.(req);
       const result = await run(await readParams(req), d, req);
       if (result instanceof Response) return result;
       const status = result.status ?? 200;
@@ -239,8 +267,8 @@ export const tokenPricesHandler = (deps?: Deps) =>
         try {
           const h = await d.cache.get(`ohlcv:${pool.address}:${tf}:${limit}`, { ttlMs: 60_000, staleMs: 10 * 60_000 }, () => d.ninja.getOhlcv(pool.address, tf, limit));
           data.history = { status: h.stale ? 'stale' : 'ok', pool: pool.address, timeframe: h.value.timeframe, candles: h.value.candles, source: 'x1ninja' };
-        } catch {
-          data.history = { status: 'error', candles: null };
+        } catch (err) {
+          data.history = { status: ninjaFailureStatus(err), candles: null };
         }
       }
     }
@@ -331,8 +359,8 @@ export const lpPoolDetailHandler = (deps?: Deps) =>
         try {
           const t = await d.cache.get(`trades:${address}:${type}:${limit}`, { ttlMs: 30_000, staleMs: 5 * 60_000 }, () => d.ninja.getTrades(address, type, limit));
           body.trades = { status: t.stale ? 'stale' : 'ok', items: t.value.trades, source: 'x1ninja' };
-        } catch {
-          body.trades = { status: 'error', items: null };
+        } catch (err) {
+          body.trades = { status: ninjaFailureStatus(err), items: null };
         }
       }
     }
@@ -365,6 +393,7 @@ export const imageHandler = (deps?: Deps): Handler => async (req) => {
     if (req.method !== 'GET') return fail(req, 405, 'method_not_allowed');
     const limit = await limitByIp(await d.store(), 'getImage', req, 600, d.now);
     if (!limit.allowed) return tooMany(req, limit);
+    d.bindRequest?.(req);
     const u = new URL(req.url);
     const kind = u.searchParams.get('kind');
     const id = u.searchParams.get('id');
@@ -392,6 +421,12 @@ export const imageHandler = (deps?: Deps): Handler => async (req) => {
 
 const AI_METHODS = 'POST, OPTIONS';
 
+class QuotaDenied extends Error {
+  constructor(public denial: Extract<AiReservation, { ok: false }>) {
+    super(denial.code);
+  }
+}
+
 function aiEndpoint(
   name: string,
   run: (body: Record<string, unknown>, llm: (args: Record<string, unknown>) => Promise<any>) => Promise<{ status?: number; body: unknown }>,
@@ -411,21 +446,35 @@ function aiEndpoint(
       const user = await requireUser(client);
       if (!user) return fail(req, 401, 'sign_in_required', 'Sign in to use AI features.', { methods: AI_METHODS });
       const body = await readJsonBody(req, AI_BODY_LIMIT);
-      // Quotas must outlive a single instance: use the persistent store when the platform offers one.
-      const quotaStore = (d.quotaStore ? d.quotaStore(client) : null) ?? store;
-      const quota = await checkQuota(quotaStore, user, d.aiDailyQuota, d.now);
-      if (!quota.allowed) {
-        const message = quota.reason === 'daily_quota' ? 'Daily AI limit reached. It resets within 24 hours.' : 'Too many AI requests. Try again in a minute.';
-        return fail(req, 429, quota.reason, message, {
-          methods: AI_METHODS,
-          headers: { 'Retry-After': String(Math.max(1, Math.ceil((quota.resetAt - d.now()) / 1000))) },
-        });
-      }
-      // The service role is used for the model call only, after the caller has been identified.
-      const llm = (args: Record<string, unknown>) => client.asServiceRole.integrations.Core.InvokeLLM({ ...args, add_context_from_internet: false });
+      // Quota is reserved at the moment the billable call is made, so malformed requests cost nothing, and a
+      // request can make at most one model call (no retries, no loops). No reliable backend, or a backend
+      // failure, refuses the call (fail closed).
+      let invoked = false;
+      const llm = async (args: Record<string, unknown>) => {
+        if (invoked) throw new Error('ai: one model call per request');
+        invoked = true;
+        let backend: QuotaBackend | null = null;
+        try {
+          backend = d.aiQuota ? await d.aiQuota(client) : null;
+        } catch {
+          backend = null;
+        }
+        logOnce('ai-quota', `backend=${backend ? backend.kind : 'none (AI refused)'}`);
+        const quota = await reserveAiQuota(store, backend, user, getClientIp(req), d.aiQuotaConfig, d.now);
+        if (!quota.ok) throw new QuotaDenied(quota as Extract<AiReservation, { ok: false }>);
+        // The service role is used for the model call only, after the caller has been identified and reserved.
+        return client.asServiceRole.integrations.Core.InvokeLLM({ ...args, add_context_from_internet: false });
+      };
       const result = await run(body, llm);
       return json(req, result.body, { status: result.status ?? 200, methods: AI_METHODS });
     } catch (err) {
+      if (err instanceof QuotaDenied) {
+        const q = err.denial;
+        return fail(req, q.status, q.code, q.message, {
+          methods: AI_METHODS,
+          headers: { 'Retry-After': String(Math.max(1, Math.ceil((q.resetAt - d.now()) / 1000))) },
+        });
+      }
       if (err instanceof BodyError) return fail(req, err.status, err.code, undefined, { methods: AI_METHODS });
       logError(name, err);
       return fail(req, 500, 'internal_error', undefined, { methods: AI_METHODS });

@@ -139,3 +139,16 @@ export function logError(scope: string, err: unknown): void {
   const status = typeof e?.status === 'number' ? ` status=${e.status}` : '';
   console.error(`[${scope}] ${kind}${status}`);
 }
+
+const logged = new Set<string>();
+
+/**
+ * Log a fixed diagnostic line once per instance, for example which storage backend a limiter ended up using.
+ * Only constant words go in `msg`: never request data, identifiers or secrets.
+ */
+export function logOnce(scope: string, msg: string): void {
+  const line = `[${scope}] ${msg}`;
+  if (logged.has(line)) return;
+  logged.add(line);
+  console.error(line);
+}

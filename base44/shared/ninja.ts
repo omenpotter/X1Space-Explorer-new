@@ -5,7 +5,8 @@
 // Response shapes follow the published reference at x1.ninja/developers. The sample
 // there is "trimmed to key fields", so token address fields are read defensively and
 // must be confirmed against a live keyed response before relying on per-token joins.
-import { fetchJson, type FetchLike } from './upstream.ts';
+import { fetchJson, type FetchLike, UpstreamError } from './upstream.ts';
+import { type Decision, NINJA_DEFAULTS, NinjaGovernor } from './ninjaQuota.ts';
 import { finiteOrNull, isAddress } from './validate.ts';
 import { cleanString } from './solana.ts';
 
@@ -60,20 +61,72 @@ export function normalizeNinjaPool(p: any): NinjaPool | null {
 export const NINJA_TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1D'] as const;
 export const NINJA_TRADE_TYPES = ['all', 'buys', 'sells', 'lp'] as const;
 
+export interface NinjaOptions {
+  /** Quota governor. Defaults to a per-instance one with the default safety limits, so no client is ever unmetered. */
+  governor?: NinjaGovernor;
+  timeoutMs?: number;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+/** Transport failures and 5xx other than 503 are retried once. 429 and 503 start a cooldown instead (see NinjaGovernor). */
+function retryable(err: unknown): boolean {
+  if (!(err instanceof UpstreamError)) return false;
+  if (err.kind.startsWith('quota_') || err.kind === 'redirect_refused') return false;
+  if (err.status === 429 || err.status === 503) return false;
+  return err.status >= 500;
+}
+
 /**
  * `apiKey` may be a string or a function returning the key. A function is read on every use, so a key
  * added to the platform secrets takes effect without restarting the instance (secrets resolve per request).
+ *
+ * Every upstream request, each page and each retry included, reserves quota from the governor first. Concurrent
+ * identical requests share one upstream call. Redirects are refused, so the bearer token can only reach BASE.
  */
-export function createNinja(fetchImpl: FetchLike, apiKey: string | undefined | (() => string | undefined)) {
+export function createNinja(fetchImpl: FetchLike, apiKey: string | undefined | (() => string | undefined), options: NinjaOptions = {}) {
   const key = () => (typeof apiKey === 'function' ? apiKey() : apiKey);
+  const governor = options.governor ?? new NinjaGovernor({ limits: () => NINJA_DEFAULTS, backend: async () => null });
+  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const inflight = new Map<string, Promise<any>>();
+  const baseOrigin = new URL(BASE).origin;
+
+  async function attempt(path: string): Promise<any> {
+    for (let n = 0; n < 2; n++) {
+      const decision = await governor.reserve();
+      if (!decision.ok) {
+        const denied = decision as Extract<Decision, { ok: false }>;
+        throw new UpstreamError('x1ninja', 429, `quota_${denied.reason}`, denied.retryAfterMs);
+      }
+      try {
+        return await fetchJson<any>(fetchImpl, `${BASE}${path}`, {
+          source: 'x1ninja',
+          timeoutMs: options.timeoutMs ?? 10_000,
+          retries: 0, // retries are made here so each one is counted against the quota
+          refuseRedirects: true,
+          headers: { Authorization: `Bearer ${key()}` },
+          onResponse: (status, headers) => governor.observe(status, headers),
+        });
+      } catch (err) {
+        if (n === 0 && retryable(err)) {
+          await sleep(300 + Math.floor(Math.random() * 150));
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw new UpstreamError('x1ninja', 502, 'failed');
+  }
+
   // Only these fixed paths are ever requested; callers cannot supply a URL or path.
-  const get = (path: string) =>
-    fetchJson<any>(fetchImpl, `${BASE}${path}`, {
-      source: 'x1ninja',
-      timeoutMs: 10_000,
-      retries: 1,
-      headers: { Authorization: `Bearer ${key()}` },
-    });
+  const get = (path: string): Promise<any> => {
+    if (!path.startsWith('/v1/') || new URL(`${BASE}${path}`).origin !== baseOrigin) throw new Error('x1ninja: refused path');
+    let p = inflight.get(path);
+    if (!p) {
+      p = attempt(path).finally(() => inflight.delete(path));
+      inflight.set(path, p);
+    }
+    return p;
+  };
 
   return {
     get configured(): boolean {
