@@ -15,6 +15,7 @@ export const SECRET_NAMES = [
   'AI_DAILY_QUOTA',
   'AI_IP_DAILY_QUOTA',
   'AI_GLOBAL_DAILY_QUOTA',
+  'AI_QUOTA_MODE', // `strict` (default) or `best_effort`
   // X1 Ninja safety limits (defaults: 450,000 per month, 50 per minute, cycle starts on day 1 UTC)
   'X1_NINJA_MONTHLY_QUOTA',
   'X1_NINJA_RATE_LIMIT_PER_MIN',

@@ -180,7 +180,7 @@ export function makeDeps(w: World, opts: { ninjaKey?: string; now?: () => number
   const f = makeFetch(w);
   const now = opts.now ?? Date.now;
   const store = new MemoryStore(5000, now);
-  const quota = new MemoryQuota(now);
+  const quota = new MemoryQuota(now, 2000, true);
   return {
     fetch: f,
     rpc: makeRpc(w) as any,

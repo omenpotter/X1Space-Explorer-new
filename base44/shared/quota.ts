@@ -3,8 +3,11 @@
 //
 // Three backends, with different guarantees. Callers must never describe a non-atomic backend as a hard ceiling:
 //
-//   kv       Deno KV compare-and-set. Atomic and shared by every instance. Only used when the platform exposes
-//            `Deno.openKv` (not verified on Base44, see docs/upgrade/BASE44_RUNTIME_VERIFICATION.md).
+//   actor    A Base44 actor (a Cloudflare Durable Object): one single-threaded instance per shard, called from backend
+//            functions through `asServiceRole.actors`. Atomic and shared by every function instance. This is the
+//            supported atomic primitive on Base44 (see quotaCounter.ts and base44/actors/QuotaCounter).
+//   kv       Deno KV compare-and-set. Atomic and shared, but Base44 backend functions run on Cloudflare Workers, which
+//            has no Deno KV, so this only applies if the runtime ever changes or in Deno-based local tooling.
 //   ledger   Reserve-then-verify on the RateLimit entity: every reservation is its own row, and a reservation is
 //            granted only if its row ranks inside the first `limit` rows of the window. Parallel requests are
 //            ranked by one total order, so they cannot both take the last slot, provided the entity reads its
@@ -13,6 +16,7 @@
 //            this is only suitable where a small overshoot is acceptable (X1 Ninja leases).
 //   memory   One instance only. Atomic inside the instance, resets on cold start, shared with nobody.
 import { getKv } from './store.ts';
+import { ActorQuota } from './quotaCounter.ts';
 
 export interface Reservation {
   granted: boolean;
@@ -24,7 +28,7 @@ export interface Reservation {
 }
 
 export interface QuotaBackend {
-  readonly kind: 'kv' | 'ledger' | 'counter' | 'memory';
+  readonly kind: 'actor' | 'kv' | 'ledger' | 'counter' | 'memory';
   /** True only when the reservation is a real atomic compare-and-set. */
   readonly atomic: boolean;
   /** True when every backend instance (every isolate) sees the same counters. */
@@ -32,7 +36,14 @@ export interface QuotaBackend {
   reserve(key: string, amount: number, limit: number, ttlMs: number): Promise<Reservation>;
   /** Give a reservation back (best effort). */
   release(key: string, r: Reservation, amount?: number): Promise<void>;
+  /** Current value of a counter in its live window (0 when absent or expired). Optional. */
+  used?(key: string): Promise<number>;
+  /** Store a plain value (for example a cooldown deadline) that expires after `ttlMs`. Optional. */
+  set?(key: string, value: number, ttlMs: number): Promise<void>;
 }
+
+/** Strict enforcement requires reservations that are both atomic and shared by every instance. */
+export const isStrictBackend = (b: QuotaBackend | null | undefined): b is QuotaBackend => !!b && b.atomic && b.shared;
 
 // ---------- Time and configuration ----------
 
@@ -127,6 +138,16 @@ export class MemoryQuota implements QuotaBackend {
     const e = this.map.get(key);
     if (e) e.used = Math.max(0, e.used - amount);
   }
+
+  async used(key: string): Promise<number> {
+    const e = this.map.get(key);
+    return e && e.expires > this.now() ? e.used : 0;
+  }
+
+  async set(key: string, value: number, ttlMs: number): Promise<void> {
+    this.sweep();
+    this.map.set(key, { used: value, expires: this.now() + ttlMs });
+  }
 }
 
 // ---------- Deno KV (atomic) ----------
@@ -148,6 +169,15 @@ export class KvQuota implements QuotaBackend {
     }
     // Contention that does not resolve: refuse rather than risk exceeding the limit.
     return { granted: false, used: limit, limit };
+  }
+
+  async used(key: string): Promise<number> {
+    const cur = await this.kv.get(['x1space', 'quota', key]);
+    return typeof cur.value === 'number' ? cur.value : 0;
+  }
+
+  async set(key: string, value: number, ttlMs: number): Promise<void> {
+    await this.kv.set(['x1space', 'quota', key], value, { expireIn: ttlMs });
   }
 
   async release(key: string, _r: Reservation, amount = 1): Promise<void> {
@@ -278,6 +308,18 @@ export class EntityCounterQuota implements QuotaBackend {
     return { granted: true, used: used + amount, limit };
   }
 
+  async used(key: string): Promise<number> {
+    const row = await this.find(key);
+    return row && row.expires_at > this.now() ? Number(row.count) || 0 : 0;
+  }
+
+  async set(key: string, value: number, ttlMs: number): Promise<void> {
+    const row = await this.find(key);
+    const data = { count: value, expires_at: this.now() + ttlMs };
+    if (row) await this.api.update(row.id, data);
+    else await this.api.create({ key, value: '', ...data });
+  }
+
   async release(key: string, _r: Reservation, amount = 1): Promise<void> {
     const row = await this.find(key);
     if (row && row.expires_at > this.now()) await this.api.update(row.id, { count: Math.max(0, (Number(row.count) || 0) - amount) });
@@ -292,7 +334,25 @@ export async function kvBackend(): Promise<QuotaBackend | null> {
   return kv ? new KvQuota(kv) : null;
 }
 
-/** Backend for billable AI quotas: atomic KV first, then the entity ledger. Null means "not reliable": fail closed. */
-export async function aiQuotaBackend(entity: EntityApi | null | undefined, now: () => number = Date.now): Promise<QuotaBackend | null> {
-  return (await kvBackend()) ?? (entity ? new EntityLedgerQuota(entity, now) : null);
+export type AiQuotaMode = 'strict' | 'best_effort';
+
+/** `AI_QUOTA_MODE`: only the exact text `best_effort` weakens enforcement. Anything else, including typos, is strict. */
+export function parseAiQuotaMode(raw: unknown): AiQuotaMode {
+  return typeof raw === 'string' && raw.trim().toLowerCase() === 'best_effort' ? 'best_effort' : 'strict';
+}
+
+/**
+ * Backend for billable AI quotas.
+ *   strict (default)  only an atomic, shared backend qualifies: the QuotaCounter actor, or Deno KV. Otherwise null,
+ *                     and the AI functions refuse. The entity ledger is NEVER used silently.
+ *   best_effort       the owner has explicitly accepted a non-atomic ceiling: the entity ledger may be used last.
+ * `client` is the request's platform client (service role).
+ */
+export async function aiQuotaBackend(client: any, mode: AiQuotaMode = 'strict', now: () => number = Date.now): Promise<QuotaBackend | null> {
+  const actors = client?.asServiceRole?.actors;
+  if (actors && typeof actors.QuotaCounter === 'function') return new ActorQuota(actors);
+  const kv = await kvBackend();
+  if (kv) return kv;
+  const entity = client?.asServiceRole?.entities?.RateLimit;
+  return mode === 'best_effort' && entity ? new EntityLedgerQuota(entity, now) : null;
 }

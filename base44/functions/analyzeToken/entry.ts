@@ -1,5 +1,5 @@
 import { secrets } from 'base44:runtime';
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.62';
 import { entry } from '../../shared/entry.ts';
 import { depsWithClient, analyzeTokenHandler } from '../../shared/handlers.ts';
 

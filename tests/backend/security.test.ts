@@ -70,11 +70,11 @@ function fakeKv() {
 
 describe('R2 configuration validation', () => {
   it('uses safe defaults when nothing is configured: 10 per user, 30 per IP, 500 global', () => {
-    expect(aiQuotaConfigFrom(() => undefined)).toEqual({ perUser: 10, perIp: 30, global: 500 });
+    expect(aiQuotaConfigFrom(() => undefined)).toEqual({ perUser: 10, perIp: 30, global: 500, mode: 'strict' });
   });
   it('accepts valid values and clamps extremes', () => {
     const cfg = aiQuotaConfigFrom((n) => ({ AI_DAILY_QUOTA: '5', AI_IP_DAILY_QUOTA: '12', AI_GLOBAL_DAILY_QUOTA: '250' } as any)[n]);
-    expect(cfg).toEqual({ perUser: 5, perIp: 12, global: 250 });
+    expect(cfg).toEqual({ perUser: 5, perIp: 12, global: 250, mode: 'strict' });
     expect(aiQuotaConfigFrom((n) => (n === 'AI_GLOBAL_DAILY_QUOTA' ? '999999999' : undefined)).global).toBe(100_000);
     expect(aiQuotaConfigFrom((n) => (n === 'AI_DAILY_QUOTA' ? '0' : undefined)).perUser).toBe(1);
   });
@@ -326,7 +326,7 @@ describe('R2 UTC daily reset and bounded records', () => {
 describe('R2 reservation helper', () => {
   it('keeps the burst limit per user and per minute', async () => {
     const store = new MemoryStore();
-    const mem = new MemoryQuota();
+    const mem = new MemoryQuota(Date.now, 2000, true);
     const cfg = { perUser: 100, perIp: 1000, global: 1000 };
     const results = [];
     for (let i = 0; i < 7; i++) results.push((await reserveAiQuota(store, mem, { id: 'u' }, '1.1.1.1', cfg)).ok);
@@ -446,7 +446,7 @@ function ninjaWith(handler: (url: string, init: RequestInit | undefined, n: numb
     return handler(url, init, calls.length);
   };
   const key = 'key' in opts ? opts.key : NINJA_KEY;
-  const governor = opts.governor ?? new NinjaGovernor({ limits: () => NINJA_DEFAULTS, backend: async () => null, now: opts.now });
+  const governor = opts.governor ?? new NinjaGovernor({ limits: () => NINJA_DEFAULTS, backends: async () => [], now: opts.now });
   const ninja = createNinja(f as any, key, { governor, sleep: async () => {}, timeoutMs: opts.timeoutMs });
   return { ninja, calls, governor };
 }
@@ -587,7 +587,7 @@ describe('R8 provider cycle and configuration', () => {
 function governor(opts: { now: () => number; backend?: QuotaBackend | null; limits?: Partial<typeof NINJA_DEFAULTS> }) {
   const limits = { ...NINJA_DEFAULTS, ...opts.limits };
   const backend = opts.backend === undefined ? sharedMem(opts.now) : opts.backend;
-  return new NinjaGovernor({ limits: () => limits, backend: async () => backend, now: opts.now });
+  return new NinjaGovernor({ limits: () => limits, backends: async () => (backend ? [backend] : []), now: opts.now });
 }
 
 describe('R8 per-minute and monthly enforcement', () => {
@@ -601,7 +601,7 @@ describe('R8 per-minute and monthly enforcement', () => {
     expect(last).toMatchObject({ ok: false, reason: 'minute' });
     expect(last.retryAfterMs).toBeGreaterThan(0);
     expect(last.retryAfterMs).toBeLessThanOrEqual(60_000);
-    t += 60_000;
+    t += 120_000; // a full quiet minute later the sliding window has fully drained
     expect((await g.reserve()).ok).toBe(true);
   });
 
@@ -612,7 +612,7 @@ describe('R8 per-minute and monthly enforcement', () => {
     for (let i = 0; i < 10; i++) await g.reserve();
     const state = g.state();
     expect(state.leaseUnits).toBeGreaterThanOrEqual(0);
-    t += 60_000;
+    t += 120_000;
     expect((await g.reserve()).ok).toBe(true);
   });
 

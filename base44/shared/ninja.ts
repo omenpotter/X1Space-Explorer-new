@@ -85,7 +85,7 @@ function retryable(err: unknown): boolean {
  */
 export function createNinja(fetchImpl: FetchLike, apiKey: string | undefined | (() => string | undefined), options: NinjaOptions = {}) {
   const key = () => (typeof apiKey === 'function' ? apiKey() : apiKey);
-  const governor = options.governor ?? new NinjaGovernor({ limits: () => NINJA_DEFAULTS, backend: async () => null });
+  const governor = options.governor ?? new NinjaGovernor({ limits: () => NINJA_DEFAULTS, backends: async () => [] });
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const inflight = new Map<string, Promise<any>>();
   const baseOrigin = new URL(BASE).origin;

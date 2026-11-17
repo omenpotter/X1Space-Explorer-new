@@ -77,12 +77,17 @@ describe('persistent quota store', () => {
     expect(await s.incr('k', 1000)).toBe(2);
     expect(warned).toBe(1);
   });
-  it('AI quota uses the entity ledger when the client exposes the entity (and no KV exists)', async () => {
+  it('AI quota refuses to use the non-atomic entity ledger by default (strict mode), and uses it only when explicitly allowed', async () => {
     const api = fakeEntity();
     const w = makeWorld();
-    const d = { ...makeDeps(w), aiQuota: (c: any) => aiQuotaBackend(c?.asServiceRole?.entities?.RateLimit ?? null), clientFor: () => ({ auth: { me: async () => ({ id: 'u1', email: 'u@x' }) }, asServiceRole: { entities: { RateLimit: api }, integrations: { Core: { InvokeLLM: async () => ({ ok: 1 }) } } } }) };
-    const r = await H.smartSearchHandler(d as any)(new Request('https://x/smartSearch', { method: 'POST', body: JSON.stringify({ query: 'abc' }), headers: { 'content-type': 'application/json' } }));
-    expect(r.status).toBe(200);
+    const mkClient = () => ({ auth: { me: async () => ({ id: 'u1', email: 'u@x' }) }, asServiceRole: { entities: { RateLimit: api }, integrations: { Core: { InvokeLLM: async () => ({ ok: 1 }) } } } });
+    const run = async (mode: 'strict' | 'best_effort') => {
+      const d: any = { ...makeDeps(w), aiQuotaConfig: { perUser: 5, perIp: 50, global: 50, mode }, aiQuota: (c: any, m: any) => aiQuotaBackend(c, m), clientFor: mkClient };
+      return H.smartSearchHandler(d)(new Request('https://x/smartSearch', { method: 'POST', body: JSON.stringify({ query: 'abc' }), headers: { 'content-type': 'application/json' } }));
+    };
+    expect((await run('strict')).status).toBe(503);
+    expect(api.rows.length).toBe(0); // nothing was even written
+    expect((await run('best_effort')).status).toBe(200);
     expect(api.rows.length).toBeGreaterThan(0);
   });
 });

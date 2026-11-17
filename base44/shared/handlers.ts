@@ -5,13 +5,15 @@ import { env } from './env.ts';
 import { BodyError, fail, json, logError, logOnce, preflight, readJsonBody, tooMany } from './http.ts';
 import { getClientIp, limitByIp } from './rateLimit.ts';
 import { getStore, type KVStore } from './store.ts';
-import { aiQuotaBackend, type EntityApi, EntityCounterQuota, kvBackend, type QuotaBackend } from './quota.ts';
+import { type AiQuotaMode, aiQuotaBackend, EntityCounterQuota, kvBackend, type QuotaBackend } from './quota.ts';
+import { ActorQuota } from './quotaCounter.ts';
 import { NinjaGovernor, ninjaLimitsFrom } from './ninjaQuota.ts';
 import { createRpc, type RpcCall } from './rpc.ts';
 import { createXdex, type Xdex } from './xdex.ts';
 import { createNinja, type Ninja, NINJA_TIMEFRAMES, NINJA_TRADE_TYPES } from './ninja.ts';
 import { type FetchLike, UpstreamError } from './upstream.ts';
-import { clampInt, cleanText, isAddress, oneOf } from './validate.ts';
+import { clampInt, cleanText, isAddress, oneOf, safeHttpsUrl } from './validate.ts';
+import { createGuardedFetch, runtimeResolver } from './ssrf.ts';
 import {
   analyzeDetail,
   getMarket,
@@ -46,6 +48,8 @@ import {
 
 export interface Deps {
   fetch: FetchLike;
+  /** Fetch for URLs that come from untrusted data (token metadata, images). Defaults to `fetch`. See ssrf.ts. */
+  untrustedFetch?: FetchLike;
   rpc: RpcCall;
   xdex: Xdex;
   ninja: Ninja;
@@ -61,7 +65,7 @@ export interface Deps {
    * Backend for billable AI quotas, built from the request's platform client. Null means no reliable shared
    * backend is available, and the AI functions refuse instead of running unmetered.
    */
-  aiQuota?: (client: any) => Promise<QuotaBackend | null>;
+  aiQuota?: (client: any, mode: AiQuotaMode) => Promise<QuotaBackend | null>;
   /** Tells the shared X1 Ninja governor which request's client it may use for quota storage. Optional. */
   bindRequest?: (req: Request) => void;
 }
@@ -77,14 +81,26 @@ export function defaultDeps(): Deps {
     const f: FetchLike = (input, init) => fetch(input, init);
     // The X1 Ninja governor stores its counters in the platform's Deno KV when it exists, otherwise in the
     // RateLimit entity through the most recent request's service-role client, otherwise in memory (per instance).
-    let entity: EntityApi | null = null;
+    let client: any = null;
     const governor = new NinjaGovernor({
       onEnforcement: (e) => logOnce('x1ninja-quota', `enforcement=${e}`),
       limits: () => ninjaLimitsFrom(env),
-      backend: async (): Promise<QuotaBackend | null> => (await kvBackend()) ?? (entity ? new EntityCounterQuota(entity) : null),
+      // In order of preference: the QuotaCounter actor (atomic), Deno KV, the entity counter. None: per instance.
+      backends: async (): Promise<QuotaBackend[]> => {
+        const out: QuotaBackend[] = [];
+        const actors = client?.asServiceRole?.actors;
+        if (actors && typeof actors.QuotaCounter === 'function') out.push(new ActorQuota(actors));
+        const kv = await kvBackend();
+        if (kv) out.push(kv);
+        const entity = client?.asServiceRole?.entities?.RateLimit;
+        if (entity) out.push(new EntityCounterQuota(entity));
+        return out;
+      },
     });
     const d: Deps = {
       fetch: f,
+      // Every untrusted-URL request, and every redirect hop, is validated (and resolved, where the runtime can) first.
+      untrustedFetch: createGuardedFetch(f, { validateUrl: safeHttpsUrl, resolve: runtimeResolver() }),
       rpc: createRpc(f),
       xdex: createXdex(f),
       ninja: createNinja(f, () => env('X1_NINJA_API_KEY'), { governor }),
@@ -97,12 +113,12 @@ export function defaultDeps(): Deps {
       get aiQuotaConfig() {
         return aiQuotaConfigFrom(env);
       },
-      aiQuota: (client) => aiQuotaBackend(client?.asServiceRole?.entities?.RateLimit ?? null),
+      aiQuota: (client, mode) => aiQuotaBackend(client, mode),
     } as Deps;
     d.bindRequest = (req) => {
       try {
-        const api = d.clientFor?.(req)?.asServiceRole?.entities?.RateLimit;
-        if (api) entity = api;
+        const c = d.clientFor?.(req);
+        if (c) client = c;
       } catch {
         // No platform client for this request: the governor keeps using what it has.
       }
@@ -139,7 +155,7 @@ async function readParams(req: Request): Promise<Params> {
 /** 'quota_exhausted' when the X1 Ninja limits (not a fault) kept the data back, otherwise 'error'. */
 const ninjaFailureStatus = (err: unknown) => (err instanceof UpstreamError && err.kind.startsWith('quota_') ? 'quota_exhausted' : 'error');
 
-const tokenCtx = (d: Deps): TokenCtx => ({ rpc: d.rpc, xdex: d.xdex, ninja: d.ninja, cache: d.cache, fetch: d.fetch });
+const tokenCtx = (d: Deps): TokenCtx => ({ rpc: d.rpc, xdex: d.xdex, ninja: d.ninja, cache: d.cache, fetch: d.untrustedFetch ?? d.fetch });
 
 /** Wraps a public, read-only endpoint: preflight, method check, per-IP limit, safe errors. */
 function publicEndpoint(
@@ -408,7 +424,7 @@ export const imageHandler = (deps?: Deps): Handler => async (req) => {
         const side = pools.map((pl) => (pl.token1.mint === id ? pl.token1 : pl.token2)).find((s) => s.logo);
         src = side?.logo ?? (await getOffChainMeta(d, id)).image;
       }
-      return src ? await fetchImage(d.fetch, src) : null;
+      return src ? await fetchImage(d.untrustedFetch ?? d.fetch, src) : null;
     });
     return r.value ? imageResponse(r.value) : imageNotFound();
   } catch (err) {
@@ -455,7 +471,7 @@ function aiEndpoint(
         invoked = true;
         let backend: QuotaBackend | null = null;
         try {
-          backend = d.aiQuota ? await d.aiQuota(client) : null;
+          backend = d.aiQuota ? await d.aiQuota(client, d.aiQuotaConfig.mode ?? 'strict') : null;
         } catch {
           backend = null;
         }

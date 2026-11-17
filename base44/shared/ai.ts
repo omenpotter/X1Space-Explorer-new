@@ -1,7 +1,7 @@
 // Guards for the model-backed functions: sign-in, per-user quota, strict input
 // allowlists, and validation of everything the model returns.
 import type { KVStore } from './store.ts';
-import { type QuotaBackend, type Reservation, nextUtcMidnight, parseIntConfig, utcDay } from './quota.ts';
+import { type AiQuotaMode, isStrictBackend, type QuotaBackend, parseAiQuotaMode, type Reservation, nextUtcMidnight, parseIntConfig, utcDay } from './quota.ts';
 import { rateLimit } from './rateLimit.ts';
 import { cleanText, isAddress } from './validate.ts';
 
@@ -27,6 +27,7 @@ export async function requireUser(client: any): Promise<AiUser | null> {
 // ---------- Quotas (R2) ----------
 //
 // Three daily limits are reserved BEFORE the model is called, all keyed by UTC day so they reset at 00:00 UTC:
+// Strict mode (AI_QUOTA_MODE unset or `strict`) refuses AI calls unless the counters are atomic and shared.
 //   per user    AI_DAILY_QUOTA          (default 10)
 //   per IP      AI_IP_DAILY_QUOTA       (default 30)   stops one source farming many accounts
 //   global      AI_GLOBAL_DAILY_QUOTA   (default 500)  the spend ceiling for all callers together
@@ -44,6 +45,8 @@ export interface AiQuotaConfig {
   perUser: number;
   perIp: number;
   global: number;
+  /** strict (default): only an atomic, shared backend may meter AI. best_effort: owner-approved weaker ledger. */
+  mode?: AiQuotaMode;
 }
 
 export function aiQuotaConfigFrom(get: (name: string) => string | undefined): AiQuotaConfig {
@@ -51,6 +54,7 @@ export function aiQuotaConfigFrom(get: (name: string) => string | undefined): Ai
     perUser: parseIntConfig(get('AI_DAILY_QUOTA'), DEFAULT_DAILY_QUOTA, 1, 1000),
     perIp: parseIntConfig(get('AI_IP_DAILY_QUOTA'), DEFAULT_IP_DAILY_QUOTA, 1, 10_000),
     global: parseIntConfig(get('AI_GLOBAL_DAILY_QUOTA'), DEFAULT_GLOBAL_DAILY_QUOTA, 1, 100_000),
+    mode: parseAiQuotaMode(get('AI_QUOTA_MODE')),
   };
 }
 
@@ -77,7 +81,11 @@ export async function reserveAiQuota(
   const resetAt = nextUtcMidnight(t);
   const burst = await rateLimit(burstStore, 'ai-min', user.id, PER_MINUTE, BURST_WINDOW, now);
   if (!burst.allowed) return { ok: false, status: 429, code: 'rate_limited', message: 'Too many AI requests. Try again in a minute.', resetAt: burst.resetAt };
-  if (!backend) return { ok: false, status: 503, code: 'ai_unavailable', message: 'AI features are not available right now.', resetAt };
+  // Strict mode (the default): refuse unless the backend is atomic AND shared by every instance. This is checked here,
+  // not only where the backend is chosen, so no caller can meter AI with a weaker store by mistake.
+  const unavailable: AiReservation = { ok: false, status: 503, code: 'ai_unavailable', message: 'AI features are not available right now.', resetAt };
+  if (!backend) return unavailable;
+  if ((cfg.mode ?? 'strict') === 'strict' && !isStrictBackend(backend)) return unavailable;
 
   const day = utcDay(t);
   const ttl = resetAt - t + 3_600_000; // outlives the day by an hour, then expires on its own
