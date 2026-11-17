@@ -36,6 +36,53 @@ await check('titles are unique across list pages', async () => {
   for (const p of ['/Dashboard', '/TokenExplorer', '/Validators', '/NetworkMap', '/Blocks', '/LPExplorer']) t.add((await meta(p)).title);
   expect(t.size === 6, [...t].join(' | '));
 });
+// Regression: in-app links are lower-case; valid pages must never get the 404 title or noindex,nofollow.
+await check('lower-case and mixed-case routes keep their real title, canonical and robots (never the 404 title)', async () => {
+  const seen = [];
+  for (const [path, title, canonical] of [
+    ['/validators', 'Validators | X1 Space', 'https://x1space.xyz/Validators'],
+    ['/tokenexplorer', 'Tokens | X1 Space', 'https://x1space.xyz/TokenExplorer'],
+    ['/lpexplorer', 'Liquidity Pools | X1 Space', 'https://x1space.xyz/LPExplorer'],
+    ['/networkhealth', 'Network Statistics | X1 Space', 'https://x1space.xyz/NetworkHealth'],
+    ['/dashboard', 'X1 Space | X1 Blockchain Explorer', 'https://x1space.xyz/'],
+    ['/', 'X1 Space | X1 Blockchain Explorer', 'https://x1space.xyz/'],
+  ]) {
+    const m = await meta(path);
+    expect(m.title === title, `${path}: title "${m.title}" expected "${title}"`);
+    expect(m.canonical === canonical, `${path}: canonical ${m.canonical}`);
+    expect(m.robots && m.robots.startsWith('index'), `${path}: robots ${m.robots}`);
+    seen.push(m.title);
+  }
+  return seen.length + ' routes';
+});
+await check('genuine 404 pages (and only those) get the not-found title, no canonical, noindex,nofollow', async () => {
+  for (const path of ['/NoSuchPage', '/a/b/c', '/validators/extra']) {
+    const m = await meta(path);
+    expect(m.title === 'Page Not Found | X1 Space', `${path}: title "${m.title}"`);
+    expect(m.canonical === null, `${path}: canonical ${m.canonical}`);
+    expect(m.robots === 'noindex, nofollow', `${path}: robots ${m.robots}`);
+  }
+});
+await check('title follows internal navigation, history and refresh', async () => {
+  const page = await ctx.newPage();
+  await page.goto(APP + '/dashboard');
+  await page.waitForSelector('h1', { timeout: 25000 });
+  const t = () => page.title();
+  expect((await t()) === 'X1 Space | X1 Blockchain Explorer', 'dashboard title ' + (await t()));
+  await page.locator('a[href="/validators"]').first().click();
+  await page.waitForFunction(() => document.title === 'Validators | X1 Space', null, { timeout: 8000 });
+  await page.reload();
+  await page.waitForSelector('h1', { timeout: 25000 });
+  expect((await t()) === 'Validators | X1 Space', 'after refresh ' + (await t()));
+  await page.goBack();
+  await page.waitForFunction(() => document.title === 'X1 Space | X1 Blockchain Explorer', null, { timeout: 8000 });
+  await page.goto(APP + '/NoSuchPage');
+  await page.waitForSelector('h1');
+  expect((await t()) === 'Page Not Found | X1 Space', '404 title ' + (await t()));
+  await page.locator('a[href="/dashboard"]').first().click();
+  await page.waitForFunction(() => document.title === 'X1 Space | X1 Blockchain Explorer', null, { timeout: 8000 });
+  await page.close();
+});
 await check('robots.txt and sitemap.xml are served and consistent', async () => {
   const r = await (await fetch(APP + '/robots.txt')).text();
   const s = await (await fetch(APP + '/sitemap.xml')).text();

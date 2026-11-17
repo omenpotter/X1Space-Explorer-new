@@ -5,7 +5,13 @@ import path from 'node:path';
 const live = process.env.LIVE === '1';
 
 export default defineConfig({
-  resolve: { alias: { '@': path.resolve(import.meta.dirname, 'src') } },
+  resolve: {
+    alias: {
+      '@': path.resolve(import.meta.dirname, 'src'),
+      // Platform-only module: tests use a stub (see tests/backend/stubs/actors.ts).
+      'base44:runtime/actors': path.resolve(import.meta.dirname, 'tests/backend/stubs/actors.ts'),
+    },
+  },
   test: {
     include: live
       ? ['tests/live/**/*.test.{js,ts}']

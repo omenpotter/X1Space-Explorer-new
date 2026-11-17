@@ -7,7 +7,20 @@
 import { type SecretReader, useSecretReader } from './env.ts';
 
 /** The secrets the shared code reads. All are optional; an unset secret simply leaves the default. */
-export const SECRET_NAMES = ['X1_NINJA_API_KEY', 'GEOLOCATION_DISABLED', 'AI_DAILY_QUOTA', 'ALLOWED_ORIGINS'] as const;
+export const SECRET_NAMES = [
+  'X1_NINJA_API_KEY',
+  'GEOLOCATION_DISABLED',
+  'ALLOWED_ORIGINS',
+  // AI spend limits (defaults: 10 per user, 30 per IP, 500 global per UTC day)
+  'AI_DAILY_QUOTA',
+  'AI_IP_DAILY_QUOTA',
+  'AI_GLOBAL_DAILY_QUOTA',
+  'AI_QUOTA_MODE', // `strict` (default) or `best_effort`
+  // X1 Ninja safety limits (defaults: 450,000 per month, 50 per minute, cycle starts on day 1 UTC)
+  'X1_NINJA_MONTHLY_QUOTA',
+  'X1_NINJA_RATE_LIMIT_PER_MIN',
+  'X1_NINJA_RESET_DAY',
+] as const;
 
 export type SecretGetter = (name: string) => unknown | Promise<unknown>;
 export type Handler = (req: Request) => Promise<Response>;

@@ -1,4 +1,5 @@
 // Input validation helpers shared by every backend function.
+import { hostnameVerdict } from './ssrf.ts';
 
 const BASE58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
@@ -27,7 +28,10 @@ export function oneOf<T extends string>(value: unknown, allowed: readonly T[], d
   return (allowed as readonly string[]).includes(String(value)) ? (value as T) : def;
 }
 
-/** Only https URLs to public-looking hostnames. Used for anything the server or browser will load. */
+/**
+ * Only https URLs to public-looking hostnames. Used for anything the server or browser will load. This is a lexical
+ * filter: see ssrf.ts for what it cannot do (resolved addresses, DNS rebinding).
+ */
 export function safeHttpsUrl(value: unknown): string | null {
   if (typeof value !== 'string' || value.length > 2048) return null;
   let u: URL;
@@ -39,11 +43,7 @@ export function safeHttpsUrl(value: unknown): string | null {
   if (u.protocol !== 'https:') return null;
   if (u.username || u.password) return null;
   if (u.port && u.port !== '443') return null;
-  const host = u.hostname.toLowerCase();
-  if (!host.includes('.')) return null; // localhost, single-label internal names
-  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return null; // IPv4 literal
-  if (host.startsWith('[') || host.includes(':')) return null; // IPv6 literal
-  if (/\.(local|internal|localhost|lan|home|corp|intranet)$/.test(host)) return null;
+  if (hostnameVerdict(u.hostname)) return null; // internal, reserved, IP-like or wildcard-DNS names
   return u.toString();
 }
 

@@ -4,8 +4,11 @@ export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 
 export class UpstreamError extends Error {
   name = 'UpstreamError';
-  constructor(public source: string, public status: number, public kind: string) {
+  /** Parsed Retry-After header (milliseconds) when the upstream sent one with a 429 or 503. */
+  retryAfterMs?: number;
+  constructor(public source: string, public status: number, public kind: string, retryAfterMs?: number) {
     super(`${source} ${kind}`);
+    if (retryAfterMs !== undefined) this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -22,7 +25,23 @@ export interface FetchJsonOptions {
    * this check, so a public address cannot bounce the request to an internal one. Return null to refuse.
    */
   validateRedirect?: (url: string) => string | null;
+  /**
+   * Refuse every redirect (3xx is an error and the Location is never requested). For requests that carry a
+   * credential, so it can only ever reach the URL that was asked for.
+   */
+  refuseRedirects?: boolean;
+  /** Called with the status and headers of every upstream response, before the body is read. */
+  onResponse?: (status: number, headers: Headers) => void;
   sleep?: (ms: number) => Promise<void>;
+}
+
+/** Retry-After is either delta-seconds or an HTTP date. Returns milliseconds, or undefined when absent or invalid. */
+export function parseRetryAfter(value: string | null, now = Date.now()): number | undefined {
+  if (!value) return undefined;
+  const v = value.trim();
+  if (/^\d+$/.test(v)) return Math.min(parseInt(v, 10), 86_400) * 1000;
+  const at = Date.parse(v);
+  return Number.isFinite(at) ? Math.min(Math.max(0, at - now), 86_400_000) : undefined;
 }
 
 const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -59,9 +78,14 @@ export async function fetchJson<T = any>(fetchImpl: FetchLike, url: string, opts
         headers: { Accept: 'application/json', ...(opts.headers || {}) },
         body: opts.body,
         signal: controller.signal,
-        ...(opts.validateRedirect ? { redirect: 'manual' as const } : {}),
+        ...(opts.validateRedirect || opts.refuseRedirects ? { redirect: 'manual' as const } : {}),
       };
       let res = await fetchImpl(url, init);
+      opts.onResponse?.(res.status, res.headers);
+      if (opts.refuseRedirects && res.status >= 300 && res.status < 400) {
+        try { await res.body?.cancel(); } catch { /* ignore */ }
+        throw new UpstreamError(opts.source, 502, 'redirect_refused');
+      }
       if (opts.validateRedirect) {
         let target = url;
         for (let hop = 0; res.status >= 300 && res.status < 400; hop++) {
@@ -82,7 +106,7 @@ export async function fetchJson<T = any>(fetchImpl: FetchLike, url: string, opts
         }
       }
       try { await res.body?.cancel(); } catch { /* ignore */ }
-      lastErr = new UpstreamError(opts.source, res.status, res.status === 429 ? 'rate_limited' : 'http_error');
+      lastErr = new UpstreamError(opts.source, res.status, res.status === 429 ? 'rate_limited' : 'http_error', parseRetryAfter(res.headers.get('retry-after')));
       // Only retry transient failures. Auth and client errors are final.
       if (res.status !== 429 && res.status < 500) throw lastErr;
       if (attempt < retries) {

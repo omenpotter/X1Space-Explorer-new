@@ -101,4 +101,34 @@ describe('page meta (SEO)', () => {
   it('every noindex page is a real page', () => {
     for (const n of NOINDEX) expect(PAGE_TITLES[n]).toBeTruthy();
   });
+  // Regression: the app's own links are lower-case (createPageUrl), and React Router matches them case-insensitively,
+  // but the title lookup was case-sensitive, so valid pages got "Page not found" and noindex,nofollow.
+  it('treats every real page as real whatever the letter case, with the canonical spelling', () => {
+    for (const name of Object.keys(PAGE_TITLES)) {
+      for (const path of [`/${name}`, `/${name.toLowerCase()}`, `/${name.toUpperCase()}`, `/${name}/`]) {
+        const m = metaFor(path);
+        expect(m.title, path).not.toMatch(/Page Not Found/i);
+        expect(m.robots, path).not.toBe('noindex, nofollow');
+        if (name !== 'Dashboard') expect(m.canonical, path).toBe(`https://x1space.xyz/${name}`);
+      }
+    }
+    expect(metaFor('/validators')).toEqual(metaFor('/Validators'));
+    expect(metaFor('/dashboard')).toEqual(metaFor('/'));
+    expect(metaFor('/home')).toEqual(metaFor('/'));
+  });
+  it('uses the approved page titles', () => {
+    expect(metaFor('/').title).toBe('X1 Space | X1 Blockchain Explorer');
+    expect(metaFor('/tokenexplorer').title).toBe('Tokens | X1 Space');
+    expect(metaFor('/validators').title).toBe('Validators | X1 Space');
+    expect(metaFor('/lpexplorer').title).toBe('Liquidity Pools | X1 Space');
+    expect(metaFor('/networkhealth').title).toBe('Network Statistics | X1 Space');
+    const titles = Object.keys(PAGE_TITLES).filter((n) => n !== 'Dashboard').map((n) => metaFor(`/${n}`).title);
+    expect(new Set(titles).size).toBe(titles.length); // unique per page
+  });
+  it('reserves the not-found title and noindex for genuine 404s only', () => {
+    for (const p of ['/Nope', '/validators/extra', '/a/b/c', '/Validatorss', '/functions/getTokens']) {
+      expect(metaFor(p)).toEqual({ title: 'Page Not Found | X1 Space', canonical: '', robots: 'noindex, nofollow' });
+    }
+    expect(metaFor('/Validators', false).title).toBe('Page Not Found | X1 Space');
+  });
 });

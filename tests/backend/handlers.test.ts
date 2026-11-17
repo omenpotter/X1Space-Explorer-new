@@ -508,7 +508,7 @@ describe('model-backed functions', () => {
 
   it('limits bursts per user', async () => {
     const c = client({ id: 'burst' });
-    const d = { ...makeDeps(makeWorld(), { clientFor: () => c }), aiDailyQuota: 100 };
+    const d = { ...makeDeps(makeWorld(), { clientFor: () => c }), aiQuotaConfig: { perUser: 100, perIp: 1000, global: 1000 } };
     const h = H.smartSearchHandler(d);
     const statuses = [];
     for (let i = 0; i < 7; i++) statuses.push((await post(h, '/smartSearch', { query: 'q' })).status);
@@ -566,7 +566,7 @@ describe('model-backed functions', () => {
   it('verification assistant: validates actions, allowlists form fields, bounds output', async () => {
     const c = client({ id: 'u' }, (a) => (a.response_json_schema ? { readiness_score: 500, red_flags: Array(50).fill('f'), missing_requirements: 'nope', recommendations: [{ x: 1 }, 'ok'] } : 'R'.repeat(20_000)));
     let clock = 1_000_000;
-    const d = { ...makeDeps(makeWorld(), { clientFor: () => c, now: () => clock }), aiDailyQuota: 100 };
+    const d = { ...makeDeps(makeWorld(), { clientFor: () => c, now: () => clock }), aiQuotaConfig: { perUser: 100, perIp: 1000, global: 1000 } };
     const h = H.tokenVerificationHandler(d);
     let t = 0;
     // Each request is a minute apart so the per-minute burst limit is not what is under test.

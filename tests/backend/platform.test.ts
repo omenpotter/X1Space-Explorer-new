@@ -7,7 +7,8 @@ import { env } from '../../base44/shared/env.ts';
 import { EntityStore, FallbackStore, type EntityApi } from '../../base44/shared/entityStore.ts';
 import { MemoryStore } from '../../base44/shared/store.ts';
 import * as H from '../../base44/shared/handlers.ts';
-import { makeDeps, makeWorld, MINT_B } from './helpers.ts';
+import { aiQuotaBackend } from '../../base44/shared/quota.ts';
+import { fakeEntity, makeDeps, makeWorld, MINT_B } from './helpers.ts';
 
 const FN_DIR = path.resolve('base44/functions');
 const entries = fs.readdirSync(FN_DIR).map((n) => ({ name: n, src: fs.readFileSync(path.join(FN_DIR, n, 'entry.ts'), 'utf8') }));
@@ -56,17 +57,6 @@ describe('secrets', () => {
   });
 });
 
-function fakeEntity(): EntityApi & { rows: any[] } {
-  const rows: any[] = [];
-  let id = 0;
-  return {
-    rows,
-    async filter(q: any) { return rows.filter((r) => r.key === q.key); },
-    async create(d: any) { rows.push({ id: String(++id), ...d }); },
-    async update(i: string, d: any) { Object.assign(rows.find((r) => r.id === i), d); },
-  };
-}
-
 describe('persistent quota store', () => {
   it('counts across separate instances (cold starts) and resets after expiry', async () => {
     const api = fakeEntity();
@@ -87,11 +77,17 @@ describe('persistent quota store', () => {
     expect(await s.incr('k', 1000)).toBe(2);
     expect(warned).toBe(1);
   });
-  it('AI quota uses the persistent store when the client exposes the entity', async () => {
+  it('AI quota refuses to use the non-atomic entity ledger by default (strict mode), and uses it only when explicitly allowed', async () => {
     const api = fakeEntity();
     const w = makeWorld();
-    const mk = () => ({ ...makeDeps(w), quotaStore: H.defaultDeps().quotaStore, clientFor: () => ({ auth: { me: async () => ({ id: 'u1', email: 'u@x' }) }, asServiceRole: { entities: { RateLimit: api } }, integrations: { Core: { InvokeLLM: async () => ({ ok: 1 }) } } }) });
-    await H.smartSearchHandler(mk() as any)(new Request('https://x/smartSearch', { method: 'POST', body: JSON.stringify({ query: 'abc' }), headers: { 'content-type': 'application/json' } }));
+    const mkClient = () => ({ auth: { me: async () => ({ id: 'u1', email: 'u@x' }) }, asServiceRole: { entities: { RateLimit: api }, integrations: { Core: { InvokeLLM: async () => ({ ok: 1 }) } } } });
+    const run = async (mode: 'strict' | 'best_effort') => {
+      const d: any = { ...makeDeps(w), aiQuotaConfig: { perUser: 5, perIp: 50, global: 50, mode }, aiQuota: (c: any, m: any) => aiQuotaBackend(c, m), clientFor: mkClient };
+      return H.smartSearchHandler(d)(new Request('https://x/smartSearch', { method: 'POST', body: JSON.stringify({ query: 'abc' }), headers: { 'content-type': 'application/json' } }));
+    };
+    expect((await run('strict')).status).toBe(503);
+    expect(api.rows.length).toBe(0); // nothing was even written
+    expect((await run('best_effort')).status).toBe(200);
     expect(api.rows.length).toBeGreaterThan(0);
   });
 });

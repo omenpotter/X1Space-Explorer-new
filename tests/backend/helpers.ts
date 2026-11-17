@@ -1,6 +1,7 @@
 // Test doubles for the backend handlers. No network access is used anywhere in tests/backend.
 import { Cache } from '../../base44/shared/cache.ts';
 import { MemoryStore } from '../../base44/shared/store.ts';
+import { MemoryQuota } from '../../base44/shared/quota.ts';
 import { createNinja } from '../../base44/shared/ninja.ts';
 import { createXdex } from '../../base44/shared/xdex.ts';
 import type { Deps } from '../../base44/shared/handlers.ts';
@@ -175,21 +176,25 @@ export function makeRpc(w: World) {
   };
 }
 
-export function makeDeps(w: World, opts: { ninjaKey?: string; now?: () => number; clientFor?: Deps['clientFor'] } = {}): Deps & { store_: MemoryStore } {
+export function makeDeps(w: World, opts: { ninjaKey?: string; now?: () => number; clientFor?: Deps['clientFor']; ninjaOptions?: Parameters<typeof createNinja>[2] } = {}): Deps & { store_: MemoryStore; quota_: MemoryQuota } {
   const f = makeFetch(w);
   const now = opts.now ?? Date.now;
   const store = new MemoryStore(5000, now);
+  const quota = new MemoryQuota(now, 2000, true);
   return {
     fetch: f,
     rpc: makeRpc(w) as any,
     xdex: createXdex(f),
-    ninja: createNinja(f, opts.ninjaKey),
+    ninja: createNinja(f, opts.ninjaKey, opts.ninjaOptions),
     cache: new Cache(now),
     store: async () => store,
     store_: store,
     now,
     geoEnabled: true,
-    aiDailyQuota: 3,
+    // Tests use an in-memory quota backend. Production refuses AI calls without a shared backend (see security tests).
+    aiQuotaConfig: { perUser: 3, perIp: 1000, global: 1000 },
+    aiQuota: async () => quota,
+    quota_: quota,
     clientFor: opts.clientFor,
   };
 }
@@ -209,4 +214,31 @@ export async function call(h: (r: Request) => Promise<Response>, path: string, i
     body = JSON.parse(text);
   } catch { /* non-JSON */ }
   return { status: res.status, body, text, headers: res.headers };
+}
+
+
+/** In-memory stand-in for the RateLimit entity: key/value/expires_at filters, ascending created_date sort, delete. */
+export function fakeEntity(opts: { failCreate?: boolean; failFilter?: boolean; lag?: boolean } = {}) {
+  const rows: any[] = [];
+  let id = 0;
+  let clock = 0;
+  const api = {
+    rows,
+    opts,
+    async filter(q: any, sort?: string, limit = 50) {
+      if (opts.failFilter) throw new Error('entity down');
+      let out = rows.filter((r) => Object.entries(q).every(([k, v]: [string, any]) => (v && typeof v === 'object' && '$lt' in v ? r[k] < v.$lt : r[k] === v)));
+      if (sort === 'created_date') out = out.slice().sort((a, b) => (a.created_date < b.created_date ? -1 : a.created_date > b.created_date ? 1 : 0));
+      return out.slice(0, limit).map((r) => ({ ...r }));
+    },
+    async create(d: any) {
+      if (opts.failCreate) throw new Error('entity down');
+      const row = { id: String(++id), created_date: String(++clock).padStart(12, '0'), ...d };
+      rows.push(row);
+      return { ...row };
+    },
+    async update(i: string, d: any) { Object.assign(rows.find((r) => r.id === i), d); },
+    async delete(i: string) { const k = rows.findIndex((r) => r.id === i); if (k >= 0) rows.splice(k, 1); },
+  };
+  return api;
 }

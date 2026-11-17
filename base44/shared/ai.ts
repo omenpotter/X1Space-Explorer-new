@@ -1,11 +1,12 @@
 // Guards for the model-backed functions: sign-in, per-user quota, strict input
 // allowlists, and validation of everything the model returns.
 import type { KVStore } from './store.ts';
+import { type AiQuotaMode, isStrictBackend, type QuotaBackend, parseAiQuotaMode, type Reservation, nextUtcMidnight, parseIntConfig, utcDay } from './quota.ts';
 import { rateLimit } from './rateLimit.ts';
 import { cleanText, isAddress } from './validate.ts';
 
 export const AI_BODY_LIMIT = 16_000;
-export const DEFAULT_DAILY_QUOTA = 25;
+export const DEFAULT_DAILY_QUOTA = 10;
 export const PER_MINUTE = 5;
 
 export interface AiUser {
@@ -23,11 +24,116 @@ export async function requireUser(client: any): Promise<AiUser | null> {
   }
 }
 
-export async function checkQuota(store: KVStore, user: AiUser, dailyLimit: number, now: () => number = Date.now) {
-  const minute = await rateLimit(store, 'ai-min', user.id, PER_MINUTE, 60_000, now);
-  if (!minute.allowed) return { allowed: false, reason: 'rate_limited' as const, resetAt: minute.resetAt, remaining: 0 };
-  const day = await rateLimit(store, 'ai-day', user.id, dailyLimit, 24 * 3600_000, now);
-  return { allowed: day.allowed, reason: 'daily_quota' as const, resetAt: day.resetAt, remaining: day.remaining };
+// ---------- Quotas (R2) ----------
+//
+// Three daily limits are reserved BEFORE the model is called, all keyed by UTC day so they reset at 00:00 UTC:
+// Strict mode (AI_QUOTA_MODE unset or `strict`) refuses AI calls unless the counters are atomic and shared.
+//   per user    AI_DAILY_QUOTA          (default 10)
+//   per IP      AI_IP_DAILY_QUOTA       (default 30)   stops one source farming many accounts
+//   global      AI_GLOBAL_DAILY_QUOTA   (default 500)  the spend ceiling for all callers together
+// plus a short per-user burst limit (per minute). A reservation is never refunded once the model call starts,
+// because the provider may bill a call that later fails.
+//
+// With an atomic backend (Deno KV) the global limit is a hard ceiling. With the entity ledger it is a best-effort
+// ceiling (see quota.ts). With no reliable shared backend the AI functions refuse (fail closed); the rest of the
+// explorer is unaffected because only these two functions call reserveAiQuota.
+
+export const DEFAULT_IP_DAILY_QUOTA = 30;
+export const DEFAULT_GLOBAL_DAILY_QUOTA = 500;
+
+export interface AiQuotaConfig {
+  perUser: number;
+  perIp: number;
+  global: number;
+  /** strict (default): only an atomic, shared backend may meter AI. best_effort: owner-approved weaker ledger. */
+  mode?: AiQuotaMode;
+}
+
+export function aiQuotaConfigFrom(get: (name: string) => string | undefined): AiQuotaConfig {
+  return {
+    perUser: parseIntConfig(get('AI_DAILY_QUOTA'), DEFAULT_DAILY_QUOTA, 1, 1000),
+    perIp: parseIntConfig(get('AI_IP_DAILY_QUOTA'), DEFAULT_IP_DAILY_QUOTA, 1, 10_000),
+    global: parseIntConfig(get('AI_GLOBAL_DAILY_QUOTA'), DEFAULT_GLOBAL_DAILY_QUOTA, 1, 100_000),
+    mode: parseAiQuotaMode(get('AI_QUOTA_MODE')),
+  };
+}
+
+export type AiReservation =
+  | { ok: true }
+  | { ok: false; status: 429 | 503; code: 'rate_limited' | 'daily_quota' | 'ai_capacity_reached' | 'ai_unavailable'; message: string; resetAt: number };
+
+const BURST_WINDOW = 60_000;
+
+/**
+ * Reserve one AI request against the burst, per-user, per-IP and global limits, in that order (cheapest and most
+ * specific first). Anything reserved earlier is returned if a later limit refuses. If the backend is missing or
+ * throws, the request is refused.
+ */
+export async function reserveAiQuota(
+  burstStore: KVStore,
+  backend: QuotaBackend | null,
+  user: AiUser,
+  ip: string,
+  cfg: AiQuotaConfig,
+  now: () => number = Date.now,
+): Promise<AiReservation> {
+  const t = now();
+  const resetAt = nextUtcMidnight(t);
+  const burst = await rateLimit(burstStore, 'ai-min', user.id, PER_MINUTE, BURST_WINDOW, now);
+  if (!burst.allowed) return { ok: false, status: 429, code: 'rate_limited', message: 'Too many AI requests. Try again in a minute.', resetAt: burst.resetAt };
+  // Strict mode (the default): refuse unless the backend is atomic AND shared by every instance. This is checked here,
+  // not only where the backend is chosen, so no caller can meter AI with a weaker store by mistake.
+  const unavailable: AiReservation = { ok: false, status: 503, code: 'ai_unavailable', message: 'AI features are not available right now.', resetAt };
+  if (!backend) return unavailable;
+  if ((cfg.mode ?? 'strict') === 'strict' && !isStrictBackend(backend)) return unavailable;
+
+  const day = utcDay(t);
+  const ttl = resetAt - t + 3_600_000; // outlives the day by an hour, then expires on its own
+  const taken: { key: string; r: Reservation }[] = [];
+  const give = async () => {
+    for (const x of taken.reverse()) {
+      try {
+        await backend.release(x.key, x.r);
+      } catch {
+        // Best effort.
+      }
+    }
+  };
+  const plan: { key: string; limit: number; deny: AiReservation }[] = [
+    {
+      key: `ai-user:${user.id}:${day}`,
+      limit: cfg.perUser,
+      deny: { ok: false, status: 429, code: 'daily_quota', message: 'Daily AI limit reached. It resets at 00:00 UTC.', resetAt },
+    },
+  ];
+  // An unknown address is shared by everyone behind the same proxy, so it gets no per-IP limit of its own.
+  if (ip && ip !== 'unknown') {
+    plan.push({
+      key: `ai-ip:${ip}:${day}`,
+      limit: cfg.perIp,
+      deny: { ok: false, status: 429, code: 'daily_quota', message: 'Daily AI limit reached for this network. It resets at 00:00 UTC.', resetAt },
+    });
+  }
+  plan.push({
+    key: `ai-global:${day}`,
+    limit: cfg.global,
+    deny: { ok: false, status: 503, code: 'ai_capacity_reached', message: 'AI features have reached today\'s capacity. They reset at 00:00 UTC.', resetAt },
+  });
+
+  try {
+    for (const step of plan) {
+      const r = await backend.reserve(step.key, 1, step.limit, ttl);
+      if (!r.granted) {
+        await give();
+        return step.deny;
+      }
+      taken.push({ key: step.key, r });
+    }
+  } catch {
+    await give();
+    return { ok: false, status: 503, code: 'ai_unavailable', message: 'AI features are not available right now.', resetAt };
+  }
+  return { ok: true };
 }
 
 /** Free text placed in a prompt: cleaned, capped, and JSON-quoted so it cannot close the data block. */

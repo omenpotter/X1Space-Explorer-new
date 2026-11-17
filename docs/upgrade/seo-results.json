@@ -1,17 +1,17 @@
 {
-  "ranAt": "2026-11-16T13:01:10.801Z",
-  "passed": 9,
+  "ranAt": "2026-11-17T13:28:46.242Z",
+  "passed": 12,
   "failed": 0,
   "results": [
     {
       "name": "/Dashboard: title, canonical and robots",
       "pass": true,
-      "detail": "X1 Network Overview | X1 Space — X1 Blockchain Explorer | index, follow"
+      "detail": "X1 Space | X1 Blockchain Explorer | index, follow"
     },
     {
       "name": "/TokenExplorer: title, canonical and robots",
       "pass": true,
-      "detail": "Token Explorer | X1 Space | index, follow"
+      "detail": "Tokens | X1 Space | index, follow"
     },
     {
       "name": "/Validators: title, canonical and robots",
@@ -36,10 +36,25 @@
     {
       "name": "/NoSuchPage: title, canonical and robots",
       "pass": true,
-      "detail": "Page not found | X1 Space | noindex, nofollow"
+      "detail": "Page Not Found | X1 Space | noindex, nofollow"
     },
     {
       "name": "titles are unique across list pages",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "lower-case and mixed-case routes keep their real title, canonical and robots (never the 404 title)",
+      "pass": true,
+      "detail": "6 routes"
+    },
+    {
+      "name": "genuine 404 pages (and only those) get the not-found title, no canonical, noindex,nofollow",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "title follows internal navigation, history and refresh",
       "pass": true,
       "detail": ""
     },
