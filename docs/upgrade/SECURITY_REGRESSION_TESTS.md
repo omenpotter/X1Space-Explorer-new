@@ -1,6 +1,6 @@
 # Security Regression Tests
 
-Branch `claude/x1space-security-hardening`, implementation commit `3c3304535176b581755b94af930937dcf14b693b`, baseline `374f05fc8b0e392723c7d3801fa23c3294ff916a`.
+Branch `claude/x1space-security-hardening`. Baseline `374f05fc8b0e392723c7d3801fa23c3294ff916a`. Phase 1 commit `3c33045` (accepted at `ecfeb77`), phase 2 commit `dcb3dff` plus the final dependency/documentation commit.
 
 ## 0. What these tests do and do not prove
 
@@ -12,54 +12,48 @@ Branch `claude/x1space-security-hardening`, implementation commit `3c3304535176b
 
 The test doubles for Deno KV and the entity store behave as their documented contracts say. If Base44 behaves differently, the mocked tests can still pass. That gap is exactly what the runtime procedure closes.
 
-## 1. Results
+## 1. Results (phase 2, final)
 
-Run with `npx vitest run` (twice in a row, no flakes). Final state:
+Run with `npx vitest run` (repeated, no flakes). A deliberate-mutation check was also made: weakening the strict-backend test, the trailing-dot normalisation, and the sliding window each made tests fail, then the code was restored.
 
 | Suite | Tests | Result |
 |---|---|---|
 | `tests/backend/core.test.ts` | 21 | pass |
 | `tests/backend/handlers.test.ts` | 46 | pass |
 | `tests/backend/platform.test.ts` | 27 | pass |
-| **`tests/backend/security.test.ts` (new)** | **75** | **pass** |
+| `tests/backend/security.test.ts` (phase 1) | 75 | pass |
+| **`tests/backend/security2.test.ts` (phase 2)** | **174** | **pass** |
 | `tests/frontend/*` (5 files) | 55 | pass |
-| **Total** | **224** | **224 passed, 0 failed** (baseline: 149) |
+| **Total** | **398** | **398 passed, 0 failed** (baseline 149) |
 
-Existing tests were adapted only where a dependency field was renamed on purpose (`aiDailyQuota` became `aiQuotaConfig`, and `quotaStore` became `aiQuota`): the per-user burst test, the token-verification burst test, and `AI quota uses the persistent store`. The last one was rewritten to assert that the entity ledger is used when no Deno KV exists. No assertion about behaviour was weakened.
-
-| Gate | Baseline (`374f05f`) | This branch |
+| Gate | Baseline (`374f05f`) | Final |
 |---|---|---|
-| Lint (`npm run lint`) | 0 errors, 5 warnings | 0 errors, 5 warnings (same) |
-| Typecheck (`npm run typecheck`) | clean | clean |
-| Build (`npm run build`) | success | success |
-| `tsc --noEmit` over `base44/shared/*.ts` (extra check, non-strict) | not run | clean |
-| `npm audit` | 5 moderate, 0 high, 0 critical | **identical** (5 moderate, 0 high, 0 critical). No dependency was added or changed. |
-| Credential scan of `dist/` (key name, `api.x1.ninja`, `x1_...` key pattern) | none | none |
+| Lint | 0 errors, 5 warnings | 0 errors, 5 warnings (same) |
+| Typecheck | clean | clean |
+| Build | success | success; output **byte-identical** before and after the lockfile change |
+| `tsc --noEmit` over `base44/shared/*.ts` (extra, non-strict) | not run | clean |
+| `npm audit` | 5 moderate | **2 moderate** (react-router, react-router-dom: major upgrade held for approval) |
+| Credential scan of `dist/` (key name, `api.x1.ninja`, key pattern) | none | none |
 | Source maps in `dist/` | 0 | 0 |
+| Router smoke test (Playwright, 6 routes + 404, no page errors) | n/a | identical on react-router 6.30.6 and on the trialled 7.18.5 |
 
-## 2. New tests by area (all MOCKED unless marked)
+Existing tests were adapted only where a dependency field was renamed on purpose (`aiDailyQuota` to `aiQuotaConfig`, `quotaStore` to `aiQuota`) and where strict mode deliberately changed behaviour: the entity-store AI test now asserts that the ledger is **refused** by default and used only with `best_effort`. No assertion about public-endpoint behaviour was weakened.
 
-**Per-user AI quotas.** Stops at the limit with `429 daily_quota` and a `Retry-After` equal to the time to 00:00 UTC; the refused call never reaches the model; other users unaffected.
+## 2. Phase 2 tests by area (security2.test.ts; all MOCKED unless marked)
 
-**Global AI quotas.** `global=5` with 8 distinct users yields 5 calls then `503 ai_capacity_reached`; account farming (40 throwaway accounts) still yields 5 calls; per-IP limit stops one network, leaving capacity for another; unknown IP gets no shared bucket; refused requests refund earlier reservations; malformed, oversized and anonymous requests consume nothing; at most one model call per request.
+**R5 SSRF (136 cases).** 52 refused URL forms (trailing dots in several spellings, `localhost` variants, `.local`/`.internal`/`.lan`/`.corp`/`home.arpa`/reverse DNS, decimal/hex/octal/short IPv4, IPv6 loopback, IPv4-mapped IPv6, AWS IPv6 metadata, link-local, wildcard-DNS names, embedded-IP names, userinfo, non-443 ports, http/ftp/file/gopher/data, malformed labels); 15 legitimate URLs that must still pass (XDEX, GitHub raw, IPFS gateways incl. subdomain gateways, Arweave, CDNs, IDN, hash-like labels); 54 address classifications (private, reserved, mapped, NAT64, 6to4, Teredo, public); IPv6 parsing; the guarded fetch (public passes, private/loopback/link-local/metadata answers refused before any request, a single private answer in a mixed set refuses, resolution failure refuses, lexical refusals skip resolution, **every redirect hop is checked**); the image proxy end to end (normal and IPFS images, public redirects, redirects to nine kinds of internal target never requested, loops, SVG/HTML/mislabelled/oversized bodies). **A test asserts the resolver is dormant without a DNS API (as on Workers), documenting the residual exposure.**
 
-**Parallel AI requests.** 60 simultaneous requests with `global=10` reach the model exactly 10 times (atomic backend); parallel requests from one user cannot exceed the user limit; Deno KV compare-and-set never grants more than `limit` under heavy contention (it may refuse extra callers, which is the safe direction); the entity ledger grants exactly `limit` for 40 parallel reservations and deletes refused rows; the ledger fails closed when its write is not visible. **A test documents the known limitation:** the single-row read-modify-write counter can overshoot under contention, which is why AI does not use it.
+**R2 strict mode.** `AI_QUOTA_MODE` parsing (only exactly `best_effort` weakens anything); actor selected over entity; strict mode with only the entity store returns no backend; ledger only via the explicit opt-in; `reserveAiQuota` refuses the ledger, the single-row counter and a per-instance memory store in strict mode even if handed one; a strict refusal writes nothing and never reaches the model; an undeployed or failing actor fails closed.
 
-**Quota store failures.** No backend gives `503 ai_unavailable` and no model call; a backend that throws (while building or reserving) gives 503 with no internal detail leaked; a failing entity refuses instead of falling back to per-instance counting; `aiQuotaBackend(null)` is null; **ordinary endpoints (`getLPStats`, `getNetworkStats`, `getTokens`, `getValidators`) keep working while AI is unavailable.**
+**R2 atomic reservation through the actor.** 40 simultaneous requests over 8 function instances take exactly `global` units; refunds leave refused users at zero and the global counter exact (30 parallel, limit 5); a refunded unit is available again and a surplus refund never goes below zero; shard mapping; the actor is chosen over entity storage.
 
-**UTC daily reset.** Exhausted at 23:59:30; still refused at 23:59:59.999; allowed at 00:00:00.000. Expired ledger rows are swept and refused rows never accumulate.
+**QuotaCounter actor and CounterBook.** Exactly four callable methods; WebSocket connections refused; **only `identity.type === 'service'` is accepted, with anonymous, signed-in, missing, empty and look-alike identities all getting 403 on all four methods**; a refused call cannot change a counter; 60 simultaneous calls on a cold instance grant exactly the limit (including the first-load race); state survives hibernation; every argument validated with 400; UTC-day expiry and bounded storage; storage failure surfaces as an error and recovers; deadline values.
 
-**Configuration validation.** Defaults 10/30/500; valid values; clamping; 12 malformed inputs (`abc`, `-5`, `1e3`, `3.5`, `0x10`, `1,000`, empty, and so on) fall back to the default; all new names registered in `SECRET_NAMES`.
+**R2 single enforcement path (static).** The only `InvokeLLM` call in the backend is inside `aiEndpoint` and appears after `reserveAiQuota`; exactly two AI endpoints exist; no other billable integration is called from the backend; no frontend file calls a Core integration; only the two AI entries use the AI handlers and both obtain the client the same way.
 
-**Cache pollution, expiration and memory bounds.** Protected entries survive 5,000 unique-key lookups; look-alike keys are not protected; expiry, stale-on-error and request coalescing preserved; LRU order; image partition bounded to 32 MB; **handler-level: 700 unique mint lookups (detail, price, image) leave `market`, `token-snapshot` and `xdex-pools` cached and cause zero additional `getProgramAccounts` or pool-list calls.**
+**R8 governor v2.** Minute boundary (50 at 12:00:59.5 allow at most 1 more at 12:01:00.1; gradual return; no 60-second span above 60 over a 10-minute simulation with 3 attempts per second); a 429 seen by one instance pauses the others, and stays local without a shared store; header reconciliation (a lower provider limit lowers ours, a higher one never raises it, near-exhaustion pauses, malformed headers ignored, values recorded); backend chain (failed backend skipped for 60 s then retried, all failing means per-instance counting, 300 reservations over 5 instances through the actor grant exactly 50, Deno KV still honoured); monthly reset keyed by UTC cycle with the actor.
 
-**X1 Ninja redirect refusal and credentials.** Normal response; same-origin redirect; cross-origin redirect (a single request to `api.x1.ninja`, never the target); redirect on every call type; upstream 500 (one counted retry, safe error); missing credentials (no request); invalid credentials (401 not retried, 5-minute pause, resumes after); timeout; key never present in responses, response headers or console output.
-
-**X1 Ninja quota (R8).** Provider cycle (1st of month UTC, year wrap, custom reset day); defaults 450,000/50 with 50,000/10 reserve and clamping to the plan; 50 per minute then refusal then resume; refused minute does not spend monthly units; monthly limit exactly enforced then reset on the 1st; two instances sharing a store cannot jointly exceed the limit; 200 parallel reservations across 4 instances grant exactly 50; per-instance mode and degraded mode reported honestly; AI and Ninja counters use disjoint keys and exhausting one leaves the other untouched; each page and each retry counts; at most two attempts per call; concurrent identical calls share one upstream request; refusal before sending once exhausted; 429 with `Retry-After` (cooldown, nothing sent during it, resumes after); 503 with `Retry-After`; HTTP-date, missing and capped values; `X-RateLimit-Remaining: 0` pause and malformed-header tolerance; stale data flagged `stale` when a refresh is refused; `quota_exhausted` when nothing is cached while XDEX and chain data still work; history and trades report `quota_exhausted`; 100 requests in a minute make one pools request; entity counter persists across instances, resets after expiry, and cleans expired rows.
-
-**Existing public backend functions (R6).** Exactly the 16 expected function directories each export `entry(...)`; the three network functions answer anonymously with unchanged shapes; anonymous endpoints need no platform client, and only the AI functions require sign-in.
-
-**Secret protection.** Console output, responses and headers never contain the (fake) key; diagnostics log constant text only, once.
+**Ops.** Every function entry that pins the SDK pins 0.8.62 or later (actor calls require it).
 
 ## 3. Existing suites kept green
 
@@ -73,12 +67,12 @@ All 149 pre-existing tests still run: core helpers, every public handler, the pe
 - Built bundle scanned for key patterns: none.
 - Manually reviewed: logging calls print error names and fixed words only (`logError`, `entry`, `logOnce`).
 
-## 5. Not covered, and why
+## 5. Not covered, and why (actual Base44 runtime verification required)
 
-- Real Base44 behaviour of Deno KV, entities (`$lt`, `created_date` sort, read-after-write), `cf-connecting-ip`, `createClientFromRequest(...).asServiceRole` for anonymous requests, and the Base44 editor preview. See `BASE44_RUNTIME_VERIFICATION.md`.
-- Real X1 Ninja responses with the real key (never read; the response shape of token address fields is still the open item already noted in `ninja.ts`).
-- Real billable AI calls. The model is mocked everywhere.
-- Load and performance testing, and live SSRF probing (both out of scope by instruction).
+- **That the actor serializes calls as documented** (the premise of atomic AI and Ninja counters), that it deploys alongside the functions, and that a browser cannot call it successfully. Check 4.2 and A5 in `BASE44_RUNTIME_VERIFICATION.md`.
+- Real behaviour of `createClientFromRequest(...).asServiceRole.actors` for anonymous requests, `cf-connecting-ip`, Retry-After against the real provider, and the Base44 editor preview.
+- **Whether Workers can reach private addresses** (R5 residual) and whether a DNS API exists; code cannot test this.
+- Real X1 Ninja responses with the real key (never read), real billable AI calls (the model is mocked everywhere), load tests and live SSRF probes (out of scope by instruction).
 
 ## 6. How to re-run
 
