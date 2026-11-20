@@ -87,9 +87,62 @@ await check('robots.txt and sitemap.xml are served and consistent', async () => 
   const r = await (await fetch(APP + '/robots.txt')).text();
   const s = await (await fetch(APP + '/sitemap.xml')).text();
   expect(/Sitemap: https:\/\/x1space\.xyz\/sitemap\.xml/.test(r) && /Disallow: \/functions\//.test(r), 'robots.txt content');
-  const urls = [...s.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+  const locs = (xml) => [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+  // sitemap.xml is a sitemap index: follow each child sitemap (served from the same build).
+  expect(/<sitemapindex/.test(s), 'sitemap.xml is a sitemap index');
+  const children = locs(s);
+  expect(children.length === 2 && children.every((u) => u.startsWith('https://x1space.xyz/sitemap-')), 'child sitemaps');
+  const urls = [];
+  for (const c of children) urls.push(...locs(await (await fetch(APP + new URL(c).pathname)).text()));
   expect(urls.length >= 10 && urls.every((u) => u.startsWith('https://x1space.xyz/')), 'sitemap urls');
-  return `${urls.length} urls`;
+  return `${children.length} child sitemaps, ${urls.length} urls`;
+});
+const head = async (path, waitFor = 'h1') => {
+  const page = await ctx.newPage();
+  await page.goto(APP + path);
+  await page.waitForSelector(waitFor, { timeout: 25000 });
+  await page.waitForTimeout(300);
+  const m = await page.evaluate(() => ({
+    title: document.title,
+    description: document.querySelector('meta[name=description]')?.content || '',
+    ogUrl: document.querySelector('meta[property="og:url"]')?.content || '',
+    canonical: document.querySelector('link[rel=canonical]')?.href || null,
+    robots: document.querySelector('meta[name=robots]')?.content || '',
+    ld: [...document.querySelectorAll('script[type="application/ld+json"]')].map((x) => x.textContent),
+    text: document.querySelector('main')?.innerText || document.body.innerText,
+  }));
+  await page.close();
+  return m;
+};
+await check('Learn guide: crawlable content, TechArticle JSON-LD, description, og:url', async () => {
+  const m = await head('/learn');
+  expect(m.canonical === 'https://x1space.xyz/Learn', `canonical ${m.canonical}`);
+  expect(m.ogUrl === m.canonical, 'og:url matches canonical');
+  expect(m.description.length > 70, 'description');
+  for (const t of ['Solana Virtual Machine', 'Token-2022', 'XNT', 'X1 EcoChain']) expect(m.text.includes(t), `text includes ${t}`);
+  expect(m.ld.length === 1, `exactly one JSON-LD block, got ${m.ld.length}`);
+  const g = JSON.parse(m.ld[0])['@graph'];
+  expect(g.some((n) => n['@type'] === 'TechArticle'), 'TechArticle');
+  return m.title;
+});
+await check('every list page has a page-specific description and one JSON-LD graph', async () => {
+  const seen = new Set();
+  for (const p of ['/Dashboard', '/Blocks', '/Validators', '/TokenExplorer', '/LPExplorer']) {
+    const m = await head(p);
+    expect(m.description && !seen.has(m.description), `${p} description`);
+    seen.add(m.description);
+    expect(m.ld.length === 1, `${p}: ${m.ld.length} JSON-LD blocks`);
+    JSON.parse(m.ld[0]);
+  }
+  return `${seen.size} descriptions`;
+});
+await check('validator entity URL: valid id is self-canonical; malformed id is noindex', async () => {
+  const id = '7ZPky9oA5bDzCwpuBk9BshFX3BXNXzN9DjpnRcphNGtn';
+  const good = await head(`/validatordetail?id=${id}`);
+  expect(good.canonical === `https://x1space.xyz/ValidatorDetail?id=${id}`, `canonical ${good.canonical}`);
+  const bad = await head('/ValidatorDetail?id=<script>');
+  expect(bad.robots.startsWith('noindex'), `robots ${bad.robots}`);
+  return `${good.robots} / ${bad.robots}`;
 });
 await b.close();
 const failed = results.filter((r) => !r.pass);
