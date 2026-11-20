@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Bell, ExternalLink, Scale, SearchX, Server } from 'lucide-react';
+import { useEntityMeta, LEADER_SLOT_CHECKER } from '@/lib/pageMeta';
+import { Bell, ExternalLink, Scale, SearchX, Server, CalendarClock } from 'lucide-react';
 import PageHeader from '@/components/shell/PageHeader';
 import { ValidatorAvatar } from '@/components/ds/Avatar';
 import { CopyButton, Freshness, Meter, Panel, StatCard } from '@/components/ds/Primitives';
@@ -41,6 +42,15 @@ export default function ValidatorDetail() {
     if (!v) return null;
     return [...validators].sort((a, b) => b.activatedStake - a.activatedStake).findIndex((x) => x.votePubkey === v.votePubkey) + 1;
   }, [validators, v]);
+
+  // Search metadata: name the validator once loaded; never index a missing or failed record.
+  const displayName = v ? (v.hasIdentity && v.name ? String(v.name) : '').replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 60) : '';
+  useEntityMeta(
+    status === 'loading' ? null
+      : !v ? { robots: 'noindex, follow', title: 'Validator not found | X1 Space' }
+        : { title: `${displayName || `Validator ${v.votePubkey.slice(0, 4)}…${v.votePubkey.slice(-4)}`} — X1 Validator | X1 Space`,
+            description: `${displayName ? `${displayName}: ` : ''}X1 validator vote account ${v.votePubkey} — activated stake, commission, vote credits, skip rate and status on X1 mainnet.` },
+  );
 
   if (status === 'loading') {
     return (
@@ -107,6 +117,11 @@ export default function ValidatorDetail() {
             </Button>
             <Button asChild variant="outline" size="sm" className={outlineBtn}>
               <Link to={`${createPageUrl('ValidatorAlerts')}?validator=${encodeURIComponent(v.votePubkey)}`}><Bell className="mr-2 h-4 w-4" aria-hidden="true" />Set alert</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm" className={outlineBtn}>
+              <a href={`${LEADER_SLOT_CHECKER}/?validator=${encodeURIComponent(v.votePubkey)}`} target="_blank" rel="noopener noreferrer" title="Upcoming leader slots for this validator on X1 Leader Slot Checker">
+                <CalendarClock className="mr-2 h-4 w-4" aria-hidden="true" />Leader schedule<span className="sr-only"> (opens X1 Leader Slot Checker)</span>
+              </a>
             </Button>
           </>
         }

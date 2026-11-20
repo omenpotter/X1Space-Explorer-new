@@ -202,6 +202,12 @@ function Footer() {
           <span className="font-display font-semibold text-ink-soft">X1<span className="text-brand">Space</span></span>
           <span className="ml-2">© 2025–2026 · Independent explorer for X1 mainnet. Data from the X1 RPC, XDEX and on-chain accounts.</span>
         </p>
+        <nav aria-label="Guides and X1 ecosystem" className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <Link to={createPageUrl('Learn')} className="hover:text-ink">Explorer guide</Link>
+          <a href="https://x1-leader-slot-checker.vercel.app/" target="_blank" rel="noopener noreferrer" className="hover:text-ink">Leader schedules ↗</a>
+          <a href="https://x1nexus.xyz/" target="_blank" rel="noopener noreferrer" className="hover:text-ink">X1 Nexus launches ↗</a>
+          <span>An ARKBS Labs project</span>
+        </nav>
         <div className="flex items-center gap-1">
           <a href="https://x.com/rkbehelvi" target="_blank" rel="noopener noreferrer" aria-label="X1 Space on X" className="rounded p-2 text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink">
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
@@ -264,7 +270,7 @@ export default function AppShell({ children, currentPageName }) {
           </div>
         </div>
 
-        <main id="main" ref={mainRef} tabIndex={-1} className="mx-auto min-h-[70vh] max-w-[1600px] px-4 py-6 outline-none sm:px-6 sm:py-8">
+        <main id="main" ref={mainRef} tabIndex={-1} className="mx-auto min-h-[100svh] max-w-[1600px] px-4 py-6 outline-none sm:px-6 sm:py-8">
           {children}
         </main>
         <Footer />

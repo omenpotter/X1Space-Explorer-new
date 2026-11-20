@@ -121,7 +121,8 @@ export default function Dashboard() {
       <X1View />
 
       <section aria-label="Network statistics" className="mb-6">
-        {stats.status === 'loading' && <StatSkeleton count={8} />}
+        {/* Reserve the loaded grid's height so cards arriving do not shift the page (CLS). */}
+        {stats.status === 'loading' && <div className="min-h-[540px] lg:min-h-[259px]"><StatSkeleton count={8} /></div>}
         {stats.status === 'error' && (
           <div className="panel">
             <ErrorState title="Network statistics are unavailable" description={stats.error?.message} onRetry={stats.reload} />

@@ -1,0 +1,19 @@
+# X1 Space
+
+> Independent blockchain explorer and analytics for X1 mainnet — the SVM (Solana Virtual Machine) compatible layer-1 documented at docs.x1.xyz, native token XNT. Data is read live from X1 RPC, on-chain accounts and the XDEX API. Built by ARKBS Labs. Not affiliated with X1 EcoChain or BlockDAG X1.
+
+## Explorer
+- [Network overview](https://x1space.xyz/): live blocks, transactions, validators and network health
+- [Network Health](https://x1space.xyz/NetworkHealth): TPS, slot time, epoch progress, skip rate
+- [Blocks](https://x1space.xyz/Blocks) and [Transactions](https://x1space.xyz/Transactions)
+- [Validators](https://x1space.xyz/Validators): vote accounts, stake, commission, delinquency; profiles at /ValidatorDetail?id=<vote account>
+- [Tokens](https://x1space.xyz/TokenExplorer): SPL Token and Token-2022 mints, authorities, holders
+- [Liquidity Pools](https://x1space.xyz/LPExplorer): XDEX pools and swaps
+- [API Docs](https://x1space.xyz/ApiDocs): JSON endpoints
+
+## Guides
+- [How to use an X1 blockchain explorer](https://x1space.xyz/Learn): blocks, transactions, validators, verifying SPL/Token-2022 tokens, pools, RPC
+
+## Related
+- [X1 Leader Slot Checker](https://x1-leader-slot-checker.vercel.app/): validator leader schedules
+- [X1 documentation](https://docs.x1.xyz/)
