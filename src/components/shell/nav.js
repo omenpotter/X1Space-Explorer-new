@@ -1,5 +1,5 @@
 import {
-  Activity, ArrowLeftRight, BookOpen, BarChart3, Bell, Blocks as BlocksIcon, Calculator, Code2, Coins, Droplets, Fish, GitCompare,
+  Activity, ArrowLeftRight, BookMarked, BookOpen, BarChart3, Bell, Blocks as BlocksIcon, Calculator, Code2, Coins, Droplets, Fish, GitCompare,
   Globe2, LayoutDashboard, LayoutGrid, Search, ShieldCheck, Star, Trophy, Wallet, Waypoints,
 } from 'lucide-react';
 
@@ -48,6 +48,7 @@ export const NAV_GROUPS = [
       { page: 'CustomDashboard', label: 'Custom Dashboard', icon: LayoutGrid },
       { page: 'ApiDocs', label: 'API Docs', icon: Code2 },
       { page: 'Learn', label: 'Explorer Guide', icon: BookOpen },
+      { page: 'Glossary', label: 'Glossary', icon: BookMarked },
     ],
   },
 ];
