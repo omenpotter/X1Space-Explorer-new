@@ -10,9 +10,8 @@ import { dirname, join } from 'node:path';
 
 const ORIGIN = 'https://x1space.xyz';
 const PUBLIC = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
-const today = new Date().toISOString().slice(0, 10);
 // Keep in sync with indexable pages in src/lib/pageMeta.js (NOINDEX excluded).
-export const PAGES = ['', 'NetworkHealth', 'NetworkMap', 'Blocks', 'Transactions', 'Validators', 'Leaderboard', 'StakingCalculator', 'TokenExplorer', 'LPExplorer', 'WhaleWatcher', 'ApiDocs', 'Learn'];
+export const PAGES = ['', 'NetworkHealth', 'NetworkMap', 'Blocks', 'Transactions', 'Validators', 'Leaderboard', 'StakingCalculator', 'TokenExplorer', 'LPExplorer', 'WhaleWatcher', 'ApiDocs', 'Learn', 'About', 'Contact'];
 const PUBKEY = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
 export function eligibleValidators(voteAccounts) {
@@ -22,7 +21,8 @@ export function eligibleValidators(voteAccounts) {
     .map((v) => v.votePubkey);
 }
 
-const urlset = (urls) => `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${u}</loc><lastmod>${today}</lastmod></url>`).join('\n')}\n</urlset>\n`;
+// No lastmod is emitted because generation time does not describe changes to individual pages.
+const urlset = (urls) => `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${u}</loc></url>`).join('\n')}\n</urlset>\n`;
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const res = await fetch('https://rpc.mainnet.x1.xyz', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getVoteAccounts' }) });
@@ -31,6 +31,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const validators = eligibleValidators(result);
   writeFileSync(join(PUBLIC, 'sitemap-pages.xml'), urlset(PAGES.map((p) => `${ORIGIN}/${p}`)));
   writeFileSync(join(PUBLIC, 'sitemap-validators.xml'), urlset(validators.map((id) => `${ORIGIN}/ValidatorDetail?id=${id}`)));
-  writeFileSync(join(PUBLIC, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <sitemap><loc>${ORIGIN}/sitemap-pages.xml</loc><lastmod>${today}</lastmod></sitemap>\n  <sitemap><loc>${ORIGIN}/sitemap-validators.xml</loc><lastmod>${today}</lastmod></sitemap>\n</sitemapindex>\n`);
+  writeFileSync(join(PUBLIC, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <sitemap><loc>${ORIGIN}/sitemap-pages.xml</loc></sitemap>\n  <sitemap><loc>${ORIGIN}/sitemap-validators.xml</loc></sitemap>\n</sitemapindex>\n`);
   console.log(`pages: ${PAGES.length}, validators: ${validators.length} (of ${result.current.length} current, ${result.delinquent.length} delinquent)`);
 }

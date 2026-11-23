@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { Code, Loader2, Play } from 'lucide-react';
 import PageHeader from '@/components/shell/PageHeader';
@@ -330,12 +331,17 @@ export default function ApiDocs() {
               </div>
             </div>
           </Panel>
+          <p className="max-w-3xl text-sm text-ink-muted">
+            To verify explorer data directly, use <code>getTransaction</code> with a transaction signature, <code>getBlock</code> with its slot,
+            <code> getVoteAccounts</code> for validator vote accounts, or <code>getAccountInfo</code> with a token mint address. The{' '}
+            <Link to="/Learn" className="text-brand underline">Explorer Guide</Link> explains how to interpret those records.
+          </p>
           <RpcConsole />
         </section>
 
         <section aria-labelledby="site-heading" className="space-y-4">
           <div>
-            <h2 id="site-heading" className="font-display text-lg font-semibold text-ink">X1 Space data endpoints</h2>
+            <h2 id="site-heading" className="font-display text-lg font-semibold text-ink">X1 Space Explorer data endpoints</h2>
             <p className="mt-1 max-w-3xl text-sm text-ink-muted">Functions served by this site at /functions/&lt;name&gt;. They combine X1 RPC data with DEX market data and answer in JSON.</p>
           </div>
           <Panel title="Behaviour shared by every endpoint">

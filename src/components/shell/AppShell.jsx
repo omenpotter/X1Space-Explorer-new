@@ -202,10 +202,12 @@ function Footer() {
           <span className="font-display font-semibold text-ink-soft">X1<span className="text-brand">Space</span></span>
           <span className="ml-2">© 2025–2026 · Independent explorer for X1 mainnet. Data from the X1 RPC, XDEX and on-chain accounts.</span>
         </p>
-        <nav aria-label="Guides and X1 ecosystem" className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <nav aria-label="Guides, project and X1 ecosystem" className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <Link to={createPageUrl('Learn')} className="hover:text-ink">Explorer guide</Link>
           <a href="https://x1-leader-slot-checker.vercel.app/" target="_blank" rel="noopener noreferrer" className="hover:text-ink">Leader schedules ↗</a>
           <a href="https://x1nexus.xyz/" target="_blank" rel="noopener noreferrer" className="hover:text-ink">X1 Nexus launches ↗</a>
+          <Link to="/About" className="hover:text-ink">About</Link>
+          <Link to="/Contact" className="hover:text-ink">Contact</Link>
           <span>An ARKBS Labs project</span>
         </nav>
         <div className="flex items-center gap-1">

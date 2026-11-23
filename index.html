@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#080c12" />
-    <title>X1 Space — X1 Blockchain Explorer and Analytics</title>
-    <meta name="description" content="Explore X1 mainnet: live blocks and transactions, validators with on-chain identity, every token mint, liquidity pools and network health." />
+    <title>X1 Space Explorer | X1 Blockchain Explorer</title>
+    <meta name="description" content="X1 Space Explorer lets you look up X1 mainnet blocks, transactions, addresses, validators, and tokens, and track liquidity pools and network health." />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
 
     <!--
@@ -20,9 +20,17 @@
       content="default-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'; img-src 'self' data: blob: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https:; connect-src 'self' https: wss:; frame-src 'none'; worker-src 'self' blob:"
     />
 
-    <meta property="og:title" content="X1 Space — X1 Blockchain Explorer" />
-    <meta property="og:description" content="Live blocks, validators, tokens and network health for X1 mainnet." />
+    <meta property="og:title" content="X1 Space Explorer — X1 Mainnet Analytics" />
+    <meta property="og:description" content="Look up blocks, transactions, and token mints on X1 mainnet. Browse validator stake, XDEX liquidity pools, and network activity." />
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="X1 Space Explorer" />
+    <meta property="og:image" content="https://x1space.xyz/android-chrome-512x512.png" />
+    <meta property="og:image:alt" content="X1 Space Explorer logo" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="X1 Space Explorer — X1 Mainnet Analytics" />
+    <meta name="twitter:description" content="Look up blocks, transactions, and token mints on X1 mainnet. Browse validator stake, XDEX liquidity pools, and network activity." />
+    <meta name="twitter:image" content="https://x1space.xyz/android-chrome-512x512.png" />
+    <meta name="twitter:image:alt" content="X1 Space Explorer logo" />
 
     <link rel="icon" href="/favicon.ico" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
@@ -31,7 +39,10 @@
     <link rel="manifest" href="/site.webmanifest" />
   </head>
   <body>
-    <noscript>X1 Space needs JavaScript to load live blockchain data.</noscript>
+    <noscript>
+      <p>X1 Space Explorer is an independent explorer and analytics website for X1 mainnet, developed by ARKBS Labs. Live blockchain views require JavaScript.</p>
+      <p><a href="/Learn">Explorer Guide</a> · <a href="/ApiDocs">API Documentation</a> · <a href="/llms.txt">Text summary</a> · <a href="mailto:support@arkbslabs.com">Support</a></p>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

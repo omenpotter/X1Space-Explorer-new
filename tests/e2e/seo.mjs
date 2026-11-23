@@ -3,14 +3,17 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
-const APP = 'http://127.0.0.1:4173';
+const APP = process.env.APP_URL || 'http://127.0.0.1:4173';
 const results = [];
 const check = async (name, fn) => {
   try { const d = await fn(); results.push({ name, pass: true, detail: d || '' }); console.log(`PASS  ${name}${d ? '  — ' + d : ''}`); }
   catch (e) { results.push({ name, pass: false, detail: String(e.message).slice(0, 200) }); console.log(`FAIL  ${name}  — ${String(e.message).slice(0, 200)}`); }
 };
 const expect = (c, m) => { if (!c) throw new Error(m); };
-const b = await chromium.launch(process.env.HTTPS_PROXY ? { proxy: { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' } } : {});
+const b = await chromium.launch({
+  executablePath: process.env.CHROMIUM_PATH,
+  ...(process.env.HTTPS_PROXY ? { proxy: { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' } } : {}),
+});
 const ctx = await b.newContext();
 await ctx.route(/\/functions\//, (r) => r.fulfill({ status: 503, body: '{}' }));
 const meta = async (path) => {
@@ -40,12 +43,12 @@ await check('titles are unique across list pages', async () => {
 await check('lower-case and mixed-case routes keep their real title, canonical and robots (never the 404 title)', async () => {
   const seen = [];
   for (const [path, title, canonical] of [
-    ['/validators', 'Validators | X1 Space', 'https://x1space.xyz/Validators'],
-    ['/tokenexplorer', 'Tokens | X1 Space', 'https://x1space.xyz/TokenExplorer'],
-    ['/lpexplorer', 'Liquidity Pools | X1 Space', 'https://x1space.xyz/LPExplorer'],
-    ['/networkhealth', 'Network Statistics | X1 Space', 'https://x1space.xyz/NetworkHealth'],
-    ['/dashboard', 'X1 Space | X1 Blockchain Explorer', 'https://x1space.xyz/'],
-    ['/', 'X1 Space | X1 Blockchain Explorer', 'https://x1space.xyz/'],
+    ['/validators', 'Validators | X1 Space Explorer', 'https://x1space.xyz/Validators'],
+    ['/tokenexplorer', 'Tokens | X1 Space Explorer', 'https://x1space.xyz/TokenExplorer'],
+    ['/lpexplorer', 'Liquidity Pools | X1 Space Explorer', 'https://x1space.xyz/LPExplorer'],
+    ['/networkhealth', 'Network Statistics | X1 Space Explorer', 'https://x1space.xyz/NetworkHealth'],
+    ['/dashboard', 'X1 Space Explorer | X1 Blockchain Explorer', 'https://x1space.xyz/'],
+    ['/', 'X1 Space Explorer | X1 Blockchain Explorer', 'https://x1space.xyz/'],
   ]) {
     const m = await meta(path);
     expect(m.title === title, `${path}: title "${m.title}" expected "${title}"`);
@@ -58,7 +61,7 @@ await check('lower-case and mixed-case routes keep their real title, canonical a
 await check('genuine 404 pages (and only those) get the not-found title, no canonical, noindex,nofollow', async () => {
   for (const path of ['/NoSuchPage', '/a/b/c', '/validators/extra']) {
     const m = await meta(path);
-    expect(m.title === 'Page Not Found | X1 Space', `${path}: title "${m.title}"`);
+    expect(m.title === 'Page Not Found | X1 Space Explorer', `${path}: title "${m.title}"`);
     expect(m.canonical === null, `${path}: canonical ${m.canonical}`);
     expect(m.robots === 'noindex, nofollow', `${path}: robots ${m.robots}`);
   }
@@ -68,19 +71,19 @@ await check('title follows internal navigation, history and refresh', async () =
   await page.goto(APP + '/dashboard');
   await page.waitForSelector('h1', { timeout: 25000 });
   const t = () => page.title();
-  expect((await t()) === 'X1 Space | X1 Blockchain Explorer', 'dashboard title ' + (await t()));
+  expect((await t()) === 'X1 Space Explorer | X1 Blockchain Explorer', 'dashboard title ' + (await t()));
   await page.locator('a[href="/validators"]').first().click();
-  await page.waitForFunction(() => document.title === 'Validators | X1 Space', null, { timeout: 8000 });
+  await page.waitForFunction(() => document.title === 'Validators | X1 Space Explorer', null, { timeout: 8000 });
   await page.reload();
   await page.waitForSelector('h1', { timeout: 25000 });
-  expect((await t()) === 'Validators | X1 Space', 'after refresh ' + (await t()));
+  expect((await t()) === 'Validators | X1 Space Explorer', 'after refresh ' + (await t()));
   await page.goBack();
-  await page.waitForFunction(() => document.title === 'X1 Space | X1 Blockchain Explorer', null, { timeout: 8000 });
+  await page.waitForFunction(() => document.title === 'X1 Space Explorer | X1 Blockchain Explorer', null, { timeout: 8000 });
   await page.goto(APP + '/NoSuchPage');
   await page.waitForSelector('h1');
-  expect((await t()) === 'Page Not Found | X1 Space', '404 title ' + (await t()));
+  expect((await t()) === 'Page Not Found | X1 Space Explorer', '404 title ' + (await t()));
   await page.locator('a[href="/dashboard"]').first().click();
-  await page.waitForFunction(() => document.title === 'X1 Space | X1 Blockchain Explorer', null, { timeout: 8000 });
+  await page.waitForFunction(() => document.title === 'X1 Space Explorer | X1 Blockchain Explorer', null, { timeout: 8000 });
   await page.close();
 });
 await check('robots.txt and sitemap.xml are served and consistent', async () => {
@@ -144,8 +147,28 @@ await check('validator entity URL: valid id is self-canonical; malformed id is n
   expect(bad.robots.startsWith('noindex'), `robots ${bad.robots}`);
   return `${good.robots} / ${bad.robots}`;
 });
+await check('About and Contact are linked, self-canonical and responsive', async () => {
+  for (const width of [390, 1440]) {
+    const page = await ctx.newPage();
+    try {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(APP);
+      await page.locator('footer a[href="/About"]').click();
+      await page.getByRole('heading', { name: 'About X1 Space Explorer', level: 1 }).waitFor();
+      expect(await page.locator('link[rel=canonical]').getAttribute('href') === 'https://x1space.xyz/About', 'About canonical');
+      expect(await page.locator('main a[href="/Learn"]').count() === 1, 'About links to guide');
+      await page.locator('main a[href="/Contact"]').click();
+      await page.getByRole('heading', { name: 'Contact and support', level: 1 }).waitFor();
+      expect(await page.locator('link[rel=canonical]').getAttribute('href') === 'https://x1space.xyz/Contact', 'Contact canonical');
+      expect(await page.getByRole('link', { name: 'support@arkbslabs.com' }).getAttribute('href') === 'mailto:support@arkbslabs.com', 'support email');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Contact horizontal overflow');
+    } finally {
+      await page.close();
+    }
+  }
+});
 await b.close();
 const failed = results.filter((r) => !r.pass);
-fs.writeFileSync('docs/upgrade/seo-results.json', JSON.stringify({ ranAt: new Date().toISOString(), passed: results.length - failed.length, failed: failed.length, results }, null, 2));
+fs.writeFileSync(process.env.SEO_RESULTS_PATH || 'docs/upgrade/seo-results.json', JSON.stringify({ ranAt: new Date().toISOString(), passed: results.length - failed.length, failed: failed.length, results }, null, 2));
 console.log(`\n${results.length - failed.length} passed, ${failed.length} failed`);
 process.exit(failed.length ? 1 : 0);

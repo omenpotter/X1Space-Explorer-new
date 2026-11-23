@@ -20,6 +20,33 @@ describe('descriptions', () => {
   });
 });
 
+describe('public identity and trust pages', () => {
+  it('uses the approved homepage title and description before and after hydration', () => {
+    const home = metaFor('/');
+    const html = fs.readFileSync('index.html', 'utf8');
+    expect(home.title).toBe('X1 Space Explorer | X1 Blockchain Explorer');
+    expect(home.description).toBe('X1 Space Explorer lets you look up X1 mainnet blocks, transactions, addresses, validators, and tokens, and track liquidity pools and network health.');
+    expect(html).toContain(`<title>${home.title}</title>`);
+    expect(html).toContain(`name="description" content="${home.description}"`);
+    expect(html).not.toContain('rel="canonical"');
+  });
+
+  it.each(['About', 'Contact'])('indexes /%s with its own canonical and sitemap entry', (page) => {
+    const canonical = `https://x1space.xyz/${page}`;
+    expect(metaFor(`/${page.toLowerCase()}`, true, '?ref=example')).toMatchObject({ canonical, robots: 'index, follow' });
+    expect(fs.readFileSync('public/sitemap-pages.xml', 'utf8')).toContain(`<loc>${canonical}</loc>`);
+  });
+
+  it('identifies the website once and includes the visible support email on Contact', () => {
+    const home = structuredData(metaFor('/'))['@graph'];
+    expect(home.filter((node) => node['@type'] === 'WebApplication')).toHaveLength(1);
+    expect(home.find((node) => node['@type'] === 'WebSite').name).toBe('X1 Space Explorer');
+    const contact = structuredData(metaFor('/Contact'))['@graph'];
+    expect(contact.find((node) => node['@type'] === 'Organization').email).toBe('support@arkbslabs.com');
+    expect(structuredData(metaFor('/AddressLookup'))).toBeNull();
+  });
+});
+
 describe('validator entity URLs', () => {
   it('valid vote pubkey -> self-referencing canonical, indexable', () => {
     const m = metaFor('/validatordetail', true, `?id=${VOTE}`);
@@ -72,7 +99,7 @@ describe('sitemaps', () => {
       expect(NOINDEX.has(p), p).toBe(false);
     }
     const xml = fs.readFileSync('public/sitemap-pages.xml', 'utf8');
-    expect([...xml.matchAll(/<loc>(.*?)<\/loc>/g)].length).toBe(PAGES.length);
+    expect([...xml.matchAll(/<loc>(.*?)<\/loc>/g)].map(([, url]) => url)).toEqual(PAGES.map((page) => `https://x1space.xyz/${page}`));
     expect(fs.readFileSync('public/sitemap.xml', 'utf8')).toMatch(/<sitemapindex/);
   });
   it('validator eligibility excludes delinquent, unstaked and malformed accounts', () => {

@@ -5,7 +5,10 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
 export const SITE_ORIGIN = 'https://x1space.xyz';
-const SUFFIX = 'X1 Space';
+const SUFFIX = 'X1 Space Explorer';
+const SUPPORT_EMAIL = 'support@arkbslabs.com';
+const HOME_SOCIAL_TITLE = 'X1 Space Explorer — X1 Mainnet Analytics';
+const HOME_SOCIAL_DESCRIPTION = 'Look up blocks, transactions, and token mints on X1 mainnet. Browse validator stake, XDEX liquidity pools, and network activity.';
 
 /** Title per page name (the route path without the slash). */
 export const PAGE_TITLES = {
@@ -32,6 +35,8 @@ export const PAGE_TITLES = {
   CustomDashboard: 'Custom Dashboard',
   ApiDocs: 'API Documentation',
   Learn: 'X1 Explorer Guide',
+  About: 'About',
+  Contact: 'Contact and Support',
   Search: 'Search',
   OAuthConsent: 'Authorize',
 };
@@ -50,7 +55,7 @@ export const NOT_FOUND_TITLE = `Page Not Found | ${SUFFIX}`;
 
 /** One-sentence description per indexable page (meta description, og:description). */
 export const PAGE_DESCRIPTIONS = {
-  Dashboard: 'Explore X1 mainnet live: blocks, transactions, validators with on-chain identity, every token mint, liquidity pools and network health.',
+  Dashboard: 'X1 Space Explorer lets you look up X1 mainnet blocks, transactions, addresses, validators, and tokens, and track liquidity pools and network health.',
   NetworkHealth: 'Live X1 network statistics: TPS, slot time, epoch progress, block production, skip rate and RPC health, read from X1 mainnet.',
   NetworkMap: 'Map of X1 validator nodes by location, with stake share and delinquency, from gossip and vote account data.',
   Blocks: 'Latest X1 blocks with slot, block time, transaction count, fees and leader validator, updated live from X1 mainnet.',
@@ -61,8 +66,10 @@ export const PAGE_DESCRIPTIONS = {
   TokenExplorer: 'Browse X1 tokens — SPL and Token-2022 mints with supply, decimals, authorities, holders and on-chain metadata.',
   LPExplorer: 'X1 liquidity pools on XDEX: reserves, prices and recent swaps, read from on-chain pool accounts and the XDEX API.',
   WhaleWatcher: 'Large XNT and token transfers on X1 mainnet, detected from recent blocks.',
-  ApiDocs: 'X1 Space JSON API and X1 RPC reference: endpoints, parameters and example responses for X1 blockchain data.',
+  ApiDocs: 'X1 Space Explorer JSON API and X1 RPC reference: endpoints, parameters and example responses for X1 blockchain data.',
   Learn: 'How to use an X1 blockchain explorer: read blocks and transactions, check validators, verify SPL and Token-2022 tokens, and inspect liquidity pools.',
+  About: 'Learn how X1 Space Explorer reads X1 mainnet data and how ARKBS Labs presents blockchain records, validator identities, and token metadata.',
+  Contact: 'Contact ARKBS Labs for X1 Space Explorer support, missing or incorrect data, website bugs, and general or privacy enquiries.',
   ValidatorDetail: 'X1 validator profile: vote account, identity, stake, commission, vote credits and performance from X1 mainnet.',
 };
 
@@ -111,17 +118,18 @@ export function metaFor(pathname, known = true, search = '') {
 
 /** Schema.org graph for a page. Only types supported by the visible content. */
 export function structuredData(meta) {
-  if (!meta.page || !meta.canonical) return null;
+  if (!meta.page || !meta.canonical || meta.robots.startsWith('noindex')) return null;
   const site = { '@id': `${SITE_ORIGIN}/#website` };
   /** @type {Record<string, any>[]} */
   const graph = [
     {
       '@type': 'Organization', '@id': ORG_ID, name: 'ARKBS Labs',
-      description: 'Builder of X1 ecosystem tools: X1 Space, X1 Nexus, 404X1, Pump X1 and X1 Leader Slot Checker.',
+      description: 'Builder of X1 ecosystem tools: X1 Space Explorer, X1 Nexus, 404X1, Pump X1 and X1 Leader Slot Checker.',
       sameAs: ['https://x.com/rkbehelvi'],
+      ...(meta.page === 'Contact' ? { email: SUPPORT_EMAIL } : {}),
     },
     {
-      '@type': 'WebSite', '@id': `${SITE_ORIGIN}/#website`, url: `${SITE_ORIGIN}/`, name: 'X1 Space', alternateName: 'X1Space Explorer',
+      '@type': 'WebSite', '@id': `${SITE_ORIGIN}/#website`, url: `${SITE_ORIGIN}/`, name: SUFFIX, alternateName: 'X1 Space',
       description: 'Independent blockchain explorer and analytics for X1 mainnet.', inLanguage: 'en', publisher: { '@id': ORG_ID },
     },
     {
@@ -132,18 +140,18 @@ export function structuredData(meta) {
       '@type': meta.page === 'Learn' || meta.page === 'ApiDocs' ? 'TechArticle' : 'WebPage',
       '@id': `${meta.canonical}#webpage`, url: meta.canonical, name: meta.title, description: meta.description,
       isPartOf: site, about: { '@id': `${SITE_ORIGIN}/#x1` }, inLanguage: 'en',
-      ...(meta.page === 'Learn' ? { headline: 'How to use an X1 blockchain explorer', author: { '@id': ORG_ID }, publisher: { '@id': ORG_ID }, datePublished: '2026-11-20', dateModified: '2026-11-20' } : {}),
+      ...(meta.page === 'Learn' ? { headline: 'How to use an X1 blockchain explorer', author: { '@id': ORG_ID }, publisher: { '@id': ORG_ID }, datePublished: '2026-11-20', dateModified: '2026-11-23' } : {}),
     },
   ];
   if (meta.page === 'Dashboard') {
     graph.push({
-      '@type': 'WebApplication', '@id': `${SITE_ORIGIN}/#app`, name: 'X1 Space', url: `${SITE_ORIGIN}/`,
+      '@type': 'WebApplication', '@id': `${SITE_ORIGIN}/#app`, name: SUFFIX, url: `${SITE_ORIGIN}/`,
       applicationCategory: 'DeveloperApplication', operatingSystem: 'Any (web browser)', isAccessibleForFree: true,
       description: 'Blockchain explorer for X1 mainnet: blocks, transactions, validators, tokens, liquidity pools and network health.',
       publisher: { '@id': ORG_ID },
     });
   } else {
-    const crumbs = [{ name: 'X1 Space', item: `${SITE_ORIGIN}/` }];
+    const crumbs = [{ name: SUFFIX, item: `${SITE_ORIGIN}/` }];
     if (meta.page === 'ValidatorDetail') crumbs.push({ name: 'Validators', item: `${SITE_ORIGIN}/Validators` });
     crumbs.push({ name: meta.title.replace(` | ${SUFFIX}`, ''), item: meta.canonical });
     graph.push({ '@type': 'BreadcrumbList', itemListElement: crumbs.map((c, i) => ({ '@type': 'ListItem', position: i + 1, ...c })) });
@@ -170,20 +178,23 @@ export function applyMeta(meta) {
   const { title, canonical, robots, description } = meta;
   document.title = title;
   metaTag('name', 'robots', robots);
-  if (description) {
-    metaTag('name', 'description', description);
-    metaTag('property', 'og:description', description);
-    metaTag('name', 'twitter:description', description);
-  }
-  metaTag('property', 'og:title', title);
-  metaTag('name', 'twitter:title', title);
+  const home = meta.page === 'Dashboard';
+  const socialTitle = home ? HOME_SOCIAL_TITLE : title;
+  const socialDescription = home ? HOME_SOCIAL_DESCRIPTION : description || '';
+  metaTag('name', 'description', description || '');
+  metaTag('property', 'og:description', socialDescription);
+  metaTag('name', 'twitter:description', socialDescription);
+  metaTag('property', 'og:title', socialTitle);
+  metaTag('name', 'twitter:title', socialTitle);
   const existing = document.head.querySelector('link[rel="canonical"]');
   if (canonical) {
     setTag('link[rel="canonical"]', () => Object.assign(document.createElement('link'), { rel: 'canonical' }), (el) => { el.href = canonical; });
     metaTag('property', 'og:url', canonical);
     metaTag('name', 'twitter:url', canonical);
-  } else if (existing) {
-    existing.remove();
+  } else {
+    existing?.remove();
+    document.head.querySelector('meta[property="og:url"]')?.remove();
+    document.head.querySelector('meta[name="twitter:url"]')?.remove();
   }
   // Replace the platform-injected generic JSON-LD with an accurate per-page graph.
   document.head.querySelectorAll('script[type="application/ld+json"][data-seo-source="builder"]').forEach((n) => n.remove());

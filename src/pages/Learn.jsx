@@ -6,7 +6,8 @@ import { createPageUrl } from '@/utils';
 
 // Static, crawlable guide. Every X1-specific figure is either from docs.x1.xyz or was read from
 // X1 mainnet RPC on the date shown; nothing here depends on live data or a wallet.
-const UPDATED = '2026-11-20';
+const UPDATED = '2026-11-23';
+const RPC_CHECKED = '2026-11-20';
 
 const ext = (href, children) => (
   <a href={href} target="_blank" rel="noopener noreferrer" className="text-brand underline underline-offset-2 hover:text-brand-strong">{children}</a>
@@ -44,14 +45,14 @@ export default function Learn() {
         icon={BookOpen}
         title="How to use an X1 blockchain explorer"
         description="A practical guide to X1 mainnet data: blocks, transactions, validators, tokens and liquidity pools — and how to verify each one yourself."
-        meta={<p className="text-xs text-ink-faint">By ARKBS Labs · Updated <time dateTime={UPDATED}>20 November 2026</time></p>}
+        meta={<p className="text-xs text-ink-faint">By ARKBS Labs · Updated <time dateTime={UPDATED}>23 November 2026</time></p>}
       />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
         <Panel bodyClassName="p-5 sm:p-7" as="article" aria-label="X1 explorer guide">
           <p className="mb-6 rounded-lg border border-brand/25 bg-brand/5 p-4 text-sm text-ink">
-            <strong>In short:</strong> X1 is a high-performance layer-1 that is fully compatible with the Solana Virtual Machine (SVM). Its native token is XNT.
-            X1 Space reads X1 mainnet directly from RPC and on-chain accounts, so every block, transaction, validator and token you see can be
-            re-checked with the same public RPC calls.
+            <strong>In short:</strong> X1 Space Explorer helps you look up blocks, transactions, addresses, validators and token mints on X1 mainnet.
+            It reads blockchain records from X1 RPC and on-chain accounts and uses XDEX data for supported liquidity-pool views.
+            Use the {page('ApiDocs', 'API Documentation')} to check individual records with public RPC methods.
           </p>
 
           <Section id="what-is-x1" title="What is the X1 blockchain?">
@@ -73,7 +74,7 @@ export default function Learn() {
           <Section id="blocks" title="Reading X1 blocks">
             <p>
               Time on X1 is divided into <strong>slots</strong>. In each slot one validator, the <em>leader</em>, may produce a block. A slot without a block
-              is <em>skipped</em>, so block height is always lower than the slot number. The {page('Blocks', 'Blocks')} page lists recent blocks with their
+              is <em>skipped</em>. Slot numbers track scheduled positions, while block height counts blocks that were produced. The {page('Blocks', 'Blocks')} page lists recent blocks with their
               slot, time, transaction count, fees and leader.
             </p>
             <ul>
@@ -87,7 +88,7 @@ export default function Learn() {
           <Section id="transactions" title="Understanding X1 transactions">
             <p>
               An X1 transaction is an SVM transaction: a list of instructions, each calling a program with a set of accounts, signed by one or more keys.
-              It is identified by its first signature (a base58 string). On {page('Transactions', 'Transactions')} you can see recent ones; open any to read:
+              It is identified by its first signature (a base58 string). Paste that signature into {page('Search', 'explorer search')} to open the transaction directly. On {page('Transactions', 'Transactions')} you can see recent ones; open any to read:
             </p>
             <ul>
               <li><strong>Status</strong> — success or the program error that made it fail. Failed transactions still pay fees.</li>
@@ -110,7 +111,7 @@ export default function Learn() {
               {' '}{ext('https://x1-leader-slot-checker.vercel.app/', 'X1 Leader Slot Checker')}, a companion tool dedicated to X1 leader schedules;
               every validator page here links to it.
             </p>
-            <p>Validator names and icons come from self-published on-chain validator info and are not verified by X1 Space.</p>
+            <p>Validator profiles are keyed by vote account. Compare stake and commission against <Code>getVoteAccounts</Code>. Names and icons can be self-published on-chain and do not establish identity.</p>
           </Section>
 
           <Section id="tokens" title="Verifying an X1 token (SPL and Token-2022)">
@@ -163,7 +164,7 @@ export default function Learn() {
               <li>{ext('https://docs.x1.xyz/', 'Introduction to X1')}, {ext('https://docs.x1.xyz/technicals/zero-cost-votes', 'Zero-cost votes')}, {ext('https://docs.x1.xyz/technicals/dynamic-base-fees', 'Dynamic base fees')} — X1 documentation</li>
               <li>{ext('https://docs.x1.xyz/validating/validator-rewards', 'Validator rewards')} (inflation schedule) and {ext('https://docs.x1.xyz/build-on-x1/rpc-rate-limits', 'RPC rate limits')} — X1 documentation</li>
               <li>{ext('https://solana.com/docs/tokens/extensions', 'Token Extensions (Token-2022)')} and {ext('https://solana.com/docs/rpc', 'Solana JSON-RPC reference')}</li>
-              <li>Program accounts and epoch schedule read from X1 mainnet RPC on {UPDATED}</li>
+              <li>Program accounts and epoch schedule read from X1 mainnet RPC on {RPC_CHECKED}</li>
             </ul>
           </Section>
         </Panel>

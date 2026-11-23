@@ -117,18 +117,18 @@ describe('page meta (SEO)', () => {
     expect(metaFor('/home')).toEqual(metaFor('/'));
   });
   it('uses the approved page titles', () => {
-    expect(metaFor('/').title).toBe('X1 Space | X1 Blockchain Explorer');
-    expect(metaFor('/tokenexplorer').title).toBe('Tokens | X1 Space');
-    expect(metaFor('/validators').title).toBe('Validators | X1 Space');
-    expect(metaFor('/lpexplorer').title).toBe('Liquidity Pools | X1 Space');
-    expect(metaFor('/networkhealth').title).toBe('Network Statistics | X1 Space');
+    expect(metaFor('/').title).toBe('X1 Space Explorer | X1 Blockchain Explorer');
+    expect(metaFor('/tokenexplorer').title).toBe('Tokens | X1 Space Explorer');
+    expect(metaFor('/validators').title).toBe('Validators | X1 Space Explorer');
+    expect(metaFor('/lpexplorer').title).toBe('Liquidity Pools | X1 Space Explorer');
+    expect(metaFor('/networkhealth').title).toBe('Network Statistics | X1 Space Explorer');
     const titles = Object.keys(PAGE_TITLES).filter((n) => n !== 'Dashboard').map((n) => metaFor(`/${n}`).title);
     expect(new Set(titles).size).toBe(titles.length); // unique per page
   });
   it('reserves the not-found title and noindex for genuine 404s only', () => {
     for (const p of ['/Nope', '/validators/extra', '/a/b/c', '/Validatorss', '/functions/getTokens']) {
-      expect(metaFor(p)).toEqual({ title: 'Page Not Found | X1 Space', canonical: '', robots: 'noindex, nofollow' });
+      expect(metaFor(p)).toEqual({ title: 'Page Not Found | X1 Space Explorer', canonical: '', robots: 'noindex, nofollow' });
     }
-    expect(metaFor('/Validators', false).title).toBe('Page Not Found | X1 Space');
+    expect(metaFor('/Validators', false).title).toBe('Page Not Found | X1 Space Explorer');
   });
 });

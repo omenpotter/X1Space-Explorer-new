@@ -43,12 +43,12 @@ export default function ValidatorDetail() {
     return [...validators].sort((a, b) => b.activatedStake - a.activatedStake).findIndex((x) => x.votePubkey === v.votePubkey) + 1;
   }, [validators, v]);
 
-  // Search metadata: name the validator once loaded; never index a missing or failed record.
+  // Search metadata: name the validator once loaded; only mark a profile missing after a successful lookup.
   const displayName = v ? (v.hasIdentity && v.name ? String(v.name) : '').replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 60) : '';
   useEntityMeta(
-    status === 'loading' ? null
-      : !v ? { robots: 'noindex, follow', title: 'Validator not found | X1 Space' }
-        : { title: `${displayName || `Validator ${v.votePubkey.slice(0, 4)}…${v.votePubkey.slice(-4)}`} — X1 Validator | X1 Space`,
+    status !== 'ready' ? null
+      : !v ? { robots: 'noindex, follow', title: 'Validator not found | X1 Space Explorer' }
+        : { title: `${displayName || `Validator ${v.votePubkey.slice(0, 4)}…${v.votePubkey.slice(-4)}`} — X1 Validator | X1 Space Explorer`,
             description: `${displayName ? `${displayName}: ` : ''}X1 validator vote account ${v.votePubkey} — activated stake, commission, vote credits, skip rate and status on X1 mainnet.` },
   );
 
