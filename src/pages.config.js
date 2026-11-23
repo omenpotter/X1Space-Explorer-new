@@ -47,8 +47,12 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
+import About from './pages/About';
 import AddressLookup from './pages/AddressLookup';
 import ApiDocs from './pages/ApiDocs';
+import Contact from './pages/Contact';
+import Glossary from './pages/Glossary';
+import Learn from './pages/Learn';
 import BlockDetail from './pages/BlockDetail';
 import Blocks from './pages/Blocks';
 import CustomDashboard from './pages/CustomDashboard';
@@ -75,13 +79,17 @@ import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "About": About,
     "AddressLookup": AddressLookup,
     "ApiDocs": ApiDocs,
     "BlockDetail": BlockDetail,
     "Blocks": Blocks,
     "CustomDashboard": CustomDashboard,
+    "Contact": Contact,
     "Dashboard": Dashboard,
+    "Glossary": Glossary,
     "Home": Home,
+    "Learn": Learn,
     "LPExplorer": LPExplorer,
     "Leaderboard": Leaderboard,
     "NetworkHealth": NetworkHealth,
